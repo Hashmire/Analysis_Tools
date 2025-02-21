@@ -3,6 +3,117 @@ import pandas as pd
 from sys import exit
 from build_info import VERSION, TOOLNAME
 
+
+def convertCPEsQueryDataToHTML(culledcpeQueryDataDataset: pd.DataFrame) -> str:
+    
+    html = "<table>"
+    for key, value in culledcpeQueryDataDataset.items():
+        html += f"<tr><td>{key}</td><td>"
+        base_strings = value.get('base_strings', {})
+        html += "<table>"
+        for base_key, base_value in base_strings.items():
+            dep_true_count = base_value.get('depTrueCount', 0)
+            dep_false_count = base_value.get('depFalseCount', 0)
+            versions_found = base_value.get('versionsFound', 0)
+            html += f"""
+            <tr>
+                <td>{base_key}</td>
+                <td>
+                    <span class="badge badge-warning">depTrueCount: {dep_true_count}</span>
+                    <span class="badge badge-primary">depFalseCount: {dep_false_count}</span>
+                    <span class="badge badge-success">versionsFound: {versions_found}</span>
+                </td>
+            </tr>
+            """
+        html += "</table></td></tr>"
+    html += "</table></td></tr>"
+
+    return html.replace('\n', '')
+
+def convertRowDataToHTML(row) -> str:
+    has_cpe_array_content = bool(row['hasCPEArray'])
+
+    if row['platformFormatType'] in ['cveAffectsVersionRange', 'cveAffectsVersionSingle']:
+        html = f"""
+            <table>
+                <tr>
+                    <td>Data Source</td>
+                    <td>{row['dataSource']}</td>
+                </tr>
+                <tr>
+                    <td>Source ID</td>
+                    <td>{row['sourceID']}</td>
+                </tr>
+                <tr>
+                    <td>Source Role</td>
+                    <td>{row['sourceRole']}</td>
+                </tr>
+                <tr>
+                    <td>Vendor Value</td>
+                    <td>{row['rawPlatformData']['vendor']}</td>
+                </tr>
+                <tr>
+                    <td>Product Value</td>
+                    <td>{row['rawPlatformData']['product']}</td>
+                </tr>
+                <tr>       
+                    <td>Platform Format Type</td>
+                    <td>{row['platformFormatType']}</td>
+                </tr>
+                <tr>       
+                    <td>CPE Array Included</td>
+                    <td>{has_cpe_array_content}</td>
+                </tr>
+                <tr>        
+                    <td>Raw Platform Data</td>
+                    <td><details><summary>Review rawPlatformData</summary><code>{row['rawPlatformData']}</code></details></td>
+                </tr>
+            </table>
+        """
+    else:
+        html = f"""
+            <table>
+                <tr>
+                    <td>Data Source</td>
+                    <td>{row['dataSource']}</td>
+                </tr>
+                <tr>
+                    <td>Source ID</td>
+                    <td>{row['sourceID']}</td>
+                </tr>
+                <tr>
+                    <td>Source Role</td>
+                    <td>{row['sourceRole']}</td>
+                </tr>
+                <tr>       
+                    <td>Platform Format Type</td>
+                    <td>{row['platformFormatType']}</td>
+                </tr>
+                <tr>        
+                    <td>Raw Platform Data</td>
+                    <td><details><summary>Review rawPlatformData</summary><code>{row['rawPlatformData']}</code></details></td>
+                </tr>
+            </table>
+        """
+        
+    return html.replace('\n', '')
+
+
+# Update the primaryDataframe with the HTML content for each row
+def update_cpeQueryHTML_column(primaryDataframe: pd.DataFrame) -> pd.DataFrame:
+    for index, row in primaryDataframe.iterrows():
+        
+        # Populate the cpeQueryHTML column with HTML content based on the sortedCPEsQueryData column
+        sortedCPEsQueryData = row['sortedCPEsQueryData'] 
+        html_content = convertCPEsQueryDataToHTML(sortedCPEsQueryData)
+        primaryDataframe.at[index, 'cpeQueryHTML'] = html_content
+
+        # Populate the rowDataHTML column with the HTML content based on many columns
+        row_html_content = convertRowDataToHTML(row)
+        primaryDataframe.at[index, 'rowDataHTML'] = row_html_content
+
+    return primaryDataframe
+
 # Builds a simple html page with Bootstrap 3.4.1 CSS
 def buildHTMLPage(affectedHtml, targetCve, vdbIntelHtml = None):
     pageStartHTML = """

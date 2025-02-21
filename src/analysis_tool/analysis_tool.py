@@ -24,59 +24,62 @@ def setOperationMode(modeSetting):
         case "1":
             print(f"[INFO]  {TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
             print ("[INFO]  CPE Search Mode Selected!")
-            processActive = True
-            while processActive == True:
+            print ("[INFO]  This mode is unfinished! Please use Enrichment Assistance Mode for now.")
+            exit()
+
+            #processActive = True
+            #while processActive == True:
                 
                 # Get platform input from user (start with CLI, improve later)
 
-                allPlatforms = []
-                platformCount = 1
+            #    allPlatforms = []
+            #    platformCount = 1
                 
-                while True:
+            #    while True:
 
-                    def getPlatformData():
+            #        def getPlatformData():
                         
-                        print (f"[INFO]  Platform {platformCount} Vendor and Product attribute gathering...")
-                        vendorAttributeList = []
-                        productAttributeList = []
-                        while True:
-                            vendorAttributeInput = input("Enter a vendor name (or 'product' when complete):  ")
-                            if vendorAttributeInput == 'product':
-                                break
-                            vendorAttributeList.append(vendorAttributeInput)
+            #            print (f"[INFO]  Platform {platformCount} Vendor and Product attribute gathering...")
+            #            vendorAttributeList = []
+            #            productAttributeList = []
+            #            while True:
+            #                vendorAttributeInput = input("Enter a vendor name (or 'product' when complete):  ")
+            #                if vendorAttributeInput == 'product':
+            #                    break
+            #                vendorAttributeList.append(vendorAttributeInput)
 
-                        while True:
-                            productAttributeInput = input(f"Enter a product name (or 'done' to complete Platform {platformCount}):  ")
-                            if productAttributeInput == 'done':
-                                break
-                            productAttributeList.append(productAttributeInput)
+            #            while True:
+            #                productAttributeInput = input(f"Enter a product name (or 'done' to complete Platform {platformCount}):  ")
+            #                if productAttributeInput == 'done':
+            #                    break
+            #                productAttributeList.append(productAttributeInput)
                         
-                        allPlatforms.append([vendorAttributeList, productAttributeList])
-                        print (f"Platform {platformCount} Data:  \n {vendorAttributeList} \n {productAttributeList}")
+            #           allPlatforms.append([vendorAttributeList, productAttributeList])
+            #            print (f"Platform {platformCount} Data:  \n {vendorAttributeList} \n {productAttributeList}")
 
-                    # Start by getting the first platform attributes              
-                    getPlatformData()
-                    platformCount = (platformCount + 1) 
-                    # Offer ability to continue or execute search (scaling concerns due to API limitations)
-                    userDecision = input("Add another platform to search? (y/n)")
-                    if userDecision == 'n':
-                        break      
+            #        # Start by getting the first platform attributes              
+            #        getPlatformData()
+            #        platformCount = (platformCount + 1) 
+            #        # Offer ability to continue or execute search (scaling concerns due to API limitations)
+            #        userDecision = input("Add another platform to search? (y/n)")
+            #        if userDecision == 'n':
+            #            break      
 
                 # TODO process the list of lists and output to existing processes for ease of use
-                userCPESearchHtml = processData.userCPESearchData(allPlatforms)
+                #userCPESearchHtml = processData.userCPESearchData(allPlatforms)
 
                 # Put all the html together into a main console view
-                allConsoleHTML = generateHTML.buildHTMLPage(userCPESearchHtml)
+                #allConsoleHTML = generateHTML.buildHTMLPage(userCPESearchHtml)
             
                 # Create html file for CVE, write to it,
-                sub_directory = Path(f"{os.getcwd()}{os.sep}analysis_tool_files")
-                sub_directory.mkdir(parents=True, exist_ok=True)
-                filename = (targetCve + ".html")
-                filepath = sub_directory / filename
-                with filepath.open("w", encoding="utf-8") as fd:
-                    fd.write(allConsoleHTML)
+                #sub_directory = Path(f"{os.getcwd()}{os.sep}analysis_tool_files")
+                #sub_directory.mkdir(parents=True, exist_ok=True)
+                #filename = (targetCve + ".html")
+                #filepath = sub_directory / filename
+                #with filepath.open("w", encoding="utf-8") as fd:
+                #    fd.write(allConsoleHTML)
                 # Open html file in a new browser tab for viewing. Comment out for testing needs
-                webbrowser.open_new_tab(f"file:///{filepath}") 
+                #webbrowser.open_new_tab(f"file:///{filepath}") 
         # Enrichment Mode runs both the CVE List CPE Suggester and the VDB Intel Dashboard
         case "2":
             print(f"[INFO]  {TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
@@ -100,21 +103,33 @@ def setOperationMode(modeSetting):
                 nvdRecordData = gatherData.gatherNVDCVERecord(nvdAPIKey, targetCve)
 
                 # Process the vulnerability record data to extract useful platform related information
-                primaryDataframe = processData.processCVERecordData(primaryDataframe, cveRecordData)             
+                primaryDataframe = processData.processCVEData(primaryDataframe, cveRecordData)             
                 primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
                 
                 # Based on the collected information, use the NVD API to gather relevant CPE data
                 #  
-                # TODO Enhance Queries performed against /cpes/ API check versions/ranges
                 ## Added sorting of cpeQueryResults to ensure that the most relevant CPEs are presented first 
                 ## Version checks are not occurring as desired, need to revisit analyzeBaseStrings function
                 # TODO Add support for cpes array content on CVE records, mirror existing approach
                 # TODO Add support for cpeApplicability content on CVE and NVD records, mirror existing approach
                 primaryDataframe = processData.suggestCPEData(nvdAPIKey, primaryDataframe, 1)
-
+                           
                 # Do a rough convert of the dataframe to html for debug display
-                # TODO Enhance this process to also parse through the nested field data for cleaner display
-                affectedHtml2 = primaryDataframe.to_html()
+                primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe)
+                
+                primaryDataframe = primaryDataframe.drop('dataSource', axis=1, errors='ignore')
+                primaryDataframe = primaryDataframe.drop('sourceID', axis=1, errors='ignore')
+                primaryDataframe = primaryDataframe.drop('sourceRole', axis=1, errors='ignore')
+                primaryDataframe = primaryDataframe.drop('platformFormatType', axis=1, errors='ignore')
+                primaryDataframe = primaryDataframe.drop('hasCPEArray', axis=1, errors='ignore')
+                primaryDataframe = primaryDataframe.drop('rawPlatformData', axis=1, errors='ignore')
+                primaryDataframe = primaryDataframe.drop('cpeBaseStrings', axis=1, errors='ignore')
+                primaryDataframe = primaryDataframe.drop('cpeVersionChecks', axis=1, errors='ignore')
+                primaryDataframe = primaryDataframe.drop('rawCPEsQueryData', axis=1, errors='ignore')
+                primaryDataframe = primaryDataframe.drop('sortedCPEsQueryData', axis=1, errors='ignore')
+                primaryDataframe = primaryDataframe.drop('platformStatistics', axis=1, errors='ignore')
+                
+                affectedHtml2 = primaryDataframe.to_html(classes='table table-stripped', escape=False)
 
                 vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
                 # Put all the html together into a main console view
@@ -159,14 +174,39 @@ def setOperationMode(modeSetting):
                     
                     # Create Primary Datasets from external sources and derive useful fields for display
                     primaryDataframe = gatherData.gatherPrimaryDataframe()
-                    nvdSourceData = gatherData.gatherNVDSourceData(nvdAPIKey)
+
+                    # Gather CVE List Record and NVD Dataset Records for the target CVE
                     cveRecordData = gatherData.gatherCVEListRecord(targetCve)
                     nvdRecordData = gatherData.gatherNVDCVERecord(nvdAPIKey, targetCve)
-                    primaryDataframe = processData.processCVERecordData(primaryDataframe, cveRecordData)             
+
+                    # Process the vulnerability record data to extract useful platform related information
+                    primaryDataframe = processData.processCVEData(primaryDataframe, cveRecordData)             
                     primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
+                    
+                    # Based on the collected information, use the NVD API to gather relevant CPE data
+                    #  
+                    ## Added sorting of cpeQueryResults to ensure that the most relevant CPEs are presented first 
+                    ## Version checks are not occurring as desired, need to revisit analyzeBaseStrings function
+                    # TODO Add support for cpes array content on CVE records, mirror existing approach
+                    # TODO Add support for cpeApplicability content on CVE and NVD records, mirror existing approach
                     primaryDataframe = processData.suggestCPEData(nvdAPIKey, primaryDataframe, 1)
-                    # TODO Enhance Queries performed against /cpes/ API (check versions/ranges, cpes array)
-                    # TODO Sort statistics and results in meaningful way prior to presentation, TSW/THW "Platforms" awareness 
+
+                    # Consolidate the useful data from query results and processing to reduce noise
+                    
+
+                    # Do a rough convert of the dataframe to html for debug display
+                    # Generate HTML for the culledcpeQueryDataDataset to keep us sane
+                    primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe)
+                    # TODO Enhance this process to also parse through the nested field data for cleaner display
+                    primaryDataframe = primaryDataframe.drop('dataSource', axis=1, errors='ignore')
+                    primaryDataframe = primaryDataframe.drop('sourceID', axis=1, errors='ignore')
+                    primaryDataframe = primaryDataframe.drop('sourceRole', axis=1, errors='ignore')
+                    primaryDataframe = primaryDataframe.drop('platformFormatType', axis=1, errors='ignore')
+                    primaryDataframe = primaryDataframe.drop('hasCPEArray', axis=1, errors='ignore')
+                    primaryDataframe = primaryDataframe.drop('rawPlatformData', axis=1, errors='ignore')
+                    primaryDataframe = primaryDataframe.drop('cpeBaseStrings', axis=1, errors='ignore')
+                    primaryDataframe = primaryDataframe.drop('cpeVersionChecks', axis=1, errors='ignore')
+
 
                     affectedHtml2 = primaryDataframe.to_html()
                     vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)

@@ -12,13 +12,60 @@ import generateHTML
 
 ########################
 ###  Data Processing ###
-########################    
+########################   
+# 
+# 
+# Takes the processed data from the /cpes/ API and reduces to the top 10 base strings that appear most relevant to the platform entry
+## We have already sorted each set of results for each individual base string search, this function is responsible for aggregating
+## the results for each of those searches and performing additional sorting to determine the top 10 most relevant base strings. 
+def reduceToTop10(sortedDataset: pd.DataFrame) -> pd.DataFrame:
+    def trim_base_strings(data):
+        for key, value in data.items():
+            if isinstance(value, dict):
+                if 'base_strings' in value:
+                    base_strings = value['base_strings']
+                    trimmed_base_strings = dict(list(base_strings.items())[:10])
+                    value['base_strings'] = trimmed_base_strings
+                else:
+                    trim_base_strings(value)
+            elif isinstance(value, list):
+                for item in value:
+                    trim_base_strings(item)
 
+    # Iterate through each row in the DataFrame
+    for index, row in sortedDataset.iterrows():
+        sorted_cpes_query_data = row['sortedCPEsQueryData']
+        trim_base_strings(sorted_cpes_query_data)
+        sortedDataset.at[index, 'sortedCPEsQueryData'] = sorted_cpes_query_data
+
+    return sortedDataset
+
+def sort_cpes_query_data(rawDataset: pd.DataFrame):
+
+    tempDataset = rawDataset.copy()
+
+    for index, row in tempDataset.iterrows():
+        cpes_query_data = row['rawCPEsQueryData']
+        # Convert cpes_query_data to a list of dictionaries for sorting
+        cpes_query_data_list = [{key: value} for key, value in cpes_query_data.items()]
+        
+        # Sort the list of dictionaries using sort_broad_entries and sort_base_strings
+        sorted_cpes_query_data = sort_broad_entries(cpes_query_data_list)
+        sorted_cpes_query_data = sort_base_strings(sorted_cpes_query_data)
+        
+        # Convert the sorted list of dictionaries back to a dictionary
+        sorted_cpes_query_data_dict = {list(entry.keys())[0]: list(entry.values())[0] for entry in sorted_cpes_query_data}
+        
+        # Update the row with the sorted cpes_query_data
+        tempDataset.at[index, 'sortedCPEsQueryData'] = sorted_cpes_query_data_dict
+    
+    return tempDataset
+#
 def sort_broad_entries(data):
     # Sort the list of dictionaries based on 'matches_found' in descending order
     sorted_data = sorted(data, key=lambda x: list(x.values())[0].get('matches_found', 0), reverse=True)
     return sorted_data
-
+#
 def sort_base_strings(sorted_data):
     for entry in sorted_data:
         for broad_key, broad_value in entry.items():
@@ -26,7 +73,7 @@ def sort_base_strings(sorted_data):
                 broad_value['base_strings'].items(), 
                 key=lambda x: (
                     # Primary sort: Total items in versions_found
-                    len(x[1].get('versionsFound', [])),
+                    x[1].get('versionsFound', 0),
                     # Secondary sort: Total dependency count
                     x[1].get('depFalseCount', 0) + x[1].get('depTrueCount', 0),
                     # Tertiary sort: depFalseCount
@@ -37,73 +84,29 @@ def sort_base_strings(sorted_data):
             broad_value['base_strings'] = sorted_base_strings
     
     return sorted_data
-
-# Processes statistics based on /cpes/ response data
-def analyzeBaseStrings(rawDataSet, json_response: Dict[str, Any]) -> Dict[str, Any]:
-
-    # Initialize some data collection variables
-    base_strings = defaultdict(lambda: {"depTrueCount": 0, "depFalseCount": 0, "versionsFound": {}})
-    total_deprecated = 0
-    total_active = 0
-    
-    for product in json_response["products"]:
-        
-        cpe_name = product["cpe"]["cpeName"]
-        cpe_components = breakoutCPEComponents(cpe_name) 
-        cpe_version_value = cpe_components['version']
-        base_cpe_name = constructSearchString(cpe_components, "base")
-
-        # Populate version_found based on comparisons to query results
-        for check in rawDataSet.get('cpeVersionChecks', []):
-            versions_found = []
-            # Ensure check is a dictionary and has a 'version' key
-            if isinstance(check, dict) and 'version' in check:
-                # Compare the version value with cpe_version_value
-                if 'version' in check and check['version'] == cpe_version_value:
-                    versions_found.append({'version': check['version']})
-                if 'lessThan' in check and check['lessThan'] == cpe_version_value:
-                    versions_found.append({'lessThan': check['version']})
-                if 'lessThanOrEqual' in check and check['lessThanOrEqual'] == cpe_version_value:
-                    versions_found.append({'lessThanOrEqual': check['version']})
-            
-                base_strings[base_cpe_name]['versionsFound'] = versions_found
-        
-        if product["cpe"]["deprecated"]:
-            base_strings[base_cpe_name]["depTrueCount"] += 1
-            total_deprecated += 1
-        else:
-            base_strings[base_cpe_name]["depFalseCount"] += 1
-            total_active += 1
-
-    return {
-        "base_strings": base_strings,
-        "total_deprecated": total_deprecated,
-        "total_active": total_active,
-        "unique_base_count": len(base_strings)
-    }
 #
 # Processes the mapping of /cpes/ API results with the baseStrings derived from external data
-def replaceCPEStringsWithMappings(primaryDataframe: pd.DataFrame, final_sorted_result: List[Dict[str, Any]],):
+def populateRawCPEsQueryData(rawDataSet: pd.DataFrame, cpeQueryData: List[Dict[str, Any]],):
     # Create a copy of the dataframe to avoid modifying the original
-    updated_df = primaryDataframe.copy()
+    updated_df = rawDataSet.copy()
     
     # Iterate through each row in the DataFrame
     for index, row in updated_df.iterrows():
         # Initialize a dictionary to store the matched values
-        matched_values = {}
+        matchedValues = {}
         
         # Get the cpeBaseStrings for the current row
-        cpe_base_strings = row['cpeBaseStrings']
+        cpeBaseStringsList = row['cpeBaseStrings']
         
-        # Compare each cpeBaseString with the keys in final_sorted_result
-        for cpe_string in cpe_base_strings:
-            for entry in final_sorted_result:
+        # Compare each cpeBaseString with the keys 
+        for cpeBaseString in cpeBaseStringsList:
+            for entry in cpeQueryData:
                 for key, value in entry.items():
-                    if cpe_string == key:
-                        matched_values[key] = value
+                    if cpeBaseString == key:
+                        matchedValues[key] = value
         
-        # Replace the content of the cpeBaseStrings field with the dictionary of matched values
-        updated_df.at[index, 'cpesQueryData'] = matched_values
+        # Update the content of the 'rawCPEsQueryData' field with the dictionary of matched values
+        updated_df.at[index, 'rawCPEsQueryData'] = matchedValues
     
     return updated_df
 #
@@ -123,13 +126,13 @@ def deriveCPEMatchStringList(rawDataSet):
     return distinct_values_list
 #
 # Generates a list of CPE Base Strings and relevant contextual information about each
-def suggestCPEData(apiKey, rawDataSet, case):
+def suggestCPEData(apiKey, rawDataset, case):
     match case:
-        # Case 1 covers the original CVE List implementation
+        # Case 1 CVE List
         case 1:
 
-            # Iterate through each row in the DataFrame
-            for index, row in rawDataSet.iterrows():
+            # Iterate through each row in the DataFrame to generate cpeBaseString suggestions
+            for index, row in rawDataset.iterrows():
                 # Initialize lists to store the extracted values for the current row
                 cpe_values = []
                 # Initialize a list to store the dictionaries for each row
@@ -296,18 +299,20 @@ def suggestCPEData(apiKey, rawDataSet, case):
                         print ("[WARN]  cpeApplicability data identified! This is not currently supported! This means that any data related to cpeApplicability will not be processed or included in the results.")
 
                 # Add the cpeBaseStrings list to the cpeBaseStrings column of primaryDataframe
-                rawDataSet.at[index, 'cpeBaseStrings'] = cpeBaseStrings
-                uniqueStringList = deriveCPEMatchStringList(rawDataSet)
+                rawDataset.at[index, 'cpeBaseStrings'] = cpeBaseStrings
+                uniqueStringList = deriveCPEMatchStringList(rawDataset)
             
-            cpeQueryData = bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, uniqueStringList)
+            # Gather data from the NVD API based on a derived list of unique CPE Match Strings
+            rawCPEsQueryData = bulkQueryandProcessNVDCPEs(apiKey, rawDataset, uniqueStringList)
+           
+            ## Map the relevant, raw rawCPEsQueryData back into the rows of the primaryDataframe
+            mappedDataset = populateRawCPEsQueryData(rawDataset, rawCPEsQueryData)
 
-            # Sort the query data results so that the most relevant cpeBaseStrings are listed first.
-            sortedCPEQueryData = sort_broad_entries(cpeQueryData)
-            final_sorted_result = sort_base_strings(sortedCPEQueryData)
+            # Update the query data results so the most relevant cpeBaseStrings are listed first.
+            sortedDataset = sort_cpes_query_data(mappedDataset)
+            trimmedDataset = reduceToTop10(sortedDataset)
 
-            rawDataSet = replaceCPEStringsWithMappings(rawDataSet, cpeQueryData)
-
-            return rawDataSet
+            return trimmedDataset
         # Case 2 covers the CPE Search mode
         case 2:
             # Set up for consolidating CPE Suggestions
@@ -323,6 +328,7 @@ def suggestCPEData(apiKey, rawDataSet, case):
 def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> List[Dict[str, Any]]:
     bulk_results = []
     
+    print(f"[INFO]  Querying NVD /cpes/ API to get CPE Dictionary information...")
     for query_string in tqdm(query_list):
         # Skip empty queries
         if not query_string:
@@ -340,7 +346,7 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
             
             # Additional Stats if content is found
             if "products" in json_response:
-                base_string_stats = analyzeBaseStrings(rawDataSet, json_response)
+                base_string_stats = analyzeBaseStrings(rawDataSet['cpeVersionChecks'], json_response)
                 stats.update({
                     "unique_base_count": base_string_stats["unique_base_count"],
                     "base_strings": base_string_stats["base_strings"]
@@ -358,74 +364,145 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
     
     return bulk_results
 #
-# Determines affected section sub-type, populates dataSource, sourceID, sourceRole, and rawPlatformData
-def processCVEAffectedEntry(entry, source_id, source_role):
-    rows = []
-    # Case 1: version and status exist
-    if 'versions' in entry:
-        for version in entry['versions']:
-            if 'version' in version and 'status' in version and 'versionType' not in version:
-                singleVersionEntry = entry
-                singleVersionEntry['versions'] = version
+# Processes statistics based on /cpes/ response data
+def analyzeBaseStrings(cpeVersionChecks, json_response: Dict[str, Any]) -> Dict[str, Any]:
+    # Initialize some data collection variables
+    base_strings = defaultdict(lambda: {"depTrueCount": 0, "depFalseCount": 0, "versionsFound": 0, "versionsFoundContent": []})
+    total_deprecated = 0
+    total_active = 0
+    
+    for product in json_response["products"]:
+        cpe_name = product["cpe"]["cpeName"]
+        cpe_components = breakoutCPEComponents(cpe_name) 
+        cpe_version_value = cpe_components['version']
+        base_cpe_name = constructSearchString(cpe_components, "base")
+
+        # Populate versions_found based on comparisons to query results
+        versions_found = base_strings[base_cpe_name]['versionsFoundContent']
+        unique_versions = set()
+        
+        for check in cpeVersionChecks:
+            for item in check:
+                # Compare the version value with cpe_version_value
+                if 'version' in item and item['version'] == cpe_version_value:
+                    version_pair = ('version', item['version'])
+                    if version_pair not in unique_versions:
+                        versions_found.append({'version': cpe_name})
+                        unique_versions.add(version_pair)
+                if 'lessThan' in item and item['lessThan'] == cpe_version_value:
+                    less_than_pair = ('lessThan', item['lessThan'])
+                    if less_than_pair not in unique_versions:
+                        versions_found.append({'lessThan': cpe_name})
+                        unique_versions.add(less_than_pair)
+                if 'lessThanOrEqual' in item and item['lessThanOrEqual'] == cpe_version_value:
+                    less_than_or_equal_pair = ('lessThanOrEqual', item['lessThanOrEqual'])
+                    if less_than_or_equal_pair not in unique_versions:
+                        versions_found.append({'lessThanOrEqual': cpe_name})
+                        unique_versions.add(less_than_or_equal_pair)
+
+        # Update the base_strings dictionary
+        base_strings[base_cpe_name]['versionsFoundContent'] = versions_found
+        base_strings[base_cpe_name]['versionsFound'] = len(versions_found)
+        
+        # Update the deprecated and active counts
+        if product["cpe"]["deprecated"]:
+            base_strings[base_cpe_name]["depTrueCount"] += 1
+            total_deprecated += 1
+        else:
+            base_strings[base_cpe_name]["depFalseCount"] += 1
+            total_active += 1
+
+    return {
+        "base_strings": base_strings,
+        "total_deprecated": total_deprecated,
+        "total_active": total_active,
+        "unique_base_count": len(base_strings)
+    }
+
+# Consolidated function to process CVE record data and ensure a single row per affected array entry
+def processCVEData(df, cve_data):
+    def processCVEAffectedEntry(entry, source_id, source_role):
+        rows = []
+        # Case 1: version and status exist
+        if 'versions' in entry:
+            versions_info = []
+            for version in entry['versions']:
+                if 'version' in version and 'status' in version and 'versionType' not in version:
+                    versions_info.append({'version': version['version'], 'status': version['status']})
+            if versions_info:
                 rows.append({
                     'dataSource': 'CVEAPI',
                     'sourceID': source_id,
                     'sourceRole': source_role,
                     'platformFormatType': 'cveAffectsVersionSingle',
-                    'hasCPEArray': 'cpes' in entry,  # This will be True if entry contains cpes array, False otherwise
-                    'rawPlatformData': singleVersionEntry,
+                    'hasCPEArray': entry.get('cpes', []),  # Extract the 'cpes' array
+                    'rawPlatformData': entry,
                     'cpeBaseStrings': '',
-                    'cpeVersionChecks': {'version': version['version']},
-                    'cpesQueryData' : ''
+                    'cpeVersionChecks': versions_info,
+                    'rawCPEsQueryData': [],
+                    #'filteredCPEsQueryData': [],
+                    'sortedCPEsQueryData': [],
+                    'platformStatistics': []
                 })
-    
-    # Case 2: version and versionType exist
-    if 'versions' in entry:
-        for version in entry['versions']:
-            if 'version' in version and 'versionType' in version:
-                
+        
+        # Case 2: version and versionType exist
+        if 'versions' in entry:
+            versions_info = []
+            for version in entry['versions']:
+                if 'version' in version and 'versionType' in version:
+                    if 'lessThan' in version:
+                        versions_info.append({'version': version['version'], 'status': version['status']})
+                        versions_info.append({'lessThan': version['lessThan'], 'status': version['status']})
+                        rows.append({
+                            'dataSource': 'CVEAPI',
+                            'sourceID': source_id,
+                            'sourceRole': source_role,
+                            'platformFormatType': 'cveAffectsVersionRange',
+                            'hasCPEArray': entry.get('cpes', []),  # Extract the 'cpes' array
+                            'rawPlatformData': entry,
+                            'cpeBaseStrings': '',
+                            'cpeVersionChecks': versions_info,
+                            'rawCPEsQueryData': [],
+                            #'filteredCPEsQueryData': [],
+                            'sortedCPEsQueryData': [],
+                            'platformStatistics': []
+                        })
+                    elif 'lessThanOrEqual' in version:
+                        versions_info.append({'version': version['version'], 'status': version['status']})
+                        versions_info.append({'lessThanOrEqual': version['lessThanOrEqual'], 'status': version['status']})
+                        rows.append({
+                            'dataSource': 'CVEAPI',
+                            'sourceID': source_id,
+                            'sourceRole': source_role,
+                            'platformFormatType': 'cveAffectsVersionRange',
+                            'hasCPEArray': entry.get('cpes', []),  # Extract the 'cpes' array
+                            'rawPlatformData': entry,
+                            'cpeBaseStrings': '',
+                            'cpeVersionChecks': versions_info,
+                            'rawCPEsQueryData': [],
+                            #'filteredCPEsQueryData': [],
+                            'sortedCPEsQueryData': [],
+                            'platformStatistics': []
+                        })
+                    else:  # 'version' lone wolf:
+                        versions_info.append({'version': version['version'], 'status': version['status']})
+                        rows.append({
+                            'dataSource': 'CVEAPI',
+                            'sourceID': source_id,
+                            'sourceRole': source_role,
+                            'platformFormatType': 'cveAffectsVersionSingle',
+                            'hasCPEArray': entry.get('cpes', []),  # Extract the 'cpes' array
+                            'rawPlatformData': entry,
+                            'cpeBaseStrings': '',
+                            'cpeVersionChecks': versions_info,
+                            'rawCPEsQueryData': [],
+                            #'filteredCPEsQueryData': [],
+                            'sortedCPEsQueryData': [],
+                            'platformStatistics': []
+                        })
+        
+        return rows
 
-                if 'lessThan' in version:
-                    rows.append({
-                        'dataSource': 'CVEAPI',
-                        'sourceID': source_id,
-                        'sourceRole': source_role,
-                        'platformFormatType': 'cveAffectsVersionRange',
-                        'hasCPEArray': 'cpes' in entry,  # This will be True if entry contains cpes array, False otherwise
-                        'rawPlatformData': entry,                    
-                        'cpeBaseStrings': '',
-                        'cpeVersionChecks': {'version': version['version'], 'lessThan': version['lessThan']},
-                        'cpesQueryData' : ''
-                    })
-                elif 'lessThanOrEqual' in version:
-                    rows.append({
-                        'dataSource': 'CVEAPI',
-                        'sourceID': source_id,
-                        'sourceRole': source_role,
-                        'platformFormatType': 'cveAffectsVersionRange',
-                        'hasCPEArray': 'cpes' in entry,
-                        'rawPlatformData': entry,                    
-                        'cpeBaseStrings': '',
-                        'cpeVersionChecks': {'version': version['version'], 'lessThanOrEqual': version['lessThanOrEqual']},
-                        'cpesQueryData' : ''
-                    })
-                else: #'version' lone wolf:
-                    rows.append({
-                        'dataSource': 'CVEAPI',
-                        'sourceID': source_id,
-                        'sourceRole': source_role,
-                        'platformFormatType': 'cveAffectsVersionSingle',
-                        'hasCPEArray': 'cpes' in entry,
-                        'rawPlatformData': singleVersionEntry,
-                        'cpeBaseStrings': '',
-                        'cpeVersionChecks': {'version': version['version']},
-                        'cpesQueryData' : ''
-                })
-    
-    return rows
-#
-# Determines platformFormatType for data, populates dataSource, sourceID, sourceRole, and rawPlatformData
-def processCVERecordData(df, cve_data):
     if 'containers' in cve_data:
         rows = []
         for container in cve_data['containers'].get('cna', []):
@@ -433,14 +510,16 @@ def processCVERecordData(df, cve_data):
             
             # Process affected section
             if 'affected' in container:
-                print('CVE List CNA Affected Section Found...')
+                
                 affected_entries = cve_data['containers'].get('cna', {}).get('affected')
+                print('CVE List CNA Affected Section Found: ', len(affected_entries), ' entries...')
+                
                 for entry in affected_entries:
                     rows.extend(processCVEAffectedEntry(entry, source_id, 'CNA'))
             
             # Process cpeApplicability section
             if 'cpeApplicability' in container:
-                print('CVE List CNA CPE Applicability Section Found...')
+                print('CVE List CNA CPE Applicability Section Found: (Stored, but not leveraged yet)')
                 rows.append({
                     'dataSource': 'CVEAPI',
                     'sourceID': source_id,
@@ -448,8 +527,11 @@ def processCVERecordData(df, cve_data):
                     'platformFormatType': 'cpeApplicability',
                     'rawPlatformData': cve_data['containers'].get('cna', {}).get('cpeApplicability'),
                     'cpeBaseStrings': '',
-                    'cpeVersionChecks': '',
-                    'cpesQueryData' : ''
+                    'cpeVersionChecks': [],
+                    'rawCPEsQueryData': [],
+                    #'filteredCPEsQueryData': [],
+                    'sortedCPEsQueryData': [],
+                    'platformStatistics': []
                 })
 
         # Process ADP entries
@@ -458,14 +540,15 @@ def processCVERecordData(df, cve_data):
             
             # Process affected section
             if 'affected' in container:
-                print('CVE List ADP Affected Section Found...')
+                
                 affected_entries = container.get('affected', [])
+                print('CVE List ADP Affected Section Found: ', len(affected_entries), ' entries...')
                 for entry in affected_entries:
                     rows.extend(processCVEAffectedEntry(entry, source_id, 'ADP'))
             
             # Process cpeApplicability section
             if 'cpeApplicability' in container:
-                print('CVE List ADP CPE Applicability Section Found...')
+                print('CVE List ADP CPE Applicability Section Found: (Stored, but not leveraged yet)')
                 rows.append({
                     'dataSource': 'CVEAPI',
                     'sourceID': source_id,
@@ -473,14 +556,17 @@ def processCVERecordData(df, cve_data):
                     'platformFormatType': 'cpeApplicability',
                     'rawPlatformData': container.get('cpeApplicability'),
                     'cpeBaseStrings': '',
-                    'cpeVersionChecks': '',
-                    'cpesQueryData' : ''
+                    'cpeVersionChecks': [],
+                    'rawCPEsQueryData': [],
+                    #'filteredCPEsQueryData': [],
+                    'sortedCPEsQueryData': [],
+                    'platformStatistics': []
                 })
         if rows:
             df = pd.concat([df, pd.DataFrame(rows)], ignore_index=True)
     
     return df
-#
+
 # Determines platformFormatType for data, populates dataSource, sourceID, sourceRole, and rawPlatformData
 def processNVDRecordData(df, nvd_data):
     if 'vulnerabilities' in nvd_data:
@@ -493,12 +579,18 @@ def processNVDRecordData(df, nvd_data):
                     'platformFormatType': 'cpeApplicability',
                     'rawPlatformData': vuln['cve'].get('configurations', []),
                     'cpeBaseStrings': '',
-                    'cpesQueryData' : ''
+                    'cpeVersionChecks': [],
+                    'rawCPEsQueryData': [],
+                    #'filteredCPEsQueryData': [],
+                    'sortedCPEsQueryData': [],
+                    'platformStatistics': []
                 }
                 print('NVD Configurations Section Found...')
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     
     return df
+
+
 #########################
 
 ########################
@@ -577,11 +669,25 @@ def curateCPEAttributes(case, attributeString1, attributeString2):
         
         case 'vendorProduct':
             # Remove the vendor name if it is duplicated in the product
-            productVCullValue = (formatFor23CPE(attributeString1 + "_"))
-            if (productVCullValue) in attributeString2:
-                attributeString2 = attributeString2.replace((productVCullValue), "")
+            productVCullValue = formatFor23CPE(attributeString1 + "_")          
+            if productVCullValue in attributeString2:
+                attributeString2 = attributeString2.replace(productVCullValue, "")
+            
+            # General Trimming
+            if ("apache_") in attributeString2:
+                attributeString2 = attributeString2.replace("apache_", "")
 
-            return (attributeString2)
+            if ("_software") in attributeString2:
+                attributeString2 = attributeString2.replace("_software", "")
+
+            if ("_version") in attributeString2:
+                attributeString2 = attributeString2.replace("_version", "")
+
+            if ("_plugin") in attributeString2:
+                attributeString2 = attributeString2.replace("_plugin", "")
+
+            return attributeString2
+            
 # Build a CPE Search string from a cpeBreakout based on type desired
 def constructSearchString(rawBreakout, constructType):
     cpeStringResult = ""

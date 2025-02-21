@@ -35,7 +35,7 @@ def gatherNVDCVERecord(apiKey, targetCve):
         "apiKey": f"{apiKey}"
     }
    
-    max_retries = 10
+    max_retries = 100
     for attempt in range(max_retries):
         try:
             response = requests.get(url, headers=headers)
@@ -63,7 +63,7 @@ def gatherNVDSourceData(apiKey):
             "apiKey": f"{apiKey}"
         }
        
-        max_retries = 10
+        max_retries = 100
         for attempt in range(max_retries):
             try:
                 response = requests.get(url, headers=headers)
@@ -95,11 +95,12 @@ def gatherNVDSourceData(apiKey):
 # Query the NVD /cpes/ API for information Supported parameters:  cpeMatchString
 def gatherNVDCPEData(apiKey, case, query_string):
     match case:
+
         case 'cpeMatchString':
             nvd_cpes_url = "https://services.nvd.nist.gov/rest/json/cpes/2.0"
             headers = {"user-agent": f"{TOOLNAME}/{VERSION}", "apiKey": f"{apiKey}"}
            
-            max_retries = 10
+            max_retries = 100
             for attempt in range(max_retries):
                 try:
                     # Initial request to get total results
@@ -131,28 +132,40 @@ def gatherNVDCPEData(apiKey, case, query_string):
                    
                     # Collect remaining pages
                     while remaining_results > 0:
-                        # Add delay to respect rate limits (non-API Key)
-                        sleep(0.6)
-                       
-                        params = {
-                            "cpeMatchString": query_string,
-                            "startIndex": current_index
-                        }
-                       
-                        response = requests.get(nvd_cpes_url, params=params, headers=headers)
-                        response.raise_for_status()
-                        page_data = response.json()
-                       
-                        # Add products from this page to consolidated results
-                        if "products" in page_data:
-                            consolidated_data["products"].extend(page_data["products"])
-                       
-                        # Update counters
-                        results_this_page = len(page_data.get("products", []))
-                        remaining_results -= results_this_page
-                        current_index += results_per_page
-                       
-                        print(f"[INFO] Collected {len(consolidated_data['products'])} of {total_results} results...")
+                        for page_attempt in range(max_retries):
+                            try:
+                                # Add delay to respect rate limits (non-API Key)
+                                sleep(0.6)
+                               
+                                params = {
+                                    "cpeMatchString": query_string,
+                                    "startIndex": current_index
+                                }
+                               
+                                response = requests.get(nvd_cpes_url, params=params, headers=headers)
+                                response.raise_for_status()
+                                page_data = response.json()
+                               
+                                # Add products from this page to consolidated results
+                                if "products" in page_data:
+                                    consolidated_data["products"].extend(page_data["products"])
+                               
+                                # Update counters
+                                results_this_page = len(page_data.get("products", []))
+                                remaining_results -= results_this_page
+                                current_index += results_per_page
+                               
+                                print(f"[INFO] Collected {len(consolidated_data['products'])} of {total_results} results...")
+                                break
+                            except requests.exceptions.RequestException as e:
+                                print(f"\nError fetching page data (Attempt {page_attempt + 1}/{max_retries}): {e}")
+                                
+                                if page_attempt < max_retries - 1:
+                                    print(f"Waiting 6 seconds before retry...")
+                                    sleep(6)
+                                else:
+                                    print("Max retries reached for page data. Giving up.")
+                                    return None
                    
                     # Update final counts
                     consolidated_data["startIndex"] = 0
@@ -176,15 +189,18 @@ def gatherNVDCPEData(apiKey, case, query_string):
 # Creates the primary dataframe to be referenced and modified as needed throughout the process
 def gatherPrimaryDataframe():
     data = {
-        'dataSource': [],
-        'sourceID': [],
-        'sourceRole': [],
-        'platformFormatType': [], 
-        'hasCPEArray': [],
+        'rowDataHTML': '',
+        'dataSource': '',
+        'sourceID': '',
+        'sourceRole': '',
+        'platformFormatType': '', 
+        'hasCPEArray': '',
         'rawPlatformData': [],
         'cpeBaseStrings': [],
         'cpeVersionChecks': [],
-        'cpesQueryData': []
+        'rawCPEsQueryData': [],
+        'sortedCPEsQueryData': [],
+        'cpeQueryHTML': ''
         }
 
     # Create DataFrame
