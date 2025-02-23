@@ -18,27 +18,16 @@ import generateHTML
 # Takes the processed data from the /cpes/ API and reduces to the top 10 base strings that appear most relevant to the platform entry
 ## We have already sorted each set of results for each individual base string search, this function is responsible for aggregating
 ## the results for each of those searches and performing additional sorting to determine the top 10 most relevant base strings. 
-def reduceToTop10(sortedDataset: pd.DataFrame) -> pd.DataFrame:
-    def trim_base_strings(data):
-        for key, value in data.items():
-            if isinstance(value, dict):
-                if 'base_strings' in value:
-                    base_strings = value['base_strings']
-                    trimmed_base_strings = dict(list(base_strings.items())[:10])
-                    value['base_strings'] = trimmed_base_strings
-                else:
-                    trim_base_strings(value)
-            elif isinstance(value, list):
-                for item in value:
-                    trim_base_strings(item)
 
-    # Iterate through each row in the DataFrame
-    for index, row in sortedDataset.iterrows():
-        sorted_cpes_query_data = row['sortedCPEsQueryData']
-        trim_base_strings(sorted_cpes_query_data)
-        sortedDataset.at[index, 'sortedCPEsQueryData'] = sorted_cpes_query_data
-
-    return sortedDataset
+def getNVDSourceDataByUUID(uuid: str, nvdSourceData: pd.DataFrame) -> dict:
+    for index, row in nvdSourceData.iterrows():
+        if uuid in row.get('sourceIdentifiers', []):
+            return {
+                "name": row.get('name'),
+                "contactEmail": row.get('contactEmail'),
+                "sourceIdentifiers": row.get('sourceIdentifiers')
+            }
+    return {}
 
 def sort_cpes_query_data(rawDataset: pd.DataFrame):
 
@@ -51,7 +40,7 @@ def sort_cpes_query_data(rawDataset: pd.DataFrame):
         
         # Sort the list of dictionaries using sort_broad_entries and sort_base_strings
         sorted_cpes_query_data = sort_broad_entries(cpes_query_data_list)
-        sorted_cpes_query_data = sort_base_strings(sorted_cpes_query_data)
+        #sorted_cpes_query_data = sort_base_strings(sorted_cpes_query_data)
         
         # Convert the sorted list of dictionaries back to a dictionary
         sorted_cpes_query_data_dict = {list(entry.keys())[0]: list(entry.values())[0] for entry in sorted_cpes_query_data}
@@ -65,26 +54,66 @@ def sort_broad_entries(data):
     # Sort the list of dictionaries based on 'matches_found' in descending order
     sorted_data = sorted(data, key=lambda x: list(x.values())[0].get('matches_found', 0), reverse=True)
     return sorted_data
+#                    ,
+def sort_base_strings(unique_base_strings: dict) -> dict:
+    sorted_base_strings = dict(sorted(
+        unique_base_strings.items(), 
+        key=lambda x: (
+            # Primary sort: depFalseCount (items with depFalseCount of 0 are moved to the bottom)
+            x[1].get('depFalseCount', 0) == 0,
+            # Secondary sort: searchCount
+            -x[1].get('searchCount', 0),
+            # Tertiary sort: Total items in versions_found
+            -x[1].get('versionsFound', 0),
+            # Quaternary sort: depTrueCount + depFalseCount
+            -(x[1].get('depFalseCount', 0) + x[1].get('depTrueCount', 0)),
+            # Quinary sort: depFalseCount
+            -x[1].get('depFalseCount', 0)
+        )
+    ))
+    return sorted_base_strings
 #
-def sort_base_strings(sorted_data):
-    for entry in sorted_data:
-        for broad_key, broad_value in entry.items():
-            sorted_base_strings = dict(sorted(
-                broad_value['base_strings'].items(), 
-                key=lambda x: (
-                    # Primary sort: Total items in versions_found
-                    x[1].get('versionsFound', 0),
-                    # Secondary sort: Total dependency count
-                    x[1].get('depFalseCount', 0) + x[1].get('depTrueCount', 0),
-                    # Tertiary sort: depFalseCount
-                    x[1].get('depFalseCount', 0)
-                ),
-                reverse=True
-            ))
-            broad_value['base_strings'] = sorted_base_strings
+def reduceToTop10(sortedDataset: pd.DataFrame) -> pd.DataFrame:
     
-    return sorted_data
-#
+    # Consolidate the base strings for each search together, but keep track of their origin
+    def consolidateBaseStrings(data, unique_base_strings, duplicate_keys):
+        for key, value in data.items():
+            if isinstance(value, dict):
+                cpe_breakout = breakoutCPEComponents(key)
+                recorded_keys = {k: v for k, v in cpe_breakout.items() if v != '*' and k not in ['cpePrefix', 'cpeVersion']}
+                recorded_keys_str = "".join(recorded_keys.keys())
+                if 'base_strings' in value:
+                    base_strings = value['base_strings']
+                    for base_key, base_value in base_strings.items():
+                        if base_key in unique_base_strings:
+                            duplicate_keys[base_key] = duplicate_keys.get(base_key, 1) + 1
+                            unique_base_strings[base_key]['searchCount'] += 1
+                            unique_base_strings[base_key]['searchSource' + recorded_keys_str] = key
+                        else:
+                            unique_base_strings[base_key] = base_value
+                            unique_base_strings[base_key]['searchCount'] = 1
+                            unique_base_strings[base_key]['searchSource' + recorded_keys_str] = key
+                else:
+                    consolidateBaseStrings(value, unique_base_strings, duplicate_keys)
+            elif isinstance(value, list):
+                for item in value:
+                    consolidateBaseStrings(item, unique_base_strings, duplicate_keys)
+
+    # Iterate through each row in the DataFrame to consolidate, enhance and sort the base strings
+    for index, row in sortedDataset.iterrows():
+        unique_base_strings = {}  # Reset for each row
+        duplicate_keys = {}  # Reset for each row
+        sorted_cpes_query_data = row['sortedCPEsQueryData']
+        consolidateBaseStrings(sorted_cpes_query_data, unique_base_strings, duplicate_keys)
+        sorted_base_strings = sort_base_strings(unique_base_strings)
+
+        # Reduce to top 10 entries
+        top_10_base_strings = dict(list(sorted_base_strings.items())[:10])
+
+        sortedDataset.at[index, 'sortedCPEsQueryData'] = top_10_base_strings
+
+    return sortedDataset
+    
 # Processes the mapping of /cpes/ API results with the baseStrings derived from external data
 def populateRawCPEsQueryData(rawDataSet: pd.DataFrame, cpeQueryData: List[Dict[str, Any]],):
     # Create a copy of the dataframe to avoid modifying the original

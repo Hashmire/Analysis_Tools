@@ -3,104 +3,178 @@ import pandas as pd
 from sys import exit
 from build_info import VERSION, TOOLNAME
 
+# Import Analysis Tool 
+import processData
 
-def convertCPEsQueryDataToHTML(culledcpeQueryDataDataset: pd.DataFrame) -> str:
+
+def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame) -> str:
+    has_cpe_array_content = bool(row.get('hasCPEArray', False))
+
+    html = "<table class=\"table table-hover\">"
     
-    html = "<table>"
-    for key, value in culledcpeQueryDataDataset.items():
-        html += f"<tr><td>{key}</td><td>"
-        base_strings = value.get('base_strings', {})
-        html += "<table>"
-        for base_key, base_value in base_strings.items():
-            dep_true_count = base_value.get('depTrueCount', 0)
-            dep_false_count = base_value.get('depFalseCount', 0)
-            versions_found = base_value.get('versionsFound', 0)
-            html += f"""
-            <tr>
-                <td>{base_key}</td>
-                <td>
-                    <span class="badge badge-warning">depTrueCount: {dep_true_count}</span>
-                    <span class="badge badge-primary">depFalseCount: {dep_false_count}</span>
-                    <span class="badge badge-success">versionsFound: {versions_found}</span>
-                </td>
-            </tr>
-            """
-        html += "</table></td></tr>"
-    html += "</table></td></tr>"
-
-    return html.replace('\n', '')
-
-def convertRowDataToHTML(row) -> str:
-    has_cpe_array_content = bool(row['hasCPEArray'])
-
-    if row['platformFormatType'] in ['cveAffectsVersionRange', 'cveAffectsVersionSingle']:
-        html = f"""
-            <table>
+    # Define the keys and their labels, ensuring rawPlatformData is last
+    keys_and_labels = [
+        ('dataSource', 'Data Source'),
+        ('sourceID', 'Source ID'),
+        ('sourceRole', 'Source Role'),
+        ('platformFormatType', 'Platform Format Type'),
+        ('rawPlatformData', 'Raw Platform Data')
+    ]
+    
+    for key, label in keys_and_labels:
+        if key in row:
+            value = row[key]
+            if key == 'rawPlatformData':
+                if 'vendor' in value:
+                    html += f"""
+                    <tr>
+                        <td>Vendor Value</td>
+                        <td>{value['vendor']}</td>
+                    </tr>
+                    """
+                if 'product' in value:
+                    html += f"""
+                    <tr>
+                        <td>Product Value</td>
+                        <td>{value['product']}</td>
+                    </tr>
+                    """
+                if 'repo' in value:
+                    html += f"""
+                    <tr>
+                        <td>Repo</td>
+                        <td>{value['repo']}</td>
+                    </tr>
+                    """
+                if 'collectionUrl' in value:
+                    html += f"""
+                    <tr>
+                        <td>Collection URL</td>
+                        <td>{value['collectionUrl']}</td>
+                    </tr>
+                    """
+                if 'packageName' in value:
+                    html += f"""
+                    <tr>
+                        <td>Package Name</td>
+                        <td>{value['packageName']}</td>
+                    </tr>
+                    """
+                if 'platforms' in value:
+                    html += f"""
+                    <tr>
+                        <td>Platforms</td>
+                        <td>{value['platforms']}</td>
+                    </tr>
+                    """
+                if 'modules' in value:
+                    html += f"""
+                    <tr>
+                        <td>Modules</td>
+                        <td>{value['modules']}</td>
+                    </tr>
+                    """
+                if 'programFiles' in value:
+                    html += f"""
+                    <tr>
+                        <td>Program Files</td>
+                        <td>{value['programFiles']}</td>
+                    </tr>
+                    """
+                if 'programRoutines' in value:
+                    html += f"""
+                    <tr>
+                        <td>Program Routines</td>
+                        <td>{value['programRoutines']}</td>
+                    </tr>
+                    """
+                html += f"""
                 <tr>
-                    <td>Data Source</td>
-                    <td>{row['dataSource']}</td>
+                    <td>{label}</td>
+                    <td><details><summary>Review rawPlatformData</summary><code>{value}</code></details></td>
                 </tr>
+                """
+            elif key == 'platformFormatType':
+                if has_cpe_array_content:
+                    tooltip_content = "CPE Array Included"
+                    value += f" <span title=\"{tooltip_content}\">  &#10003;</span>"
+                html += f"""
                 <tr>
-                    <td>Source ID</td>
-                    <td>{row['sourceID']}</td>
+                    <td>{label}</td>
+                    <td>{value}</td>
                 </tr>
+                """
+            elif key == 'sourceID':
+                source_info = processData.getNVDSourceDataByUUID(value, nvdSourceData)
+                if source_info:
+                    name = source_info.get('name', 'N/A')
+                    contact_email = source_info.get('contactEmail', 'N/A')
+                    source_identifiers = source_info.get('sourceIdentifiers', [])
+                    tooltip_content = f"Contact Email: {contact_email} &#013;Source Identifiers: {', '.join(source_identifiers)}"
+                    value = f"<span title=\"{tooltip_content}\">{name}</span>"
+                html += f"""
                 <tr>
-                    <td>Source Role</td>
-                    <td>{row['sourceRole']}</td>
+                    <td>{label}</td>
+                    <td>{value}</td>
                 </tr>
+                """
+            else:
+                html += f"""
                 <tr>
-                    <td>Vendor Value</td>
-                    <td>{row['rawPlatformData']['vendor']}</td>
+                    <td>{label}</td>
+                    <td>{value}</td>
                 </tr>
-                <tr>
-                    <td>Product Value</td>
-                    <td>{row['rawPlatformData']['product']}</td>
-                </tr>
-                <tr>       
-                    <td>Platform Format Type</td>
-                    <td>{row['platformFormatType']}</td>
-                </tr>
-                <tr>       
-                    <td>CPE Array Included</td>
-                    <td>{has_cpe_array_content}</td>
-                </tr>
-                <tr>        
-                    <td>Raw Platform Data</td>
-                    <td><details><summary>Review rawPlatformData</summary><code>{row['rawPlatformData']}</code></details></td>
-                </tr>
-            </table>
-        """
-    else:
-        html = f"""
-            <table>
-                <tr>
-                    <td>Data Source</td>
-                    <td>{row['dataSource']}</td>
-                </tr>
-                <tr>
-                    <td>Source ID</td>
-                    <td>{row['sourceID']}</td>
-                </tr>
-                <tr>
-                    <td>Source Role</td>
-                    <td>{row['sourceRole']}</td>
-                </tr>
-                <tr>       
-                    <td>Platform Format Type</td>
-                    <td>{row['platformFormatType']}</td>
-                </tr>
-                <tr>        
-                    <td>Raw Platform Data</td>
-                    <td><details><summary>Review rawPlatformData</summary><code>{row['rawPlatformData']}</code></details></td>
-                </tr>
-            </table>
-        """
+                """
+    
+    html += "</table>"
         
     return html.replace('\n', '')
 
+def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict) -> str:
+    html = """
+    <table class="table table-hover">
+    """
+    
+    for base_key, base_value in sortedCPEsQueryData.items():
+        dep_true_count = base_value.get('depTrueCount', 0)
+        dep_false_count = base_value.get('depFalseCount', 0)
+        versions_found = base_value.get('versionsFound', 0)
+        search_count = base_value.get('searchCount', 0)
+        versions_found_content = base_value.get('versionsFoundContent', [])
+        
+        # Create tooltip content from versionsFoundContent
+        tooltip_content = "&#10;".join(
+            "&#10;".join(f"{k}: {v}" for k, v in version.items())
+            for version in versions_found_content
+        )
+        
+        # Check for the existence of ('search' + recorded_keys_str) keys
+        search_keys_badges = ""
+        for key in base_value.keys():
+            if key.startswith('searchSource'):
+                search_keys_badges += f"<span class='badge badge-secondary' title='{base_value[key]}'>{key}</span> "
+        
+        html += f"""
+        <tr">
+            <td>{base_key}</td>
+            <td>
+                <span class="badge badge-warning">depTrueCount: {dep_true_count}</span>
+                <span class="badge badge-primary">depFalseCount: {dep_false_count}</span>
+                <span class="badge badge-success" title="{tooltip_content}">versionsFound: {versions_found}</span>
+                <span class="badge badge-info">searchCount: {search_count}</span>
+                {search_keys_badges}
+            </td>
+        </tr>
+        """
+
+    html += """
+    </table>
+    """
+
+    return html.replace('\n', '')
 
 # Update the primaryDataframe with the HTML content for each row
-def update_cpeQueryHTML_column(primaryDataframe: pd.DataFrame) -> pd.DataFrame:
+def update_cpeQueryHTML_column(primaryDataframe, nvdSourceData) -> pd.DataFrame:
     for index, row in primaryDataframe.iterrows():
         
         # Populate the cpeQueryHTML column with HTML content based on the sortedCPEsQueryData column
@@ -109,7 +183,7 @@ def update_cpeQueryHTML_column(primaryDataframe: pd.DataFrame) -> pd.DataFrame:
         primaryDataframe.at[index, 'cpeQueryHTML'] = html_content
 
         # Populate the rowDataHTML column with the HTML content based on many columns
-        row_html_content = convertRowDataToHTML(row)
+        row_html_content = convertRowDataToHTML(row, nvdSourceData)
         primaryDataframe.at[index, 'rowDataHTML'] = row_html_content
 
     return primaryDataframe
@@ -129,33 +203,7 @@ def buildHTMLPage(affectedHtml, targetCve, vdbIntelHtml = None):
                     <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/js/bootstrap.min.js" integrity="sha384-aJ21OjlMXNL5UyIl/XNwTMqvzeRMZH2w8c5cRVpzpU8Y5bApTppSuUkhZXN0VxHd" crossorigin="anonymous"></script>
                     <style>
 
-                    .cpecriteriamatchestrue {
-                        padding: 2px 4px;
-                        color: #752bc4;
-                        background-color: #0402031a;
-                        border-radius: 4px;
-                        font-size: 100%;
-                    }
-                    
-                    .cpecriteriamatchesfalse {
-                        color: #752bc4;
-                        background-color: #0402031a;
-                        border-radius: 4px;
-                    }
-                    
-                    .matchesfalsecell{
-                        padding-top: 0px;
-                        padding-bottom: 0px;
-                        font-size: 85%;
-                    }
-                    
-                    .cpecriteriamatched {
-                        padding: 2px 4px;
-                        font-size: 80%;
-                        color: #000;
-                        background-color: #0402031a;
-                        border-radius: 4px;
-                    }
+                
                     
                     .tab {
                     overflow: hidden;

@@ -27,59 +27,6 @@ def setOperationMode(modeSetting):
             print ("[INFO]  This mode is unfinished! Please use Enrichment Assistance Mode for now.")
             exit()
 
-            #processActive = True
-            #while processActive == True:
-                
-                # Get platform input from user (start with CLI, improve later)
-
-            #    allPlatforms = []
-            #    platformCount = 1
-                
-            #    while True:
-
-            #        def getPlatformData():
-                        
-            #            print (f"[INFO]  Platform {platformCount} Vendor and Product attribute gathering...")
-            #            vendorAttributeList = []
-            #            productAttributeList = []
-            #            while True:
-            #                vendorAttributeInput = input("Enter a vendor name (or 'product' when complete):  ")
-            #                if vendorAttributeInput == 'product':
-            #                    break
-            #                vendorAttributeList.append(vendorAttributeInput)
-
-            #            while True:
-            #                productAttributeInput = input(f"Enter a product name (or 'done' to complete Platform {platformCount}):  ")
-            #                if productAttributeInput == 'done':
-            #                    break
-            #                productAttributeList.append(productAttributeInput)
-                        
-            #           allPlatforms.append([vendorAttributeList, productAttributeList])
-            #            print (f"Platform {platformCount} Data:  \n {vendorAttributeList} \n {productAttributeList}")
-
-            #        # Start by getting the first platform attributes              
-            #        getPlatformData()
-            #        platformCount = (platformCount + 1) 
-            #        # Offer ability to continue or execute search (scaling concerns due to API limitations)
-            #        userDecision = input("Add another platform to search? (y/n)")
-            #        if userDecision == 'n':
-            #            break      
-
-                # TODO process the list of lists and output to existing processes for ease of use
-                #userCPESearchHtml = processData.userCPESearchData(allPlatforms)
-
-                # Put all the html together into a main console view
-                #allConsoleHTML = generateHTML.buildHTMLPage(userCPESearchHtml)
-            
-                # Create html file for CVE, write to it,
-                #sub_directory = Path(f"{os.getcwd()}{os.sep}analysis_tool_files")
-                #sub_directory.mkdir(parents=True, exist_ok=True)
-                #filename = (targetCve + ".html")
-                #filepath = sub_directory / filename
-                #with filepath.open("w", encoding="utf-8") as fd:
-                #    fd.write(allConsoleHTML)
-                # Open html file in a new browser tab for viewing. Comment out for testing needs
-                #webbrowser.open_new_tab(f"file:///{filepath}") 
         # Enrichment Mode runs both the CVE List CPE Suggester and the VDB Intel Dashboard
         case "2":
             print(f"[INFO]  {TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
@@ -115,7 +62,7 @@ def setOperationMode(modeSetting):
                 primaryDataframe = processData.suggestCPEData(nvdAPIKey, primaryDataframe, 1)
                            
                 # Do a rough convert of the dataframe to html for debug display
-                primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe)
+                primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe, nvdSourceData)
                 
                 primaryDataframe = primaryDataframe.drop('dataSource', axis=1, errors='ignore')
                 primaryDataframe = primaryDataframe.drop('sourceID', axis=1, errors='ignore')
@@ -129,7 +76,7 @@ def setOperationMode(modeSetting):
                 primaryDataframe = primaryDataframe.drop('sortedCPEsQueryData', axis=1, errors='ignore')
                 primaryDataframe = primaryDataframe.drop('platformStatistics', axis=1, errors='ignore')
                 
-                affectedHtml2 = primaryDataframe.to_html(classes='table table-stripped', escape=False)
+                affectedHtml2 = primaryDataframe.to_html(classes='table table-stripped', col_space=['20%', '80%' ], escape=False)
 
                 vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
                 # Put all the html together into a main console view
@@ -190,14 +137,10 @@ def setOperationMode(modeSetting):
                     # TODO Add support for cpes array content on CVE records, mirror existing approach
                     # TODO Add support for cpeApplicability content on CVE and NVD records, mirror existing approach
                     primaryDataframe = processData.suggestCPEData(nvdAPIKey, primaryDataframe, 1)
-
-                    # Consolidate the useful data from query results and processing to reduce noise
-                    
-
+                            
                     # Do a rough convert of the dataframe to html for debug display
-                    # Generate HTML for the culledcpeQueryDataDataset to keep us sane
-                    primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe)
-                    # TODO Enhance this process to also parse through the nested field data for cleaner display
+                    primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe, nvdSourceData)
+                    
                     primaryDataframe = primaryDataframe.drop('dataSource', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('sourceID', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('sourceRole', axis=1, errors='ignore')
@@ -206,9 +149,12 @@ def setOperationMode(modeSetting):
                     primaryDataframe = primaryDataframe.drop('rawPlatformData', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('cpeBaseStrings', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('cpeVersionChecks', axis=1, errors='ignore')
+                    primaryDataframe = primaryDataframe.drop('rawCPEsQueryData', axis=1, errors='ignore')
+                    primaryDataframe = primaryDataframe.drop('sortedCPEsQueryData', axis=1, errors='ignore')
+                    primaryDataframe = primaryDataframe.drop('platformStatistics', axis=1, errors='ignore')
+                    
+                    affectedHtml2 = primaryDataframe.to_html(classes='table table-stripped', escape=False)
 
-
-                    affectedHtml2 = primaryDataframe.to_html()
                     vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
                     # Put all the html together into a main console view
                     allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, targetCve, vdbIntelHtml)
