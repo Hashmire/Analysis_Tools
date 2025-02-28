@@ -40,7 +40,6 @@ def sort_cpes_query_data(rawDataset: pd.DataFrame):
         
         # Sort the list of dictionaries using sort_broad_entries and sort_base_strings
         sorted_cpes_query_data = sort_broad_entries(cpes_query_data_list)
-        #sorted_cpes_query_data = sort_base_strings(sorted_cpes_query_data)
         
         # Convert the sorted list of dictionaries back to a dictionary
         sorted_cpes_query_data_dict = {list(entry.keys())[0]: list(entry.values())[0] for entry in sorted_cpes_query_data}
@@ -73,9 +72,11 @@ def sort_base_strings(unique_base_strings: dict) -> dict:
     ))
     return sorted_base_strings
 #
-def reduceToTop10(sortedDataset: pd.DataFrame) -> pd.DataFrame:
+def reduceToTop10(workingDataset: pd.DataFrame) -> pd.DataFrame:
     
-    # Consolidate the base strings for each search together, but keep track of their origin
+    trimmedDataset = workingDataset.copy()
+    top_10_base_strings_dict = {}
+
     def consolidateBaseStrings(data, unique_base_strings, duplicate_keys):
         for key, value in data.items():
             if isinstance(value, dict):
@@ -99,20 +100,42 @@ def reduceToTop10(sortedDataset: pd.DataFrame) -> pd.DataFrame:
                 for item in value:
                     consolidateBaseStrings(item, unique_base_strings, duplicate_keys)
 
-    # Iterate through each row in the DataFrame to consolidate, enhance and sort the base strings
-    for index, row in sortedDataset.iterrows():
-        unique_base_strings = {}  # Reset for each row
-        duplicate_keys = {}  # Reset for each row
+    def compare_versions(base_strings, cpe_version_checks):
+        for base_key, base_value in base_strings.items():
+            versions_found_content = base_value.get('versionsFoundContent', [])
+            matched_versions = []
+            for version_entry in versions_found_content:
+                for check in cpe_version_checks:
+                    for key, value in check.items():
+                        if key in version_entry:
+                            cpe_value = version_entry[key]
+                            cpe_breakout = breakoutCPEComponents(cpe_value)
+                            if cpe_breakout['version'] == value:
+                                matched_versions.append({key: cpe_value})
+                                base_value['matched'] = True
+                                break
+            base_value['versionsFoundContent'] = matched_versions
+            base_value['versionsFound'] = len(matched_versions)
+
+    for index, row in workingDataset.iterrows():
+        unique_base_strings = {}  
+        duplicate_keys = {} 
         sorted_cpes_query_data = row['sortedCPEsQueryData']
+        cpe_version_checks = row['cpeVersionChecks']
         consolidateBaseStrings(sorted_cpes_query_data, unique_base_strings, duplicate_keys)
+
+        compare_versions(unique_base_strings, cpe_version_checks)
         sorted_base_strings = sort_base_strings(unique_base_strings)
 
-        # Reduce to top 10 entries
         top_10_base_strings = dict(list(sorted_base_strings.items())[:10])
 
-        sortedDataset.at[index, 'sortedCPEsQueryData'] = top_10_base_strings
+        # Store the top_10_base_strings in the dictionary
+        top_10_base_strings_dict[index] = top_10_base_strings
 
-    return sortedDataset
+        # Ensure that only the current row is updated
+        trimmedDataset.at[index, 'trimmedCPEsQueryData'] = top_10_base_strings
+
+    return trimmedDataset
     
 # Processes the mapping of /cpes/ API results with the baseStrings derived from external data
 def populateRawCPEsQueryData(rawDataSet: pd.DataFrame, cpeQueryData: List[Dict[str, Any]],):
@@ -324,9 +347,6 @@ def suggestCPEData(apiKey, rawDataset, case):
                     if 'cpes' in platform_data:
                         cpe_values.append(platform_data['cpes'])
 
-                    if 'platformFormatType' in row and row['platformFormatType'] in ['cpeApplicability']:
-                        print ("[WARN]  cpeApplicability data identified! This is not currently supported! This means that any data related to cpeApplicability will not be processed or included in the results.")
-
                 # Add the cpeBaseStrings list to the cpeBaseStrings column of primaryDataframe
                 rawDataset.at[index, 'cpeBaseStrings'] = cpeBaseStrings
                 uniqueStringList = deriveCPEMatchStringList(rawDataset)
@@ -469,8 +489,8 @@ def processCVEData(df, cve_data):
                     'cpeBaseStrings': '',
                     'cpeVersionChecks': versions_info,
                     'rawCPEsQueryData': [],
-                    #'filteredCPEsQueryData': [],
                     'sortedCPEsQueryData': [],
+                    'trimmedCPEsQueryData': [],
                     'platformStatistics': []
                 })
         
@@ -492,8 +512,8 @@ def processCVEData(df, cve_data):
                             'cpeBaseStrings': '',
                             'cpeVersionChecks': versions_info,
                             'rawCPEsQueryData': [],
-                            #'filteredCPEsQueryData': [],
                             'sortedCPEsQueryData': [],
+                            'trimmedCPEsQueryData': [],
                             'platformStatistics': []
                         })
                     elif 'lessThanOrEqual' in version:
@@ -509,8 +529,8 @@ def processCVEData(df, cve_data):
                             'cpeBaseStrings': '',
                             'cpeVersionChecks': versions_info,
                             'rawCPEsQueryData': [],
-                            #'filteredCPEsQueryData': [],
                             'sortedCPEsQueryData': [],
+                            'trimmedCPEsQueryData': [],
                             'platformStatistics': []
                         })
                     else:  # 'version' lone wolf:
@@ -525,8 +545,8 @@ def processCVEData(df, cve_data):
                             'cpeBaseStrings': '',
                             'cpeVersionChecks': versions_info,
                             'rawCPEsQueryData': [],
-                            #'filteredCPEsQueryData': [],
                             'sortedCPEsQueryData': [],
+                            'trimmedCPEsQueryData': [],
                             'platformStatistics': []
                         })
         
@@ -558,8 +578,8 @@ def processCVEData(df, cve_data):
                     'cpeBaseStrings': '',
                     'cpeVersionChecks': [],
                     'rawCPEsQueryData': [],
-                    #'filteredCPEsQueryData': [],
                     'sortedCPEsQueryData': [],
+                    'trimmedCPEsQueryData': [],
                     'platformStatistics': []
                 })
 
@@ -587,8 +607,8 @@ def processCVEData(df, cve_data):
                     'cpeBaseStrings': '',
                     'cpeVersionChecks': [],
                     'rawCPEsQueryData': [],
-                    #'filteredCPEsQueryData': [],
                     'sortedCPEsQueryData': [],
+                    'trimmedCPEsQueryData': [],
                     'platformStatistics': []
                 })
         if rows:

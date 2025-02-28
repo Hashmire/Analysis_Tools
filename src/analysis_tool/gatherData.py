@@ -200,6 +200,7 @@ def gatherPrimaryDataframe():
         'cpeVersionChecks': [],
         'rawCPEsQueryData': [],
         'sortedCPEsQueryData': [],
+        'trimmedCPEsQueryData': [],
         'cpeQueryHTML': ''
         }
 

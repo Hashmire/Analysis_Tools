@@ -136,6 +136,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict) -> str:
     """
     
     for base_key, base_value in sortedCPEsQueryData.items():
+        total_match_count = (base_value.get('depFalseCount', 0) + base_value.get('depTrueCount', 0))
         dep_true_count = base_value.get('depTrueCount', 0)
         dep_false_count = base_value.get('depFalseCount', 0)
         versions_found = base_value.get('versionsFound', 0)
@@ -143,7 +144,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict) -> str:
         versions_found_content = base_value.get('versionsFoundContent', [])
         
         # Create tooltip content from versionsFoundContent
-        tooltip_content = "&#10;".join(
+        versions_found_tooltip_content = "&#10;".join(
             "&#10;".join(f"{k}: {v}" for k, v in version.items())
             for version in versions_found_content
         )
@@ -152,16 +153,20 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict) -> str:
         search_keys_badges = ""
         for key in base_value.keys():
             if key.startswith('searchSource'):
-                search_keys_badges += f"<span class='badge badge-secondary' title='{base_value[key]}'>{key}</span> "
+                search_keys_badges += f"<span class='badge bg-pivot' title='{base_value[key]}'>{key}</span> "
         
         html += f"""
         <tr">
             <td>{base_key}</td>
             <td>
-                <span class="badge badge-warning">depTrueCount: {dep_true_count}</span>
-                <span class="badge badge-primary">depFalseCount: {dep_false_count}</span>
-                <span class="badge badge-success" title="{tooltip_content}">versionsFound: {versions_found}</span>
-                <span class="badge badge-info">searchCount: {search_count}</span>
+                <span class="badge rounded-pill bg-secondary">Relevant Match String Searches: {search_count}</span>
+                <span class="badge rounded-pill bg-success" title="{versions_found_tooltip_content}">Version Matches Identified: {versions_found}</span>
+                <div class="btn-group" role="group" aria-label="CPE Names">
+                    <button type="button" class="btn btn-primary">Total CPE Names:  {total_match_count}
+                        <span class="badge bg-info ">Final:  {dep_false_count}</span>
+                        <span class="badge bg-warning">Deprecated:  {dep_true_count}</span>
+                    </button>
+                </div>
                 {search_keys_badges}
             </td>
         </tr>
@@ -178,7 +183,7 @@ def update_cpeQueryHTML_column(primaryDataframe, nvdSourceData) -> pd.DataFrame:
     for index, row in primaryDataframe.iterrows():
         
         # Populate the cpeQueryHTML column with HTML content based on the sortedCPEsQueryData column
-        sortedCPEsQueryData = row['sortedCPEsQueryData'] 
+        sortedCPEsQueryData = row['trimmedCPEsQueryData'] 
         html_content = convertCPEsQueryDataToHTML(sortedCPEsQueryData)
         primaryDataframe.at[index, 'cpeQueryHTML'] = html_content
 
@@ -188,99 +193,116 @@ def update_cpeQueryHTML_column(primaryDataframe, nvdSourceData) -> pd.DataFrame:
 
     return primaryDataframe
 
-# Builds a simple html page with Bootstrap 3.4.1 CSS
-def buildHTMLPage(affectedHtml, targetCve, vdbIntelHtml = None):
+# Builds a simple html page with Bootstrap styling
+def buildHTMLPage(affectedHtml, targetCve, vdbIntelHtml=None):
     pageStartHTML = """
-                    <!DOCTYPE html> <html lang=\"en\">
-                    <head>
-                    <!-- Latest compiled and minified CSS -->
-                    <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/css/bootstrap.min.css\" integrity=\"sha384-HSMxcRTRxnN+Bdg0JdbxYKrThecOKuH5zCYotlSAcp1+c8xmyTe9GYg1l9a69psu" crossorigin="anonymous">
-
-                    <!-- Optional theme -->
-                    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/css/bootstrap-theme.min.css" integrity="sha384-6pzBo3FDv/PJ8r2KRkGHifhEocL+1X2rVCTTkUfGk7/0pbek5mMa1upzvWbrUbOZ" crossorigin="anonymous">
-
-                    <!-- Latest compiled and minified JavaScript -->
-                    <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/js/bootstrap.min.js" integrity="sha384-aJ21OjlMXNL5UyIl/XNwTMqvzeRMZH2w8c5cRVpzpU8Y5bApTppSuUkhZXN0VxHd" crossorigin="anonymous"></script>
-                    <style>
-
-                
-                    
-                    .tab {
-                    overflow: hidden;
-                    border: 1px solid #ccc;
-                    background-color: #f1f1f1;
-                    }
-
-                    .tab button {
-                    background-color: inherit;
-                    float: left;
-                    border: none;
-                    outline: none;
-                    cursor: pointer;
-                    padding: 14px 16px;
-                    transition: 0.3s;
-                    }
-
-                    .tab button:hover {
-                    background-color: #ddd;
-                    }
-
-                    .tab button.active {
-                    background-color: #ccc;
-                    }
-
-                    .tabcontent {
-                    display: none;
-                    margin-left: 10px;
-                    border: 1px solid #ccc;
-                    border-top: none;
-                    }
-
-                    </style>
-                    </head>
-                    <body>
-                    """
-    pageBodyHeaderHTML =  "<!-- Tool Info Header --><div class=\"header\" style=\"margin-left: 10px;\"><h1>NVD Analysis Intelligence Tool <small>" + TOOLNAME + "  version:  " + VERSION + "</small></h1></div>" 
-    pageBodyTabsHTML =  """
-                        <!-- Tab links -->
-                        <div class="tab">
-                        <button class="tablinks" onclick="openCity(event, 'cveListCPESuggester')">CVE List CPE Suggester</button>
-                        <button class="tablinks" onclick="openCity(event, 'vdbIntelDashboard')">VDB Intel Dashboard</button>
-                        </div>
-                        """
-    cveIdIndicatorHTML = "<h3 style=\"margin-bottom: 0px; margin-left: 10px;\"><b>" + targetCve + " results</b></h3><hr style=\"margin: 10px; border: 1px solid;\">"
-    pageBodyCPESuggesterHTML = ("\n<!-- CVE List CPE Suggester -->\n<div id=\"cveListCPESuggester\" class=\"tabcontent\" style=\"display: block; border-left: 0px;\"><h3>CVE List CPE Suggester</h3>" + affectedHtml + "</div>")
-    if vdbIntelHtml == None:
-        pageBodyVDBIntelHTML = ("\n<!-- VDB Intel Dashboard -->\n<div id=\"vdbIntelDashboard\" class=\"tabcontent\" style=\"border-left: 0px;\"><h3>VDB Intel Dashboard</h3><p>Basic User Mode does not support VDB Intel Check!</p></div>")
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+        <style>
+            .bg-pivot {
+	            --bs-bg-opacity: 1;
+	            background-color: rgb(181, 90, 232) !important;
+            }
+            .tab {
+                overflow: hidden;
+                border: 1px solid #ccc;
+                background-color: #f1f1f1;
+            }
+            .tab button {
+                background-color: inherit;
+                float: left;
+                border: none;
+                outline: none;
+                cursor: pointer;
+                padding: 14px 16px;
+                transition: 0.3s;
+            }
+            .tab button:hover {
+                background-color: #ddd;
+            }
+            .tab button.active {
+                background-color: #ccc;
+            }
+            .tabcontent {
+                display: none;
+                margin-left: 10px;
+                border: 1px solid #ccc;
+                border-top: none;
+            }
+        </style>
+    </head>
+    <body>
+    """
+    pageBodyHeaderHTML = f"""
+    <!-- Tool Info Header -->
+    <div class="header" style="margin-left: 10px;">
+        <h1>NVD Analysis Intelligence Tool <small>{TOOLNAME} version: {VERSION}</small></h1>
+    </div>
+    """
+    pageBodyTabsHTML = """
+    <!-- Tab links -->
+    <div class="tab">
+        <button class="tablinks" onclick="openCity(event, 'cveListCPESuggester')">CVE List CPE Suggester</button>
+        <button class="tablinks" onclick="openCity(event, 'vdbIntelDashboard')">VDB Intel Dashboard</button>
+    </div>
+    """
+    cveIdIndicatorHTML = f"""
+    <h3 style="margin-bottom: 0px; margin-left: 10px;"><b>{targetCve} results</b></h3>
+    <hr style="margin: 10px; border: 1px solid;">
+    """
+    pageBodyCPESuggesterHTML = f"""
+    <!-- CVE List CPE Suggester -->
+    <div id="cveListCPESuggester" class="tabcontent" style="display: block; border-left: 0px;">
+        <h3>CVE List CPE Suggester</h3>
+        {affectedHtml}
+    </div>
+    """
+    if vdbIntelHtml is None:
+        pageBodyVDBIntelHTML = """
+        <!-- VDB Intel Dashboard -->
+        <div id="vdbIntelDashboard" class="tabcontent" style="border-left: 0px;">
+            <h3>VDB Intel Dashboard</h3>
+            <p>Basic User Mode does not support VDB Intel Check!</p>
+        </div>
+        """
     else:
-        pageBodyVDBIntelHTML = ("\n<!-- VDB Intel Dashboard -->\n<div id=\"vdbIntelDashboard\" class=\"tabcontent\" style=\"border-left: 0px;\"><h3>VDB Intel Dashboard</h3>" + vdbIntelHtml + "</div>")
-    # Thank you internet for the shortcut, this is copy/pasted and should be reworked to be more customized
+        pageBodyVDBIntelHTML = f"""
+        <!-- VDB Intel Dashboard -->
+        <div id="vdbIntelDashboard" class="tabcontent" style="border-left: 0px;">
+            <h3>VDB Intel Dashboard</h3>
+            {vdbIntelHtml}
+        </div>
+        """
     pageBodyJavaScript = """
-                    <script>
-                    function openCity(evt, cityName) {
-                    // Declare all variables
-                    var i, tabcontent, tablinks;
+    <script>
+        function openCity(evt, cityName) {
+            // Declare all variables
+            var i, tabcontent, tablinks;
 
-                    // Get all elements with class="tabcontent" and hide them
-                    tabcontent = document.getElementsByClassName("tabcontent");
-                    for (i = 0; i < tabcontent.length; i++) {
-                        tabcontent[i].style.display = "none";
-                    }
+            // Get all elements with class="tabcontent" and hide them
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
 
-                    // Get all elements with class="tablinks" and remove the class "active"
-                    tablinks = document.getElementsByClassName("tablinks");
-                    for (i = 0; i < tablinks.length; i++) {
-                        tablinks[i].className = tablinks[i].className.replace(" active", "");
-                    }
+            // Get all elements with class="tablinks" and remove the class "active"
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
 
-                    // Show the current tab, and add an "active" class to the button that opened the tab
-                    document.getElementById(cityName).style.display = "block";
-                    evt.currentTarget.className += " active";
-                    }
-                    </script>
-                    """ 
-    pageEndHTML =   "</body></html>"
+            // Show the current tab, and add an "active" class to the button that opened the tab
+            document.getElementById(cityName).style.display = "block";
+            evt.currentTarget.className += " active";
+        }
+    </script>
+    """
+    pageEndHTML = "</body></html>"
     fullHtml = (pageStartHTML + pageBodyHeaderHTML + pageBodyTabsHTML + cveIdIndicatorHTML + pageBodyCPESuggesterHTML + pageBodyVDBIntelHTML + pageBodyJavaScript + pageEndHTML)
     
-    return (fullHtml)
+    return fullHtml
 ########################

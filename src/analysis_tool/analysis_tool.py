@@ -74,9 +74,10 @@ def setOperationMode(modeSetting):
                 primaryDataframe = primaryDataframe.drop('cpeVersionChecks', axis=1, errors='ignore')
                 primaryDataframe = primaryDataframe.drop('rawCPEsQueryData', axis=1, errors='ignore')
                 primaryDataframe = primaryDataframe.drop('sortedCPEsQueryData', axis=1, errors='ignore')
+                primaryDataframe = primaryDataframe.drop('trimmedCPEsQueryData', axis=1, errors='ignore')
                 primaryDataframe = primaryDataframe.drop('platformStatistics', axis=1, errors='ignore')
                 
-                affectedHtml2 = primaryDataframe.to_html(classes='table table-stripped', col_space=['20%', '80%' ], escape=False)
+                affectedHtml2 = primaryDataframe.to_html(classes='table table-stripped', col_space=['20%', '80%' ], escape=False, index=False)
 
                 vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
                 # Put all the html together into a main console view
@@ -151,9 +152,10 @@ def setOperationMode(modeSetting):
                     primaryDataframe = primaryDataframe.drop('cpeVersionChecks', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('rawCPEsQueryData', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('sortedCPEsQueryData', axis=1, errors='ignore')
+                    primaryDataframe = primaryDataframe.drop('trimmedCPEsQueryData', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('platformStatistics', axis=1, errors='ignore')
                     
-                    affectedHtml2 = primaryDataframe.to_html(classes='table table-stripped', escape=False)
+                    affectedHtml2 = primaryDataframe.to_html(classes='table table-stripped', escape=False, index=False)
 
                     vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
                     # Put all the html together into a main console view
