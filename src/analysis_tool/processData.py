@@ -104,6 +104,7 @@ def reduceToTop10(workingDataset: pd.DataFrame) -> pd.DataFrame:
         for base_key, base_value in base_strings.items():
             versions_found_content = base_value.get('versionsFoundContent', [])
             matched_versions = []
+            unique_versions = set()
             for version_entry in versions_found_content:
                 for check in cpe_version_checks:
                     for key, value in check.items():
@@ -111,11 +112,16 @@ def reduceToTop10(workingDataset: pd.DataFrame) -> pd.DataFrame:
                             cpe_value = version_entry[key]
                             cpe_breakout = breakoutCPEComponents(cpe_value)
                             if cpe_breakout['version'] == value:
-                                matched_versions.append({key: cpe_value})
-                                base_value['matched'] = True
+                                version_pair = (key, cpe_value)
+                                if version_pair not in unique_versions:
+                                    matched_versions.append({key: cpe_value})
+                                    unique_versions.add(version_pair)
+                                    base_value['matched'] = True
                                 break
-            base_value['versionsFoundContent'] = matched_versions
-            base_value['versionsFound'] = len(matched_versions)
+            # Ensure uniqueness in versionsFoundContent
+            base_value['versionsFoundContent'].extend(matched_versions)
+            base_value['versionsFoundContent'] = list({frozenset(item.items()): item for item in base_value['versionsFoundContent']}.values())
+            base_value['versionsFound'] = len(base_value['versionsFoundContent'])
 
     for index, row in workingDataset.iterrows():
         unique_base_strings = {}  

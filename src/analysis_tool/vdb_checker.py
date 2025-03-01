@@ -1,5 +1,6 @@
 import requests
 from tqdm import tqdm
+import logging
 
 # Iterate through our list of locations and append the CVE ID, open each item in a new tab
 #### Instead of blindly opening in a new tab, we should try to consolidate the valuable information

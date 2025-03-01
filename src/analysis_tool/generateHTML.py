@@ -2,6 +2,7 @@
 import pandas as pd
 from sys import exit
 from build_info import VERSION, TOOLNAME
+import logging
 
 # Import Analysis Tool 
 import processData

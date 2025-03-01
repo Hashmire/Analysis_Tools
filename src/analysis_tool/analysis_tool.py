@@ -3,11 +3,23 @@ import webbrowser
 import os
 from pathlib import Path
 from sys import exit
+import logging
 from build_info import GIT_COMMIT, GIT_REPO, VERSION, TOOLNAME
 # Import console tab scripts
 import gatherData
 import processData
 import generateHTML
+
+# Configure logging
+log_filename = "analysis_tool.log"
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_filename),
+        logging.StreamHandler()
+    ]
+)
 
 # Initial setup of useful global variables
 #nvdAPIKey = input("Enter NVD API Key (The process will be slower if no key is entered.)")
@@ -22,15 +34,15 @@ def setOperationMode(modeSetting):
     match modeSetting:
         # User Mode runs the CPE Dictionary Search capability, requesting Vendor and product name input data
         case "1":
-            print(f"[INFO]  {TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
-            print ("[INFO]  CPE Search Mode Selected!")
-            print ("[INFO]  This mode is unfinished! Please use Enrichment Assistance Mode for now.")
+            print(f"{TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
+            print("CPE Search Mode Selected!")
+            print("This mode is unfinished! Please use Enrichment Assistance Mode for now.")
             exit()
 
         # Enrichment Mode runs both the CVE List CPE Suggester and the VDB Intel Dashboard
         case "2":
-            print(f"[INFO]  {TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
-            print ("[INFO]  Enrichment Assistance Mode Selected!")
+            print(f"{TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
+            print("Enrichment Assistance Mode Selected!")
             processActive = True
             while processActive == True:
 
@@ -96,8 +108,8 @@ def setOperationMode(modeSetting):
         # Test Mode processes a list of arbitrary test CVEs in bulk to assist with Enrichment mode development
         # Version matching as part of cve
         case "9":
-            print(f"[INFO]  {TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
-            print ("[INFO]  Test Mode Selected!")
+            print(f"{TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
+            print("Test Mode Selected!")
             def runCVESmokeTests():
                 cveSmoke = [
                         "CVE-2024-0057",    # Lots of everything, CPEs included
@@ -172,12 +184,12 @@ def setOperationMode(modeSetting):
                     webbrowser.open_new_tab(f"file:///{filepath}")
 
                 
-                print("[INFO] Smoke tests completed... Check browser tabs!")
+                print("Smoke tests completed... Check browser tabs!")
         
         # General examples for unique cases to handle help identifying regressions, should create real test cases and example files for known needs.
             runCVESmokeTests() 
         case _:
-            print("[FAULT] Invalid choice, exiting")
+            print("Invalid choice, exiting")
             exit()
     
 setOperationMode(input("Select Mode: \n 1 --> CPE Search Mode \n 2 --> Enrichment Assistance Mode \n"))
