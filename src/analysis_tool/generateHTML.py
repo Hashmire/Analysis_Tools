@@ -332,6 +332,8 @@ def getCPEJsonScript() -> str:
                 allContainer.classList.add('all-configurations-container', 'mt-3', 'mb-5');
                 allContainer.id = 'allConfigurationsContainer';
                 allContainer.innerHTML = `
+                    <!-- NEW: Add configuration summary above the button -->
+                    <div id="configurationSummary" class="text-center mb-2" style="font-weight: 500;"></div>
                     <div class="d-grid gap-2 col-12 mx-auto">
                         <button id="exportAllConfigurations" class="btn btn-danger">Show All Configurations</button>
                     </div>
@@ -367,26 +369,8 @@ def getCPEJsonScript() -> str:
                         // Toggle display
                         display.style.display = display.style.display === 'none' ? 'block' : 'none';
                         
-                        // Calculate selections and config details
-                        let totalSelections = 0;
-                        let configCount = 0;
-                        let configDetails = [];
-                        
-                        tableSelections.forEach((selections) => {
-                            if (selections.size > 0) {
-                                totalSelections += selections.size;
-                                configCount++;
-                                configDetails.push(`${selections.size} criteria`);
-                            }
-                        });
-                        
-                        // Use the detailed config summary in the button text
-                        const configSummary = `${configCount} config${configCount !== 1 ? 's' : ''} (${configDetails.join(', ')})`;
-                        
-                        // Update the button with the detailed configuration information
-                        this.textContent = display.style.display === 'none' 
-                            ? `Show All Configurations - ${configSummary}` 
-                            : `Hide All Configurations - ${configSummary}`;
+                        // Update the button text to reflect current state (without configuration details)
+                        this.textContent = display.style.display === 'none' ? 'Show All Configurations' : 'Hide All Configurations';
                     }
                 });
                 
@@ -944,22 +928,59 @@ def getCPEJsonScript() -> str:
             // Store the consolidated JSON for this table
             consolidatedJsons.set(tableId, json);
             
-            // Update button with version info
+            // Calculate detailed statistics about cpeMatch objects
             const selectionCount = selectedRows.size;
-            let versionCount = 0;
+            let totalMatches = 0;
+            let rangeMatches = 0;
+            let exactMatches = 0;
             
-            // Calculate version count based on configuration structure
-            if (json.configurations[0].cpeMatch && json.configurations[0].cpeMatch.length > 0) {
-                versionCount = json.configurations[0].cpeMatch.length;
-            } else if (json.configurations[0].versionStats) {
-                versionCount = json.configurations[0].versionStats.totalVersions;
-            } else if (json.configurations[0].nodes) {
-                versionCount = getTotalCPEMatches(json.configurations[0]);
-            } else {
-                versionCount = selectionCount;
+            // Function to check if a cpeMatch is a range match
+            function isRangeMatch(match) {
+                return match.hasOwnProperty('versionStartIncluding') || 
+                       match.hasOwnProperty('versionStartExcluding') || 
+                       match.hasOwnProperty('versionEndIncluding') || 
+                       match.hasOwnProperty('versionEndExcluding');
             }
             
-            const versionStats = ` (${selectionCount} CPEs, ${versionCount} versions)`;
+            // Process statistics based on configuration structure
+            if (json.configurations[0].cpeMatch && json.configurations[0].cpeMatch.length > 0) {
+                totalMatches = json.configurations[0].cpeMatch.length;
+                
+                // Count range vs exact matches
+                json.configurations[0].cpeMatch.forEach(match => {
+                    if (isRangeMatch(match)) {
+                        rangeMatches++;
+                    } else {
+                        exactMatches++;
+                    }
+                });
+            } else if (json.configurations[0].nodes) {
+                json.configurations[0].nodes.forEach(node => {
+                    if (node.cpeMatch) {
+                        totalMatches += node.cpeMatch.length;
+                        
+                        // Count range vs exact matches in this node
+                        node.cpeMatch.forEach(match => {
+                            if (isRangeMatch(match)) {
+                                rangeMatches++;
+                            } else {
+                                exactMatches++;
+                            }
+                        });
+                    }
+                });
+            }
+            
+            // Store the statistics in the JSON for future reference
+            json.configurations[0].matchStats = {
+                totalMatches: totalMatches,
+                rangeMatches: rangeMatches,
+                exactMatches: exactMatches,
+                selectedCriteria: selectionCount  // Changed from selectedCPEs to selectedCriteria
+            };
+            
+            // Format the detailed statistics for display
+            const statsStr = `${selectionCount} Criteria, ${totalMatches} versions (${exactMatches} exact, ${rangeMatches} ranges)`;
             
             const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
             const altShowButton = document.getElementById(`showConsolidatedJson_matchesTable_${tableIndex}`);
@@ -969,11 +990,11 @@ def getCPEJsonScript() -> str:
                 // Add selection counter and version stats to button text
                 const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
                 if (display && display.style.display !== 'none') {
-                    buttonToUpdate.textContent = `Hide Consolidated JSON${versionStats}`;
+                    buttonToUpdate.textContent = `Hide Consolidated JSON (${statsStr})`;
                     buttonToUpdate.classList.remove('btn-primary');
                     buttonToUpdate.classList.add('btn-success');
                 } else {
-                    buttonToUpdate.textContent = `Show Consolidated JSON${versionStats}`;
+                    buttonToUpdate.textContent = `Show Consolidated JSON (${statsStr})`;
                     buttonToUpdate.classList.remove('btn-success');
                     buttonToUpdate.classList.add('btn-primary');
                 }
@@ -1007,11 +1028,11 @@ def getCPEJsonScript() -> str:
                     const json = consolidatedJsons.get(tableId);
                     if (json && json.configurations && json.configurations.length > 0) {
                         const versionCount = json.configurations[0].cpeMatch.length;
-                        configDetails.push(`${selections.size} CPEs, ${versionCount} versions`);
+                        configDetails.push(`${selections.size} Criteria, ${versionCount} versions`);
                         totalVersions += versionCount;
                     } else {
                         configDetails.push(`${selections.size} criteria`);
-                        totalVersions += selections.size; // Assume 1 version per CPE if no detailed data
+                        totalVersions += selections.size; // Assume 1 version per Criteria if no detailed data
                     }
                 }
             });
@@ -1019,24 +1040,26 @@ def getCPEJsonScript() -> str:
             // Show/hide the Export All button container based on whether there are selections
             const container = document.getElementById('allConfigurationsContainer');
             const exportButton = document.getElementById('exportAllConfigurations');
+            const configSummary = document.getElementById('configurationSummary');
             
             if (container && exportButton) {
                 container.style.display = hasSelections ? 'block' : 'none';
                 
-                // Update button text with selection count and version information
-                if (hasSelections) {
+                // Update the summary text with selection count and version information
+                if (hasSelections && configSummary) {
                     const display = document.getElementById('allConfigurationsDisplay');
                     
-                    // Format as requested: keep "Show All Configurations" text
-                    const configSummary = `${configCount} config${configCount !== 1 ? 's' : ''} (${configDetails.join(', ')})`;
+                    // Format the config summary
+                    const summaryText = `${configCount} config${configCount !== 1 ? 's' : ''} (${configDetails.join(', ')})`;
                     
-                    if (display && display.style.display !== 'none') {
-                        exportButton.textContent = `Hide All Configurations - ${configSummary}`;
-                        // Also update the content if visible
-                        updateAllConfigurationsDisplay();
-                    } else {
-                        exportButton.textContent = `Show All Configurations - ${configSummary}`;
-                    }
+                    // Update the summary text instead of changing the button text
+                    configSummary.textContent = summaryText;
+                    
+                    // Keep button text simple - just show/hide state
+                    exportButton.textContent = display && display.style.display !== 'none' ? 
+                        'Hide All Configurations' : 'Show All Configurations';
+                } else if (configSummary) {
+                    configSummary.textContent = '';
                 }
             }
         } catch(e) {
@@ -1268,33 +1291,39 @@ def getCPEJsonScript() -> str:
         const selectedRows = tableSelections.get(tableId);
         const selectionCount = selectedRows ? selectedRows.size : 0;
         
-        // Get json and version information
+        // Get json and detailed statistics
         const json = consolidatedJsons.get(tableId);
-        let versionCount = selectionCount;
+        let statsStr = `${selectionCount} selected`;
         
-        // Extract version info if available
+        // Extract detailed statistics if available
         if (json && json.configurations && json.configurations.length > 0) {
-            if (json.configurations[0].versionStats) {
-                versionCount = json.configurations[0].versionStats.totalVersions;
-            } else if (json.configurations[0].cpeMatch) {
-                versionCount = json.configurations[0].cpeMatch.length;
-            } else if (json.configurations[0].nodes) {
-                versionCount = getTotalCPEMatches(json.configurations[0]);
+            if (json.configurations[0].matchStats) {
+                const stats = json.configurations[0].matchStats;
+                statsStr = `${stats.selectedCriteria || stats.selectedCPEs} Criteria, ${stats.totalMatches} versions (${stats.exactMatches} exact, ${stats.rangeMatches} ranges)`;
+            } else {
+                // Fall back to basic statistics if detailed stats aren't available
+                let versionCount = selectionCount;
+                if (json.configurations[0].versionStats) {
+                    versionCount = json.configurations[0].versionStats.totalVersions;
+                } else if (json.configurations[0].cpeMatch) {
+                    versionCount = json.configurations[0].cpeMatch.length;
+                } else if (json.configurations[0].nodes) {
+                    versionCount = getTotalCPEMatches(json.configurations[0]);
+                }
+                statsStr = `${selectionCount} Criteria, ${versionCount} versions`;
             }
         }
         
-        const versionStats = selectionCount > 0 ? ` (${selectionCount} CPEs, ${versionCount} versions)` : '';
-        
         // Ensure the button text and state matches the display visibility
         if (isDisplayVisible) {
-            showButton.textContent = `Hide Consolidated JSON${versionStats}`;
+            showButton.textContent = `Hide Consolidated JSON (${statsStr})`;
             showButton.classList.remove('btn-primary');
             showButton.classList.add('btn-success');
             
             // Also ensure the JSON content is updated
             updateJsonDisplayIfVisible(tableId);
         } else {
-            showButton.textContent = `Show Consolidated JSON${versionStats}`;
+            showButton.textContent = `Show Consolidated JSON (${statsStr})`;
             showButton.classList.remove('btn-success');
             showButton.classList.add('btn-primary');
         }
@@ -1346,7 +1375,7 @@ def getCPEJsonScript() -> str:
         // Store version statistics in the JSON for display
         json.configurations[0].versionStats = {
             totalVersions: totalVersions,
-            selectedCPEs: selectedRows.size
+            selectedCriteria: selectedRows.size  // Changed from selectedCPEs to selectedCriteria
         };
     }
     </script>
@@ -1385,7 +1414,7 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
                         total_cpes = 0
                         for node in row['rawConfigData'].get('nodes', []):
                             if 'cpeMatch' in node:
-                                total_cpes += len(node['cpeMatch'])
+                                total_cpes += len(node['cpeMatch']);
                         platform_data['configStats'] = {'totalCPEs': total_cpes}
                 
                 # Add the raw config data as a separate attribute
