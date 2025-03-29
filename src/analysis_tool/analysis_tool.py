@@ -76,8 +76,28 @@ def setOperationMode(modeSetting):
                 primaryDataframe = primaryDataframe.drop('sortedCPEsQueryData', axis=1, errors='ignore')
                 primaryDataframe = primaryDataframe.drop('trimmedCPEsQueryData', axis=1, errors='ignore')
                 primaryDataframe = primaryDataframe.drop('platformStatistics', axis=1, errors='ignore')
-                
-                affectedHtml2 = primaryDataframe.to_html(classes='table table-stripped', col_space=['20%', '80%' ], escape=False, index=False)
+                primaryDataframe = primaryDataframe.drop('rawConfigData', axis=1, errors='ignore')
+
+                # Get the correct number of columns
+                num_cols = len(primaryDataframe.columns)
+
+                # Create appropriate column widths based on number of columns
+                if num_cols == 2:
+                    col_widths = ['20%', '80%']
+                elif num_cols == 3:
+                    col_widths = ['20%', '80%', '0%']
+                else:
+                    # For any other number of columns, calculate evenly
+                    col_width = f"{100/num_cols}%"
+                    col_widths = [col_width] * num_cols
+
+                # Convert to HTML with correct column spacing
+                affectedHtml2 = primaryDataframe.to_html(
+                    classes='table table-stripped',
+                    col_space=col_widths,
+                    escape=False,
+                    index=False
+                )
 
                 vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
                 # Put all the html together into a main console view
@@ -160,8 +180,28 @@ def setOperationMode(modeSetting):
                     primaryDataframe = primaryDataframe.drop('sortedCPEsQueryData', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('trimmedCPEsQueryData', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('platformStatistics', axis=1, errors='ignore')
-                    
-                    affectedHtml2 = primaryDataframe.to_html(classes='table table-stripped', escape=False, index=False)
+                    primaryDataframe = primaryDataframe.drop('rawConfigData', axis=1, errors='ignore')
+
+                    # Get the correct number of columns
+                    num_cols = len(primaryDataframe.columns)
+
+                    # Create appropriate column widths based on number of columns
+                    if num_cols == 2:
+                        col_widths = ['20%', '80%']
+                    elif num_cols == 3:
+                        col_widths = ['20%', '80%', '0%']
+                    else:
+                        # For any other number of columns, calculate evenly
+                        col_width = f"{100/num_cols}%"
+                        col_widths = [col_width] * num_cols
+
+                    # Convert to HTML with correct column spacing
+                    affectedHtml2 = primaryDataframe.to_html(
+                        classes='table table-stripped',
+                        col_space=col_widths,
+                        escape=False,
+                        index=False
+                    )
 
                     vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
                     # Put all the html together into a main console view

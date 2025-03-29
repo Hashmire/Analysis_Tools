@@ -310,6 +310,9 @@ def getCPEJsonScript() -> str:
             updateCompletionTracker();
             // Update the export all configurations button text
             updateExportAllButton();
+            
+            // NEW LINE: Preserve JSON display state
+            preserveJsonDisplayState(tableIndex);
         } catch(e) {
             console.error(`Error in toggleRowCollapse for tableIndex ${tableIndex}:`, e);
         }
@@ -622,7 +625,125 @@ def getCPEJsonScript() -> str:
         }
     }
     
-    // Update consolidated JSON function
+    // Parse a CPE string to extract vendor and product information
+    function parseCpeString(cpeString) {
+        try {
+            // For CPE 2.3 formatted strings (cpe:2.3:part:vendor:product:version:...)
+            const parts = cpeString.split(':');
+            if (parts.length >= 5) {
+                return {
+                    vendor: parts[3].toLowerCase(),
+                    product: parts[4].toLowerCase()
+                };
+            }
+            return { vendor: null, product: null };
+        } catch (e) {
+            console.warn("Error parsing CPE string:", e);
+            return { vendor: null, product: null };
+        }
+    }
+
+    // Process raw platform data to generate cpeMatch objects with version information
+    function processVersionDataToCpeMatches(cpeBase, rawVersionData) {
+        try {
+            // Array to hold all generated cpeMatch objects
+            const cpeMatches = [];
+            
+            // If no version data provided or no versions array, return a basic cpeMatch object
+            if (!rawVersionData || !Array.isArray(rawVersionData.versions) || rawVersionData.versions.length === 0) {
+                const basicMatch = createCpeMatchObject(cpeBase);
+                return [basicMatch];
+            }
+
+            // Get product/vendor from CPE base to match with version data if available
+            const cpeComponents = parseCpeString(cpeBase);
+            const cpeProduct = cpeComponents.product;
+            const cpeVendor = cpeComponents.vendor;
+            
+            // Process each version entry in the versions array
+            for (const versionInfo of rawVersionData.versions) {
+                // Skip if there's no version information at all
+                if (!versionInfo) continue;
+                
+                // Create a new cpeMatch object for this version
+                const cpeMatch = {
+                    "criteria": cpeBase,
+                    "matchCriteriaId": "generated_" + Math.random().toString(36).substr(2, 9),
+                    "vulnerable": versionInfo.status !== 'unaffected' // Set vulnerable based on status
+                };
+                
+                // Handle different version patterns
+                if (versionInfo.hasOwnProperty('lessThan')) {
+                    // Version range with start (inclusive) and end (exclusive)
+                    if (versionInfo.version && versionInfo.version !== '0') {
+                        cpeMatch.versionStartIncluding = versionInfo.version;
+                    }
+                    if (versionInfo.lessThan) {
+                        cpeMatch.versionEndExcluding = versionInfo.lessThan;
+                    }
+                    cpeMatches.push(cpeMatch);
+                } 
+                else if (versionInfo.hasOwnProperty('lessThanOrEqual')) {
+                    // Version range with start (inclusive) and end (inclusive)
+                    if (versionInfo.version && versionInfo.version !== '0') {
+                        cpeMatch.versionStartIncluding = versionInfo.version;
+                    }
+                    if (versionInfo.lessThanOrEqual) {
+                        cpeMatch.versionEndIncluding = versionInfo.lessThanOrEqual;
+                    }
+                    cpeMatches.push(cpeMatch);
+                }
+                // Handle greater than ranges (if present)
+                else if (versionInfo.hasOwnProperty('greaterThan')) {
+                    if (versionInfo.greaterThan) {
+                        cpeMatch.versionStartExcluding = versionInfo.greaterThan;
+                    }
+                    if (versionInfo.version && versionInfo.version !== '*') {
+                        cpeMatch.versionEndIncluding = versionInfo.version;
+                    }
+                    cpeMatches.push(cpeMatch);
+                }
+                // Handle greater than or equal ranges (if present)
+                else if (versionInfo.hasOwnProperty('greaterThanOrEqual')) {
+                    if (versionInfo.greaterThanOrEqual) {
+                        cpeMatch.versionStartIncluding = versionInfo.greaterThanOrEqual;
+                    }
+                    if (versionInfo.version && versionInfo.version !== '*') {
+                        cpeMatch.versionEndIncluding = versionInfo.version;
+                    }
+                    cpeMatches.push(cpeMatch);
+                }
+                // Handle single version - the most common case
+                else if (versionInfo.hasOwnProperty('version')) {
+                    // Split the CPE to update the version component (the 6th component, index 5)
+                    const cpeParts = cpeBase.split(':');
+                    if (cpeParts.length >= 6) {
+                        // Replace the version part (at index 5)
+                        cpeParts[5] = versionInfo.version;
+                        // Rebuild the CPE string with updated version
+                        cpeMatch.criteria = cpeParts.join(':');
+                    }
+                    cpeMatches.push(cpeMatch);
+                }
+            }
+            
+            // If no valid cpeMatch objects were created, return a basic one
+            if (cpeMatches.length === 0) {
+                const basicMatch = createCpeMatchObject(cpeBase);
+                return [basicMatch];
+            }
+            
+            return cpeMatches;
+        } catch (e) {
+            console.error("Error processing version data:", e);
+            // Return a basic cpeMatch object in case of error
+            const errorMatch = createCpeMatchObject(cpeBase);
+            return [errorMatch];
+        }
+    }
+
+    
+    // Update consolidated JSON function with enhanced version handling and statistics
     function updateConsolidatedJson(tableId) {
         try {
             const selectedRows = tableSelections.get(tableId);
@@ -630,7 +751,7 @@ def getCPEJsonScript() -> str:
             if (!selectedRows || selectedRows.size === 0) {
                 consolidatedJsons.set(tableId, null);
                 
-                // Update the button to reflect no selections - FIX: use proper disabled attribute
+                // Update the button to reflect no selections
                 const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
                 if (showButton) {
                     showButton.textContent = "Show Consolidated JSON";
@@ -668,6 +789,8 @@ def getCPEJsonScript() -> str:
             let dataSource = "Unknown";
             let sourceId = "Unknown";
             let sourceRole = "Unknown";
+            let rawPlatformData = null;
+            let rawConfigData = null; // New: For storing NVD configuration data
             
             if (rowDataTable) {
                 const rows = rowDataTable.getElementsByTagName('tr');
@@ -697,10 +820,37 @@ def getCPEJsonScript() -> str:
                         }
                     }
                 }
+
+                // Find the corresponding CPE query container
+                const matchesTable = document.getElementById(`matchesTable_${tableIndex}`);
+                if (matchesTable) {
+                    // Look for the parent container of the table
+                    const cpeQueryContainer = matchesTable.parentElement;
+                    
+                    // First check for complete configuration data (for NVD API data)
+                    if (cpeQueryContainer && cpeQueryContainer.hasAttribute('data-raw-config')) {
+                        try {
+                            rawConfigData = JSON.parse(cpeQueryContainer.getAttribute('data-raw-config'));
+                            console.debug("Successfully loaded raw configuration data");
+                        } catch (e) {
+                            console.warn(`Failed to parse configuration data: ${e}`);
+                        }
+                    }
+                    
+                    // Then check for platform data (for version information)
+                    if (cpeQueryContainer && cpeQueryContainer.hasAttribute('data-raw-platform')) {
+                        try {
+                            rawPlatformData = JSON.parse(cpeQueryContainer.getAttribute('data-raw-platform'));
+                            console.debug("Successfully loaded platform data");
+                        } catch (e) {
+                            console.warn(`Failed to parse platform data: ${e}`);
+                        }
+                    }
+                }
             }
             
-            // Create configurations structure with proper array format
-            const json = {
+            // Create configurations structure
+            let json = {
                 "configurations": [
                     {
                         "operator": "OR",
@@ -715,35 +865,115 @@ def getCPEJsonScript() -> str:
                 ]
             };
             
-            // Add each selected CPE to the cpeMatch array
-            selectedRows.forEach(cpeBase => {
-                const cpeMatch = createCpeMatchObject(cpeBase);
-                json.configurations[0].cpeMatch.push(cpeMatch);
-            });
+            // If we have raw config data from NVD, use that instead of building our own
+            if (rawPlatformData && dataSource === "NVDAPI" && rawPlatformData.hasEmbeddedConfig) {
+                // We have a reference to configuration data, but need to get it from the raw-config attribute
+                const cpeQueryContainer = matchesTable.parentElement;
+                
+                if (cpeQueryContainer && cpeQueryContainer.hasAttribute('data-raw-config')) {
+                    try {
+                        const rawConfigData = JSON.parse(cpeQueryContainer.getAttribute('data-raw-config'));
+                        
+                        // Clone the raw config to avoid modifying the original
+                        const configCopy = JSON.parse(JSON.stringify(rawConfigData));
+                        
+                        // Add our source information to the config
+                        configCopy.generatedFromSource = json.configurations[0].generatedFromSource;
+                        
+                        // Filter to only include selected CPEs if applicable
+                        if (selectedRows && selectedRows.size > 0 && configCopy.nodes) {
+                            configCopy.nodes = configCopy.nodes.filter(node => {
+                                if (node.cpeMatch) {
+                                    node.cpeMatch = node.cpeMatch.filter(match => 
+                                        selectedRows.has(match.criteria));
+                                    return node.cpeMatch.length > 0;
+                                }
+                                return false;
+                            });
+                        }
+                        
+                        // Store version statistics in the JSON for display
+                        const versionCount = getTotalCPEMatches(configCopy);
+                        configCopy.versionStats = {
+                            totalVersions: versionCount,
+                            selectedCPEs: selectedRows.size
+                        };
+                        
+                        json.configurations[0] = configCopy;
+                    } catch (e) {
+                        console.warn(`Failed to process configuration data: ${e}`);
+                        // Fall back to basic processing
+                        processBasicVersionData(selectedRows, rawPlatformData, json);
+                    }
+                }
+            } else if (rawConfigData && dataSource === "NVDAPI") {
+                // This is the existing code for when config data is in a separate attribute
+                // Start with the raw config but preserve our source information
+                const sourceInfo = json.configurations[0].generatedFromSource;
+                
+                // Clone the raw config to avoid modifying the original
+                const configCopy = JSON.parse(JSON.stringify(rawConfigData));
+                
+                // Add our source information to the config
+                if (typeof configCopy === 'object') {
+                    configCopy.generatedFromSource = sourceInfo;
+                    
+                    // Filter to only include selected CPEs if applicable
+                    if (selectedRows && selectedRows.size > 0 && configCopy.nodes) {
+                        // Filter nodes to only include those with selected CPE matches
+                        configCopy.nodes = configCopy.nodes.filter(node => {
+                            if (node.cpeMatch) {
+                                // Keep only the CPE matches that are selected
+                                node.cpeMatch = node.cpeMatch.filter(match => 
+                                    selectedRows.has(match.criteria));
+                                
+                                // Keep the node if it still has CPE matches
+                                return node.cpeMatch.length > 0;
+                            }
+                            return false;
+                        });
+                    }
+                    
+                    json.configurations[0] = configCopy;
+                }
+            } else {
+                // No raw config, build our own using version data
+                processBasicVersionData(selectedRows, rawPlatformData, json);
+            }
             
             // Store the consolidated JSON for this table
             consolidatedJsons.set(tableId, json);
             
-            // Update button style based on selection count
+            // Update button with version info
             const selectionCount = selectedRows.size;
+            let versionCount = 0;
             
-            // FIXED: Use the tableIndex from above instead of redeclaring it
+            // Calculate version count based on configuration structure
+            if (json.configurations[0].cpeMatch && json.configurations[0].cpeMatch.length > 0) {
+                versionCount = json.configurations[0].cpeMatch.length;
+            } else if (json.configurations[0].versionStats) {
+                versionCount = json.configurations[0].versionStats.totalVersions;
+            } else if (json.configurations[0].nodes) {
+                versionCount = getTotalCPEMatches(json.configurations[0]);
+            } else {
+                versionCount = selectionCount;
+            }
+            
+            const versionStats = ` (${selectionCount} CPEs, ${versionCount} versions)`;
+            
             const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
             const altShowButton = document.getElementById(`showConsolidatedJson_matchesTable_${tableIndex}`);
-
             const buttonToUpdate = showButton || altShowButton;
 
             if (buttonToUpdate) {
-                // Add selection counter to button text
-                buttonToUpdate.textContent = `Show Consolidated JSON (${selectionCount} selected)`;
-                
-                // Update button color based on selection state
+                // Add selection counter and version stats to button text
                 const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
                 if (display && display.style.display !== 'none') {
-                    buttonToUpdate.textContent = `Hide Consolidated JSON (${selectionCount} selected)`;
+                    buttonToUpdate.textContent = `Hide Consolidated JSON${versionStats}`;
                     buttonToUpdate.classList.remove('btn-primary');
                     buttonToUpdate.classList.add('btn-success');
                 } else {
+                    buttonToUpdate.textContent = `Show Consolidated JSON${versionStats}`;
                     buttonToUpdate.classList.remove('btn-success');
                     buttonToUpdate.classList.add('btn-primary');
                 }
@@ -751,8 +981,6 @@ def getCPEJsonScript() -> str:
             
             // Always update the JSON display if it's visible
             updateJsonDisplayIfVisible(tableId);
-            
-            // Also update the master JSON if it's visible
             updateAllConfigurationsDisplay();
             
         } catch(e) {
@@ -767,13 +995,24 @@ def getCPEJsonScript() -> str:
             let totalSelections = 0;
             let configCount = 0;
             let configDetails = [];
+            let totalVersions = 0;
             
             tableSelections.forEach((selections, tableId) => {
                 if (selections.size > 0) {
                     hasSelections = true;
                     totalSelections += selections.size;
                     configCount++;
-                    configDetails.push(`${selections.size} criteria`);
+                    
+                    // Get version count from this table's JSON if available
+                    const json = consolidatedJsons.get(tableId);
+                    if (json && json.configurations && json.configurations.length > 0) {
+                        const versionCount = json.configurations[0].cpeMatch.length;
+                        configDetails.push(`${selections.size} CPEs, ${versionCount} versions`);
+                        totalVersions += versionCount;
+                    } else {
+                        configDetails.push(`${selections.size} criteria`);
+                        totalVersions += selections.size; // Assume 1 version per CPE if no detailed data
+                    }
                 }
             });
             
@@ -784,9 +1023,11 @@ def getCPEJsonScript() -> str:
             if (container && exportButton) {
                 container.style.display = hasSelections ? 'block' : 'none';
                 
-                // Update button text with selection count
+                // Update button text with selection count and version information
                 if (hasSelections) {
                     const display = document.getElementById('allConfigurationsDisplay');
+                    
+                    // Format as requested: keep "Show All Configurations" text
                     const configSummary = `${configCount} config${configCount !== 1 ? 's' : ''} (${configDetails.join(', ')})`;
                     
                     if (display && display.style.display !== 'none') {
@@ -880,6 +1121,102 @@ def getCPEJsonScript() -> str:
         }
     }
 
+    // Process raw platform data to generate cpeMatch objects with version information
+    function processVersionDataToCpeMatches(cpeBase, rawVersionData) {
+        try {
+            // Array to hold all generated cpeMatch objects
+            const cpeMatches = [];
+            
+            // If no version data provided or no versions array, return a basic cpeMatch object
+            if (!rawVersionData || !Array.isArray(rawVersionData.versions) || rawVersionData.versions.length === 0) {
+                const basicMatch = createCpeMatchObject(cpeBase);
+                return [basicMatch];
+            }
+            
+            // Process each version entry in the versions array
+            for (const versionInfo of rawVersionData.versions) {
+                // Skip if there's no version information at all
+                if (!versionInfo) continue;
+                
+                // Create a new cpeMatch object for this version
+                const cpeMatch = {
+                    "criteria": cpeBase,
+                    "matchCriteriaId": "generated_" + Math.random().toString(36).substr(2, 9),
+                    "vulnerable": versionInfo.status !== 'unaffected' // Set vulnerable based on status
+                };
+                
+                // Handle different version patterns
+                if (versionInfo.hasOwnProperty('lessThan')) {
+                    // Version range with start (inclusive) and end (exclusive)
+                    if (versionInfo.version) {
+                        // Remove the "version 0" special handling - all versions should be treated the same
+                        cpeMatch.versionStartIncluding = versionInfo.version;
+                    }
+                    if (versionInfo.lessThan) {
+                        cpeMatch.versionEndExcluding = versionInfo.lessThan;
+                    }
+                    cpeMatches.push(cpeMatch);
+                } 
+                else if (versionInfo.hasOwnProperty('lessThanOrEqual')) {
+                    // Version range with start (inclusive) and end (inclusive)
+                    if (versionInfo.version) {
+                        // Remove the "version 0" special handling - all versions should be treated the same
+                        cpeMatch.versionStartIncluding = versionInfo.version;
+                    }
+                    if (versionInfo.lessThanOrEqual) {
+                        cpeMatch.versionEndIncluding = versionInfo.lessThanOrEqual;
+                    }
+                    cpeMatches.push(cpeMatch);
+                }
+                // Handle greater than ranges (if present)
+                else if (versionInfo.hasOwnProperty('greaterThan')) {
+                    if (versionInfo.greaterThan) {
+                        cpeMatch.versionStartExcluding = versionInfo.greaterThan;
+                    }
+                    if (versionInfo.version && versionInfo.version !== '*') {
+                        cpeMatch.versionEndIncluding = versionInfo.version;
+                    }
+                    cpeMatches.push(cpeMatch);
+                }
+                // Handle greater than or equal ranges (if present)
+                else if (versionInfo.hasOwnProperty('greaterThanOrEqual')) {
+                    if (versionInfo.greaterThanOrEqual) {
+                        cpeMatch.versionStartIncluding = versionInfo.greaterThanOrEqual;
+                    }
+                    if (versionInfo.version && versionInfo.version !== '*') {
+                        cpeMatch.versionEndIncluding = versionInfo.version;
+                    }
+                    cpeMatches.push(cpeMatch);
+                }
+                // Handle single version - the most common case
+                else if (versionInfo.hasOwnProperty('version')) {
+                    // Split the CPE to update the version component (the 6th component, index 5)
+                    const cpeParts = cpeBase.split(':');
+                    if (cpeParts.length >= 6) {
+                        // Replace the version part (at index 5)
+                        cpeParts[5] = versionInfo.version;
+                        // Rebuild the CPE string with updated version
+                        cpeMatch.criteria = cpeParts.join(':');
+                    }
+                    cpeMatches.push(cpeMatch);
+                }
+            }
+            
+            // If no valid cpeMatch objects were created, return a basic one
+            if (cpeMatches.length === 0) {
+                const basicMatch = createCpeMatchObject(cpeBase);
+                return [basicMatch];
+            }
+            
+            return cpeMatches;
+        } catch (e) {
+            console.error("Error processing version data:", e);
+            // Return a basic cpeMatch object in case of error
+            const errorMatch = createCpeMatchObject(cpeBase);
+            return [errorMatch];
+        }
+    }
+
     // Add this function to track completion status
     function updateCompletionTracker() {
         try {
@@ -916,26 +1253,175 @@ def getCPEJsonScript() -> str:
             console.error('Error updating completion tracker:', e);
         }
     }
+    
+    // Maintain JSON display state across row toggle operations
+    function preserveJsonDisplayState(tableIndex) {
+        const tableId = `matchesTable_${tableIndex}`;
+        const jsonContainer = document.querySelector(`.consolidated-json-container[data-index="${tableIndex}"]`);
+        const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
+        const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
+        
+        if (!jsonContainer || !display || !showButton) return;
+        
+        // Store current state
+        const isDisplayVisible = display.style.display !== 'none';
+        const selectedRows = tableSelections.get(tableId);
+        const selectionCount = selectedRows ? selectedRows.size : 0;
+        
+        // Get json and version information
+        const json = consolidatedJsons.get(tableId);
+        let versionCount = selectionCount;
+        
+        // Extract version info if available
+        if (json && json.configurations && json.configurations.length > 0) {
+            if (json.configurations[0].versionStats) {
+                versionCount = json.configurations[0].versionStats.totalVersions;
+            } else if (json.configurations[0].cpeMatch) {
+                versionCount = json.configurations[0].cpeMatch.length;
+            } else if (json.configurations[0].nodes) {
+                versionCount = getTotalCPEMatches(json.configurations[0]);
+            }
+        }
+        
+        const versionStats = selectionCount > 0 ? ` (${selectionCount} CPEs, ${versionCount} versions)` : '';
+        
+        // Ensure the button text and state matches the display visibility
+        if (isDisplayVisible) {
+            showButton.textContent = `Hide Consolidated JSON${versionStats}`;
+            showButton.classList.remove('btn-primary');
+            showButton.classList.add('btn-success');
+            
+            // Also ensure the JSON content is updated
+            updateJsonDisplayIfVisible(tableId);
+        } else {
+            showButton.textContent = `Show Consolidated JSON${versionStats}`;
+            showButton.classList.remove('btn-success');
+            showButton.classList.add('btn-primary');
+        }
+        
+        // Ensure proper container positioning
+        const collapseButton = document.getElementById(`collapseRowButton_${tableIndex}`);
+        if (collapseButton) {
+            const buttonParent = collapseButton.parentNode;
+            buttonParent.parentNode.insertBefore(jsonContainer, buttonParent.nextSibling);
+        }
+    }
+
+    function getTotalCPEMatches(config) {
+        let count = 0;
+        if (config.nodes) {
+            for (const node of config.nodes) {
+                if (node.cpeMatch) {
+                    count += node.cpeMatch.length;
+                }
+            }
+        } else if (config.cpeMatch) {
+            count = config.cpeMatch.length;
+        }
+        return count;
+    }
+
+    function processBasicVersionData(selectedRows, rawPlatformData, json) {
+        let totalVersions = 0;
+        
+        // Add cpeMatch objects for each selected CPE, processing version information
+        selectedRows.forEach(cpeBase => {
+            // If we have raw platform data, process each version into cpeMatch objects
+            if (rawPlatformData) {
+                const cpeMatches = processVersionDataToCpeMatches(cpeBase, rawPlatformData);
+                
+                // Track version statistics
+                cpeMatches.forEach(match => {
+                    json.configurations[0].cpeMatch.push(match);
+                    totalVersions++;
+                });
+            } else {
+                // No version data, just use the basic CPE
+                const basicMatch = createCpeMatchObject(cpeBase);
+                json.configurations[0].cpeMatch.push(basicMatch);
+                totalVersions++;
+            }
+        });
+        
+        // Store version statistics in the JSON for display
+        json.configurations[0].versionStats = {
+            totalVersions: totalVersions,
+            selectedCPEs: selectedRows.size
+        };
+    }
     </script>
     """
 
-# Fix the collapse button in update_cpeQueryHTML_column - remove newlines
-def update_cpeQueryHTML_column(primaryDataframe, nvdSourceData) -> pd.DataFrame:
-    for index, row in primaryDataframe.iterrows():
+def update_cpeQueryHTML_column(dataframe, nvdSourceData):
+    """Updates the dataframe to include a column with HTML for CPE query results"""
+    import json
+    import html
+    import pandas as pd
+    
+    # Make a copy to avoid modifying the original
+    result_df = dataframe.copy()
+    
+    # Process each row to create the cpeQueryHTML content
+    for index, row in result_df.iterrows():
+        # Initialize data attributes for the container
+        data_attrs = []
         
-        # Create the collapse button with a proper container ID that JavaScript can find
+        # Add platform data attribute (including raw config data if applicable)
+        platform_data = None
+        
+        # First check if we have rawPlatformData
+        if 'rawPlatformData' in row and row['rawPlatformData'] is not None:
+            platform_data = row['rawPlatformData']
+            
+            # If this is NVD data and we have rawConfigData, include it in platform data
+            if row.get('dataSource') == 'NVDAPI' and 'rawConfigData' in row and row['rawConfigData'] is not None:
+                # Instead of embedding the entire configuration, create a reference
+                if isinstance(platform_data, dict):
+                    # Just add a reference indicator and version stats
+                    platform_data['hasEmbeddedConfig'] = True
+                    
+                    # Extract version statistics from config if possible
+                    if isinstance(row['rawConfigData'], dict) and 'nodes' in row['rawConfigData']:
+                        total_cpes = 0
+                        for node in row['rawConfigData'].get('nodes', []):
+                            if 'cpeMatch' in node:
+                                total_cpes += len(node['cpeMatch'])
+                        platform_data['configStats'] = {'totalCPEs': total_cpes}
+                
+                # Add the raw config data as a separate attribute
+                try:
+                    config_json = json.dumps(row['rawConfigData'])
+                    escaped_config_json = html.escape(config_json)
+                    data_attrs.append(f'data-raw-config="{escaped_config_json}"')
+                except Exception as e:
+                    print(f"Error serializing config data: {e}")
+        
+        # Serialize and escape the platform data
+        if (platform_data):
+            try:
+                platform_json = json.dumps(platform_data)
+                escaped_json = html.escape(platform_json)
+                data_attrs.append(f'data-raw-platform="{escaped_json}"')
+            except Exception as e:
+                print(f"Error serializing platform data: {e}")
+        
+        # Create the collapse button with a proper container ID
         collapse_button_html = f'<div class="mb-3 d-flex gap-2" id="buttonContainer_{index}"><button id="collapseRowButton_{index}" class="btn btn-secondary" onclick="toggleRowCollapse({index})">Collapse Row (Mark Complete)</button></div>'
         
         # Populate the rowDataHTML column with the HTML content
         row_html_content = convertRowDataToHTML(row, nvdSourceData, index)
-        primaryDataframe.at[index, 'rowDataHTML'] = collapse_button_html + row_html_content
+        result_df.at[index, 'rowDataHTML'] = collapse_button_html + row_html_content
         
-        # Populate the cpeQueryHTML column with HTML content
-        sortedCPEsQueryData = row['trimmedCPEsQueryData'] 
-        html_content = convertCPEsQueryDataToHTML(sortedCPEsQueryData, index)
-        primaryDataframe.at[index, 'cpeQueryHTML'] = html_content
-
-    return primaryDataframe
+        # Create the main HTML div with all data attributes
+        if 'trimmedCPEsQueryData' in row:
+            sortedCPEsQueryData = row['trimmedCPEsQueryData'] 
+            attr_string = " ".join(data_attrs)
+            html_content = f"""<div class="cpe-query-container" {attr_string}>"""
+            html_content += convertCPEsQueryDataToHTML(sortedCPEsQueryData, index)
+            html_content += "</div>"  # Close the container div
+            result_df.at[index, 'cpeQueryHTML'] = html_content
+    
+    return result_df
 
 # Builds a simple html page with Bootstrap styling
 def buildHTMLPage(affectedHtml, targetCve, vdbIntelHtml=None):
