@@ -1,7 +1,7 @@
 # Import Python dependencies
-import webbrowser
-import os
 from pathlib import Path
+import os
+import webbrowser
 from sys import exit
 from build_info import GIT_COMMIT, GIT_REPO, VERSION, TOOLNAME
 # Import console tab scripts
@@ -9,21 +9,15 @@ import gatherData
 import processData
 import generateHTML
 
-# Initial setup of useful global variables
-#nvdAPIKey = input("Enter NVD API Key (The process will be slower if no key is entered.)")
-nvdAPIKey = '426ecf95-42ac-4c10-afd4-b7ee3d6a2229' # Remove this prior to commit
-
-# Gather NVD Source Data for mapping source data later in the process
-nvdSourceData = gatherData.gatherNVDSourceData(nvdAPIKey) 
-
 def setOperationMode(modeSetting):
-
     # Execute Test or User Mode operations based on initial user input
     match modeSetting:
         # User Mode runs the CPE Dictionary Search capability, requesting Vendor and product name input data
         case "1":
             print(f"{TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
             print("CPE Search Mode Selected!")
+            # Prompt for API key after mode selection
+            nvdAPIKey = input("Enter NVD API Key (The process will be slower if no key is entered): ").strip()
             print("This mode is unfinished! Please use Enrichment Assistance Mode for now.")
             exit()
 
@@ -31,6 +25,12 @@ def setOperationMode(modeSetting):
         case "2":
             print(f"{TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
             print("Enrichment Assistance Mode Selected!")
+            # Prompt for API key after mode selection
+            nvdAPIKey = input("Enter NVD API Key (The process will be slower if no key is entered): ").strip()
+
+            # Gather NVD Source Data for mapping source data later in the process
+            nvdSourceData = gatherData.gatherNVDSourceData(nvdAPIKey) 
+            
             processActive = True
             while processActive == True:
 
@@ -98,6 +98,12 @@ def setOperationMode(modeSetting):
         case "9":
             print(f"{TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
             print("Test Mode Selected!")
+            # Prompt for API key after mode selection
+            nvdAPIKey = input("Enter NVD API Key (The process will be slower if no key is entered): ").strip()
+
+            # Gather NVD Source Data for mapping source data later in the process
+            nvdSourceData = gatherData.gatherNVDSourceData(nvdAPIKey)
+            
             def runCVESmokeTests():
                 cveSmoke = [
                         "CVE-2024-0057",    # Lots of everything, CPEs included
@@ -180,5 +186,5 @@ def setOperationMode(modeSetting):
             print("Invalid choice, exiting")
             exit()
     
-setOperationMode(input("Select Mode: \n 1 --> CPE Search Mode \n 2 --> Enrichment Assistance Mode \n"))
+setOperationMode(input("Select Mode: \n 1 --> CPE Search Mode \n 2 --> Enrichment Assistance Mode \n 9 --> Test Mode \n"))
 

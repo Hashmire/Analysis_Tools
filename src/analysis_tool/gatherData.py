@@ -31,9 +31,12 @@ def gatherNVDCVERecord(apiKey, targetCve):
     url = "https://services.nvd.nist.gov/rest/json/cves/2.0/?cveId=" + targetCve
     headers = {
         "Accept": "application/json",
-        "User-Agent": "{TOOLNAME}{VERSION}",
-        "apiKey": f"{apiKey}"
+        "User-Agent": f"{TOOLNAME}/{VERSION}"
     }
+    
+    # Only add API key to headers if one was provided
+    if apiKey:
+        headers["apiKey"] = apiKey
    
     max_retries = 100
     for attempt in range(max_retries):
@@ -59,9 +62,12 @@ def gatherNVDSourceData(apiKey):
         url = "https://services.nvd.nist.gov/rest/json/source/2.0/"
         headers = {
             "Accept": "application/json",
-            "User-Agent": "{TOOLNAME}/{VERSION}",
-            "apiKey": f"{apiKey}"
+            "User-Agent": f"{TOOLNAME}/{VERSION}"
         }
+        
+        # Only add API key to headers if one was provided
+        if apiKey:
+            headers["apiKey"] = apiKey
        
         max_retries = 100
         for attempt in range(max_retries):
@@ -98,7 +104,11 @@ def gatherNVDCPEData(apiKey, case, query_string):
 
         case 'cpeMatchString':
             nvd_cpes_url = "https://services.nvd.nist.gov/rest/json/cpes/2.0"
-            headers = {"user-agent": f"{TOOLNAME}/{VERSION}", "apiKey": f"{apiKey}"}
+            headers = {"user-agent": f"{TOOLNAME}/{VERSION}"}
+            
+            # Only add API key to headers if one was provided
+            if apiKey:
+                headers["apiKey"] = apiKey
            
             max_retries = 100
             for attempt in range(max_retries):

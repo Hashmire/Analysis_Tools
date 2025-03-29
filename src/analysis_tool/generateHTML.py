@@ -200,337 +200,604 @@ def getCPEJsonScript() -> str:
     const tableSelections = new Map(); // Map<tableId, Set<cpeBase>>
     const consolidatedJsons = new Map(); // Map<tableId, json>
     
+    // Add CSS for better row selection visibility
+    const style = document.createElement('style');
+    style.textContent = `
+        .table-active {
+            background-color: rgba(0, 123, 255, 0.35) !important;
+            font-weight: bold;
+            border-left: 3px solid #007bff;
+        }
+        .json-container {
+            transition: all 0.3s ease-in-out;
+        }
+        .btn-success {
+            transition: background-color 0.3s ease;
+        }
+    `;
+    document.head.appendChild(style);
+    
     // Function to toggle row collapse state
     function toggleRowCollapse(tableIndex) {
-        const rowDataTable = document.getElementById(`rowDataTable_${tableIndex}`);
-        const matchesTable = document.getElementById(`matchesTable_${tableIndex}`);
-        const jsonContainer = document.querySelector(`.consolidated-json-container[data-index="${tableIndex}"]`);
-        const collapseButton = document.getElementById(`collapseRowButton_${tableIndex}`);
-        
-        if (rowDataTable && matchesTable) {
-            // Toggle visibility
-            const isCollapsed = rowDataTable.classList.toggle('d-none');
-            matchesTable.classList.toggle('d-none');
-            if (jsonContainer) jsonContainer.classList.toggle('d-none');
+        try {
+            const rowDataTable = document.getElementById(`rowDataTable_${tableIndex}`);
+            const matchesTable = document.getElementById(`matchesTable_${tableIndex}`);
+            const jsonContainer = document.querySelector(`.consolidated-json-container[data-index="${tableIndex}"]`);
+            const collapseButton = document.getElementById(`collapseRowButton_${tableIndex}`);
+            const tableId = `matchesTable_${tableIndex}`; 
             
-            // Update button text
-            if (collapseButton) {
-                collapseButton.textContent = isCollapsed ? 'Expand Row (Completed)' : 'Collapse Row (Mark Complete)';
-                collapseButton.classList.toggle('btn-success', isCollapsed);
-                collapseButton.classList.toggle('btn-secondary', !isCollapsed);
+            if (rowDataTable && matchesTable) {
+                // Toggle visibility for tables
+                const isCollapsed = rowDataTable.classList.toggle('d-none');
+                matchesTable.classList.toggle('d-none');
+                
+                // Always ensure the JSON container is in the right place
+                // regardless of collapsed state
+                if (jsonContainer && collapseButton) {
+                    // Get the parent of the collapse button
+                    const buttonParent = collapseButton.parentNode;
+                    
+                    // Always move the JSON container to be adjacent to the button
+                    buttonParent.parentNode.insertBefore(jsonContainer, buttonParent.nextSibling);
+                    
+                    // Add some spacing for better visual separation
+                    jsonContainer.classList.add('mt-2');
+                    
+                    // IMPORTANT: Update the consolidated JSON button to maintain selection count
+                    const selectedRows = tableSelections.get(tableId);
+                    const selectionCount = selectedRows ? selectedRows.size : 0;
+                    
+                    // Find the consolidated JSON button
+                    const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
+                    const altShowButton = document.getElementById(`showConsolidatedJson_matchesTable_${tableIndex}`);
+                    const buttonToUpdate = showButton || altShowButton;
+                    
+                    // Update the button text to maintain selection count
+                    if (buttonToUpdate) {
+                        // Check if display is visible
+                        const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
+                        const isVisible = display && display.style.display !== 'none';
+                        
+                        // ADDED: Make sure we're seeing consistent behavior between the display and button
+                        if (isVisible && display.style.display !== 'block') {
+                            display.style.display = 'block';
+                        }
+                        
+                        if (selectionCount > 0) {
+                            buttonToUpdate.textContent = isVisible 
+                                ? `Hide Consolidated JSON (${selectionCount} selected)` 
+                                : `Show Consolidated JSON (${selectionCount} selected)`;
+                        } else {
+                            buttonToUpdate.textContent = isVisible 
+                                ? `Hide Consolidated JSON` 
+                                : `Show Consolidated JSON`;
+                        }
+                        
+                        // ADDED: Ensure button styling matches display state
+                        if (isVisible) {
+                            buttonToUpdate.classList.remove('btn-primary');
+                            buttonToUpdate.classList.add('btn-success');
+                        } else {
+                            buttonToUpdate.classList.remove('btn-success');
+                            buttonToUpdate.classList.add('btn-primary');
+                        }
+                    }
+                    
+                    // Also update the display content if it's visible
+                    updateJsonDisplayIfVisible(tableId);
+                }
+                
+                // Update button text
+                if (collapseButton) {
+                    collapseButton.textContent = isCollapsed ? 'Expand Row (Completed)' : 'Collapse Row (Mark Complete)';
+                    collapseButton.classList.toggle('btn-success', isCollapsed);
+                    collapseButton.classList.toggle('btn-secondary', !isCollapsed);
+                }
             }
+            console.debug(`Table ${tableId} collapsed: ${isCollapsed}, Selection count: ${selectionCount}, JSON visible: ${isVisible}`);
+        } catch(e) {
+            console.error(`Error in toggleRowCollapse for tableIndex ${tableIndex}:`, e);
         }
     }
     
     // Add event listeners when the DOM is fully loaded
     document.addEventListener('DOMContentLoaded', function() {
-        // Add a master "Export All Configurations" button at the top of cveListCPESuggester
-        const cveListCPESuggester = document.getElementById('cveListCPESuggester');
-        if (cveListCPESuggester) {
-            // Create the Export All container at the beginning
-            const allContainer = document.createElement('div');
-            allContainer.classList.add('all-configurations-container', 'mt-3', 'mb-5');
-            allContainer.id = 'allConfigurationsContainer';
-            allContainer.innerHTML = `
-                <div class="d-grid gap-2 col-12 mx-auto">
-                    <button id="exportAllConfigurations" class="btn btn-danger">Export All Configurations</button>
-                </div>
-                <div id="allConfigurationsDisplay" class="mt-3" style="display: none;">
-                    <h4>Complete Configuration JSON</h4>
-                    <p class="text-muted">This combines all selected CPEs from all tables, with each table creating its own configuration node.</p>
-                    <pre id="allConfigurationsContent" style="max-height: 600px; overflow-y: auto; background: #f8f9fa; padding: 15px; border-radius: 5px;"></pre>
-                </div>
-            `;
-            
-            // Insert at the beginning of cveListCPESuggester
-            if (cveListCPESuggester.firstChild) {
-                cveListCPESuggester.insertBefore(allContainer, cveListCPESuggester.firstChild.nextSibling);
-            } else {
-                cveListCPESuggester.appendChild(allContainer);
-            }
-            
-            // Add click handler to the Export All button
-            document.getElementById('exportAllConfigurations').addEventListener('click', function() {
-                const display = document.getElementById('allConfigurationsDisplay');
-                const content = document.getElementById('allConfigurationsContent');
+        try {
+            // Add a master "Export All Configurations" button at the top of cveListCPESuggester
+            const cveListCPESuggester = document.getElementById('cveListCPESuggester');
+            if (cveListCPESuggester) {
+                // Create the Export All container at the beginning
+                const allContainer = document.createElement('div');
+                allContainer.classList.add('all-configurations-container', 'mt-3', 'mb-5');
+                allContainer.id = 'allConfigurationsContainer';
+                allContainer.innerHTML = `
+                    <div class="d-grid gap-2 col-12 mx-auto">
+                        <button id="exportAllConfigurations" class="btn btn-danger">Export All Configurations</button>
+                    </div>
+                    <div id="allConfigurationsDisplay" class="mt-3" style="display: none;">
+                        <h4>Complete Configuration JSON</h4>
+                        <p class="text-muted">This combines all selected CPEs from all tables, with each table creating its own configuration node.</p>
+                        <pre id="allConfigurationsContent" style="max-height: 600px; overflow-y: auto; background: #f8f9fa; padding: 15px; border-radius: 5px;"></pre>
+                    </div>
+                `;
                 
-                if (display && content) {
-                    // Create master JSON with configurations from all tables
-                    const masterJson = generateAllConfigurationsJson();
-                    
-                    if (!masterJson || !masterJson.configurations || masterJson.configurations.length === 0) {
-                        content.textContent = 'No CPEs selected in any table. Please select at least one CPE row.';
-                    } else {
-                        content.textContent = JSON.stringify(masterJson, null, 2);
-                    }
-                    
-                    // Toggle display
-                    display.style.display = display.style.display === 'none' ? 'block' : 'none';
-                    this.textContent = display.style.display === 'none' ? 'Export All Configurations' : 'Hide All Configurations';
+                // Insert at the beginning of cveListCPESuggester
+                if (cveListCPESuggester.firstChild) {
+                    cveListCPESuggester.insertBefore(allContainer, cveListCPESuggester.firstChild.nextSibling);
+                } else {
+                    cveListCPESuggester.appendChild(allContainer);
                 }
-            });
-        }
-
-        // Find all matchesTables (there may be multiple)
-        const tables = document.querySelectorAll('table[id^="matchesTable"]');
-        
-        tables.forEach((table, tableIndex) => {
-            const tableId = table.id;
-            
-            // Initialize selections for this table
-            tableSelections.set(tableId, new Set());
-            
-            // Add click handlers to all CPE rows in this table
-            const rows = table.querySelectorAll('.cpe-row');
-            rows.forEach(function(row) {
-                row.addEventListener('click', function(event) {
-                    // Get data attributes
-                    const cpeBase = this.getAttribute('data-cpe-base');
+                
+                // Add click handler to the Export All button
+                document.getElementById('exportAllConfigurations').addEventListener('click', function() {
+                    const display = document.getElementById('allConfigurationsDisplay');
+                    const content = document.getElementById('allConfigurationsContent');
                     
-                    // Get selections for this table
-                    const selectedRows = tableSelections.get(tableId);
-                    
-                    // Check if this row is already active (selected)
-                    const isAlreadyActive = this.classList.contains('table-active');
-                    
-                    // Handle row selection based on whether Ctrl/Cmd key is pressed
-                    if (event.ctrlKey || event.metaKey) {
-                        // Toggle this row only, without affecting other selections
-                        if (isAlreadyActive) {
-                            this.classList.remove('table-active');
-                            selectedRows.delete(cpeBase);
+                    if (display && content) {
+                        // Create master JSON with configurations from all tables
+                        const masterJson = generateAllConfigurationsJson();
+                        
+                        if (!masterJson || !masterJson.configurations || masterJson.configurations.length === 0) {
+                            content.textContent = 'No CPEs selected in any table. Please select at least one CPE row.';
                         } else {
-                            this.classList.add('table-active');
-                            selectedRows.add(cpeBase);
+                            content.textContent = JSON.stringify(masterJson, null, 2);
                         }
-                    } else {
-                        // No modifier key: toggle this row only if it's the only one selected
-                        if (isAlreadyActive && selectedRows.size === 1 && selectedRows.has(cpeBase)) {
-                            // If only this row is selected, toggle it off
-                            this.classList.remove('table-active');
-                            selectedRows.delete(cpeBase);
-                        } else {
-                            // If clicking a new row or multiple rows are selected, just select this one
-                            if (!isAlreadyActive) {
-                                // Clear other selections only if not using modifier key
-                                rows.forEach(r => {
-                                    if (r !== this && r.classList.contains('table-active')) {
-                                        r.classList.remove('table-active');
-                                    }
-                                });
-                                
-                                // Select this row
-                                this.classList.add('table-active');
-                                selectedRows.clear();
-                                selectedRows.add(cpeBase);
-                            }
-                        }
+                        
+                        // Toggle display
+                        display.style.display = display.style.display === 'none' ? 'block' : 'none';
+                        this.textContent = display.style.display === 'none' ? 'Export All Configurations' : 'Hide All Configurations';
                     }
-                    
-                    // Update consolidated JSON display for this table
-                    updateConsolidatedJson(tableId);
-                    
-                    // Ensure the master export button is properly displayed
-                    updateExportAllButton();
                 });
-            });
+            }
+
+            // Find all matchesTables (there may be multiple)
+            const tables = document.querySelectorAll('table[id^="matchesTable"]');
             
-            // Add a container for consolidated JSON right after this table
-            const container = document.createElement('div');
-            container.classList.add('consolidated-json-container', 'mt-3', 'mb-4');
-            container.setAttribute('data-index', tableIndex); // Add this line
-            container.innerHTML = `
-                <button id="showConsolidatedJson_${tableId}" class="btn btn-primary">Show Consolidated JSON</button>
-                <div id="consolidatedJsonDisplay_${tableId}" class="mt-3" style="display: none;">
-                    <h4>Consolidated Configuration JSON</h4>
-                    <pre id="consolidatedJsonContent_${tableId}" style="max-height: 400px; overflow-y: auto; background: #f8f9fa; padding: 15px; border-radius: 5px;"></pre>
-                </div>
-            `;
-            
-            // Place the container directly after the table
-            table.parentNode.insertBefore(container, table.nextSibling);
-            
-            // Add click handler to the button
-            document.getElementById(`showConsolidatedJson_${tableId}`).addEventListener('click', function() {
-                const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
-                const content = document.getElementById(`consolidatedJsonContent_${tableId}`);
+            tables.forEach((table, tableIndex) => {
+                const tableId = table.id;
                 
-                if (display && content) {
-                    const selectedRows = tableSelections.get(tableId);
-                    
-                    if (!selectedRows || selectedRows.size === 0) {
-                        content.textContent = 'No rows selected. Please select at least one row.';
-                    } else {
-                        // Get the consolidated JSON for this table
-                        const json = consolidatedJsons.get(tableId);
-                        content.textContent = JSON.stringify(json, null, 2);
-                    }
-                    
-                    // Toggle display
-                    display.style.display = display.style.display === 'none' ? 'block' : 'none';
-                    this.textContent = display.style.display === 'none' ? 'Show Consolidated JSON' : 'Hide Consolidated JSON';
+                // Initialize selections for this table
+                tableSelections.set(tableId, new Set());
+                
+                // Add click handlers to all CPE rows in this table
+                const rows = table.querySelectorAll('.cpe-row');
+                rows.forEach(function(row) {
+                    row.addEventListener('click', function(event) {
+                        try {
+                            // Get data attributes
+                            const cpeBase = this.getAttribute('data-cpe-base');
+                            
+                            // Get selections for this table
+                            const selectedRows = tableSelections.get(tableId);
+                            
+                            // Check if this row is already active (selected)
+                            const isAlreadyActive = this.classList.contains('table-active');
+                            
+                            // Handle row selection based on whether Ctrl/Cmd key is pressed
+                            if (event.ctrlKey || event.metaKey) {
+                                // Toggle this row only, without affecting other selections
+                                if (isAlreadyActive) {
+                                    this.classList.remove('table-active');
+                                    selectedRows.delete(cpeBase);
+                                } else {
+                                    this.classList.add('table-active');
+                                    selectedRows.add(cpeBase);
+                                }
+                            } else {
+                                // No modifier key: toggle this row only if it's the only one selected
+                                if (isAlreadyActive && selectedRows.size === 1 && selectedRows.has(cpeBase)) {
+                                    // If only this row is selected, toggle it off
+                                    this.classList.remove('table-active');
+                                    selectedRows.delete(cpeBase);
+                                } else {
+                                    // If clicking a new row or multiple rows are selected, just select this one
+                                    if (!isAlreadyActive) {
+                                        // Clear other selections only if not using modifier key
+                                        rows.forEach(r => {
+                                            if (r !== this && r.classList.contains('table-active')) {
+                                                r.classList.remove('table-active');
+                                            }
+                                        });
+                                        
+                                        // Select this row
+                                        this.classList.add('table-active');
+                                        selectedRows.clear();
+                                        selectedRows.add(cpeBase);
+                                    }
+                                }
+                            }
+                            
+                            // Update consolidated JSON display for this table
+                            updateConsolidatedJson(tableId);
+                            
+                            // Ensure the master export button is properly displayed
+                            updateExportAllButton();
+                        } catch(e) {
+                            console.error(`Error handling row click in table ${tableId}:`, e);
+                            
+                            // NEW: Update UI to show error and return to previous state
+                            // This ensures the UI isn't left in an inconsistent state
+                            alert(`Error processing selection. The UI has been restored to its previous state.`);
+                            
+                            // Force refresh selections from the current DOM state
+                            const currentSelections = new Set();
+                            rows.forEach(r => {
+                                if (r.classList.contains('table-active')) {
+                                    const cpeBase = r.getAttribute('data-cpe-base');
+                                    if (cpeBase) {
+                                        currentSelections.add(cpeBase);
+                                    }
+                                }
+                            });
+                            
+                            // Reset the selections to match the DOM
+                            tableSelections.set(tableId, currentSelections);
+                            
+                            // Update the button states to match the current DOM
+                            updateConsolidatedJson(tableId);
+                            updateExportAllButton();
+                        }
+                    });
+                });
+                
+                // Add a container for consolidated JSON right after this table
+                const container = document.createElement('div');
+                container.classList.add('consolidated-json-container', 'mt-3', 'mb-4', 'json-container');
+                container.setAttribute('data-index', tableIndex);
+                container.innerHTML = `
+                    <div id="consolidatedJsonDisplay_${tableId}" class="mt-3" style="display: none;">
+                        <h4>Consolidated Configuration JSON</h4>
+                        <pre id="consolidatedJsonContent_${tableId}" style="max-height: 400px; overflow-y: auto; background: #f8f9fa; padding: 15px; border-radius: 5px;"></pre>
+                    </div>
+                `;
+                
+                // Place the container directly after the table
+                table.parentNode.insertBefore(container, table.nextSibling);
+                
+                // Create the consolidated JSON button and place it next to the collapse button
+                const jsonButton = document.createElement('button');
+                jsonButton.id = `showConsolidatedJson_${tableId}`;
+                jsonButton.className = 'btn btn-primary';
+                jsonButton.textContent = 'Show Consolidated JSON';
+
+                // Find the button container and add the JSON button
+                const collapseButtonContainer = document.getElementById(`buttonContainer_${tableIndex}`);
+                if (collapseButtonContainer) {
+                    collapseButtonContainer.appendChild(jsonButton);
+                }
+
+                // Add click handler to the button - find it first since it's already in the DOM
+                const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
+                if (showButton) {
+                    showButton.addEventListener('click', function() {
+                        try {
+                            const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
+                            
+                            if (display) {
+                                // Check if the corresponding table is collapsed
+                                const matchesTable = document.getElementById(tableId);
+                                const tableIndex = tableId.split('_')[1];
+                                const isTableCollapsed = matchesTable.classList.contains('d-none');
+                                
+                                // Toggle display
+                                const isVisible = display.style.display === 'none' ? false : true;
+                                display.style.display = isVisible ? 'none' : 'block';
+                                
+                                // Get selection count for button text
+                                const selectedRows = tableSelections.get(tableId);
+                                const selectionCount = selectedRows ? selectedRows.size : 0;
+                                
+                                // Update button text with count and state
+                                if (selectionCount > 0) {
+                                    this.textContent = isVisible ? 
+                                        `Show Consolidated JSON (${selectionCount} selected)` : 
+                                        `Hide Consolidated JSON (${selectionCount} selected)`;
+                                } else {
+                                    this.textContent = isVisible ? 'Show Consolidated JSON' : 'Hide Consolidated JSON';
+                                }
+                                
+                                // Update content when showing
+                                if (!isVisible) {
+                                    updateJsonDisplayIfVisible(tableId);
+                                }
+                                
+                                // Update button styling
+                                if (!isVisible) {
+                                    this.classList.remove('btn-primary');
+                                    this.classList.add('btn-success');
+                                } else {
+                                    this.classList.remove('btn-success');
+                                    this.classList.add('btn-primary');
+                                }
+                            }
+                        } catch(e) {
+                            console.error(`Error toggling JSON display for table ${tableId}:`, e);
+                        }
+                    });
                 }
             });
-        });
-        
-        // Initial update of Export All button visibility
-        updateExportAllButton();
+            
+            // Initial update of Export All button visibility
+            updateExportAllButton();
+            
+        } catch(e) {
+            console.error("Error in DOMContentLoaded event handler:", e);
+        }
     });
     
-    // Modify the updateConsolidatedJson function to also update button text:
-    function updateConsolidatedJson(tableId) {
-        const selectedRows = tableSelections.get(tableId);
-        
-        if (!selectedRows || selectedRows.size === 0) {
-            consolidatedJsons.set(tableId, null);
-            
-            // Update the button text to show "Show Consolidated JSON" when no rows are selected
-            const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
-            if (showButton) {
-                showButton.textContent = "Show Consolidated JSON";
-            }
-            
-            // Hide the display if it's currently visible
+    // Update JSON display if it's currently visible
+    function updateJsonDisplayIfVisible(tableId) {
+        try {
             const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
-            if (display && display.style.display !== 'none') {
-                display.style.display = 'none';
+            const content = document.getElementById(`consolidatedJsonContent_${tableId}`);
+            
+            // Only update if the display is visible
+            if (display && content && display.style.display !== 'none') {
+                const selectedRows = tableSelections.get(tableId);
+                
+                if (!selectedRows || selectedRows.size === 0) {
+                    content.textContent = 'No rows selected. Please select at least one row.';
+                } else {
+                    // Get the consolidated JSON for this table
+                    const json = consolidatedJsons.get(tableId);
+                    content.textContent = JSON.stringify(json, null, 2);
+                }
+            }
+        } catch(e) {
+            console.error(`Error updating JSON display for table ${tableId}:`, e);
+        }
+    }
+    
+    // Update consolidated JSON function
+    function updateConsolidatedJson(tableId) {
+        try {
+            const selectedRows = tableSelections.get(tableId);
+            
+            if (!selectedRows || selectedRows.size === 0) {
+                consolidatedJsons.set(tableId, null);
+                
+                // Update the button to reflect no selections - FIX: use proper disabled attribute
+                const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
+                if (showButton) {
+                    showButton.textContent = "Show Consolidated JSON";
+                    showButton.disabled = true;
+                    showButton.classList.remove('btn-success');
+                    showButton.classList.add('btn-primary');
+                }
+                
+                // Always update the JSON display if it's visible
+                updateJsonDisplayIfVisible(tableId);
+                return;
+            } else {
+                // Re-enable the button if we have selections
+                const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
+                if (showButton) {
+                    showButton.disabled = false;
+                    showButton.classList.remove('disabled');
+                    
+                    // If display is visible, update button to show success state
+                    const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
+                    if (display && display.style.display !== 'none') {
+                        showButton.classList.remove('btn-primary');
+                        showButton.classList.add('btn-success');
+                    }
+                }
             }
             
-            return;
-        }
-        
-        // Extract the table index from tableId (e.g. "matchesTable_0" -> "0")
-        const tableIndex = tableId.split('_')[1];
-        
-        // Look specifically for the corresponding rowDataTable with the same index
-        const rowDataTableId = `rowDataTable_${tableIndex}`;
-        const rowDataTable = document.getElementById(rowDataTableId);
-        
-        let dataSource = "Unknown";
-        let sourceId = "Unknown";
-        let sourceRole = "Unknown";
-        
-        if (rowDataTable) {
-            const rows = rowDataTable.getElementsByTagName('tr');
+            // Extract the table index from tableId (e.g. "matchesTable_0" -> "0")
+            const tableIndex = tableId.split('_')[1];
             
-            // Scan through all rows in this specific table
-            for (let i = 0; i < rows.length; i++) {
-                const cells = rows[i].getElementsByTagName('td');
-                if (cells.length >= 2) {
-                    const labelCell = cells[0];
-                    const valueCell = cells[1];
-                    
-                    if (labelCell.textContent.includes("Data Source")) {
-                        dataSource = valueCell.textContent.trim();
-                    }
-                    else if (labelCell.textContent.includes("Source ID")) {
-                        // Extract just the UUID part if there's more text
-                        const sourceIdText = valueCell.textContent.trim();
-                        const uuidMatch = sourceIdText.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-                        if (uuidMatch) {
-                            sourceId = uuidMatch[0];
-                        } else {
-                            sourceId = sourceIdText;
+            // Look specifically for the corresponding rowDataTable with the same index
+            const rowDataTableId = `rowDataTable_${tableIndex}`;
+            const rowDataTable = document.getElementById(rowDataTableId);
+            
+            let dataSource = "Unknown";
+            let sourceId = "Unknown";
+            let sourceRole = "Unknown";
+            
+            if (rowDataTable) {
+                const rows = rowDataTable.getElementsByTagName('tr');
+                
+                // Scan through all rows in this specific table
+                for (let i = 0; i < rows.length; i++) {
+                    const cells = rows[i].getElementsByTagName('td');
+                    if (cells.length >= 2) {
+                        const labelCell = cells[0];
+                        const valueCell = cells[1];
+                        
+                        if (labelCell.textContent.includes("Data Source")) {
+                            dataSource = valueCell.textContent.trim();
+                        }
+                        else if (labelCell.textContent.includes("Source ID")) {
+                            // Extract just the UUID part if there's more text
+                            const sourceIdText = valueCell.textContent.trim();
+                            const uuidMatch = sourceIdText.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+                            if (uuidMatch) {
+                                sourceId = uuidMatch[0];
+                            } else {
+                                sourceId = sourceIdText;
+                            }
+                        }
+                        else if (labelCell.textContent.includes("Source Role")) {
+                            sourceRole = valueCell.textContent.trim();
                         }
                     }
-                    else if (labelCell.textContent.includes("Source Role")) {
-                        sourceRole = valueCell.textContent.trim();
-                    }
                 }
             }
-        }
-        
-        // Create configurations structure with proper array format
-        const json = {
-            "configurations": [
-                {
-                    "operator": "OR",
-                    "negate": false,
-                    "cpeMatch": [],
-                    // Add generatedFromSource at the configuration level
-                    "generatedFromSource": {
-                        "dataSource": dataSource,
-                        "sourceId": sourceId,
-                        "sourceRole": sourceRole
+            
+            // Create configurations structure with proper array format
+            const json = {
+                "configurations": [
+                    {
+                        "operator": "OR",
+                        "negate": false,
+                        "cpeMatch": [],
+                        "generatedFromSource": {
+                            "dataSource": dataSource,
+                            "sourceId": sourceId,
+                            "sourceRole": sourceRole
+                        }
                     }
+                ]
+            };
+            
+            // Add each selected CPE to the cpeMatch array
+            selectedRows.forEach(cpeBase => {
+                const cpeMatch = createCpeMatchObject(cpeBase);
+                json.configurations[0].cpeMatch.push(cpeMatch);
+            });
+            
+            // Store the consolidated JSON for this table
+            consolidatedJsons.set(tableId, json);
+            
+            // Update button style based on selection count
+            const selectionCount = selectedRows.size;
+            
+            // FIXED: Use the tableIndex from above instead of redeclaring it
+            const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
+            const altShowButton = document.getElementById(`showConsolidatedJson_matchesTable_${tableIndex}`);
+
+            const buttonToUpdate = showButton || altShowButton;
+
+            if (buttonToUpdate) {
+                // Add selection counter to button text
+                buttonToUpdate.textContent = `Show Consolidated JSON (${selectionCount} selected)`;
+                
+                // Update button color based on selection state
+                const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
+                if (display && display.style.display !== 'none') {
+                    buttonToUpdate.textContent = `Hide Consolidated JSON (${selectionCount} selected)`;
+                    buttonToUpdate.classList.remove('btn-primary');
+                    buttonToUpdate.classList.add('btn-success');
+                } else {
+                    buttonToUpdate.classList.remove('btn-success');
+                    buttonToUpdate.classList.add('btn-primary');
                 }
-            ]
-        };
-        
-        // Add each selected CPE to the cpeMatch array
-        selectedRows.forEach(cpeBase => {
-            const cpeMatch = createCpeMatchObject(cpeBase);
-            json.configurations[0].cpeMatch.push(cpeMatch);
-        });
-        
-        // Store the consolidated JSON for this table
-        consolidatedJsons.set(tableId, json);
-        
-        // Update button text if the display is visible
-        const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
-        const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
-        
-        if (display && showButton && display.style.display !== 'none') {
-            showButton.textContent = "Hide Consolidated JSON";
+            }
+            
+            // Always update the JSON display if it's visible
+            updateJsonDisplayIfVisible(tableId);
+            
+            // Also update the master JSON if it's visible
+            updateAllConfigurationsDisplay();
+            
+        } catch(e) {
+            console.error(`Error updating consolidated JSON for table ${tableId}:`, e);
         }
     }
     
     function updateExportAllButton() {
-        // Check if any tables have selected rows
-        let hasSelections = false;
-        tableSelections.forEach((selections) => {
-            if (selections.size > 0) {
-                hasSelections = true;
+        try {
+            // Check if any tables have selected rows
+            let hasSelections = false;
+            let totalSelections = 0;
+            
+            tableSelections.forEach((selections) => {
+                if (selections.size > 0) {
+                    hasSelections = true;
+                    totalSelections += selections.size;
+                }
+            });
+            
+            // Show/hide the Export All button container based on whether there are selections
+            const container = document.getElementById('allConfigurationsContainer');
+            const exportButton = document.getElementById('exportAllConfigurations');
+            
+            if (container && exportButton) {
+                container.style.display = hasSelections ? 'block' : 'none';
+                
+                // Update button text with selection count
+                if (hasSelections) {
+                    const display = document.getElementById('allConfigurationsDisplay');
+                    if (display && display.style.display !== 'none') {
+                        exportButton.textContent = `Hide All Configurations (${totalSelections} total)`;
+                        // Also update the content if visible
+                        updateAllConfigurationsDisplay();
+                    } else {
+                        exportButton.textContent = `Export All Configurations (${totalSelections} total)`;
+                    }
+                }
             }
-        });
-        
-        // Show/hide the Export All button container based on whether there are selections
-        const container = document.getElementById('allConfigurationsContainer');
-        if (container) {
-            container.style.display = hasSelections ? 'block' : 'none';
+        } catch(e) {
+            console.error("Error updating export all button:", e);
+        }
+    }
+    
+    // Update the all configurations display
+    function updateAllConfigurationsDisplay() {
+        try {
+            const display = document.getElementById('allConfigurationsDisplay');
+            const content = document.getElementById('allConfigurationsContent');
+            
+            if (display && content && display.style.display !== 'none') {
+                // Create master JSON with configurations from all tables
+                const masterJson = generateAllConfigurationsJson();
+                
+                if (!masterJson || !masterJson.configurations || masterJson.configurations.length === 0) {
+                    content.textContent = 'No CPEs selected in any table. Please select at least one CPE row.';
+                } else {
+                    content.textContent = JSON.stringify(masterJson, null, 2);
+                }
+            }
+        } catch(e) {
+            console.error("Error updating all configurations display:", e);
         }
     }
     
     function generateAllConfigurationsJson() {
-        // Create master JSON with all configurations
-        const masterJson = {
-            "configurations": []
-        };
-        
-        // Add each table's configuration as a separate node in the configurations array
-        consolidatedJsons.forEach((json, tableId) => {
-            if (json && json.configurations && json.configurations.length > 0) {
-                // Each configuration from a table should retain its generatedFromSource
-                json.configurations.forEach(config => {
-                    // Make sure we're including the generatedFromSource in each configuration
-                    if (config.generatedFromSource) {
-                        // It's already at the right level
-                        masterJson.configurations.push(config);
-                    } else {
-                        // If it's missing (shouldn't happen with our code), add empty placeholder
-                        config.generatedFromSource = {
-                            "dataSource": "Unknown",
-                            "sourceId": "Unknown",
-                            "sourceRole": "Unknown"
-                        };
-                        masterJson.configurations.push(config);
-                    }
-                });
-            }
-        });
-        
-        return masterJson;
+        try {
+            // Create master JSON with all configurations
+            const masterJson = {
+                "configurations": []
+            };
+            
+            // Add each table's configuration as a separate node in the configurations array
+            consolidatedJsons.forEach((json, tableId) => {
+                if (json && json.configurations && json.configurations.length > 0) {
+                    // Each configuration from a table should retain its generatedFromSource
+                    json.configurations.forEach(config => {
+                        // Make sure we're including the generatedFromSource in each configuration
+                        if (config.generatedFromSource) {
+                            // It's already at the right level
+                            masterJson.configurations.push(config);
+                        } else {
+                            // If it's missing (shouldn't happen with our code), add empty placeholder
+                            config.generatedFromSource = {
+                                "dataSource": "Unknown",
+                                "sourceId": "Unknown",
+                                "sourceRole": "Unknown"
+                            };
+                            masterJson.configurations.push(config);
+                        }
+                    });
+                }
+            });
+            
+            return masterJson;
+        } catch(e) {
+            console.error("Error generating all configurations JSON:", e);
+            return { "configurations": [] };
+        }
     }
     
     function createCpeMatchObject(cpeBase) {
-        // Create a cpeMatch object for the given CPE base string
-        const cpeMatch = {
-            "criteria": cpeBase,
-            "matchCriteriaId": "generated_" + Math.random().toString(36).substr(2, 9),
-            "vulnerable": true
-        };
-        
-        return cpeMatch;
+        try {
+            // Create a cpeMatch object for the given CPE base string
+            const cpeMatch = {
+                "criteria": cpeBase,
+                "matchCriteriaId": "generated_" + Math.random().toString(36).substr(2, 9),
+                "vulnerable": true
+            };
+            
+            return cpeMatch;
+        } catch(e) {
+            console.error("Error creating CPE match object:", e);
+            return {
+                "criteria": "error_creating_cpe_match",
+                "matchCriteriaId": "error_" + Date.now(),
+                "vulnerable": true
+            };
+        }
     }
     </script>
     """
@@ -539,8 +806,8 @@ def getCPEJsonScript() -> str:
 def update_cpeQueryHTML_column(primaryDataframe, nvdSourceData) -> pd.DataFrame:
     for index, row in primaryDataframe.iterrows():
         
-        # Create a collapse button for this row - as a single line to avoid extra whitespace
-        collapse_button_html = f'<div class="mb-3"><button id="collapseRowButton_{index}" class="btn btn-secondary" onclick="toggleRowCollapse({index})">Collapse Row (Mark Complete)</button></div>'
+        # Create the collapse button with a proper container ID that JavaScript can find
+        collapse_button_html = f'<div class="mb-3 d-flex gap-2" id="buttonContainer_{index}"><button id="collapseRowButton_{index}" class="btn btn-secondary" onclick="toggleRowCollapse({index})">Collapse Row (Mark Complete)</button></div>'
         
         # Populate the rowDataHTML column with the HTML content
         row_html_content = convertRowDataToHTML(row, nvdSourceData, index)
