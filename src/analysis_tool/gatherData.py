@@ -3,7 +3,6 @@ import requests
 import pandas as pd
 from build_info import VERSION, TOOLNAME
 from time import sleep
-import logging
 
 # Import Analysis Tool 
 import processData

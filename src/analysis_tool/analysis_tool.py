@@ -3,23 +3,11 @@ import webbrowser
 import os
 from pathlib import Path
 from sys import exit
-import logging
 from build_info import GIT_COMMIT, GIT_REPO, VERSION, TOOLNAME
 # Import console tab scripts
 import gatherData
 import processData
 import generateHTML
-
-# Configure logging
-log_filename = "analysis_tool.log"
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(log_filename),
-        logging.StreamHandler()
-    ]
-)
 
 # Initial setup of useful global variables
 #nvdAPIKey = input("Enter NVD API Key (The process will be slower if no key is entered.)")
