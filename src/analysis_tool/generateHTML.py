@@ -226,9 +226,12 @@ def getCPEJsonScript() -> str:
             const collapseButton = document.getElementById(`collapseRowButton_${tableIndex}`);
             const tableId = `matchesTable_${tableIndex}`; 
             
+            // Define isCollapsed variable outside the if block
+            let isCollapsed = false;
+            
             if (rowDataTable && matchesTable) {
                 // Toggle visibility for tables
-                const isCollapsed = rowDataTable.classList.toggle('d-none');
+                isCollapsed = rowDataTable.classList.toggle('d-none');
                 matchesTable.classList.toggle('d-none');
                 
                 // Always ensure the JSON container is in the right place
@@ -294,7 +297,19 @@ def getCPEJsonScript() -> str:
                     collapseButton.classList.toggle('btn-secondary', !isCollapsed);
                 }
             }
+            // Define variables before using them in console.debug
+            const selectedRows = tableSelections.get(tableId) || new Set();
+            const selectionCount = selectedRows.size;
+            
+            // Get display visibility state
+            const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
+            const isVisible = display && display.style.display !== 'none';
+            
             console.debug(`Table ${tableId} collapsed: ${isCollapsed}, Selection count: ${selectionCount}, JSON visible: ${isVisible}`);
+            // Update the completion tracker
+            updateCompletionTracker();
+            // Update the export all configurations button text
+            updateExportAllButton();
         } catch(e) {
             console.error(`Error in toggleRowCollapse for tableIndex ${tableIndex}:`, e);
         }
@@ -303,6 +318,9 @@ def getCPEJsonScript() -> str:
     // Add event listeners when the DOM is fully loaded
     document.addEventListener('DOMContentLoaded', function() {
         try {
+            // Find all matchesTables (there may be multiple) - MOVED UP FROM BELOW
+            const tables = document.querySelectorAll('table[id^="matchesTable"]');
+            
             // Add a master "Export All Configurations" button at the top of cveListCPESuggester
             const cveListCPESuggester = document.getElementById('cveListCPESuggester');
             if (cveListCPESuggester) {
@@ -312,7 +330,7 @@ def getCPEJsonScript() -> str:
                 allContainer.id = 'allConfigurationsContainer';
                 allContainer.innerHTML = `
                     <div class="d-grid gap-2 col-12 mx-auto">
-                        <button id="exportAllConfigurations" class="btn btn-danger">Export All Configurations</button>
+                        <button id="exportAllConfigurations" class="btn btn-danger">Show All Configurations</button>
                     </div>
                     <div id="allConfigurationsDisplay" class="mt-3" style="display: none;">
                         <h4>Complete Configuration JSON</h4>
@@ -345,14 +363,55 @@ def getCPEJsonScript() -> str:
                         
                         // Toggle display
                         display.style.display = display.style.display === 'none' ? 'block' : 'none';
-                        this.textContent = display.style.display === 'none' ? 'Export All Configurations' : 'Hide All Configurations';
+                        
+                        // Calculate selections and config details
+                        let totalSelections = 0;
+                        let configCount = 0;
+                        let configDetails = [];
+                        
+                        tableSelections.forEach((selections) => {
+                            if (selections.size > 0) {
+                                totalSelections += selections.size;
+                                configCount++;
+                                configDetails.push(`${selections.size} criteria`);
+                            }
+                        });
+                        
+                        // Use the detailed config summary in the button text
+                        const configSummary = `${configCount} config${configCount !== 1 ? 's' : ''} (${configDetails.join(', ')})`;
+                        
+                        // Update the button with the detailed configuration information
+                        this.textContent = display.style.display === 'none' 
+                            ? `Show All Configurations - ${configSummary}` 
+                            : `Hide All Configurations - ${configSummary}`;
                     }
                 });
+                
+                // Add this to the DOMContentLoaded event handler after creating the export all container
+                // Create a completion tracker container only if allContainer exists
+                const completionTrackerContainer = document.createElement('div');
+                completionTrackerContainer.classList.add('completion-tracker-container', 'mt-3', 'mb-3', 'p-3', 'border', 'rounded');
+                completionTrackerContainer.id = 'completionTrackerContainer';
+                completionTrackerContainer.innerHTML = `
+                    <h4>Completion Progress</h4>
+                    <div class="progress mb-2">
+                        <div id="completionProgressBar" class="progress-bar bg-success" role="progressbar" style="width: 0%" 
+                             aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</</div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span id="completedRowsCount">0 rows completed</span>
+                        <span id="totalRowsCount">${tables.length} total rows</span>
+                    </div>
+                `;
+
+                // Insert right after the export all container, using the allContainer we just created
+                allContainer.parentNode.insertBefore(completionTrackerContainer, allContainer.nextSibling);
+
+                // Initialize the completion tracker
+                updateCompletionTracker();
             }
 
-            // Find all matchesTables (there may be multiple)
-            const tables = document.querySelectorAll('table[id^="matchesTable"]');
-            
+            // Rest of your code remains the same...
             tables.forEach((table, tableIndex) => {
                 const tableId = table.id;
                 
@@ -477,11 +536,26 @@ def getCPEJsonScript() -> str:
                                 // Check if the corresponding table is collapsed
                                 const matchesTable = document.getElementById(tableId);
                                 const tableIndex = tableId.split('_')[1];
+                                const rowDataTable = document.getElementById(`rowDataTable_${tableIndex}`);
                                 const isTableCollapsed = matchesTable.classList.contains('d-none');
+                                const jsonContainer = document.querySelector(`.consolidated-json-container[data-index="${tableIndex}"]`);
+                                const collapseButton = document.getElementById(`collapseRowButton_${tableIndex}`);
                                 
                                 // Toggle display
                                 const isVisible = display.style.display === 'none' ? false : true;
                                 display.style.display = isVisible ? 'none' : 'block';
+                                
+                                // ADDED: Always ensure the JSON container is in the right place when showing
+                                if (!isVisible && jsonContainer && collapseButton) {
+                                    // Get the parent of the collapse button
+                                    const buttonParent = collapseButton.parentNode;
+                                    
+                                    // Always move the JSON container to be adjacent to the button
+                                    buttonParent.parentNode.insertBefore(jsonContainer, buttonParent.nextSibling);
+                                    
+                                    // Add some spacing for better visual separation
+                                    jsonContainer.classList.add('mt-2');
+                                }
                                 
                                 // Get selection count for button text
                                 const selectedRows = tableSelections.get(tableId);
@@ -691,11 +765,15 @@ def getCPEJsonScript() -> str:
             // Check if any tables have selected rows
             let hasSelections = false;
             let totalSelections = 0;
+            let configCount = 0;
+            let configDetails = [];
             
-            tableSelections.forEach((selections) => {
+            tableSelections.forEach((selections, tableId) => {
                 if (selections.size > 0) {
                     hasSelections = true;
                     totalSelections += selections.size;
+                    configCount++;
+                    configDetails.push(`${selections.size} criteria`);
                 }
             });
             
@@ -709,12 +787,14 @@ def getCPEJsonScript() -> str:
                 // Update button text with selection count
                 if (hasSelections) {
                     const display = document.getElementById('allConfigurationsDisplay');
+                    const configSummary = `${configCount} config${configCount !== 1 ? 's' : ''} (${configDetails.join(', ')})`;
+                    
                     if (display && display.style.display !== 'none') {
-                        exportButton.textContent = `Hide All Configurations (${totalSelections} total)`;
+                        exportButton.textContent = `Hide All Configurations - ${configSummary}`;
                         // Also update the content if visible
                         updateAllConfigurationsDisplay();
                     } else {
-                        exportButton.textContent = `Export All Configurations (${totalSelections} total)`;
+                        exportButton.textContent = `Show All Configurations - ${configSummary}`;
                     }
                 }
             }
@@ -797,6 +877,43 @@ def getCPEJsonScript() -> str:
                 "matchCriteriaId": "error_" + Date.now(),
                 "vulnerable": true
             };
+        }
+    }
+
+    // Add this function to track completion status
+    function updateCompletionTracker() {
+        try {
+            const tables = document.querySelectorAll('table[id^="rowDataTable_"]');
+            let completedCount = 0;
+            const totalCount = tables.length;
+            
+            // Count how many tables are collapsed (completed)
+            tables.forEach(table => {
+                if (table.classList.contains('d-none')) {
+                    completedCount++;
+                }
+            });
+            
+            // Calculate percentage
+            const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+            
+            // Update the progress bar
+            const progressBar = document.getElementById('completionProgressBar');
+            const completedRowsCount = document.getElementById('completedRowsCount');
+            const totalRowsCount = document.getElementById('totalRowsCount');
+            
+            if (progressBar && completedRowsCount && totalRowsCount) {
+                progressBar.style.width = `${percentage}%`;
+                progressBar.textContent = `${percentage}%`;
+                progressBar.setAttribute('aria-valuenow', percentage);
+                
+                // Change format to succinct fraction followed by "rows"
+                completedRowsCount.textContent = `${completedCount}/${totalCount} rows`;
+                // Remove the separate total count display since it's now in the fraction
+                totalRowsCount.textContent = ''; // or just hide this element with display:none
+            }
+        } catch(e) {
+            console.error('Error updating completion tracker:', e);
         }
     }
     </script>
@@ -956,6 +1073,7 @@ def buildHTMLPage(affectedHtml, targetCve, vdbIntelHtml=None):
     </script>
     """
     pageEndHTML = "</body></html>"
-    fullHtml = (pageStartHTML + pageBodyHeaderHTML + pageBodyTabsHTML + cveIdIndicatorHTML + pageBodyCPESuggesterHTML + pageBodyVDBIntelHTML + pageBodyJavaScript + getCPEJsonScript() + pageEndHTML)
+    fullHtml = (pageStartHTML + getCPEJsonScript() + pageBodyHeaderHTML + pageBodyTabsHTML + cveIdIndicatorHTML + 
+                pageBodyCPESuggesterHTML + pageBodyVDBIntelHTML + pageBodyJavaScript + pageEndHTML)
     
     return fullHtml
