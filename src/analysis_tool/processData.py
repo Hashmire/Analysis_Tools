@@ -55,21 +55,36 @@ def sort_broad_entries(data):
     return sorted_data
 #                    ,
 def sort_base_strings(unique_base_strings: dict) -> dict:
-    sorted_base_strings = dict(sorted(
-        unique_base_strings.items(), 
-        key=lambda x: (
-            # Primary sort: depFalseCount (items with depFalseCount of 0 are moved to the bottom)
-            x[1].get('depFalseCount', 0) == 0,
-            # Secondary sort: searchCount
-            -x[1].get('searchCount', 0),
-            # Tertiary sort: Total items in versions_found
-            -x[1].get('versionsFound', 0),
-            # Quaternary sort: depTrueCount + depFalseCount
-            -(x[1].get('depFalseCount', 0) + x[1].get('depTrueCount', 0)),
-            # Quinary sort: depFalseCount
-            -x[1].get('depFalseCount', 0)
+    # Enhanced sorting logic to align with sort_broad_entries
+    def sort_key(item):
+        base_key, attributes = item
+        # Check for the presence of specific tags
+        has_vendor_product = 'searchSourcevendorproduct' in attributes
+        has_product = 'searchSourceproduct' in attributes
+        has_vendor = 'searchSourcevendor' in attributes
+
+        # Prioritize based on the presence of tags
+        if has_vendor_product:
+            priority = 0
+        elif has_product:
+            priority = 1
+        elif has_vendor:
+            priority = 2
+        else:
+            priority = 3
+
+        # Apply additional sorting criteria
+        return (
+            priority,  # Primary: prioritization rules
+            attributes.get('depFalseCount', 0) == 0,  # Secondary: depFalseCount
+            -attributes.get('searchCount', 0),  # Tertiary: searchCount
+            -attributes.get('versionsFound', 0),  # Quaternary: versionsFound
+            -(attributes.get('depFalseCount', 0) + attributes.get('depTrueCount', 0)),  # Quinary: total count
+            -attributes.get('depFalseCount', 0)  # Senary: depFalseCount
         )
-    ))
+
+    # Sort the dictionary and return as a new dictionary
+    sorted_base_strings = dict(sorted(unique_base_strings.items(), key=sort_key))
     return sorted_base_strings
 #
 def reduceToTop10(workingDataset: pd.DataFrame) -> pd.DataFrame:
