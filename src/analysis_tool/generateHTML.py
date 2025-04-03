@@ -627,285 +627,130 @@ def getCPEJsonScript() -> str:
         }
     }
     
-    // Update consolidated JSON function with enhanced version handling and statistics
+    // Create a more efficient approach to statistics generation
     function updateConsolidatedJson(tableId) {
         try {
             const selectedRows = tableSelections.get(tableId);
             
+            // Early return for no selections - improves efficiency
             if (!selectedRows || selectedRows.size === 0) {
                 consolidatedJsons.set(tableId, null);
-                
-                // Update the button to reflect no selections
-                const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
-                if (showButton) {
-                    showButton.textContent = "Show Consolidated JSON";
-                    showButton.disabled = true;
-                    showButton.classList.remove('btn-success');
-                    showButton.classList.add('btn-primary');
-                }
-                
-                // Always update the JSON display if it's visible
+                updateButton(tableId, false);
                 updateJsonDisplayIfVisible(tableId);
                 return;
             } else {
-                // Re-enable the button if we have selections
-                const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
-                if (showButton) {
-                    showButton.disabled = false;
-                    showButton.classList.remove('disabled');
-                    
-                    // If display is visible, update button to show success state
-                    const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
-                    if (display && display.style.display !== 'none') {
-                        showButton.classList.remove('btn-primary');
-                        showButton.classList.add('btn-success');
-                    }
-                }
+                updateButton(tableId, true);
             }
             
-            // Extract the table index from tableId (e.g. "matchesTable_0" -> "0")
+            // Gather required data only once
             const tableIndex = tableId.split('_')[1];
+            const metadata = gatherTableMetadata(tableIndex);
+            const selectionCount = selectedRows.size;
             
-            // Look specifically for the corresponding rowDataTable with the same index
-            const rowDataTableId = `rowDataTable_${tableIndex}`;
-            const rowDataTable = document.getElementById(rowDataTableId);
-            
-            let dataSource = "Unknown";
-            let sourceId = "Unknown";
-            let sourceRole = "Unknown";
-            let rawPlatformData = null;
-            let rawConfigData = null; // New: For storing NVD configuration data
-            
-            if (rowDataTable) {
-                const rows = rowDataTable.getElementsByTagName('tr');
-                
-                // Scan through all rows in this specific table
-                for (let i = 0; i < rows.length; i++) {
-                    const cells = rows[i].getElementsByTagName('td');
-                    if (cells.length >= 2) {
-                        const labelCell = cells[0];
-                        const valueCell = cells[1];
-                        
-                        if (labelCell.textContent.includes("Data Source")) {
-                            dataSource = valueCell.textContent.trim();
-                        }
-                        else if (labelCell.textContent.includes("Source ID")) {
-                            // Extract just the UUID part if there's more text
-                            const sourceIdText = valueCell.textContent.trim();
-                            const uuidMatch = sourceIdText.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-                            if (uuidMatch) {
-                                sourceId = uuidMatch[0];
-                            } else {
-                                sourceId = sourceIdText;
-                            }
-                        }
-                        else if (labelCell.textContent.includes("Source Role")) {
-                            sourceRole = valueCell.textContent.trim();
-                        }
-                    }
-                }
-
-                // Find the corresponding CPE query container
-                const matchesTable = document.getElementById(`matchesTable_${tableIndex}`);
-                if (matchesTable) {
-                    // Look for the parent container of the table
-                    const cpeQueryContainer = matchesTable.parentElement;
-                    
-                    // First check for complete configuration data (for NVD API data)
-                    if (cpeQueryContainer && cpeQueryContainer.hasAttribute('data-raw-config')) {
-                        try {
-                            rawConfigData = JSON.parse(cpeQueryContainer.getAttribute('data-raw-config'));
-                            console.debug("Successfully loaded raw configuration data");
-                        } catch (e) {
-                            console.warn(`Failed to parse configuration data: ${e}`);
-                        }
-                    }
-                    
-                    // Then check for platform data (for version information)
-                    if (cpeQueryContainer && cpeQueryContainer.hasAttribute('data-raw-platform')) {
-                        try {
-                            rawPlatformData = JSON.parse(cpeQueryContainer.getAttribute('data-raw-platform'));
-                            console.debug("Successfully loaded platform data");
-                        } catch (e) {
-                            console.warn(`Failed to parse platform data: ${e}`);
-                        }
-                    }
-                }
-            }
-            
-            // Create configurations structure
+            // Create just the basic structure with generatorData shell
             let json = {
                 "configurations": [
                     {
                         "operator": "OR",
                         "negate": false,
                         "cpeMatch": [],
-                        "generatedFromSource": {
-                            "dataSource": dataSource,
-                            "sourceId": sourceId,
-                            "sourceRole": sourceRole
+                        "generatorData": {
+                            "generatedFromSource": {
+                                "dataSource": metadata.dataSource,
+                                "sourceId": metadata.sourceId,
+                                "sourceRole": metadata.sourceRole
+                            }
+                            // We'll add statistics only after we have the complete structure
                         }
                     }
                 ]
             };
             
-            // If we have raw config data from NVD, use that instead of building our own
-            if (rawPlatformData && dataSource === "NVDAPI" && rawPlatformData.hasEmbeddedConfig) {
-                // We have a reference to configuration data, but need to get it from the raw-config attribute
-                const cpeQueryContainer = matchesTable.parentElement;
+            // Process different data sources and build the JSON structure
+            if (processJsonBasedOnSource(json, selectedRows, metadata)) {
+                // Now that we have the complete structure, calculate statistics once
+                calculateAndAddStatistics(json, selectedRows, metadata.rawPlatformData, metadata);
                 
-                if (cpeQueryContainer && cpeQueryContainer.hasAttribute('data-raw-config')) {
-                    try {
-                        const rawConfigData = JSON.parse(cpeQueryContainer.getAttribute('data-raw-config'));
-                        
-                        // Clone the raw config to avoid modifying the original
-                        const configCopy = JSON.parse(JSON.stringify(rawConfigData));
-                        
-                        // Add our source information to the config
-                        configCopy.generatedFromSource = json.configurations[0].generatedFromSource;
-                        
-                        // Filter to only include selected CPEs if applicable
-                        if (selectedRows && selectedRows.size > 0 && configCopy.nodes) {
-                            configCopy.nodes = configCopy.nodes.filter(node => {
-                                if (node.cpeMatch) {
-                                    node.cpeMatch = node.cpeMatch.filter(match => 
-                                        selectedRows.has(match.criteria));
-                                    return node.cpeMatch.length > 0;
-                                }
-                                return false;
-                            });
-                        }
-                        
-                        // Store version statistics in the JSON for display
-                        const versionCount = getTotalCPEMatches(configCopy);
-                        configCopy.versionStats = {
-                            totalVersions: versionCount,
-                            selectedCPEs: selectedRows.size
-                        };
-                        
-                        json.configurations[0] = configCopy;
-                    } catch (e) {
-                        console.warn(`Failed to process configuration data: ${e}`);
-                        // Fall back to basic processing
-                        processBasicVersionData(selectedRows, rawPlatformData, json);
-                    }
-                }
-            } else if (rawConfigData && dataSource === "NVDAPI") {
-                // This is the existing code for when config data is in a separate attribute
-                // Start with the raw config but preserve our source information
-                const sourceInfo = json.configurations[0].generatedFromSource;
+                // Store the consolidated JSON for this table
+                consolidatedJsons.set(tableId, json);
                 
-                // Clone the raw config to avoid modifying the original
-                const configCopy = JSON.parse(JSON.stringify(rawConfigData));
-                
-                // Add our source information to the config
-                if (typeof configCopy === 'object') {
-                    configCopy.generatedFromSource = sourceInfo;
-                    
-                    // Filter to only include selected CPEs if applicable
-                    if (selectedRows && selectedRows.size > 0 && configCopy.nodes) {
-                        // Filter nodes to only include those with selected CPE matches
-                        configCopy.nodes = configCopy.nodes.filter(node => {
-                            if (node.cpeMatch) {
-                                // Keep only the CPE matches that are selected
-                                node.cpeMatch = node.cpeMatch.filter(match => 
-                                    selectedRows.has(match.criteria));
-                                
-                                // Keep the node if it still has CPE matches
-                                return node.cpeMatch.length > 0;
-                            }
-                            return false;
-                        });
-                    }
-                    
-                    json.configurations[0] = configCopy;
-                }
+                // Update display and button
+                updateJsonDisplay(tableId, json, selectionCount);
             } else {
-                // No raw config, build our own using version data
-                processBasicVersionData(selectedRows, rawPlatformData, json);
+                consolidatedJsons.set(tableId, null);
             }
             
-            // Store the consolidated JSON for this table
-            consolidatedJsons.set(tableId, json);
+            updateAllConfigurationsDisplay();
+        } catch(e) {
+            console.error(`Error updating consolidated JSON for table ${tableId}:`, e);
+        }
+    }
+
+    // Calculate statistics only once after we have the full structure
+    function calculateAndAddStatistics(json, selectedRows, rawPlatformData, metadata) {
+        const selectionCount = selectedRows.size;
+        let totalMatches = 0;
+        let rangeMatches = 0;
+        let exactMatches = 0;
+        
+        // Use precomputed totalVersions from metadata if available, otherwise calculate
+        let totalVersions = metadata && metadata.totalVersions ? 
+            metadata.totalVersions : 
+            calculateTotalVersions(selectedRows, rawPlatformData);
+        
+        // Process statistics based on final JSON structure
+        if (json.configurations[0].cpeMatch && json.configurations[0].cpeMatch.length > 0) {
+            totalMatches = json.configurations[0].cpeMatch.length;
             
-            // Calculate detailed statistics about cpeMatch objects
-            const selectionCount = selectedRows.size;
-            let totalMatches = 0;
-            let rangeMatches = 0;
-            let exactMatches = 0;
-            
-            // Function to check if a cpeMatch is a range match
-            function isRangeMatch(match) {
-                return match.hasOwnProperty('versionStartIncluding') || 
-                       match.hasOwnProperty('versionStartExcluding') || 
-                       match.hasOwnProperty('versionEndIncluding') || 
-                       match.hasOwnProperty('versionEndExcluding');
-            }
-            
-            // Process statistics based on configuration structure
-            if (json.configurations[0].cpeMatch && json.configurations[0].cpeMatch.length > 0) {
-                totalMatches = json.configurations[0].cpeMatch.length;
-                
-                // Count range vs exact matches
-                json.configurations[0].cpeMatch.forEach(match => {
-                    if (isRangeMatch(match)) {
-                        rangeMatches++;
-                    } else {
-                        exactMatches++;
-                    }
-                });
-            } else if (json.configurations[0].nodes) {
-                json.configurations[0].nodes.forEach(node => {
-                    if (node.cpeMatch) {
-                        totalMatches += node.cpeMatch.length;
-                        
-                        // Count range vs exact matches in this node
-                        node.cpeMatch.forEach(match => {
-                            if (isRangeMatch(match)) {
-                                rangeMatches++;
-                            } else {
-                                exactMatches++;
-                            }
-                        });
-                    }
-                });
-            }
-            
-            // Store the statistics in the JSON for future reference
-            json.configurations[0].matchStats = {
+            // Count range vs exact matches
+            json.configurations[0].cpeMatch.forEach(match => {
+                if (isRangeMatch(match)) {
+                    rangeMatches++;
+                } else {
+                    exactMatches++;
+                }
+            });
+        } else if (json.configurations[0].nodes) {
+            json.configurations[0].nodes.forEach(node => {
+                if (node.cpeMatch) {
+                    totalMatches += node.cpeMatch.length;
+                    
+                    // Count range vs exact matches in this node
+                    node.cpeMatch.forEach(match => {
+                        if (isRangeMatch(match)) {
+                            rangeMatches++;
+                        } else {
+                            exactMatches++;
+                        }
+                    });
+                }
+            });
+        }
+        
+        // Store statistics directly in generatorData - no redundant storage
+        if (json.configurations[0].generatorData) {
+            json.configurations[0].generatorData.matchStats = {
                 totalMatches: totalMatches,
                 rangeMatches: rangeMatches,
                 exactMatches: exactMatches,
-                selectedCriteria: selectionCount  // Changed from selectedCPEs to selectedCriteria
+                selectedCriteria: selectionCount
             };
             
-            // Format the detailed statistics for display
-            const statsStr = `${selectionCount} Criteria, ${totalMatches} versions (${exactMatches} exact, ${rangeMatches} ranges)`;
-            
-            const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
-            const altShowButton = document.getElementById(`showConsolidatedJson_matchesTable_${tableIndex}`);
-            const buttonToUpdate = showButton || altShowButton;
-
-            if (buttonToUpdate) {
-                // Add selection counter and version stats to button text
-                const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
-                if (display && display.style.display !== 'none') {
-                    buttonToUpdate.textContent = `Hide Consolidated JSON (${statsStr})`;
-                    buttonToUpdate.classList.remove('btn-primary');
-                    buttonToUpdate.classList.add('btn-success');
-                } else {
-                    buttonToUpdate.textContent = `Show Consolidated JSON (${statsStr})`;
-                    buttonToUpdate.classList.remove('btn-success');
-                    buttonToUpdate.classList.add('btn-primary');
-                }
-            }
-            
-            // Always update the JSON display if it's visible
-            updateJsonDisplayIfVisible(tableId);
-            updateAllConfigurationsDisplay();
-            
-        } catch(e) {
-            console.error(`Error updating consolidated JSON for table ${tableId}:`, e);
+            json.configurations[0].generatorData.versionStats = {
+                totalVersions: totalVersions,
+                selectedCriteria: selectionCount
+            };
+        }
+        
+        // Also remove any accidentally created stats objects that are outside generatorData
+        // BUT NOW with warnings so we can track when this is happening
+        if (json.configurations[0].matchStats) {
+            console.warn('WARNING: Found matchStats outside of generatorData - deleting to avoid duplication');
+            delete json.configurations[0].matchStats;
+        }
+        if (json.configurations[0].versionStats) {
+            console.warn('WARNING: Found versionStats outside of generatorData - deleting to avoid duplication');
+            delete json.configurations[0].versionStats;
         }
     }
     
@@ -998,18 +843,29 @@ def getCPEJsonScript() -> str:
             // Add each table's configuration as a separate node in the configurations array
             consolidatedJsons.forEach((json, tableId) => {
                 if (json && json.configurations && json.configurations.length > 0) {
-                    // Each configuration from a table should retain its generatedFromSource
+                    // Each configuration from a table should retain its generatorData
                     json.configurations.forEach(config => {
-                        // Make sure we're including the generatedFromSource in each configuration
-                        if (config.generatedFromSource) {
-                            // It's already at the right level
+                        // Ensure the generatorData structure is preserved
+                        if (config.generatorData) {
                             masterJson.configurations.push(config);
                         } else {
-                            // If it's missing (shouldn't happen with our code), add empty placeholder
-                            config.generatedFromSource = {
-                                "dataSource": "Unknown",
-                                "sourceId": "Unknown",
-                                "sourceRole": "Unknown"
+                            // If generatorData is missing, add a placeholder
+                            config.generatorData = {
+                                "generatedFromSource": {
+                                    "dataSource": "Unknown",
+                                    "sourceId": "Unknown",
+                                    "sourceRole": "Unknown"
+                                },
+                                "versionStats": {
+                                    "totalVersions": 0,
+                                    "selectedCriteria": 0
+                                },
+                                "matchStats": {
+                                    "totalMatches": 0,
+                                    "rangeMatches": 0,
+                                    "exactMatches": 0,
+                                    "selectedCriteria": 0
+                                }
                             };
                             masterJson.configurations.push(config);
                         }
@@ -1272,11 +1128,182 @@ def getCPEJsonScript() -> str:
             }
         });
         
-        // Store version statistics in the JSON for display
-        json.configurations[0].versionStats = {
-            totalVersions: totalVersions,
-            selectedCriteria: selectedRows.size  // Changed from selectedCPEs to selectedCriteria
-        };
+        // IMPORTANT: Return the totalVersions to be used by calculateAndAddStatistics
+        return totalVersions;
+    }
+
+    // Add this function before updateConsolidatedJson
+    function updateButton(tableId, hasSelections) {
+        try {
+            // Find the consolidated JSON button
+            const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
+            if (!showButton) return;
+            
+            // Update button state based on whether there are selections
+            if (hasSelections) {
+                showButton.disabled = false;
+                const selectedRows = tableSelections.get(tableId);
+                const selectionCount = selectedRows ? selectedRows.size : 0;
+                
+                // Check if the display is visible
+                const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
+                const isVisible = display && display.style.display !== 'none';
+                
+                // Update button text with selection count
+                showButton.textContent = isVisible 
+                    ? `Hide Consolidated JSON (${selectionCount} selected)` 
+                    : `Show Consolidated JSON (${selectionCount} selected)`;
+            } else {
+                // Reset button text when no selections
+                showButton.textContent = 'Show Consolidated JSON';
+                showButton.disabled = false; // Keep enabled to allow showing "no selections" message
+            }
+        } catch(e) {
+            console.error(`Error updating button for table ${tableId}:`, e);
+        }
+    }
+
+    // Also need to add the updateJsonDisplay function that's referenced but missing
+    function updateJsonDisplay(tableId, json, selectionCount) {
+        try {
+            const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
+            const content = document.getElementById(`consolidatedJsonContent_${tableId}`);
+            const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
+            
+            if (display && content) {
+                // Check if the display is already visible
+                const isVisible = display.style.display !== 'none';
+                
+                // Update the content
+                if (json) {
+                    content.textContent = JSON.stringify(json, null, 2);
+                } else {
+                    content.textContent = 'No selections or error generating JSON.';
+                }
+                
+                // Update button text if it's found
+                if (showButton) {
+                    // Get detailed stats for the button text if available
+                    let statsStr = `${selectionCount} selected`;
+                    
+                    if (json && json.configurations && json.configurations.length > 0 && 
+                        json.configurations[0].generatorData && json.configurations[0].generatorData.matchStats) {
+                        const stats = json.configurations[0].generatorData.matchStats;
+                        statsStr = `${stats.selectedCriteria} Criteria, ${stats.totalMatches} versions` +
+                                   ` (${stats.exactMatches} exact, ${stats.rangeMatches} ranges)`;
+                    }
+                    
+                    showButton.textContent = isVisible 
+                        ? `Hide Consolidated JSON (${statsStr})` 
+                        : `Show Consolidated JSON (${statsStr})`;
+                    
+                    // Update button styling
+                    if (isVisible) {
+                        showButton.classList.remove('btn-primary');
+                        showButton.classList.add('btn-success');
+                    } else {
+                        showButton.classList.remove('btn-success');
+                        showButton.classList.add('btn-primary');
+                    }
+                }
+            }
+        } catch(e) {
+            console.error(`Error updating JSON display for table ${tableId}:`, e);
+        }
+    }
+
+    // Also need to add the function to determine if a match is a range match
+    function isRangeMatch(match) {
+        return match.hasOwnProperty('versionStartIncluding') || 
+               match.hasOwnProperty('versionStartExcluding') || 
+               match.hasOwnProperty('versionEndIncluding') || 
+               match.hasOwnProperty('versionEndExcluding');
+    }
+
+    // Also need to add the function to calculate total versions
+    function calculateTotalVersions(selectedRows, rawPlatformData) {
+        try {
+            if (rawPlatformData && rawPlatformData.versions && Array.isArray(rawPlatformData.versions)) {
+                return rawPlatformData.versions.length;
+            }
+            return selectedRows.size; // Fallback to number of selected rows
+        } catch(e) {
+            console.error("Error calculating total versions:", e);
+            return selectedRows.size;
+        }
+    }
+
+    // And finally, need to add a placeholder for the function that processes JSON based on source
+    function processJsonBasedOnSource(json, selectedRows, metadata) {
+        try {
+            // Process the JSON structure based on the data source
+            const dataSource = metadata.dataSource;
+            let totalVersions = 0;
+            
+            if (dataSource === 'NVDAPI') {
+                // Special handling for NVD API data
+                totalVersions = processBasicVersionData(selectedRows, metadata.rawPlatformData, json);
+            } else {
+                // Default handling for other data sources
+                totalVersions = processBasicVersionData(selectedRows, metadata.rawPlatformData, json);
+            }
+            
+            // Store totalVersions in the metadata for use in calculateAndAddStatistics
+            metadata.totalVersions = totalVersions;
+            
+            return true;
+        } catch(e) {
+            console.error("Error processing JSON based on source:", e);
+            return false;
+        }
+    }
+
+    // Add function to gather table metadata
+    function gatherTableMetadata(tableIndex) {
+        try {
+            // Get the corresponding metadata from data attributes
+            const container = document.querySelector(`.cpe-query-container[data-table-index="${tableIndex}"]`);
+            
+            if (!container) {
+                return {
+                    dataSource: "Unknown",
+                    sourceId: "Unknown",
+                    sourceRole: "Unknown",
+                    rawPlatformData: null
+                };
+            }
+            
+            // Extract metadata from data attributes
+            const dataSource = container.getAttribute('data-source') || "Unknown";
+            const sourceId = container.getAttribute('data-source-id') || "Unknown";
+            const sourceRole = container.getAttribute('data-source-role') || "Unknown";
+            
+            // Get raw platform data if available
+            let rawPlatformData = null;
+            const platformDataAttr = container.getAttribute('data-platform-data');
+            if (platformDataAttr) {
+                try {
+                    rawPlatformData = JSON.parse(platformDataAttr);
+                } catch (e) {
+                    console.warn(`Could not parse platform data for table ${tableIndex}:`, e);
+                }
+            }
+            
+            return {
+                dataSource,
+                sourceId,
+                sourceRole,
+                rawPlatformData
+            };
+        } catch(e) {
+            console.error(`Error gathering metadata for table ${tableIndex}:`, e);
+            return {
+                dataSource: "Error",
+                sourceId: "Error",
+                sourceRole: "Error",
+                rawPlatformData: null
+            };
+        }
     }
     </script>
     """
@@ -1299,21 +1326,21 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
         platform_data = None
         
         # First check if we have rawPlatformData
-        if 'rawPlatformData' in row and row['rawPlatformData'] is not None:
+        if ('rawPlatformData' in row and row['rawPlatformData'] is not None):
             platform_data = row['rawPlatformData']
             
             # If this is NVD data and we have rawConfigData, include it in platform data
-            if row.get('dataSource') == 'NVDAPI' and 'rawConfigData' in row and row['rawConfigData'] is not None:
+            if (row.get('dataSource') == 'NVDAPI' and 'rawConfigData' in row and row['rawConfigData'] is not None):
                 # Instead of embedding the entire configuration, create a reference
-                if isinstance(platform_data, dict):
+                if (isinstance(platform_data, dict)):
                     # Just add a reference indicator and version stats
                     platform_data['hasEmbeddedConfig'] = True
                     
                     # Extract version statistics from config if possible
-                    if isinstance(row['rawConfigData'], dict) and 'nodes' in row['rawConfigData']:
+                    if (isinstance(row['rawConfigData'], dict) and 'nodes' in row['rawConfigData']):
                         total_cpes = 0
                         for node in row['rawConfigData'].get('nodes', []):
-                            if 'cpeMatch' in node:
+                            if ('cpeMatch' in node):
                                 total_cpes += len(node['cpeMatch']);
                         platform_data['configStats'] = {'totalCPEs': total_cpes}
                 
@@ -1342,7 +1369,7 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
         result_df.at[index, 'rowDataHTML'] = collapse_button_html + row_html_content
         
         # Create the main HTML div with all data attributes
-        if 'trimmedCPEsQueryData' in row:
+        if ('trimmedCPEsQueryData' in row):
             sortedCPEsQueryData = row['trimmedCPEsQueryData'] 
             attr_string = " ".join(data_attrs)
             html_content = f"""<div class="cpe-query-container" {attr_string}>"""
