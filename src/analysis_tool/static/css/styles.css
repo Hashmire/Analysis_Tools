@@ -1,0 +1,99 @@
+/* styles.css - CPE JSON Generator styles */
+
+/* Row selection styling */
+.table-active {
+    background-color: rgba(0, 123, 255, 0.35) !important;
+    font-weight: bold;
+    border-left: 3px solid #007bff;
+}
+
+/* JSON container transitions */
+.json-container {
+    transition: all 0.3s ease-in-out;
+}
+
+/* Button transitions */
+.btn-success {
+    transition: background-color 0.3s ease;
+}
+
+/* Fix for the table row selection styling */
+.table-active,
+.table-active > td,
+.table-active > th {
+    background-color: rgba(0, 123, 255, 0.35) !important;  /* Clearly visible blue */
+}
+
+.table-hover tbody tr:hover:not(.table-active) {
+    background-color: rgba(0, 0, 0, 0.075) !important;  /* Light gray for hover */
+}
+
+/* Ensure selected trumps hover */
+.table-hover tbody tr.table-active:hover {
+    background-color: rgba(0, 123, 255, 0.45) !important;  /* Slightly darker blue when hovering selected row */
+}
+
+/* Add pointer cursor to rows that can be selected */
+.cpe-row {
+    cursor: pointer;
+}
+
+/* Pre-formatted code styling */
+pre {
+    max-height: 400px;
+    overflow-y: auto;
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+}
+
+/* Tab navigation styling */
+.bg-pivot {
+    --bs-bg-opacity: 1;
+    background-color: rgb(181, 90, 232) !important;
+}
+
+.tab {
+    overflow: hidden;
+    border: 1px solid #ccc;
+    background-color: #f1f1f1;
+}
+
+.tab button {
+    background-color: inherit;
+    float: left;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 14px 16px;
+    transition: 0.3s;
+}
+
+.tab button:hover {
+    background-color: #ddd;
+}
+
+.tab button.active {
+    background-color: #ccc;
+}
+
+.tabcontent {
+    display: none;
+    margin-left: 10px;
+    border: 1px solid #ccc;
+    border-top: none;
+}
+
+/* Table styling */
+table.dataframe {
+    table-layout: fixed;
+    width: 100%;
+}
+
+table.dataframe td:first-child {
+    width: 20%;
+}
+
+table.dataframe td:last-child {
+    width: 80%;
+}
