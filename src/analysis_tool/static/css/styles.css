@@ -97,3 +97,25 @@ table.dataframe td:first-child {
 table.dataframe td:last-child {
     width: 80%;
 }
+
+/* Linux Kernel special handling badge */
+.linux-kernel-badge {
+    display: inline-block;
+    margin-right: 5px;
+    margin-bottom: 8px;
+    padding: 3px 6px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 4px;
+    color: #212529;
+    background-color: #ffc107;
+    cursor: help;
+}
+
+.linux-kernel-badge:hover {
+    background-color: #e0a800;
+}

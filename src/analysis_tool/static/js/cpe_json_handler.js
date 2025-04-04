@@ -19,8 +19,6 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData) {
         // Normalize the base CPE string first to ensure it has enough components
         cpeBase = normalizeCpeString(cpeBase);
         
-        const cpeMatches = [];
-        
         // Check if we have valid version data
         if (!rawPlatformData || !rawPlatformData.versions || !Array.isArray(rawPlatformData.versions) || rawPlatformData.versions.length === 0) {
             console.debug("No version data available, using basic CPE match");
@@ -28,58 +26,32 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData) {
             return [basicMatch];
         }
         
+        // Special case for Linux kernel using enhanced detection
+        if (isLinuxKernelPlatformData(rawPlatformData, cpeBase)) {
+            console.debug("Special case: Processing Linux kernel version data");
+            
+            // Add visual indicator for Linux Kernel special handling
+            addLinuxKernelSpecialCaseBadge();
+            
+            return processLinuxKernelVersions(cpeBase, rawPlatformData);
+        }
+        
+        // Standard processing for other products
+        const cpeMatches = [];
         console.debug(`Processing ${rawPlatformData.versions.length} versions for ${cpeBase}`);
+        
+        // Determine default vulnerability status
+        const defaultIsAffected = rawPlatformData.defaultStatus === "affected";
         
         for (const versionInfo of rawPlatformData.versions) {
             if (!versionInfo) continue;
             
-            const cpeMatch = {
-                "criteria": cpeBase,
-                "matchCriteriaId": "generated_" + Math.random().toString(36).substr(2, 9),
-                "vulnerable": versionInfo.status !== 'unaffected'
-            };
+            // Determine if this version is vulnerable based on status
+            const isVulnerable = versionInfo.status === "affected";
             
-            const hasRangeSpec = versionInfo.hasOwnProperty('lessThan') || 
-                              versionInfo.hasOwnProperty('lessThanOrEqual') ||
-                              versionInfo.hasOwnProperty('greaterThan') ||
-                              versionInfo.hasOwnProperty('greaterThanOrEqual');
-            
-            if (hasRangeSpec) {
-                // For range specifications
-                if (versionInfo.hasOwnProperty('greaterThan')) {
-                    cpeMatch.versionStartExcluding = versionInfo.greaterThan;
-                }
-                else if (versionInfo.hasOwnProperty('greaterThanOrEqual')) {
-                    cpeMatch.versionStartIncluding = versionInfo.greaterThanOrEqual;
-                }
-                else if (versionInfo.hasOwnProperty('version') && 
-                        (versionInfo.hasOwnProperty('lessThan') || versionInfo.hasOwnProperty('lessThanOrEqual'))) {
-                    cpeMatch.versionStartIncluding = versionInfo.version;
-                }
-                
-                if (versionInfo.hasOwnProperty('lessThan')) {
-                    cpeMatch.versionEndExcluding = versionInfo.lessThan;
-                }
-                else if (versionInfo.hasOwnProperty('lessThanOrEqual')) {
-                    cpeMatch.versionEndIncluding = versionInfo.lessThanOrEqual;
-                }
-                
-                cpeMatches.push(cpeMatch);
-            } 
-            else if (versionInfo.hasOwnProperty('version')) {
-                // For explicit versions, we update the CPE string directly
-                const cpeParts = cpeBase.split(':');
-                
-                // Replace the version component at index 5
-                cpeParts[5] = versionInfo.version;
-                cpeMatch.criteria = cpeParts.join(':');
-                
-                cpeMatches.push(cpeMatch);
-            }
-            else {
-                // If we can't determine the version structure, use the base CPE
-                cpeMatches.push(cpeMatch);
-            }
+            // Create cpeMatch using the consolidated function
+            const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable);
+            cpeMatches.push(cpeMatch);
         }
         
         if (cpeMatches.length === 0) {
@@ -94,6 +66,324 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData) {
         const basicMatch = createCpeMatchObject(cpeBase);
         return [basicMatch];
     }
+}
+
+/**
+ * Special handler for Linux kernel version data
+ * @param {string} cpeBase - Base CPE string for Linux kernel
+ * @param {Object} rawPlatformData - Raw platform data
+ * @returns {Array} Array of cpeMatch objects
+ */
+function processLinuxKernelVersions(cpeBase, rawPlatformData) {
+    console.debug("Processing Linux kernel version ranges");
+    const cpeMatches = [];
+    const defaultIsAffected = rawPlatformData.defaultStatus === "affected";
+    
+    try {
+        // Group versions by status (affected vs unaffected)
+        const affectedVersions = [];
+        const unaffectedVersions = [];
+        
+        rawPlatformData.versions.forEach(versionInfo => {
+            if (versionInfo.status === "affected") {
+                affectedVersions.push(versionInfo);
+            } else if (versionInfo.status === "unaffected") {
+                unaffectedVersions.push(versionInfo);
+            }
+        });
+        
+        console.debug(`Found ${affectedVersions.length} affected and ${unaffectedVersions.length} unaffected version entries`);
+        
+        // For defaultStatus=affected, handle unaffected ranges and gaps
+        if (defaultIsAffected) {
+            // First pass: process unaffected ranges and generate the affected ranges
+            if (unaffectedVersions.length > 0) {
+                processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affectedVersions, cpeMatches);
+            }
+            
+            // Second pass: add any explicit affected version not covered by the above
+            for (const affectedInfo of affectedVersions) {
+                // Check if this explicit affected entry is already covered by our generated ranges
+                let isCovered = false;
+                
+                // Simple case: it's a single version with no range qualifiers
+                if (affectedInfo.version && !affectedInfo.lessThan && !affectedInfo.lessThanOrEqual &&
+                    !affectedInfo.greaterThan && !affectedInfo.greaterThanOrEqual) {
+                    
+                    // Check if this version is covered by any of our generated ranges
+                    for (const cpeMatch of cpeMatches) {
+                        if (isVersionCoveredByRange(affectedInfo.version, cpeMatch)) {
+                            isCovered = true;
+                            break;
+                        }
+                    }
+                    
+                    // If not covered, add it
+                    if (!isCovered) {
+                        const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, affectedInfo, true);
+                        cpeMatches.push(cpeMatch);
+                    }
+                }
+                // For complex ranges, always add them explicitly
+                else {
+                    const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, affectedInfo, true);
+                    cpeMatches.push(cpeMatch);
+                }
+            }
+        }
+        // For defaultStatus=unaffected, just add the explicit affected entries
+        else {
+            for (const affectedInfo of affectedVersions) {
+                const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, affectedInfo, true);
+                cpeMatches.push(cpeMatch);
+            }
+        }
+        
+        console.debug(`Generated ${cpeMatches.length} CPE matches for Linux kernel`);
+        
+        if (cpeMatches.length === 0) {
+            console.debug("No Linux kernel matches created, using basic CPE match");
+            const basicMatch = createCpeMatchObject(cpeBase);
+            return [basicMatch];
+        }
+        
+        return cpeMatches;
+    } catch (e) {
+        console.error("Error in Linux kernel version processing:", e);
+        console.error(e.stack);
+        const basicMatch = createCpeMatchObject(cpeBase);
+        return [basicMatch];
+    }
+}
+
+/**
+ * Add a visual badge indicating Linux kernel special case processing
+ */
+function addLinuxKernelSpecialCaseBadge() {
+    try {
+        // Find all rowDataTable elements
+        const rowDataTables = document.querySelectorAll('table[id^="rowDataTable_"]');
+        
+        for (const table of rowDataTables) {
+            // Find the Raw Platform Data row
+            const rows = table.querySelectorAll('tr');
+            for (const row of rows) {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 2 && cells[0].textContent.trim() === "Raw Platform Data") {
+                    // Check if badge already exists
+                    if (cells[1].querySelector('.linux-kernel-badge')) {
+                        continue;
+                    }
+                    
+                    // Find the details element
+                    const detailsElement = cells[1].querySelector('details');
+                    if (detailsElement) {
+                        // Create the badge - now uses CSS from styles.css
+                        const badge = document.createElement('span');
+                        badge.className = 'linux-kernel-badge';
+                        badge.title = 'Linux kernel version data is being processed with special case handling. Please review the generated configurations carefully.';
+                        badge.textContent = 'Linux Kernel Special Handling';
+                        
+                        // Insert the badge before the details element
+                        detailsElement.parentNode.insertBefore(badge, detailsElement);
+                        
+                        // Add info icon
+                        const infoIcon = document.createElement('i');
+                        infoIcon.className = 'fas fa-info-circle ml-1';
+                        infoIcon.style.fontSize = '0.9em';
+                        badge.appendChild(document.createTextNode(' '));
+                        badge.appendChild(infoIcon);
+                        
+                        console.debug("Added Linux Kernel special case badge");
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error adding Linux Kernel special case badge:", e);
+    }
+}
+
+/**
+ * Check if a version range is already covered by explicit affected entries
+ * @param {string} startVersion - Start version of range
+ * @param {string|null} endVersion - End version of range (null for unlimited)
+ * @param {Array} affectedVersions - Array of explicitly affected version info
+ * @returns {boolean} True if the range is already covered
+ */
+function isRangeCoveredByExplicitEntries(startVersion, endVersion, affectedVersions) {
+    for (const affectedInfo of affectedVersions) {
+        // Determine the bounds of this affected entry
+        let affectedStart = null;
+        let affectedEnd = null;
+        
+        // Get start bound
+        if (affectedInfo.greaterThanOrEqual) {
+            affectedStart = affectedInfo.greaterThanOrEqual;
+        } else if (affectedInfo.greaterThan) {
+            affectedStart = incrementVersion(affectedInfo.greaterThan);
+        } else if (affectedInfo.version) {
+            affectedStart = affectedInfo.version;
+        }
+        
+        // Get end bound
+        if (affectedInfo.lessThan) {
+            affectedEnd = affectedInfo.lessThan;
+        } else if (affectedInfo.lessThanOrEqual) {
+            affectedEnd = incrementVersion(affectedInfo.lessThanOrEqual);
+        }
+        
+        // Check if this affected entry covers the entire range we're looking at
+        if (affectedStart && compareVersions(affectedStart, startVersion) <= 0) {
+            // The affected start is earlier than or equal to our start
+            if (!affectedEnd || !endVersion || compareVersions(affectedEnd, endVersion) >= 0) {
+                // The affected end is later than or equal to our end (or unlimited)
+                return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
+/**
+ * Update the previous upper bound based on unaffected range info
+ * @param {Object} unaffectedInfo - Unaffected version info object
+ * @returns {string|null} The new upper bound for the next affected range
+ */
+function calculateNextUpperBound(unaffectedInfo) {
+    if (unaffectedInfo.lessThanOrEqual === "*") {
+        // This covers everything above the version
+        return null; // No more ranges above this
+    } else if (unaffectedInfo.lessThanOrEqual && unaffectedInfo.lessThanOrEqual.includes("*")) {
+        // Handle version wildcards like "5.4.*"
+        return getNextVersionAfterWildcard(unaffectedInfo.lessThanOrEqual);
+    } else if (unaffectedInfo.lessThan) {
+        return unaffectedInfo.lessThan;
+    } else if (unaffectedInfo.lessThanOrEqual) {
+        // Add a tiny increment to make it exclusive
+        return incrementVersion(unaffectedInfo.lessThanOrEqual);
+    } else {
+        // Single version - the upper bound is the next version
+        return incrementVersion(unaffectedInfo.version);
+    }
+}
+
+/**
+ * Get the next version after a wildcard pattern
+ * @param {string} versionPattern - Version pattern like "5.4.*"
+ * @returns {string} Next version
+ */
+function getNextVersionAfterWildcard(versionPattern) {
+    // Handle wildcard patterns like "5.4.*"
+    if (versionPattern.includes('*')) {
+        // Extract the prefix before the wildcard
+        const prefix = versionPattern.split('*')[0].replace(/\.$/, '');
+        
+        // Split into parts
+        const parts = prefix.split('.');
+        
+        // For patterns like "5.4.*", we want to get "5.5"
+        // For patterns like "5.4.2.*", we want to get "5.4.3"
+        if (parts.length >= 2) {
+            // Increment the last component before the wildcard
+            const lastPart = parseInt(parts[parts.length - 1], 10);
+            if (!isNaN(lastPart)) {
+                parts[parts.length - 1] = (lastPart + 1).toString();
+                
+                // Log patch-level wildcards for tracking
+                if (parts.length > 2) {
+                    console.warn(`Handling patch-level wildcard: ${versionPattern} -> ${parts.join('.')}`);
+                }
+                
+                return parts.join('.');
+            }
+        }
+        return prefix; // Fallback: Return the prefix unchanged
+    }
+    
+    // For non-wildcard patterns, defer to incrementVersion
+    return incrementVersion(versionPattern);
+}
+
+/**
+ * Helper function to sort version info objects
+ * @param {Array} versionInfoArray - Array of version info objects
+ * @returns {Array} Sorted array
+ */
+function sortVersionInfo(versionInfoArray) {
+    return [...versionInfoArray].sort((a, b) => {
+        // First compare by version
+        const verA = a.version || "0";
+        const verB = b.version || "0";
+        
+        // If versionType is semver, use semver-style comparison
+        if ((a.versionType === "semver" || b.versionType === "semver")) {
+            return compareVersions(verA, verB);
+        } else {
+            // Simple string comparison for non-semver
+            return verA.localeCompare(verB);
+        }
+    });
+}
+
+/**
+ * Compare two version strings
+ * @param {string} versionA - First version
+ * @param {string} versionB - Second version
+ * @returns {number} Comparison result (-1, 0, 1)
+ */
+function compareVersions(versionA, versionB) {
+    const aParts = versionA.split('.').map(part => parseInt(part, 10) || 0);
+    const bParts = versionB.split('.').map(part => parseInt(part, 10) || 0);
+    
+    // Compare version components
+    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+        const aVal = i < aParts.length ? aParts[i] : 0;
+        const bVal = i < bParts.length ? bParts[i] : 0;
+        
+        if (aVal !== bVal) {
+            return aVal - bVal;
+        }
+    }
+    
+    return 0;
+}
+
+/**
+ * Increment a version string slightly
+ * @param {string} version - Version string
+ * @returns {string} Incremented version
+ */
+function incrementVersion(version) {
+    if (!version) return version;
+    
+    // For semantic versions
+    if (version.includes('.')) {
+        const parts = version.split('.');
+        const lastPart = parseInt(parts[parts.length - 1], 10);
+        
+        if (!isNaN(lastPart)) {
+            parts[parts.length - 1] = (lastPart + 1).toString();
+            return parts.join('.');
+        }
+    }
+    
+    // For simple integer versions
+    const numVersion = parseInt(version, 10);
+    if (!isNaN(numVersion)) {
+        return (numVersion + 1).toString();
+    }
+    
+    return version;
+}
+
+/**
+ * Generate a unique match criteria ID
+ * @returns {string} A unique match criteria ID
+ */
+function generateMatchCriteriaId() {
+    return 'generated_' + Math.random().toString(36).substr(2, 9).toUpperCase();
 }
 
 /**
@@ -564,4 +854,364 @@ function extractDataFromTable(tableIndex) {
     }
     
     return result;
+}
+
+/**
+ * Get the next version after a wildcard pattern
+ * @param {string} versionPattern - Version pattern like "5.4.*"
+ * @returns {string} Next version like "5.5"
+ */
+function getNextVersionAfterWildcard(versionPattern) {
+    // Handle wildcard patterns like "5.4.*"
+    if (versionPattern.includes('*')) {
+        // Extract the prefix before the wildcard
+        const prefix = versionPattern.split('*')[0].replace(/\.$/, '');
+        
+        // Split into parts
+        const parts = prefix.split('.');
+        
+        // For patterns like "5.4.*", we want to get "5.5"
+        if (parts.length >= 2) {
+            // Increment the last component before the wildcard
+            const lastPart = parseInt(parts[parts.length - 1], 10);
+            if (!isNaN(lastPart)) {
+                parts[parts.length - 1] = (lastPart + 1).toString();
+                return parts.join('.');
+            }
+        }
+        return prefix; // Fallback: Return the prefix unchanged
+    }
+    
+    // For non-wildcard patterns, defer to incrementVersion
+    return incrementVersion(versionPattern);
+}
+
+/**
+ * Update the previous upper bound based on unaffected range info
+ * @param {Object} unaffectedInfo - Unaffected version info object
+ * @returns {string|null} The new upper bound for the next affected range
+ */
+function calculateNextUpperBound(unaffectedInfo) {
+    if (unaffectedInfo.lessThanOrEqual === "*") {
+        // This covers everything above the version
+        return null; // No more ranges above this
+    } else if (unaffectedInfo.lessThanOrEqual && unaffectedInfo.lessThanOrEqual.includes("*")) {
+        // Handle version wildcards like "5.4.*"
+        return getNextVersionAfterWildcard(unaffectedInfo.lessThanOrEqual);
+    } else if (unaffectedInfo.lessThan) {
+        return unaffectedInfo.lessThan;
+    } else if (unaffectedInfo.lessThanOrEqual) {
+        // Add a tiny increment to make it exclusive
+        return incrementVersion(unaffectedInfo.lessThanOrEqual);
+    } else {
+        // Single version - the upper bound is the next version
+        return incrementVersion(unaffectedInfo.version);
+    }
+}
+
+/**
+ * Enhanced Linux Kernel Detection
+ * @param {Object} rawPlatformData - Raw platform data
+ * @param {string} cpeBase - Base CPE string
+ * @returns {boolean} True if the platform data is for Linux kernel
+ */
+function isLinuxKernelPlatformData(rawPlatformData, cpeBase) {
+    if (!rawPlatformData || !cpeBase) {
+        return false;
+    }
+    
+    // Primary detection: Check product and vendor in platform data
+    const isLinuxProduct = 
+        rawPlatformData.product === "Linux" || 
+        rawPlatformData.product === "Linux Kernel" ||
+        (typeof rawPlatformData.product === "string" && 
+         rawPlatformData.product.toLowerCase().includes("linux kernel"));
+    
+    const isLinuxVendor = 
+        rawPlatformData.vendor === "Linux" || 
+        rawPlatformData.vendor === "Linux Foundation" ||
+        (typeof rawPlatformData.vendor === "string" && 
+         rawPlatformData.vendor.toLowerCase().includes("linux"));
+    
+    const hasCpeMatch = cpeBase.includes(":linux:linux_kernel:") || 
+                        cpeBase.includes(":linux:");
+    
+    // Check for Linux kernel in CPE
+    if (isLinuxProduct && isLinuxVendor && hasCpeMatch) {
+        return true;
+    }
+    
+    // Secondary detection: Check for complex version structure specific to Linux kernel
+    if (rawPlatformData.versions && rawPlatformData.versions.length > 0 && hasCpeMatch) {
+        // Count number of versions with wildcard formats like "5.4.*"
+        const wildcardVersions = rawPlatformData.versions.filter(v => 
+            v && v.lessThanOrEqual && typeof v.lessThanOrEqual === "string" && 
+            v.lessThanOrEqual.includes("*")
+        );
+        
+        // If we have multiple wildcarded versions and a Linux-like CPE, it's likely Linux kernel
+        if (wildcardVersions.length >= 2 && hasCpeMatch) {
+            console.debug("Detected Linux kernel based on version pattern analysis");
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+/**
+ * Create a CPE match object from version info
+ * @param {string} cpeBase - Base CPE string
+ * @param {Object} versionInfo - Version info object
+ * @param {boolean} isVulnerable - Vulnerability status
+ * @returns {Object} CPE match object
+ */
+function createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable) {
+    const cpeMatch = {
+        "criteria": cpeBase,
+        "matchCriteriaId": generateMatchCriteriaId(),
+        "vulnerable": isVulnerable
+    };
+    
+    // Handle single version with no range
+    if (versionInfo.version && !versionInfo.lessThan && !versionInfo.lessThanOrEqual && 
+        !versionInfo.greaterThan && !versionInfo.greaterThanOrEqual) {
+        // Single version
+        if (isVulnerable) {
+            cpeMatch.versionStartIncluding = versionInfo.version;
+            cpeMatch.versionEndExcluding = incrementVersion(versionInfo.version);
+        } else {
+            // For "unaffected" single versions, just specify the exact version
+            const cpeParts = cpeBase.split(':');
+            cpeParts[5] = versionInfo.version;
+            cpeMatch.criteria = cpeParts.join(':');
+        }
+    } else {
+        // Range specification
+        if (versionInfo.version) {
+            cpeMatch.versionStartIncluding = versionInfo.version;
+        }
+        if (versionInfo.greaterThan) {
+            cpeMatch.versionStartExcluding = versionInfo.greaterThan;
+        }
+        else if (versionInfo.greaterThanOrEqual) {
+            cpeMatch.versionStartIncluding = versionInfo.greaterThanOrEqual;
+        }
+        
+        if (versionInfo.lessThan) {
+            cpeMatch.versionEndExcluding = versionInfo.lessThan;
+        }
+        else if (versionInfo.lessThanOrEqual) {
+            cpeMatch.versionEndIncluding = versionInfo.lessThanOrEqual;
+        }
+    }
+    
+    return cpeMatch;
+}
+
+/**
+ * Process gaps between unaffected ranges to create affected ranges
+ * @param {string} cpeBase - Base CPE string
+ * @param {Array} unaffectedVersions - Array of unaffected version info objects
+ * @param {Array} affectedVersions - Array of explicitly affected version info objects
+ * @param {Array} cpeMatches - Array to add new cpeMatch objects to
+ */
+function processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affectedVersions, cpeMatches) {
+    console.debug("Processing gaps between unaffected ranges");
+    
+    // First, organize the unaffected versions by their starting version and ending version
+    const unaffectedRanges = [];
+    
+    for (const info of unaffectedVersions) {
+        let startVer, endVer;
+        
+        // Determine start version
+        if (info.version) {
+            startVer = info.version;
+        } else if (info.greaterThanOrEqual) {
+            startVer = info.greaterThanOrEqual;
+        } else if (info.greaterThan) {
+            startVer = incrementVersion(info.greaterThan);
+        } else {
+            startVer = "0"; // Default to beginning
+        }
+        
+        // Determine end version - this is the end of the unaffected range
+        if (info.lessThan) {
+            endVer = info.lessThan;
+        } else if (info.lessThanOrEqual && info.lessThanOrEqual === "*") {
+            endVer = null; // Unlimited
+        } else if (info.lessThanOrEqual && info.lessThanOrEqual.includes("*")) {
+            // Handle wildcards like 5.4.*
+            const wildcard = info.lessThanOrEqual;
+            
+            // Extract the numeric part (like "5.4" from "5.4.*")
+            const versionBase = wildcard.split("*")[0].replace(/\.$/, '');
+            const parts = versionBase.split(".");
+            
+            if (parts.length >= 2) {
+                // For 5.4.*, the end of the unaffected range is 5.5
+                const majorVersion = parseInt(parts[0], 10);
+                const minorVersion = parseInt(parts[1], 10);
+                
+                if (!isNaN(majorVersion) && !isNaN(minorVersion)) {
+                    endVer = `${majorVersion}.${minorVersion + 1}`;
+                    console.debug(`Processed wildcard ${wildcard} to next version ${endVer}`);
+                } else {
+                    endVer = incrementVersion(versionBase);
+                }
+            } else {
+                endVer = incrementVersion(versionBase);
+            }
+        } else if (info.lessThanOrEqual) {
+            endVer = incrementVersion(info.lessThanOrEqual);
+        } else {
+            // Single version, so end is next version
+            endVer = incrementVersion(startVer);
+        }
+        
+        unaffectedRanges.push({ start: startVer, end: endVer });
+    }
+    
+    // Sort the ranges by start version
+    unaffectedRanges.sort((a, b) => compareVersions(a.start, b.start));
+    
+    console.debug("Sorted unaffected ranges:");
+    unaffectedRanges.forEach((range, i) => {
+        console.debug(`Range ${i}: ${range.start} to ${range.end || "unlimited"}`);
+    });
+    
+    // Now find the gaps between unaffected ranges
+    // First, set up the initial lower bound
+    let previousRange = null;
+    
+    // Handle the special case for patched versions first - before the main loop
+    // This ensures we correctly handle cases where version 5.4 is marked affected but 5.4.277 is unaffected
+    const patchVersionCandidates = unaffectedRanges.filter(range => 
+        range.start.includes(".") && range.start.split(".").length > 2
+    );
+    
+    for (const patchRange of patchVersionCandidates) {
+        // Get the base version from the patched version (5.4 from 5.4.277)
+        const startParts = patchRange.start.split('.');
+        const baseVersion = (startParts.length >= 2) ? `${startParts[0]}.${startParts[1]}` : startParts[0];
+        
+        // Check if this base version matches an affected version
+        const matchingAffected = affectedVersions.find(av => 
+            av.version && (av.version === baseVersion || av.version.startsWith(baseVersion + "."))
+        );
+        
+        if (matchingAffected) {
+            console.debug(`Found patched version ${patchRange.start} for base affected version ${baseVersion}`);
+            
+            // Create a non-vulnerable range from base to patched version (inclusive)
+            cpeMatches.push({
+                criteria: cpeBase,
+                matchCriteriaId: generateMatchCriteriaId(),
+                vulnerable: false,
+                versionStartIncluding: baseVersion,
+                versionEndIncluding: patchRange.start
+            });
+            
+            console.debug(`Created unaffected range from ${baseVersion} to ${patchRange.start} (inclusive)`);
+            
+            // Create a vulnerable range from patched version (exclusive) to the next minor
+            if (patchRange.end) {
+                cpeMatches.push({
+                    criteria: cpeBase,
+                    matchCriteriaId: generateMatchCriteriaId(),
+                    vulnerable: true,
+                    versionStartExcluding: patchRange.start,
+                    versionEndExcluding: patchRange.end
+                });
+                
+                console.debug(`Created affected range from ${patchRange.start} (exclusive) to ${patchRange.end}`);
+            }
+        }
+    }
+    
+    // Main loop for processing gaps between unaffected ranges
+    for (let i = 0; i < unaffectedRanges.length; i++) {
+        const currentRange = unaffectedRanges[i];
+        
+        // If we have a previous range and there's a gap between
+        if (previousRange && previousRange.end && compareVersions(previousRange.end, currentRange.start) < 0) {
+            console.debug(`Found gap between ${previousRange.end} and ${currentRange.start}`);
+            
+            // Skip creating affected ranges for gaps that overlap with our patch handling above
+            let shouldCreateGapRange = true;
+            
+            // Check if this gap starts with a base version (like 5.4) that has special patched handling
+            for (const patchRange of patchVersionCandidates) {
+                const startParts = patchRange.start.split('.');
+                const baseVersion = (startParts.length >= 2) ? `${startParts[0]}.${startParts[1]}` : startParts[0];
+                
+                // If the start of this gap matches a base version we've already handled
+                if (previousRange.end === baseVersion) {
+                    console.debug(`Skipping gap starting at ${baseVersion} as it's handled by patch special case`);
+                    shouldCreateGapRange = false;
+                    break;
+                }
+            }
+            
+            // Only create the gap range if we didn't handle it as a patch case
+            if (shouldCreateGapRange) {
+                cpeMatches.push({
+                    criteria: cpeBase,
+                    matchCriteriaId: generateMatchCriteriaId(),
+                    vulnerable: true,
+                    versionStartIncluding: previousRange.end,
+                    versionEndExcluding: currentRange.start
+                });
+            }
+        }
+        
+        previousRange = currentRange;
+    }
+    
+    // If the last range doesn't extend to infinity, add a final affected range
+    if (previousRange && previousRange.end) {
+        console.debug(`Adding final range from ${previousRange.end} to infinity`);
+        
+        cpeMatches.push({
+            criteria: cpeBase,
+            matchCriteriaId: generateMatchCriteriaId(),
+            vulnerable: true,
+            versionStartIncluding: previousRange.end
+        });
+    }
+}
+
+/**
+ * Check if a version is covered by a cpeMatch range
+ * @param {string} version - Version to check
+ * @param {Object} cpeMatch - cpeMatch object with range data
+ * @returns {boolean} True if the version is covered
+ */
+function isVersionCoveredByRange(version, cpeMatch) {
+    // If this is an exact match (not a range)
+    if (cpeMatch.criteria.includes(`:${version}:`)) {
+        return true;
+    }
+    
+    let isGreaterThanLower = true;
+    let isLessThanUpper = true;
+    
+    // Check lower bound
+    if (cpeMatch.versionStartIncluding && compareVersions(version, cpeMatch.versionStartIncluding) < 0) {
+        isGreaterThanLower = false;
+    }
+    if (cpeMatch.versionStartExcluding && compareVersions(version, cpeMatch.versionStartExcluding) <= 0) {
+        isGreaterThanLower = false;
+    }
+    
+    // Check upper bound
+    if (cpeMatch.versionEndIncluding && compareVersions(version, cpeMatch.versionEndIncluding) > 0) {
+        isLessThanUpper = false;
+    }
+    if (cpeMatch.versionEndExcluding && compareVersions(version, cpeMatch.versionEndExcluding) >= 0) {
+        isLessThanUpper = false;
+    }
+    
+    return isGreaterThanLower && isLessThanUpper;
 }
