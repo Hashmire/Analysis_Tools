@@ -141,6 +141,14 @@ function initializeEventListeners() {
         
         // Add a master "Export All Configurations" button at the top of cveListCPESuggester
         const cveListCPESuggester = document.getElementById('cveListCPESuggester');
+        
+        // Scan for git versionTypes and add warnings (add this near the beginning)
+        if (typeof scanForGitVersionTypes === 'function') {
+            scanForGitVersionTypes();
+        }
+        
+        // ... existing initialization code ...
+        
         if (cveListCPESuggester) {
             // Create the Export All container at the beginning
             const allContainer = document.createElement('div');

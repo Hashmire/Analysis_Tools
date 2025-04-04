@@ -119,3 +119,27 @@ table.dataframe td:last-child {
 .linux-kernel-badge:hover {
     background-color: #e0a800;
 }
+
+/* Git versionType badge styling */
+.git-versiontype-badge {
+    display: inline-block;
+    padding: 0.25em 0.6em;
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25rem;
+    background-color: #ffc107; /* warning color */
+    color: #212529; /* dark text */
+    cursor: help;
+    transition: all 0.2s ease-in-out;
+}
+
+.git-versiontype-badge:hover {
+    background-color: #e0a800; /* darker warning color on hover */
+    transform: scale(1.05);
+}

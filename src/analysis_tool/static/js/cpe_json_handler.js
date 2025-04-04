@@ -19,12 +19,25 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData) {
         // Normalize the base CPE string first to ensure it has enough components
         cpeBase = normalizeCpeString(cpeBase);
         
+        const cpeMatches = [];
+        
         // Check if we have valid version data
         if (!rawPlatformData || !rawPlatformData.versions || !Array.isArray(rawPlatformData.versions) || rawPlatformData.versions.length === 0) {
             console.debug("No version data available, using basic CPE match");
             const basicMatch = createCpeMatchObject(cpeBase);
             return [basicMatch];
         }
+        
+        // Check if there are git versionTypes and add warning indicator if found
+        const hasGitVersionType = rawPlatformData.versions.some(versionInfo => 
+            versionInfo && versionInfo.versionType === "git");
+        
+        if (hasGitVersionType) {
+            // Add warning indicator to the UI
+            addGitVersionTypeWarning(rawPlatformData.tableIndex);
+        }
+        
+        console.debug(`Processing ${rawPlatformData.versions.length} versions for ${cpeBase}`);
         
         // Special case for Linux kernel using enhanced detection
         if (isLinuxKernelPlatformData(rawPlatformData, cpeBase)) {
@@ -37,7 +50,6 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData) {
         }
         
         // Standard processing for other products
-        const cpeMatches = [];
         console.debug(`Processing ${rawPlatformData.versions.length} versions for ${cpeBase}`);
         
         // Determine default vulnerability status
@@ -388,51 +400,55 @@ function generateMatchCriteriaId() {
 
 /**
  * Process basic version data into a configuration object
- * @param {Set} selectedCPEs - Set of selected CPE base strings
+ * @param {Set} selectedCPEs - Set of selected CPE base strings or DOM elements
  * @param {Object} rawPlatformData - Raw platform data
  * @returns {Object} Configuration object
  */
 function processBasicVersionData(selectedCPEs, rawPlatformData) {
-    try {
-        console.debug("Processing basic version data for", selectedCPEs.size, "CPEs");
-        
-        // Create a base configuration
-        const baseConfig = {
-            "operator": "OR",
-            "cpeMatch": []
-        };
-        
-        // Track version stats
-        let totalVersions = 0;
-        
-        // Process each selected CPE
-        selectedCPEs.forEach(cpeBase => {
-            // Process version data into cpeMatch objects
-            const cpeMatches = processVersionDataToCpeMatches(cpeBase, rawPlatformData);
-            
-            console.debug(`Generated ${cpeMatches.length} CPE matches for ${cpeBase}`);
-            
-            // Add all cpeMatches to the configuration
-            baseConfig.cpeMatch.push(...cpeMatches);
-            
-            // Update version count
-            totalVersions += cpeMatches.length;
-        });
-        
-        // Store version stats in the configuration
-        baseConfig.versionStats = {
-            totalVersions: totalVersions,
-            selectedCriteria: selectedCPEs.size
-        };
-        
-        return baseConfig;
-    } catch(e) {
-        console.error("Error processing basic version data:", e);
-        return {
-            "operator": "OR",
-            "cpeMatch": []
-        };
+    const config = {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": []
+    };
+    
+    // Store the tableIndex in rawPlatformData for reference
+    if (rawPlatformData && !rawPlatformData.tableIndex && rawPlatformData.elementId) {
+        // Extract table index from element ID if present
+        const match = rawPlatformData.elementId.match(/rawPlatformData_(\d+)/);
+        if (match && match[1]) {
+            rawPlatformData.tableIndex = match[1];
+        }
     }
+    
+    // Process each selected CPE
+    selectedCPEs.forEach(cpeRow => {
+        let cpeBase;
+        
+        // Check if cpeRow is a DOM element or a string
+        if (typeof cpeRow === 'string') {
+            cpeBase = cpeRow;
+        } else if (cpeRow && typeof cpeRow.getAttribute === 'function') {
+            cpeBase = cpeRow.getAttribute('data-cpe-base');
+        } else {
+            console.warn("Invalid CPE row type:", typeof cpeRow);
+            return;
+        }
+        
+        if (!cpeBase) {
+            console.warn("No CPE base found for row:", cpeRow);
+            return;
+        }
+        
+        // Process version data into cpeMatch objects
+        const cpeMatches = processVersionDataToCpeMatches(cpeBase, rawPlatformData);
+        
+        console.debug(`Generated ${cpeMatches.length} CPE matches for ${cpeBase}`);
+        
+        // Add all cpeMatches to the configuration
+        config.cpeMatch.push(...cpeMatches);
+    });
+    
+    return config;
 }
 
 /**
@@ -1215,3 +1231,83 @@ function isVersionCoveredByRange(version, cpeMatch) {
     
     return isGreaterThanLower && isLessThanUpper;
 }
+
+/**
+ * Add a warning indicator for git versionType
+ * @param {string|number} tableIndex - The table index
+ */
+function addGitVersionTypeWarning(tableIndex) {
+    try {
+        // Find all rowDataTable elements
+        const rowDataTable = document.getElementById(`rowDataTable_${tableIndex}`);
+        if (!rowDataTable) return;
+        
+        // Find the Raw Platform Data row
+        const rows = rowDataTable.querySelectorAll('tr');
+        for (const row of rows) {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 2 && cells[0].textContent.trim() === "Raw Platform Data") {
+                // Check if badge already exists
+                if (cells[1].querySelector('.git-versiontype-badge')) {
+                    continue;
+                }
+                
+                // Find the details element
+                const detailsElement = cells[1].querySelector('details');
+                if (detailsElement) {
+                    // Create the badge - uses CSS from styles.css like Linux kernel badge
+                    const badge = document.createElement('span');
+                    badge.className = 'git-versiontype-badge';
+                    badge.title = 'git versionType not advised for CPE Ranges';
+                    badge.textContent = 'git versionType';
+                    
+                    // Insert the badge before the details element
+                    detailsElement.parentNode.insertBefore(badge, detailsElement);
+                    
+                    // Add info icon
+                    const infoIcon = document.createElement('i');
+                    infoIcon.className = 'fas fa-info-circle ml-1';
+                    infoIcon.style.fontSize = '0.9em';
+                    badge.appendChild(document.createTextNode(' '));
+                    badge.appendChild(infoIcon);
+                    
+                    console.debug("Added git versionType warning badge");
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error adding git versionType warning badge:", e);
+    }
+}
+
+// Add this function to scan for git versionTypes on page load
+function scanForGitVersionTypes() {
+    // Look for all rawPlatformData elements
+    const rawPlatformDataElements = document.querySelectorAll('[id^="rawPlatformData_"]');
+    
+    rawPlatformDataElements.forEach(element => {
+        try {
+            // Extract the table index from the ID
+            const tableIndex = element.id.replace('rawPlatformData_', '');
+            
+            // Parse the JSON content
+            const rawPlatformData = JSON.parse(element.textContent);
+            
+            // Check if any versions have git versionType
+            if (rawPlatformData && 
+                rawPlatformData.versions && 
+                Array.isArray(rawPlatformData.versions) &&
+                rawPlatformData.versions.some(versionInfo => 
+                    versionInfo && versionInfo.versionType === "git")) {
+                
+                // Add the warning badge
+                addGitVersionTypeWarning(tableIndex);
+            }
+        } catch (e) {
+            console.warn("Error checking for git versionType:", e);
+        }
+    });
+}
+
+// Instead, export the function so it can be called from the existing initialization
+window.scanForGitVersionTypes = scanForGitVersionTypes;

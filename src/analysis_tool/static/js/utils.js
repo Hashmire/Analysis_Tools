@@ -134,6 +134,9 @@ function gatherTableMetadata(tableIndex) {
         if (platformDataAttr) {
             try {
                 rawPlatformData = JSON.parse(platformDataAttr);
+                // Add table index and element ID for reference
+                rawPlatformData.tableIndex = tableIndex;
+                rawPlatformData.elementId = `rawPlatformData_${tableIndex}`;
             } catch (e) {
                 console.warn(`Could not parse platform data for table ${tableIndex}:`, e);
             }
