@@ -24,22 +24,46 @@ class CustomJSONEncoder(json.JSONEncoder):
             return str(obj)
 
 def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
-    has_cpe_array_content = bool(row.get('hasCPEArray', False))
+    # Access platformEntryMetadata for consolidated fields
+    platform_metadata = row.get('platformEntryMetadata', {})
+    platform_format_type = platform_metadata.get('platformFormatType', '')
+    
+    # Convert platform format type to human-readable format
+    readable_format_type = platform_format_type
+    if platform_format_type == 'cveAffectsVersionRange':
+        readable_format_type = "CVE Affects Version Range(s)"
+    elif platform_format_type == 'cveAffectsVersionSingle':
+        readable_format_type = "CVE Affects Version(s) Exact" 
+    elif platform_format_type == 'cveAffectsVersionMix':
+        readable_format_type = "CVE Affects Version(s) Exact and Range(s)"
+    elif platform_format_type == 'cveAffectsNoVersions':
+        readable_format_type = "CVE Affects Product (No Versions)"
+    elif platform_format_type == 'nvdConfiguration':
+        readable_format_type = "NVD Configuration"
 
     # Add ID to the table based on the index
     html = f"<table id=\"rowDataTable_{tableIndex}\" class=\"table table-hover\">"
     
     # Define the keys and their labels, ensuring rawPlatformData is last
     keys_and_labels = [
-        ('dataSource', 'Data Source'),
+        ('platformEntryMetadata.dataSource', 'Data Source'),
         ('sourceID', 'Source ID'),
         ('sourceRole', 'Source Role'),
-        ('platformFormatType', 'Platform Format Type'),
         ('rawPlatformData', 'Raw Platform Data')
     ]
     
     for key, label in keys_and_labels:
-        if key in row:
+        if '.' in key:  # Handle nested properties
+            parent, child = key.split('.')
+            if parent in row and child in row[parent]:
+                value = row[parent][child]
+                html += f"""
+                <tr>
+                    <td>{label}</td>
+                    <td>{value}</td>
+                </tr>
+                """
+        elif key in row:  # Handle direct properties
             value = row[key]
             if key == 'rawPlatformData':
                 if 'vendor' in value:
@@ -115,16 +139,6 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
                     <code id="rawPlatformData_{tableIndex}" class="rawPlatformData">{json_value}</code></details></td>
                 </tr>
                 """
-            elif key == 'platformFormatType':
-                if has_cpe_array_content:
-                    tooltip_content = "CPE Array Included"
-                    value += f" <span title=\"{tooltip_content}\">  &#10003;</span>"
-                html += f"""
-                <tr>
-                    <td>{label}</td>
-                    <td>{value}</td>
-                </tr>
-                """
             elif key == 'sourceID':
                 source_info = processData.getNVDSourceDataByUUID(value, nvdSourceData)
                 if source_info:
@@ -146,6 +160,56 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
                     <td>{value}</td>
                 </tr>
                 """
+    
+    # Add Platform Entry Notifications with badges
+    html += "<tr><td>Platform Entry Notifications</td><td>"
+    
+    # 1. Platform Format Type badge with version checks tooltip
+    version_checks = platform_metadata.get('cpeVersionChecks', [])
+    version_tooltip = "No versions detected!"
+    if version_checks:
+        # Format each version check on a new line for better readability
+        version_lines = []
+        for check in version_checks:
+            check_str = ", ".join([f"{k}: {v}" for k, v in check.items()])
+            version_lines.append(check_str)
+        
+        version_tooltip = "&#013;".join(version_lines)
+
+    # Select badge color based on platform format type
+    badge_color = "bg-info"  # Default color for most cases
+    if platform_format_type == 'cveAffectsNoVersions':
+        badge_color = "bg-danger"  # Red badge for no versions case
+
+    # Use readable_format_type and appropriate badge color
+    html += f'<span class="badge {badge_color}" title="{version_tooltip}">{readable_format_type}</span> '
+
+    # 2. Duplicate Entries badge (warning) if duplicateRowIndices exist
+    duplicate_indices = platform_metadata.get('duplicateRowIndices', [])
+    if duplicate_indices:
+        duplicate_tooltip = f"This data appears to be a duplicate of row: {', '.join(map(str, duplicate_indices))}"
+        html += f'<span class="badge bg-warning" title="{duplicate_tooltip}">Duplicate Entries Detected</span> '
+
+    # 3. CPE Array badge if hasCPEArray is True (not based on cpeBaseStrings)
+    if platform_metadata.get('hasCPEArray', False):
+        # Get the actual CPEs from rawPlatformData
+        cpes_array = []
+        if 'rawPlatformData' in row and 'cpes' in row['rawPlatformData']:
+            cpes_array = row['rawPlatformData']['cpes']
+        
+        cpe_tooltip = "CPE Array included in original data"
+        if cpes_array:
+            cpe_tooltip = f"{', '.join(cpes_array)}"
+        
+        html += f'<span class="badge bg-info" title="{cpe_tooltip}">CPEs Array Included</span> '
+
+    # 4. CPE Base Strings badge for API search strings
+    cpe_base_strings = platform_metadata.get('cpeBaseStrings', [])
+    if cpe_base_strings:
+        base_strings_tooltip = "&#013;".join(cpe_base_strings)
+        html += f'<span class="badge bg-secondary" title="{base_strings_tooltip}">CPE Base String Searches</span> '
+
+    html += "</td></tr>"
     
     html += "</table>"
         

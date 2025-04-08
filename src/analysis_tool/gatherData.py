@@ -199,19 +199,12 @@ def gatherNVDCPEData(apiKey, case, query_string):
 # Creates the primary dataframe to be referenced and modified as needed throughout the process
 def gatherPrimaryDataframe():
     data = {
-        'rowDataHTML': '',
-        'dataSource': '',
         'sourceID': '',
         'sourceRole': '',
-        'platformFormatType': '', 
-        'hasCPEArray': '',
         'rawPlatformData': [],
-        'cpeBaseStrings': [],
-        'cpeVersionChecks': [],
         'rawCPEsQueryData': [],
         'sortedCPEsQueryData': [],
         'trimmedCPEsQueryData': [],
-        'cpeQueryHTML': ''
         }
 
     # Create DataFrame

@@ -62,19 +62,13 @@ def setOperationMode(modeSetting):
                 # Do a rough convert of the dataframe to html for debug display
                 primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe, nvdSourceData)
                 
-                primaryDataframe = primaryDataframe.drop('dataSource', axis=1, errors='ignore')
                 primaryDataframe = primaryDataframe.drop('sourceID', axis=1, errors='ignore')
                 primaryDataframe = primaryDataframe.drop('sourceRole', axis=1, errors='ignore')
-                primaryDataframe = primaryDataframe.drop('platformFormatType', axis=1, errors='ignore')
-                primaryDataframe = primaryDataframe.drop('hasCPEArray', axis=1, errors='ignore')
                 primaryDataframe = primaryDataframe.drop('rawPlatformData', axis=1, errors='ignore')
-                primaryDataframe = primaryDataframe.drop('cpeBaseStrings', axis=1, errors='ignore')
-                primaryDataframe = primaryDataframe.drop('cpeVersionChecks', axis=1, errors='ignore')
                 primaryDataframe = primaryDataframe.drop('rawCPEsQueryData', axis=1, errors='ignore')
                 primaryDataframe = primaryDataframe.drop('sortedCPEsQueryData', axis=1, errors='ignore')
                 primaryDataframe = primaryDataframe.drop('trimmedCPEsQueryData', axis=1, errors='ignore')
-                primaryDataframe = primaryDataframe.drop('platformStatistics', axis=1, errors='ignore')
-                primaryDataframe = primaryDataframe.drop('rawConfigData', axis=1, errors='ignore')
+                primaryDataframe = primaryDataframe.drop('platformEntryMetadata', axis=1, errors='ignore')
 
                 # Get the correct number of columns
                 num_cols = len(primaryDataframe.columns)
@@ -82,12 +76,11 @@ def setOperationMode(modeSetting):
                 # Create appropriate column widths based on number of columns
                 if num_cols == 2:
                     col_widths = ['20%', '80%']
-                elif num_cols == 3:
-                    col_widths = ['20%', '80%', '0%']
                 else:
                     # For any other number of columns, calculate evenly
                     col_width = f"{100/num_cols}%"
                     col_widths = [col_width] * num_cols
+                    print(f"Warning: {num_cols} columns detected, should be two.")
 
                 # Convert to HTML with correct column spacing
                 affectedHtml2 = primaryDataframe.to_html(
@@ -166,19 +159,12 @@ def setOperationMode(modeSetting):
                     # Do a rough convert of the dataframe to html for debug display
                     primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe, nvdSourceData)
                     
-                    primaryDataframe = primaryDataframe.drop('dataSource', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('sourceID', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('sourceRole', axis=1, errors='ignore')
-                    primaryDataframe = primaryDataframe.drop('platformFormatType', axis=1, errors='ignore')
-                    primaryDataframe = primaryDataframe.drop('hasCPEArray', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('rawPlatformData', axis=1, errors='ignore')
-                    primaryDataframe = primaryDataframe.drop('cpeBaseStrings', axis=1, errors='ignore')
-                    primaryDataframe = primaryDataframe.drop('cpeVersionChecks', axis=1, errors='ignore')
-                    primaryDataframe = primaryDataframe.drop('rawCPEsQueryData', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('sortedCPEsQueryData', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('trimmedCPEsQueryData', axis=1, errors='ignore')
-                    primaryDataframe = primaryDataframe.drop('platformStatistics', axis=1, errors='ignore')
-                    primaryDataframe = primaryDataframe.drop('rawConfigData', axis=1, errors='ignore')
+                    primaryDataframe = primaryDataframe.drop('platformEntryMetadata', axis=1, errors='ignore')
 
                     # Get the correct number of columns
                     num_cols = len(primaryDataframe.columns)

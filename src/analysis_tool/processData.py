@@ -142,9 +142,12 @@ def reduceToTop10(workingDataset: pd.DataFrame) -> pd.DataFrame:
         unique_base_strings = {}  
         duplicate_keys = {} 
         sorted_cpes_query_data = row['sortedCPEsQueryData']
-        cpe_version_checks = row['cpeVersionChecks']
+        
+        # Access cpeVersionChecks from platformEntryMetadata dictionary
+        platform_metadata = row.get('platformEntryMetadata', {})
+        cpe_version_checks = platform_metadata.get('cpeVersionChecks', [])
+        
         consolidateBaseStrings(sorted_cpes_query_data, unique_base_strings, duplicate_keys)
-
         compare_versions(unique_base_strings, cpe_version_checks)
         sorted_base_strings = sort_base_strings(unique_base_strings)
 
@@ -160,16 +163,14 @@ def reduceToTop10(workingDataset: pd.DataFrame) -> pd.DataFrame:
     
 # Processes the mapping of /cpes/ API results with the baseStrings derived from external data
 def populateRawCPEsQueryData(rawDataSet: pd.DataFrame, cpeQueryData: List[Dict[str, Any]]):
-    # Create a copy of the dataframe to avoid modifying the original
     updated_df = rawDataSet.copy()
     
-    # Iterate through each row in the DataFrame
     for index, row in updated_df.iterrows():
-        # Initialize a dictionary to store the matched values
         matchedValues = {}
         
-        # Get the cpeBaseStrings for the current row
-        cpeBaseStringsList = row.get('cpeBaseStrings', [])
+        # Get cpeBaseStrings from platformEntryMetadata
+        platform_metadata = row.get('platformEntryMetadata', {})
+        cpeBaseStringsList = platform_metadata.get('cpeBaseStrings', [])
         
         # Handle non-iterable values
         if not isinstance(cpeBaseStringsList, (list, tuple, set)):
@@ -196,15 +197,16 @@ def deriveCPEMatchStringList(rawDataSet):
 
     # Iterate through each row in the DataFrame
     for index, row in rawDataSet.iterrows():
-        if 'cpeBaseStrings' in row:
-            cpe_base_strings = row['cpeBaseStrings']
-            # Check if cpe_base_strings is iterable
-            if isinstance(cpe_base_strings, (list, tuple, set)):
-                for cpe_string in cpe_base_strings:
-                    if cpe_string:  # Skip empty strings
-                        distinct_values.add(cpe_string)
-            elif cpe_base_strings:  # If it's a single non-empty value
-                distinct_values.add(cpe_base_strings)
+        if 'platformEntryMetadata' in row:
+            platform_metadata = row['platformEntryMetadata']
+            if 'cpeBaseStrings' in platform_metadata:
+                cpe_base_strings = platform_metadata['cpeBaseStrings']
+                if isinstance(cpe_base_strings, (list, tuple, set)):
+                    for cpe_string in cpe_base_strings:
+                        if cpe_string:  # Skip empty strings
+                            distinct_values.add(cpe_string)
+                elif cpe_base_strings:  # If it's a single non-empty value
+                    distinct_values.add(cpe_base_strings)
 
     # Convert the set to a list to get distinct values
     distinct_values_list = list(distinct_values)
@@ -215,7 +217,6 @@ def suggestCPEData(apiKey, rawDataset, case):
     match case:
         # Case 1 CVE List
         case 1:
-
             # Iterate through each row in the DataFrame to generate cpeBaseString suggestions
             for index, row in rawDataset.iterrows():
                 # Initialize lists to store the extracted values for the current row
@@ -223,8 +224,12 @@ def suggestCPEData(apiKey, rawDataset, case):
                 # Initialize a list to store the dictionaries for each row
                 cpeBaseStrings = []
 
+                # Get platformFormatType from platformEntryMetadata
+                platform_metadata = row.get('platformEntryMetadata', {})
+                platform_format_type = platform_metadata.get('platformFormatType', '')
+
                 # Check if platformFormatType is cveAffectsVersionSingle or cveAffectsVersionRange
-                if 'platformFormatType' in row and row['platformFormatType'] in ['cveAffectsVersionSingle', 'cveAffectsVersionRange']:
+                if platform_format_type in ['cveAffectsVersionSingle', 'cveAffectsVersionRange']:
                     
                     if 'rawPlatformData' in row:
                         platform_data = row['rawPlatformData']
@@ -380,9 +385,11 @@ def suggestCPEData(apiKey, rawDataset, case):
                     if 'cpes' in platform_data:
                         cpe_values.append(platform_data['cpes'])
 
-                # Add the cpeBaseStrings list to the cpeBaseStrings column of primaryDataframe
-                rawDataset.at[index, 'cpeBaseStrings'] = cpeBaseStrings
-                uniqueStringList = deriveCPEMatchStringList(rawDataset)
+                # Update the cpeBaseStrings in platformEntryMetadata instead of as a separate column
+                rawDataset.at[index, 'platformEntryMetadata']['cpeBaseStrings'] = cpeBaseStrings
+            
+            # Generate unique string list for API queries using the updated deriveCPEMatchStringList
+            uniqueStringList = deriveCPEMatchStringList(rawDataset)
             
             rawCPEsQueryData = bulkQueryandProcessNVDCPEs(apiKey, rawDataset, uniqueStringList)
            
@@ -410,6 +417,13 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
     bulk_results = []
     
     print(f"[INFO]  Querying NVD /cpes/ API to get CPE Dictionary information...")
+    
+    # Extract cpeVersionChecks from platformEntryMetadata for all rows
+    cpe_version_checks = []
+    for _, row in rawDataSet.iterrows():
+        if 'platformEntryMetadata' in row and 'cpeVersionChecks' in row['platformEntryMetadata']:
+            cpe_version_checks.extend(row['platformEntryMetadata']['cpeVersionChecks'])
+    
     for query_string in tqdm(query_list):
         # Skip empty queries
         if not query_string:
@@ -427,7 +441,7 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
             
             # Additional Stats if content is found
             if "products" in json_response:
-                base_string_stats = analyzeBaseStrings(rawDataSet['cpeVersionChecks'], json_response)
+                base_string_stats = analyzeBaseStrings(cpe_version_checks, json_response)
                 stats.update({
                     "unique_base_count": base_string_stats["unique_base_count"],
                     "base_strings": base_string_stats["base_strings"]
@@ -463,23 +477,22 @@ def analyzeBaseStrings(cpeVersionChecks, json_response: Dict[str, Any]) -> Dict[
         unique_versions = set()
         
         for check in cpeVersionChecks:
-            for item in check:
-                # Compare the version value with cpe_version_value
-                if 'version' in item and item['version'] == cpe_version_value:
-                    version_pair = ('version', item['version'])
-                    if version_pair not in unique_versions:
-                        versions_found.append({'version': cpe_name})
-                        unique_versions.add(version_pair)
-                if 'lessThan' in item and item['lessThan'] == cpe_version_value:
-                    less_than_pair = ('lessThan', item['lessThan'])
-                    if less_than_pair not in unique_versions:
-                        versions_found.append({'lessThan': cpe_name})
-                        unique_versions.add(less_than_pair)
-                if 'lessThanOrEqual' in item and item['lessThanOrEqual'] == cpe_version_value:
-                    less_than_or_equal_pair = ('lessThanOrEqual', item['lessThanOrEqual'])
-                    if less_than_or_equal_pair not in unique_versions:
-                        versions_found.append({'lessThanOrEqual': cpe_name})
-                        unique_versions.add(less_than_or_equal_pair)
+            # Each check is already a dictionary, no need for inner loop
+            if 'version' in check and check['version'] == cpe_version_value:
+                version_pair = ('version', check['version'])
+                if version_pair not in unique_versions:
+                    versions_found.append({'version': cpe_name})
+                    unique_versions.add(version_pair)
+            if 'lessThan' in check and check['lessThan'] == cpe_version_value:
+                less_than_pair = ('lessThan', check['lessThan'])
+                if less_than_pair not in unique_versions:
+                    versions_found.append({'lessThan': cpe_name})
+                    unique_versions.add(less_than_pair)
+            if 'lessThanOrEqual' in check and check['lessThanOrEqual'] == cpe_version_value:
+                less_than_or_equal_pair = ('lessThanOrEqual', check['lessThanOrEqual'])
+                if less_than_or_equal_pair not in unique_versions:
+                    versions_found.append({'lessThanOrEqual': cpe_name})
+                    unique_versions.add(less_than_or_equal_pair)
 
         # Update the base_strings dictionary
         base_strings[base_cpe_name]['versionsFoundContent'] = versions_found
@@ -505,93 +518,82 @@ def processCVEData(dataframe, cveRecordData):
     """Process CVE Record Data to extract platform-related information"""
     result_df = dataframe.copy()
     
-    # Track products already processed to avoid duplicates
-    processed_products = set()
+    # Track products for duplicate identification
+    product_key_to_row_indices = {}
+    
+    row_index = len(result_df)
     
     if 'containers' in cveRecordData:
-        # Process CNA container
-        if 'cna' in cveRecordData['containers']:
-            container = cveRecordData['containers']['cna']
-            source_id = container.get('providerMetadata', {}).get('orgId', 'Unknown')
-            source_role = 'CNA'
-            
-            # Handle affected entries
-            if 'affected' in container:
-                for affected in container['affected']:
-                    
-                    # Create a unique key for this vendor-product combo
-                    product_key = create_product_key(affected, source_id)
-                    
-                    # Skip if we've already processed this product from this source
-                    if product_key in processed_products:
-                        continue
-                        
-                    processed_products.add(product_key)
-                    
-                    # Safely handle versions
-                    versions_checks = []
-                    if affected.get('versions') and isinstance(affected.get('versions'), list):
-                        versions_checks = affected.get('versions', [])
-                    
-                    # Create a new row in the dataframe
-                    new_row = {
-                        'dataSource': 'CVEAPI',
-                        'sourceID': source_id,
-                        'sourceRole': source_role,
-                        'platformFormatType': determine_platform_format_type(affected),
-                        'hasCPEArray': 'cpes' in affected,
-                        'rawPlatformData': affected,
-                        'cpeBaseStrings': [],
-                        'cpeVersionChecks': versions_checks,
-                        'rawCPEsQueryData': [],
-                        'sortedCPEsQueryData': [],
-                        'trimmedCPEsQueryData': []
-                    }
-                    
-                    # Append to dataframe 
-                    result_df = pd.concat([result_df, pd.DataFrame([new_row])], ignore_index=True)
-        
-        # Process ADP containers
-        if 'adp' in cveRecordData.get('containers', {}):
-            for adp_container in cveRecordData['containers']['adp']:
-                source_id = adp_container.get('providerMetadata', {}).get('orgId', 'Unknown')
-                source_role = "ADP"
+        # Process each container type
+        for container_type in ['cna', 'adp']:
+            if container_type == 'cna' and 'cna' in cveRecordData['containers']:
+                containers = [cveRecordData['containers']['cna']]
+            elif container_type == 'adp' and 'adp' in cveRecordData.get('containers', {}):
+                containers = cveRecordData['containers']['adp']
+            else:
+                continue
                 
-                # Handle affected entries in ADP container
-                if 'affected' in adp_container:
-                    for affected in adp_container['affected']:
-                        
-                        # Create a unique key for this vendor-product-source combo
+            for container in containers:
+                source_id = container.get('providerMetadata', {}).get('orgId', 'Unknown')
+                source_role = container_type.upper()
+                
+                # Handle affected entries
+                if 'affected' in container:
+                    for affected in container['affected']:
+                        # Create a unique key for duplicate detection
                         product_key = create_product_key(affected, source_id)
                         
-                        # Skip if we've already processed this product from this source
-                        if product_key in processed_products:
-                            continue
-                            
-                        processed_products.add(product_key)
-                        
-                        # Safely handle versions
+                        # Get versions - this is where we need to ensure proper structure
                         versions_checks = []
                         if affected.get('versions') and isinstance(affected.get('versions'), list):
+                            # Direct assignment - each version check is already a dictionary
                             versions_checks = affected.get('versions', [])
+                        
+                        # Check if CPE array exists
+                        has_cpe_array = 'cpes' in affected
+                        
+                        # Create the platformEntryMetadata dictionary with all consolidated fields
+                        platform_entry_metadata = {
+                            'dataSource': 'CVEAPI',
+                            'platformFormatType': determine_platform_format_type(affected),
+                            'hasCPEArray': has_cpe_array,
+                            'cpeBaseStrings': [],
+                            'cpeVersionChecks': versions_checks,
+                            'duplicateRowIndices': []
+                        }
                         
                         # Create a new row in the dataframe
                         new_row = {
-                            'dataSource': 'CVEAPI',
                             'sourceID': source_id,
                             'sourceRole': source_role,
-                            'platformFormatType': determine_platform_format_type(affected),
-                            'hasCPEArray': 'cpes' in affected,
                             'rawPlatformData': affected,
-                            'cpeBaseStrings': [],
-                            'cpeVersionChecks': versions_checks,
+                            'platformEntryMetadata': platform_entry_metadata,
                             'rawCPEsQueryData': [],
                             'sortedCPEsQueryData': [],
                             'trimmedCPEsQueryData': []
                         }
                         
-                        # Append to dataframe
+                        # Track duplicate relationships
+                        if product_key in product_key_to_row_indices:
+                            # Get existing row indices with this key
+                            duplicate_indices = product_key_to_row_indices[product_key]
+                            
+                            # Add reference to existing duplicates
+                            new_row['platformEntryMetadata']['duplicateRowIndices'] = duplicate_indices.copy()
+                            
+                            # Update existing rows to point to this new row
+                            for idx in duplicate_indices:
+                                result_df.at[idx, 'platformEntryMetadata']['duplicateRowIndices'].append(row_index)
+                            
+                            # Add this row to the tracking
+                            product_key_to_row_indices[product_key].append(row_index)
+                        else:
+                            # First occurrence of this product key
+                            product_key_to_row_indices[product_key] = [row_index]
+                        
+                        # Append to dataframe (always keep all rows)
                         result_df = pd.concat([result_df, pd.DataFrame([new_row])], ignore_index=True)
+                        row_index += 1
     
     return result_df
 
@@ -610,15 +612,22 @@ def processNVDRecordData(dataframe, nvdRecordData):
                     # Process each configuration as a single row
                     for config in vuln['cve'].get('configurations', []):
                         
-                        # Create a new row with the complete configuration
-                        new_row = {
+                        # Create platformEntryMetadata
+                        platform_entry_metadata = {
                             'dataSource': 'NVDAPI',
-                            'sourceID': source_id,
-                            'sourceRole': source_role,
                             'platformFormatType': 'nvdConfiguration',
                             'hasCPEArray': True,
-                            'rawPlatformData': config,
                             'cpeBaseStrings': [],
+                            'cpeVersionChecks': [],
+                            'duplicateRowIndices': []
+                        }
+                        
+                        # Create a new row with the complete configuration
+                        new_row = {
+                            'sourceID': source_id,
+                            'sourceRole': source_role,
+                            'rawPlatformData': config,
+                            'platformEntryMetadata': platform_entry_metadata,
                             'rawCPEsQueryData': [],
                             'sortedCPEsQueryData': [],
                             'trimmedCPEsQueryData': []
@@ -632,18 +641,36 @@ def processNVDRecordData(dataframe, nvdRecordData):
     return result_df
 
 def determine_platform_format_type(affected):
-    """Determine if versions are single values or ranges"""
-    if not affected.get('versions'):
-        return 'affected'
+    """Determine if versions are single values, ranges, a mixture of both, or not provided"""
+    versions = affected.get('versions', [])
     
-    # Check if any version contains range indicators
+    # Check if versions array is empty or not provided
+    if not versions:
+        return 'cveAffectsNoVersions'
+    
+    # Check for range indicators and exact versions
     has_range = False
-    for version in affected.get('versions', []):
-        if 'lessThan' in version or 'lessThanOrEqual' in version or 'versionStartIncluding' in version or 'versionEndIncluding' in version:
-            has_range = True
-            break
+    has_exact = False
     
-    return 'cveAffectsVersionRange' if has_range else 'cveAffectsVersionSingle'
+    for version in versions:
+        # Check for range indicators
+        if any(key in version for key in ['lessThan', 'lessThanOrEqual', 'versionStartIncluding', 'versionEndIncluding']):
+            has_range = True
+        # Check for exact version
+        elif 'version' in version:
+            has_exact = True
+        
+        # If we've found both types, we can return early
+        if has_range and has_exact:
+            return 'cveAffectsVersionMix'
+    
+    # Determine the type based on what we found
+    if has_range:
+        return 'cveAffectsVersionRange'
+    elif has_exact:
+        return 'cveAffectsVersionSingle'
+    else:
+        return 'cveAffectsNoVersions'  # Fallback for unexpected version format
 
 #########################
 
