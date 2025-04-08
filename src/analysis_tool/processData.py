@@ -518,8 +518,6 @@ def processCVEData(dataframe, cveRecordData):
             # Handle affected entries
             if 'affected' in container:
                 for affected in container['affected']:
-                    vendor = affected.get('vendor', '')
-                    product = affected.get('product', '')
                     
                     # Create a unique key for this vendor-product combo
                     product_key = create_product_key(affected, source_id)
@@ -562,8 +560,6 @@ def processCVEData(dataframe, cveRecordData):
                 # Handle affected entries in ADP container
                 if 'affected' in adp_container:
                     for affected in adp_container['affected']:
-                        vendor = affected.get('vendor', '')
-                        product = affected.get('product', '')
                         
                         # Create a unique key for this vendor-product-source combo
                         product_key = create_product_key(affected, source_id)
@@ -613,30 +609,6 @@ def processNVDRecordData(dataframe, nvdRecordData):
                     
                     # Process each configuration as a single row
                     for config in vuln['cve'].get('configurations', []):
-                        # Create a unique identifier for this config
-                        config_key = f"config_{hash(str(config))}"
-                        
-                        # Extract some sample information for display/filtering
-                        sample_cpe = None
-                        sample_vendor = None
-                        sample_product = None
-                        cpe_base_strings = []
-                        
-                        # Extract CPEs from the configuration for base strings
-                        if 'nodes' in config:
-                            for node in config['nodes']:
-                                if 'cpeMatch' in node:
-                                    for cpe_match in node['cpeMatch']:
-                                        if 'criteria' in cpe_match:
-                                            cpe_base_strings.append(cpe_match['criteria'])
-                                            
-                                            # Use the first CPE as a sample
-                                            if not sample_cpe:
-                                                sample_cpe = cpe_match['criteria']
-                                                # Extract vendor/product from the sample CPE
-                                                cpe_parts = breakoutCPEComponents(sample_cpe)
-                                                sample_vendor = cpe_parts.get('vendor', '')
-                                                sample_product = cpe_parts.get('product', '')
                         
                         # Create a new row with the complete configuration
                         new_row = {
@@ -645,13 +617,8 @@ def processNVDRecordData(dataframe, nvdRecordData):
                             'sourceRole': source_role,
                             'platformFormatType': 'nvdConfiguration',
                             'hasCPEArray': True,
-                            'rawPlatformData': {
-                                'vendor': sample_vendor,
-                                'product': sample_product
-                            },
-                            'rawConfigData': config,  # Store the complete configuration object
-                            'cpeBaseStrings': cpe_base_strings,
-                            'cpeVersionChecks': [],  # Not applicable for full configurations
+                            'rawPlatformData': config,
+                            'cpeBaseStrings': [],
                             'rawCPEsQueryData': [],
                             'sortedCPEsQueryData': [],
                             'trimmedCPEsQueryData': []

@@ -47,18 +47,16 @@ def setOperationMode(modeSetting):
 
                 # Gather CVE List Record and NVD Dataset Records for the target CVE
                 cveRecordData = gatherData.gatherCVEListRecord(targetCve)
-                nvdRecordData = gatherData.gatherNVDCVERecord(nvdAPIKey, targetCve)
 
                 # Process the vulnerability record data to extract useful platform related information
                 primaryDataframe = processData.processCVEData(primaryDataframe, cveRecordData)             
-                primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
                 
+                # We need to revisit the NVD /cves/ API calls after we have a better grasp of the CVE List data.
+                # nvdRecordData = gatherData.gatherNVDCVERecord(nvdAPIKey, targetCve)
+                # primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
+                
+
                 # Based on the collected information, use the NVD API to gather relevant CPE data
-                #  
-                ## Added sorting of cpeQueryResults to ensure that the most relevant CPEs are presented first 
-                ## Version checks are not occurring as desired, need to revisit analyzeBaseStrings function
-                # TODO Add support for cpes array content on CVE records, mirror existing approach
-                # TODO Add support for cpeApplicability content on CVE and NVD records, mirror existing approach
                 primaryDataframe = processData.suggestCPEData(nvdAPIKey, primaryDataframe, 1)
                            
                 # Do a rough convert of the dataframe to html for debug display
