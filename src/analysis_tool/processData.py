@@ -193,20 +193,43 @@ def populateRawCPEsQueryData(rawDataSet: pd.DataFrame, cpeQueryData: List[Dict[s
 #
 # Generates a list of unique cpeMatchStrings based on the contents of cpeBaseStrings
 def deriveCPEMatchStringList(rawDataSet):
+    """
+    Extract unique CPE base strings from all rows in the dataset.
+    Logs warnings if unexpected data formats are encountered.
+    """
     distinct_values = set()
 
     # Iterate through each row in the DataFrame
     for index, row in rawDataSet.iterrows():
-        if 'platformEntryMetadata' in row:
-            platform_metadata = row['platformEntryMetadata']
-            if 'cpeBaseStrings' in platform_metadata:
-                cpe_base_strings = platform_metadata['cpeBaseStrings']
-                if isinstance(cpe_base_strings, (list, tuple, set)):
-                    for cpe_string in cpe_base_strings:
-                        if cpe_string:  # Skip empty strings
-                            distinct_values.add(cpe_string)
-                elif cpe_base_strings:  # If it's a single non-empty value
-                    distinct_values.add(cpe_base_strings)
+        if 'platformEntryMetadata' not in row:
+            print(f"[WARNING] Row {index} missing platformEntryMetadata")
+            continue
+            
+        platform_metadata = row['platformEntryMetadata']
+        if 'cpeBaseStrings' not in platform_metadata:
+            print(f"[WARNING] Row {index} missing cpeBaseStrings in platformEntryMetadata")
+            continue
+        
+        cpe_base_strings = platform_metadata['cpeBaseStrings']
+        
+        # Check if cpeBaseStrings is the expected list type
+        if not isinstance(cpe_base_strings, list):
+            print(f"[WARNING] Row {index} has cpeBaseStrings that is not a list (type: {type(cpe_base_strings)})")
+            # Try to convert to list if possible
+            if isinstance(cpe_base_strings, (tuple, set)):
+                cpe_base_strings = list(cpe_base_strings)
+            elif cpe_base_strings and not pd.isna(cpe_base_strings):
+                cpe_base_strings = [str(cpe_base_strings)]
+            else:
+                cpe_base_strings = []
+        
+        # Process the strings (now guaranteed to be a list)
+        for cpe_string in cpe_base_strings:
+            if not cpe_string:  # Skip empty strings but log them
+                print(f"[WARNING] Empty CPE string found in row {index}")
+                continue
+                
+            distinct_values.add(cpe_string)
 
     # Convert the set to a list to get distinct values
     distinct_values_list = list(distinct_values)
@@ -229,7 +252,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                 platform_format_type = platform_metadata.get('platformFormatType', '')
 
                 # Check if platformFormatType is cveAffectsVersionSingle or cveAffectsVersionRange
-                if platform_format_type in ['cveAffectsVersionSingle', 'cveAffectsVersionRange']:
+                if platform_format_type in ['cveAffectsVersionSingle', 'cveAffectsVersionRange', 'cveAffectsVersionMix']:
                     
                     if 'rawPlatformData' in row:
                         platform_data = row['rawPlatformData']
