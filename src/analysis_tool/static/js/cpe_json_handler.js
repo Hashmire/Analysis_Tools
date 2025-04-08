@@ -983,27 +983,28 @@ function isLinuxKernelPlatformData(rawPlatformData, cpeBase) {
  * @returns {Object} CPE match object
  */
 function createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable) {
-    const cpeMatch = {
-        "criteria": cpeBase,
-        "matchCriteriaId": generateMatchCriteriaId(),
-        "vulnerable": isVulnerable
-    };
-    
-    // Handle single version with no range
+    // Handle single version with no range indicators
     if (versionInfo.version && !versionInfo.lessThan && !versionInfo.lessThanOrEqual && 
         !versionInfo.greaterThan && !versionInfo.greaterThanOrEqual) {
-        // Single version
-        if (isVulnerable) {
-            cpeMatch.versionStartIncluding = versionInfo.version;
-            cpeMatch.versionEndExcluding = incrementVersion(versionInfo.version);
-        } else {
-            // For "unaffected" single versions, just specify the exact version
-            const cpeParts = cpeBase.split(':');
-            cpeParts[5] = versionInfo.version;
-            cpeMatch.criteria = cpeParts.join(':');
-        }
+        
+        // Create a CPE match with explicit version embedded in the criteria
+        const cpeParts = cpeBase.split(':');
+        cpeParts[5] = versionInfo.version; // Replace wildcard with explicit version
+        
+        return {
+            "criteria": cpeParts.join(':'),
+            "matchCriteriaId": generateMatchCriteriaId(),
+            "vulnerable": isVulnerable
+        };
     } else {
-        // Range specification
+        // Range specification (existing code for handling ranges)
+        const cpeMatch = {
+            "criteria": cpeBase,
+            "matchCriteriaId": generateMatchCriteriaId(),
+            "vulnerable": isVulnerable
+        };
+        
+        // Add version range attributes
         if (versionInfo.version) {
             cpeMatch.versionStartIncluding = versionInfo.version;
         }
@@ -1020,9 +1021,9 @@ function createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable) {
         else if (versionInfo.lessThanOrEqual) {
             cpeMatch.versionEndIncluding = versionInfo.lessThanOrEqual;
         }
+        
+        return cpeMatch;
     }
-    
-    return cpeMatch;
 }
 
 /**

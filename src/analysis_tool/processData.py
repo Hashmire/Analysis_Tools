@@ -540,7 +540,7 @@ def processCVEData(dataframe, cveRecordData):
                         'dataSource': 'CVEAPI',
                         'sourceID': source_id,
                         'sourceRole': source_role,
-                        'platformFormatType': 'cveAffectsVersionRange' if affected.get('versions') else 'affected',
+                        'platformFormatType': determine_platform_format_type(affected),
                         'hasCPEArray': 'cpes' in affected,
                         'rawPlatformData': affected,
                         'cpeBaseStrings': [],
@@ -584,7 +584,7 @@ def processCVEData(dataframe, cveRecordData):
                             'dataSource': 'CVEAPI',
                             'sourceID': source_id,
                             'sourceRole': source_role,
-                            'platformFormatType': 'cveAffectsVersionRange' if affected.get('versions') else 'affected',
+                            'platformFormatType': determine_platform_format_type(affected),
                             'hasCPEArray': 'cpes' in affected,
                             'rawPlatformData': affected,
                             'cpeBaseStrings': [],
@@ -663,6 +663,20 @@ def processNVDRecordData(dataframe, nvdRecordData):
         print(f"[ERROR] Error processing NVD record data: {e}")
     
     return result_df
+
+def determine_platform_format_type(affected):
+    """Determine if versions are single values or ranges"""
+    if not affected.get('versions'):
+        return 'affected'
+    
+    # Check if any version contains range indicators
+    has_range = False
+    for version in affected.get('versions', []):
+        if 'lessThan' in version or 'lessThanOrEqual' in version or 'versionStartIncluding' in version or 'versionEndIncluding' in version:
+            has_range = True
+            break
+    
+    return 'cveAffectsVersionRange' if has_range else 'cveAffectsVersionSingle'
 
 #########################
 
