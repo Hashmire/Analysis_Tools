@@ -55,32 +55,35 @@ def sort_broad_entries(data):
     return sorted_data
 #                    ,
 def sort_base_strings(unique_base_strings: dict) -> dict:
-    # Enhanced sorting logic to align with sort_broad_entries
+    # Enhanced sorting logic to include cveAffectedCPEsArray priority
     def sort_key(item):
         base_key, attributes = item
         # Check for the presence of specific tags
+        has_affected_cpes_array = 'searchSourcecveAffectedCPEsArray' in attributes
         has_vendor_product = 'searchSourcevendorproduct' in attributes
         has_product = 'searchSourceproduct' in attributes
         has_vendor = 'searchSourcevendor' in attributes
 
         # Prioritize based on the presence of tags
-        if has_vendor_product:
-            priority = 0
+        if has_affected_cpes_array:
+            priority = -1  # Highest priority: from cpes array
+        elif has_vendor_product:
+            priority = 0   # Second priority: vendor+product
         elif has_product:
-            priority = 1
+            priority = 1   # Third priority: just product
         elif has_vendor:
-            priority = 2
+            priority = 2   # Fourth priority: just vendor
         else:
-            priority = 3
+            priority = 3   # Lowest priority: other sources
 
         # Apply additional sorting criteria
         return (
-            priority,  # Primary: prioritization rules
-            attributes.get('depFalseCount', 0) == 0,  # Secondary: depFalseCount
-            -attributes.get('searchCount', 0),  # Tertiary: searchCount
-            -attributes.get('versionsFound', 0),  # Quaternary: versionsFound
-            -(attributes.get('depFalseCount', 0) + attributes.get('depTrueCount', 0)),  # Quinary: total count
-            -attributes.get('depFalseCount', 0)  # Senary: depFalseCount
+            priority,                                # Primary: source priority
+            attributes.get('depFalseCount', 0) == 0, # Secondary: depFalseCount
+            -attributes.get('searchCount', 0),       # Tertiary: searchCount
+            -attributes.get('versionsFound', 0),     # Quaternary: versionsFound
+            -(attributes.get('depFalseCount', 0) + attributes.get('depTrueCount', 0)), # Quinary: total count
+            -attributes.get('depFalseCount', 0)      # Senary: depFalseCount
         )
 
     # Sort the dictionary and return as a new dictionary
@@ -92,12 +95,25 @@ def reduceToTop10(workingDataset: pd.DataFrame) -> pd.DataFrame:
     trimmedDataset = workingDataset.copy()
     top_10_base_strings_dict = {}
 
+    # Create a mapping of CPE strings that came from cveAffectedCPEsArray
+    cpes_array_sources = {}
+    for index, row in workingDataset.iterrows():
+        if 'platformEntryMetadata' in row:
+            metadata = row['platformEntryMetadata']
+            if 'cpeBaseStrings' in metadata and 'cpeSourceTypes' in metadata and 'cveAffectedCPEsArray' in metadata.get('cpeSourceTypes', []):
+                for cpe_string in metadata['cpeBaseStrings']:
+                    cpes_array_sources[cpe_string] = True
+
     def consolidateBaseStrings(data, unique_base_strings, duplicate_keys):
         for key, value in data.items():
             if isinstance(value, dict):
-                cpe_breakout = breakoutCPEComponents(key)
+                cpe_breakout = breakoutCPEAttributes(key)  # Updated function name
                 recorded_keys = {k: v for k, v in cpe_breakout.items() if v != '*' and k not in ['cpePrefix', 'cpeVersion']}
                 recorded_keys_str = "".join(recorded_keys.keys())
+                
+                # Check if this key is from the cveAffectedCPEsArray using our mapping
+                is_from_cpes_array = key in cpes_array_sources
+                
                 if 'base_strings' in value:
                     base_strings = value['base_strings']
                     for base_key, base_value in base_strings.items():
@@ -105,10 +121,16 @@ def reduceToTop10(workingDataset: pd.DataFrame) -> pd.DataFrame:
                             duplicate_keys[base_key] = duplicate_keys.get(base_key, 1) + 1
                             unique_base_strings[base_key]['searchCount'] += 1
                             unique_base_strings[base_key]['searchSource' + recorded_keys_str] = key
+                            # Mark if this is from CPEs array
+                            if is_from_cpes_array:
+                                unique_base_strings[base_key]['searchSourcecveAffectedCPEsArray'] = key
                         else:
                             unique_base_strings[base_key] = base_value
                             unique_base_strings[base_key]['searchCount'] = 1
                             unique_base_strings[base_key]['searchSource' + recorded_keys_str] = key
+                            # Mark if this is from CPEs array
+                            if is_from_cpes_array:
+                                unique_base_strings[base_key]['searchSourcecveAffectedCPEsArray'] = key
                 else:
                     consolidateBaseStrings(value, unique_base_strings, duplicate_keys)
             elif isinstance(value, list):
@@ -125,7 +147,7 @@ def reduceToTop10(workingDataset: pd.DataFrame) -> pd.DataFrame:
                     for key, value in check.items():
                         if key in version_entry:
                             cpe_value = version_entry[key]
-                            cpe_breakout = breakoutCPEComponents(cpe_value)
+                            cpe_breakout = breakoutCPEAttributes(cpe_value)
                             if cpe_breakout['version'] == value:
                                 version_pair = (key, cpe_value)
                                 if version_pair not in unique_versions:
@@ -300,7 +322,7 @@ def suggestCPEData(apiKey, rawDataset, case):
 
                             # Build a CPE Search String from supported elements
                             rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW  + ":" + other
-                            scratchSearchStringBreakout = breakoutCPEComponents(rawMatchString)
+                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                             scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                             cpeBaseStrings.append(scratchMatchString)
 
@@ -326,7 +348,7 @@ def suggestCPEData(apiKey, rawDataset, case):
 
                             # Build a CPE Search String from supported elements
                             rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW  + ":" + other
-                            scratchSearchStringBreakout = breakoutCPEComponents(rawMatchString)
+                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                             scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                             cpeBaseStrings.append(scratchMatchString)
 
@@ -348,7 +370,7 @@ def suggestCPEData(apiKey, rawDataset, case):
 
                         # Build a CPE Search String from supported elements
                         rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW  + ":" + other
-                        scratchSearchStringBreakout = breakoutCPEComponents(rawMatchString)
+                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                         scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                         cpeBaseStrings.append(scratchMatchString)
 
@@ -371,7 +393,7 @@ def suggestCPEData(apiKey, rawDataset, case):
 
                         # Build a CPE Search String from supported elements
                         rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW  + ":" + other
-                        scratchSearchStringBreakout = breakoutCPEComponents(rawMatchString)
+                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                         scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                         cpeBaseStrings.append(scratchMatchString)
 
@@ -396,7 +418,7 @@ def suggestCPEData(apiKey, rawDataset, case):
 
                         # Build a CPE Search String from supported elements
                         rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW  + ":" + other
-                        scratchSearchStringBreakout = breakoutCPEComponents(rawMatchString)
+                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                         scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                         cpeBaseStrings.append(scratchMatchString)
 
@@ -421,13 +443,38 @@ def suggestCPEData(apiKey, rawDataset, case):
 
                         # Build a CPE Search String from supported elements
                         rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW  + ":" + other
-                        scratchSearchStringBreakout = breakoutCPEComponents(rawMatchString)
+                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                         scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                         cpeBaseStrings.append(scratchMatchString)           
 
-                    # Extract cpe array values
-                    if 'cpes' in platform_data:
-                        cpe_values.append(platform_data['cpes'])
+                    # Extract and use CPEs from the CVE affected entry's 'cpes' array
+                    if 'cpes' in platform_data and isinstance(platform_data['cpes'], list):
+                        for cpe in platform_data['cpes']:
+                            # Only add valid CPE strings
+                            if cpe and isinstance(cpe, str) and cpe.startswith('cpe:'):
+                                # Parse CPE to make sure it's properly formatted
+                                cpe_attributes = breakoutCPEAttributes(cpe)
+                                # For CPEs from the array, preserve the structure but standardize version fields
+                                cpe_attributes['version'] = '*'  # Always set version to wildcard
+                                cpe_attributes['update'] = '*'   # Always set update to wildcard
+                                
+                                # Create a modified version of constructSearchString for CPE array entries
+                                # that doesn't add wildcards to the product field
+                                cpeStringResult = ""
+                                for item in cpe_attributes:
+                                    # Don't add wildcards to product field for CPE array entries
+                                    cpeStringResult += str(cpe_attributes[item]) + ":"
+                                    
+                                # Remove the trailing colon
+                                base_cpe = cpeStringResult.rstrip(":")
+                                
+                                if base_cpe not in cpeBaseStrings:
+                                    cpeBaseStrings.append(base_cpe)
+                                    # Track the source of this CPE base string
+                                    if 'cpeSourceTypes' not in rawDataset.at[index, 'platformEntryMetadata']:
+                                        rawDataset.at[index, 'platformEntryMetadata']['cpeSourceTypes'] = []
+                                    if 'cveAffectedCPEsArray' not in rawDataset.at[index, 'platformEntryMetadata']['cpeSourceTypes']:
+                                        rawDataset.at[index, 'platformEntryMetadata']['cpeSourceTypes'].append('cveAffectedCPEsArray')
 
                 # Update the cpeBaseStrings in platformEntryMetadata instead of as a separate column
                 rawDataset.at[index, 'platformEntryMetadata']['cpeBaseStrings'] = cpeBaseStrings
@@ -537,9 +584,9 @@ def analyzeBaseStrings(cpeVersionChecks, json_response: Dict[str, Any]) -> Dict[
     
     for product in json_response["products"]:
         cpe_name = product["cpe"]["cpeName"]
-        cpe_components = breakoutCPEComponents(cpe_name) 
-        cpe_version_value = cpe_components['version']
-        base_cpe_name = constructSearchString(cpe_components, "base")
+        cpe_attributes = breakoutCPEAttributes(cpe_name)  # Updated function name
+        cpe_version_value = cpe_attributes['version']
+        base_cpe_name = constructSearchString(cpe_attributes, "base")
 
         # Populate versions_found based on comparisons to query results
         versions_found = base_strings[base_cpe_name]['versionsFoundContent']
@@ -871,8 +918,8 @@ def constructSearchString(rawBreakout, constructType):
         case _:
             print("[WARNING] unexpected constructType:  " + constructType)
 #
-# Identify if CPE 2.3/2.2 provided and breakout into component based dictionary
-def breakoutCPEComponents(cpeMatchString):
+# Identify if CPE 2.3/2.2 provided and breakout into attribute based dictionary
+def breakoutCPEAttributes(cpeMatchString):
     # using ":" as a delimeter will work in 99% of cases today. 
     cpeBreakOut = cpeMatchString.split(":")
     

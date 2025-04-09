@@ -260,14 +260,15 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
             types_tooltip = f'Versions array contains special version types: {", ".join(special_version_types)}'
             html += f'<span class="badge bg-warning" title="{types_tooltip}">Special Version Types</span> '
     
-    # 5. CPE Array badge - check for actual CPEs array
+    # 5. CPE Array badge - only show count in tooltip if there are actual CPEs
     cpes_array = []
     has_cpe_array = platform_metadata.get('hasCPEArray', False)
     if has_cpe_array and 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
-        cpes_array = raw_platform_data['cpes']
+        cpes_array = [cpe for cpe in raw_platform_data['cpes'] if cpe and isinstance(cpe, str) and cpe.startswith('cpe:')]
         if cpes_array:  # Only show badge if there are actual CPEs
-            cpe_tooltip = ", ".join(cpes_array)
-            html += f'<span class="badge bg-info" title="{cpe_tooltip}">CPEs Array Included</span> '
+            cpe_count = len(cpes_array)
+            cpe_tooltip = f"Versions array contains {cpe_count} CPEs from affected entry: " + ", ".join(cpes_array)
+            html += f'<span class="badge bg-info" title="{cpe_tooltip}">CVE Affected CPEs: {cpe_count}</span> '
     
     # 6. CPE Base Strings badge - only show if strings were generated
     cpe_base_strings = platform_metadata.get('cpeBaseStrings', [])
@@ -300,7 +301,15 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
         dep_true_count = base_value.get('depTrueCount', 0)
         dep_false_count = base_value.get('depFalseCount', 0)
         versions_found = base_value.get('versionsFound', 0)
+        
+        # Calculate search_count correctly by checking for cveAffectedCPEsArray
         search_count = base_value.get('searchCount', 0)
+        has_cpes_array_source = 'searchSourcecveAffectedCPEsArray' in base_value
+        
+        # If the CPEs array source isn't already counted in searchCount, add it
+        if has_cpes_array_source and not any(k.startswith('searchSource') and 'cveAffectedCPEsArray' in k for k in base_value.keys() if k != 'searchSourcecveAffectedCPEsArray'):
+            search_count += 1
+            
         versions_found_content = base_value.get('versionsFoundContent', [])
         
         # Create Version Matches Identified tooltip content from versionsFoundContent
