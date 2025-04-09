@@ -139,7 +139,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
                 git_badge_color = "bg-danger"  # Danger level for ranges
                 git_tooltip = "CRITICAL: CPE Range Matching Logic does not currently support git versionTypes"
                 
-            html += f'<span class="badge {git_badge_color}" title="{git_tooltip}">git versionType</span> '
+            warning_badges.append(f'<span class="badge {git_badge_color}" title="{git_tooltip}">git versionType</span> ')
 
     # 4. Special Version Structure badges - more detailed detection of special cases
     if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
@@ -216,10 +216,10 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         base_strings_tooltip = "&#013;".join(cpe_base_strings)
         standard_badges.append(f'<span class="badge bg-secondary" title="{base_strings_tooltip}">CPE Base String Searches</span> ')
 
-    # Add Platform Data Concern badge if needed
+    # 7. Add Platform Data Concern badge if needed - THIS IS THE FIX
     if platform_metadata.get('platformDataConcern', False):
-        platform_tooltip = 'Platform Data was not able to be mapped to any known target hardware values'
-        warning_badges.append(f'<span class="badge bg-warning" title="{platform_tooltip}">Platform Data Concern</span> ')
+        platform_tooltip = 'Platforms array data was not able to be mapped to any known target hardware values'
+        warning_badges.append(f'<span class="badge bg-warning" title="{platform_tooltip}">Platforms Data Concern</span> ')
 
     # Add badges in priority order: Danger -> Warning -> Info -> Standard
     html += ''.join(danger_badges)
@@ -228,7 +228,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     html += ''.join(standard_badges)
 
     html += "</td></tr>"
-    
+
     # Now handle rawPlatformData after the notifications section
     if 'rawPlatformData' in row:
         value = row['rawPlatformData']

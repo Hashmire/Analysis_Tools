@@ -47,14 +47,11 @@ def setOperationMode(modeSetting):
 
                 # Gather CVE List Record and NVD Dataset Records for the target CVE
                 cveRecordData = gatherData.gatherCVEListRecord(targetCve)
+                nvdRecordData = gatherData.gatherNVDCVERecord(nvdAPIKey, targetCve)
 
                 # Process the vulnerability record data to extract useful platform related information
                 primaryDataframe = processData.processCVEData(primaryDataframe, cveRecordData)             
-                
-                # We need to revisit the NVD /cves/ API calls after we have a better grasp of the CVE List data.
-                # nvdRecordData = gatherData.gatherNVDCVERecord(nvdAPIKey, targetCve)
-                # primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
-                
+                primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
 
                 # Based on the collected information, use the NVD API to gather relevant CPE data
                 primaryDataframe = processData.suggestCPEData(nvdAPIKey, primaryDataframe, 1)
@@ -127,7 +124,17 @@ def setOperationMode(modeSetting):
                         "CVE-2024-4072",    # product only success
                         "CVE-2024-3371",    # Multiple CNA Provided CPE Check results, culled
                         "CVE-2022-48655",   # Unaffected version range data
-                        "CVE-2023-5541"     # CollectionURL + PackageName Combo 
+                        "CVE-2023-5541",    # CollectionURL + PackageName Combo 
+                        "CVE-2023-4438",    # Mozilla Firefox vulnerability with multiple version branches
+                        "CVE-2023-29300",   # A vulnerability with CPE array that includes platform information
+                        "CVE-2023-23583",   # Jenkins vulnerability with complex version constraints
+                        "CVE-2023-38180",   # OpenSSL vulnerability with version range specifications
+                        "CVE-2024-1597",    # VMware vulnerability with multiple affected products
+                        "CVE-2023-46604",   # Apache ActiveMQ vulnerability with high profile, good for testing priority scoring
+                        "CVE-2023-36874",   # Microsoft Office vulnerability with complex platform dependencies
+                        "CVE-2022-47966",   # ForgeRock vulnerability with detailed version information
+                        "CVE-2023-44487",   # HTTP/2 rapid reset vulnerability that affects many products (good for testing large result sets)
+                        "CVE-2023-21608",   # Oracle WebLogic Server vulnerability with multiple version branches and complex metadata
                             # 
                         ]
                 for targetCve in cveSmoke: 

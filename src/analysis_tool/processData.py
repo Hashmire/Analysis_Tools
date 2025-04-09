@@ -363,68 +363,57 @@ def suggestCPEData(apiKey, rawDataset, case):
                     platform_values_searched = False
 
                     # Generate CPE Match Strings based on available content for 'platform'
-                    if 'platform' in platform_data:
-                        # 1. First, create a direct search using the exact platform value
-                        cpeValidstring = formatFor23CPE(platform_data['platform'])
-                        
-                        part = "*"
-                        vendor = "*"
-                        product = "*"
-                        version = "*"
-                        update = "*"
-                        edition = "*"
-                        lang = "*"
-                        swEdition = "*"
-                        targetSW = "*"
-                        targetHW = cpeValidstring  # Use exact platform string
-                        other = "*"
 
-                        # Build a CPE Search String with exact platform value
-                        rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                        scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                        cpeBaseStrings.append(scratchMatchString)
+                    if 'platforms' in platform_data and isinstance(platform_data['platforms'], list):
+                        platforms = platform_data['platforms']
+                        platform_found_but_not_recognized = False
                         
-                        # 2. Extract and search for specific target hardware values
-                        platform_string = platform_data['platform'].lower()
-                        
-                        # Check for specific architecture terms
-                        if any(term in platform_string for term in ["x64", "arm64", "arm", "x86", "x32"]):
-                            platform_values_searched = True
+                        # Iterate through each platform in the array
+                        for platform_item in platforms:
+                            platform_string = platform_item.lower() if isinstance(platform_item, str) else ""
                             
-                            # Handle specific architectures
-                            if "x64" in platform_string:
+                            if not platform_string:
+                                continue
+                                
+                            # Mark that we found platform data (even if it's "unknown")
+                            platform_found_but_not_recognized = True
+                                
+                            # Handle common architecture terms in platform strings
+                            if "32-bit" in platform_string or "x32" in platform_string or "x86" in platform_string:
+                                platform_values_searched = True
+                                targetHW = "x86"
+                                rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                                scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                cpeBaseStrings.append(scratchMatchString)
+                                
+                            if "64-bit" in platform_string or "x64" in platform_string or "x86_64" in platform_string:
+                                platform_values_searched = True
                                 targetHW = "x64"
                                 rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
                                 scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                                 scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                                 cpeBaseStrings.append(scratchMatchString)
                                 
-                            if "arm64" in platform_string:
-                                targetHW = "arm64"
-                                rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                                scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                                scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                                cpeBaseStrings.append(scratchMatchString)
-                            
                             if "arm" in platform_string and "arm64" not in platform_string:
+                                platform_values_searched = True
                                 targetHW = "arm"
                                 rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
                                 scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                                 scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                                 cpeBaseStrings.append(scratchMatchString)
-                            
-                            # Map x86 and x32 to x86
-                            if "x86" in platform_string or "x32" in platform_string:
-                                targetHW = "x86"
+                                
+                            if "arm64" in platform_string:
+                                platform_values_searched = True
+                                targetHW = "arm64"
                                 rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
                                 scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                                 scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                                 cpeBaseStrings.append(scratchMatchString)
-                            
-                        # Track if we couldn't identify any established hardware architecture
-                        # This will flag not just "unknown" but any platform value that doesn't match our expectations
-                        if not platform_values_searched:
+                                
+                        # At the end of processing platforms, check if we had platforms but couldn't recognize any
+                        # This will catch cases like "Unknown" platforms
+                        if platform_found_but_not_recognized and not platform_values_searched:
                             if 'platformDataConcern' not in rawDataset.at[index, 'platformEntryMetadata']:
                                 rawDataset.at[index, 'platformEntryMetadata']['platformDataConcern'] = True
 

@@ -3,26 +3,48 @@ import requests
 import pandas as pd
 from build_info import VERSION, TOOLNAME
 from time import sleep
+import datetime
 
 # Import Analysis Tool 
 import processData
 import vdb_checker    
 
-# Using provided CVE-ID, get the CVE data from CVE Program API 
+# Update get_public_ip function to include timestamp
+def get_public_ip():
+    """Get the current public IP address being used by the tool."""
+    try:
+        response = requests.get('https://api.ipify.org', timeout=5)
+        return response.text if response.status_code == 200 else "Unknown"
+    except Exception as e:
+        return f"Could not retrieve IP: {str(e)}"
+
+# Helper function to get current UTC timestamp
+def get_utc_timestamp():
+    """Get current UTC timestamp in ISO format."""
+    return datetime.datetime.utcnow().isoformat() + " UTC"
+
+# Update gatherCVEListRecord function
 def gatherCVEListRecord(targetCve):
     # Set the API Endpoint target
     cveOrgJSON = "https://cveawg.mitre.org/api/cve/"
     # create the simple URL using user input ID and expected URL
     simpleCveRequestUrl = cveOrgJSON + targetCve
-    # Do GET Request to API and convert response to Python datatypes
-    r = requests.get(simpleCveRequestUrl)
-    # We can avoid any error handling around missing required fields if we perform schema validation prior to processing sections.
-    # integrityCheckCVE(DO SCHEMA VALIDATION CASE HERE)
-    cveRecordDict = r.json()
+    
+    try:
+        # Do GET Request to API and convert response to Python datatypes
+        r = requests.get(simpleCveRequestUrl)
+        r.raise_for_status()  # Raise exception for HTTP errors
+        cveRecordDict = r.json()
 
-    processData.integrityCheckCVE("cveIdMatch", targetCve, cveRecordDict)
-    processData.integrityCheckCVE("cveStatusCheck", "REJECTED", cveRecordDict)
-    return (cveRecordDict)
+        processData.integrityCheckCVE("cveIdMatch", targetCve, cveRecordDict)
+        processData.integrityCheckCVE("cveStatusCheck", "REJECTED", cveRecordDict)
+        return cveRecordDict
+    except requests.exceptions.RequestException as e:
+        public_ip = get_public_ip()
+        timestamp = get_utc_timestamp()
+        print(f"[ERROR] {timestamp} - Error fetching CVE List data for {targetCve}: {e}")
+        print(f"Current public IP address: {public_ip}")
+        return None
 
 # Using provided CVE-ID, get the CVE data from the NVD API 
 def gatherNVDCVERecord(apiKey, targetCve):
@@ -45,7 +67,10 @@ def gatherNVDCVERecord(apiKey, targetCve):
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching NVD CVE record data (Attempt {attempt + 1}/{max_retries}): {e}")
+            public_ip = get_public_ip()
+            timestamp = get_utc_timestamp()
+            print(f"[ERROR] {timestamp} - Error fetching NVD CVE record data (Attempt {attempt + 1}/{max_retries}): {e}")
+            print(f"Current public IP address: {public_ip}")
             
             if attempt < max_retries - 1:
                 print(f"Waiting 6 seconds before retry...")
@@ -76,7 +101,10 @@ def gatherNVDSourceData(apiKey):
                 response.raise_for_status()
                 return response.json()
             except requests.exceptions.RequestException as e:
-                print(f"Error fetching data (Attempt {attempt + 1}/{max_retries}): {e}")
+                public_ip = get_public_ip()
+                timestamp = get_utc_timestamp()
+                print(f"[ERROR] {timestamp} - Error fetching source data (Attempt {attempt + 1}/{max_retries}): {e}")
+                print(f"Current public IP address: {public_ip}")
                 
                 if attempt < max_retries - 1:
                     print(f"Waiting 6 seconds before retry...")
@@ -168,7 +196,10 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                 print(f"[INFO] Collected {len(consolidated_data['products'])} of {total_results} results...")
                                 break
                             except requests.exceptions.RequestException as e:
-                                print(f"\nError fetching page data (Attempt {page_attempt + 1}/{max_retries}): {e}")
+                                public_ip = get_public_ip()
+                                timestamp = get_utc_timestamp()
+                                print(f"[ERROR] {timestamp} - Error fetching page data (Attempt {page_attempt + 1}/{max_retries}): {e}")
+                                print(f"Current public IP address: {public_ip}")
                                 
                                 if page_attempt < max_retries - 1:
                                     print(f"Waiting 6 seconds before retry...")
@@ -184,7 +215,10 @@ def gatherNVDCPEData(apiKey, case, query_string):
                     return consolidated_data
                    
                 except requests.exceptions.RequestException as e:
-                    print(f"\nError fetching data (Attempt {attempt + 1}/{max_retries}): {e}")
+                    public_ip = get_public_ip()
+                    timestamp = get_utc_timestamp()
+                    print(f"[ERROR] {timestamp} - Error fetching data (Attempt {attempt + 1}/{max_retries}): {e}")
+                    print(f"Current public IP address: {public_ip}")
                     
                     if attempt < max_retries - 1:
                         print(f"Waiting 6 seconds before retry...")
