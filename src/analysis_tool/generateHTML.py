@@ -5,6 +5,7 @@ import html
 from sys import exit
 from build_info import VERSION, TOOLNAME
 import os
+import datetime
 
 # Import Analysis Tool 
 import processData
@@ -379,7 +380,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
 
     return html.replace('\n', '')
 
-# New function to get the CPE JSON generation JavaScript
+# Add the new file to the list of JS files to include
 def getCPEJsonScript() -> str:
     
     # Get the current script's directory
@@ -390,7 +391,8 @@ def getCPEJsonScript() -> str:
         os.path.join(current_dir, "static", "js", "utils.js"),
         os.path.join(current_dir, "static", "js", "cpe_json_handler.js"),
         os.path.join(current_dir, "static", "js", "ui_controller.js"),
-        os.path.join(current_dir, "static", "js", "selection_manager.js")
+        os.path.join(current_dir, "static", "js", "selection_manager.js"),
+        os.path.join(current_dir, "static", "js", "timestamp_handler.js")  # Add the new file
     ]
     
     # Read JavaScript files
@@ -456,6 +458,9 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
 # Builds a simple html page with Bootstrap styling
 def buildHTMLPage(affectedHtml, targetCve, vdbIntelHtml=None):
     
+    # Generate UTC timestamp for the page creation
+    utc_timestamp = datetime.datetime.utcnow().isoformat() + "Z"
+    
     # Get the current script's directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
     
@@ -498,17 +503,29 @@ def buildHTMLPage(affectedHtml, targetCve, vdbIntelHtml=None):
         <button class="tablinks" onclick="openCity(event, 'vdbIntelDashboard')">VDB Intel Dashboard</button>
     </div>
     """
+    
+    # Updated cveIdIndicatorHTML without the inline JavaScript
     cveIdIndicatorHTML = f"""
-    <h3 style="margin-bottom: 0px; margin-left: 10px;"><b>{targetCve} results</b></h3>
+    <div class="d-flex align-items-center justify-content-between" style="margin-left: 10px; margin-right: 10px;">
+        <h3 style="margin-bottom: 0px;"><b>{targetCve}</b></h3>
+        <span id="generationTimestamp" class="text-muted">Generated: <time datetime="{utc_timestamp}"></time></span>
+    </div>
     <hr style="margin: 10px; border: 1px solid;">
     """
+    
+    # Updated pageBodyCPESuggesterHTML without the inline JavaScript
     pageBodyCPESuggesterHTML = f"""
     <!-- CVE List CPE Suggester -->
     <div id="cveListCPESuggester" class="tabcontent" style="display: block; border-left: 0px;">
         <h3>CVE List CPE Suggester</h3>
         {affectedHtml}
+        <script>
+            // Initialize the timestamp handler with the generated timestamp
+            window.timestampHandler.init("{utc_timestamp}");
+        </script>
     </div>
     """
+    
     if (vdbIntelHtml is None):
         pageBodyVDBIntelHTML = """
         <!-- VDB Intel Dashboard -->
@@ -525,7 +542,27 @@ def buildHTMLPage(affectedHtml, targetCve, vdbIntelHtml=None):
             {vdbIntelHtml}
         </div>
         """
-    pageEndHTML = "</body></html>"
+        
+    pageEndHTML = """
+    <script>
+    function openCity(evt, cityName) {
+        var i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tabcontent");
+        for (i = 0; i < tabcontent.length; i++) {
+            tabcontent[i].style.display = "none";
+        }
+        tablinks = document.getElementsByClassName("tablinks");
+        for (i = 0; i < tablinks.length; i++) {
+            tablinks[i].className = tablinks[i].className.replace(" active", "");
+        }
+        document.getElementById(cityName).style.display = "block";
+        evt.currentTarget.className += " active";
+    }
+    </script>
+    </body>
+    </html>
+    """
+    
     fullHtml = (pageStartHTML + getCPEJsonScript() + pageBodyHeaderHTML + pageBodyTabsHTML + cveIdIndicatorHTML + 
                 pageBodyCPESuggesterHTML + pageBodyVDBIntelHTML + pageEndHTML)
     

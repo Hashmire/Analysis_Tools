@@ -796,6 +796,8 @@ function generateAllConfigurationsJson() {
     try {
         // Create master JSON with all configurations
         const masterJson = {
+            // Add the timestamp directly here, at the top level
+            "generatorTimestamp": window.timestampHandler ? window.timestampHandler.getTimestamp() : new Date().toISOString(),
             "configurations": []
         };
         
@@ -805,29 +807,7 @@ function generateAllConfigurationsJson() {
                 // Each configuration from a table should retain its generatorData
                 json.configurations.forEach(config => {
                     // Ensure the generatorData structure is preserved
-                    if (config.generatorData) {
-                        masterJson.configurations.push(config);
-                    } else {
-                        // If generatorData is missing, add a placeholder
-                        config.generatorData = {
-                            "generatedFromSource": {
-                                "dataSource": "Unknown",
-                                "sourceId": "Unknown",
-                                "sourceRole": "Unknown"
-                            },
-                            "versionStats": {
-                                "totalVersions": 0,
-                                "selectedCriteria": 0
-                            },
-                            "matchStats": {
-                                "totalMatches": 0,
-                                "rangeMatches": 0,
-                                "exactMatches": 0,
-                                "selectedCriteria": 0
-                            }
-                        };
-                        masterJson.configurations.push(config);
-                    }
+                    masterJson.configurations.push(config);
                 });
             }
         });
@@ -835,7 +815,11 @@ function generateAllConfigurationsJson() {
         return masterJson;
     } catch(e) {
         console.error("Error generating all configurations JSON:", e);
-        return { "configurations": [] };
+        // Even in case of error, include the timestamp
+        return { 
+            "generatorTimestamp": window.timestampHandler ? window.timestampHandler.getTimestamp() : new Date().toISOString(),
+            "configurations": [] 
+        };
     }
 }
 
@@ -1349,4 +1333,40 @@ function hasSpecialVersionStructure(rawPlatformData) {
     // Special case if default is unaffected but there are affected entries
     // Or if there are multiple unaffected entries
     return (hasUnaffectedDefault && affectedEntries > 0) || unaffectedEntries > 1;
+}
+
+/**
+ * Generate JSON output with timestamp
+ * @returns {Object} JSON object with timestamp
+ */
+function generateJsonOutput() {
+    // Existing JSON generation code
+    const json = {
+        // ... existing properties
+    };
+    
+    // Add timestamp if available through the timestamp handler
+    if (window.timestampHandler && typeof window.timestampHandler.getTimestamp === 'function') {
+        json.generatorTimestamp = window.timestampHandler.getTimestamp();
+    }
+    
+    return json;
+}
+
+/**
+ * Update the function that displays the JSON content
+ */
+function updateAllConfigurationsDisplay() {
+    const container = document.getElementById('allConfigurationsContent');
+    if (container) {
+        const json = generateAllConfigurationsJson();
+        try {
+            // Format the JSON for display
+            container.textContent = JSON.stringify(json, null, 2);
+        } catch (e) {
+            console.error("Error stringifying JSON:", e);
+            container.textContent = '{"error": "Error generating JSON", "generatorTimestamp": "' + 
+                (window.timestampHandler ? window.timestampHandler.getTimestamp() : new Date().toISOString()) + '"}';
+        }
+    }
 }
