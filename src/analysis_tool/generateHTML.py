@@ -27,6 +27,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     # Access platformEntryMetadata for consolidated fields
     platform_metadata = row.get('platformEntryMetadata', {})
     platform_format_type = platform_metadata.get('platformFormatType', '')
+    raw_platform_data = row.get('rawPlatformData', {})
     
     # Convert platform format type to human-readable format
     readable_format_type = platform_format_type
@@ -183,27 +184,61 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
 
     # Use readable_format_type and appropriate badge color
     html += f'<span class="badge {badge_color}" title="{version_tooltip}">{readable_format_type}</span> '
-
+    
     # 2. Duplicate Entries badge (warning) if duplicateRowIndices exist
     duplicate_indices = platform_metadata.get('duplicateRowIndices', [])
     if duplicate_indices:
-        duplicate_tooltip = f"This data appears to be a duplicate of row: {', '.join(map(str, duplicate_indices))}"
+        duplicate_tooltip = f"This entry has duplicate data at row(s): {', '.join(map(str, duplicate_indices))}"
         html += f'<span class="badge bg-warning" title="{duplicate_tooltip}">Duplicate Entries Detected</span> '
-
-    # 3. CPE Array badge if hasCPEArray is True (not based on cpeBaseStrings)
-    if platform_metadata.get('hasCPEArray', False):
-        # Get the actual CPEs from rawPlatformData
-        cpes_array = []
-        if 'rawPlatformData' in row and 'cpes' in row['rawPlatformData']:
-            cpes_array = row['rawPlatformData']['cpes']
+    
+    # 3. Git version type badge - checking version type
+    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
+        has_git_version = any(
+            v and isinstance(v, dict) and v.get('versionType') == "git" 
+            for v in raw_platform_data.get('versions', [])
+        )
+        if has_git_version:
+            git_tooltip = "git versionType not advised for CPE Ranges"
+            html += f'<span class="badge bg-warning" title="{git_tooltip}">git versionType</span> '
+    
+    # 4. Special Version Structure badge - entirely neutral
+    # Check for inverse version definition (unaffected ranges)
+    is_special_version_case = False
+    
+    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
+        # Check if default status is set to unaffected
+        default_status_unaffected = raw_platform_data.get('defaultStatus') == 'unaffected'
         
-        cpe_tooltip = "CPE Array included in original data"
-        if cpes_array:
-            cpe_tooltip = f"{', '.join(cpes_array)}"
+        # Count affected vs unaffected entries
+        unaffected_versions = [
+            v for v in raw_platform_data['versions'] 
+            if v and v.get('status') == 'unaffected'
+        ]
         
-        html += f'<span class="badge bg-info" title="{cpe_tooltip}">CPEs Array Included</span> '
-
-    # 4. CPE Base Strings badge for API search strings
+        affected_versions = [
+            v for v in raw_platform_data['versions'] 
+            if v and v.get('status') == 'affected'
+        ]
+        
+        # Define special version case based on pattern analysis
+        if (default_status_unaffected and affected_versions) or len(unaffected_versions) > 1:
+            is_special_version_case = True
+    
+    # Show special version case badge if detected
+    if is_special_version_case:
+        version_tooltip = 'Version data will be processed with special case handling'
+        html += f'<span class="badge bg-warning" title="{version_tooltip}">Unique Version Structure</span> '
+    
+    # 5. CPE Array badge - check for actual CPEs array
+    cpes_array = []
+    has_cpe_array = platform_metadata.get('hasCPEArray', False)
+    if has_cpe_array and 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
+        cpes_array = raw_platform_data['cpes']
+        if cpes_array:  # Only show badge if there are actual CPEs
+            cpe_tooltip = ", ".join(cpes_array)
+            html += f'<span class="badge bg-info" title="{cpe_tooltip}">CPEs Array Included</span> '
+    
+    # 6. CPE Base Strings badge - only show if strings were generated
     cpe_base_strings = platform_metadata.get('cpeBaseStrings', [])
     if cpe_base_strings:
         base_strings_tooltip = "&#013;".join(cpe_base_strings)

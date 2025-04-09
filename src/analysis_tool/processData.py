@@ -685,7 +685,7 @@ def processNVDRecordData(dataframe, nvdRecordData):
                         platform_entry_metadata = {
                             'dataSource': 'NVDAPI',
                             'platformFormatType': 'nvdConfiguration',
-                            'hasCPEArray': True,
+                            'hasCPEArray': False,
                             'cpeBaseStrings': [],
                             'cpeVersionChecks': [],
                             'duplicateRowIndices': []

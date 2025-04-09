@@ -32,21 +32,14 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData) {
         const hasGitVersionType = rawPlatformData.versions.some(versionInfo => 
             versionInfo && versionInfo.versionType === "git");
         
-        if (hasGitVersionType) {
-            // Add warning indicator to the UI
-            addGitVersionTypeWarning(rawPlatformData.tableIndex);
-        }
-        
         console.debug(`Processing ${rawPlatformData.versions.length} versions for ${cpeBase}`);
         
-        // Special case for Linux kernel using enhanced detection
-        if (isLinuxKernelPlatformData(rawPlatformData, cpeBase)) {
-            console.debug("Special case: Processing Linux kernel version data");
+        if (hasSpecialVersionStructure(rawPlatformData)) {
+            console.debug("Special case: Processing special version structure");
             
-            // Add visual indicator for Linux Kernel special handling
-            addLinuxKernelSpecialCaseBadge();
-            
-            return processLinuxKernelVersions(cpeBase, rawPlatformData);
+            // Handle special version structure
+            // Process using the appropriate logic for this case
+            return processSpecialVersionStructure(cpeBase, rawPlatformData);
         }
         
         // Standard processing for other products
@@ -81,13 +74,13 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData) {
 }
 
 /**
- * Special handler for Linux kernel version data
- * @param {string} cpeBase - Base CPE string for Linux kernel
+ * Special handler for special version structure
+ * @param {string} cpeBase - Base CPE string
  * @param {Object} rawPlatformData - Raw platform data
  * @returns {Array} Array of cpeMatch objects
  */
-function processLinuxKernelVersions(cpeBase, rawPlatformData) {
-    console.debug("Processing Linux kernel version ranges");
+function processSpecialVersionStructure(cpeBase, rawPlatformData) {
+    console.debug("Processing special version structure");
     const cpeMatches = [];
     const defaultIsAffected = rawPlatformData.defaultStatus === "affected";
     
@@ -151,68 +144,20 @@ function processLinuxKernelVersions(cpeBase, rawPlatformData) {
             }
         }
         
-        console.debug(`Generated ${cpeMatches.length} CPE matches for Linux kernel`);
+        console.debug(`Generated ${cpeMatches.length} CPE matches for special version structure`);
         
         if (cpeMatches.length === 0) {
-            console.debug("No Linux kernel matches created, using basic CPE match");
+            console.debug("No matches created, using basic CPE match");
             const basicMatch = createCpeMatchObject(cpeBase);
             return [basicMatch];
         }
         
         return cpeMatches;
     } catch (e) {
-        console.error("Error in Linux kernel version processing:", e);
+        console.error("Error in special version structure processing:", e);
         console.error(e.stack);
         const basicMatch = createCpeMatchObject(cpeBase);
         return [basicMatch];
-    }
-}
-
-/**
- * Add a visual badge indicating Linux kernel special case processing
- */
-function addLinuxKernelSpecialCaseBadge() {
-    try {
-        // Find all rowDataTable elements
-        const rowDataTables = document.querySelectorAll('table[id^="rowDataTable_"]');
-        
-        for (const table of rowDataTables) {
-            // Find the Raw Platform Data row
-            const rows = table.querySelectorAll('tr');
-            for (const row of rows) {
-                const cells = row.querySelectorAll('td');
-                if (cells.length >= 2 && cells[0].textContent.trim() === "Raw Platform Data") {
-                    // Check if badge already exists
-                    if (cells[1].querySelector('.linux-kernel-badge')) {
-                        continue;
-                    }
-                    
-                    // Find the details element
-                    const detailsElement = cells[1].querySelector('details');
-                    if (detailsElement) {
-                        // Create the badge - now uses CSS from styles.css
-                        const badge = document.createElement('span');
-                        badge.className = 'linux-kernel-badge';
-                        badge.title = 'Linux kernel version data is being processed with special case handling. Please review the generated configurations carefully.';
-                        badge.textContent = 'Linux Kernel Special Handling';
-                        
-                        // Insert the badge before the details element
-                        detailsElement.parentNode.insertBefore(badge, detailsElement);
-                        
-                        // Add info icon
-                        const infoIcon = document.createElement('i');
-                        infoIcon.className = 'fas fa-info-circle ml-1';
-                        infoIcon.style.fontSize = '0.9em';
-                        badge.appendChild(document.createTextNode(' '));
-                        badge.appendChild(infoIcon);
-                        
-                        console.debug("Added Linux Kernel special case badge");
-                    }
-                }
-            }
-        }
-    } catch (e) {
-        console.error("Error adding Linux Kernel special case badge:", e);
     }
 }
 
@@ -925,55 +870,6 @@ function calculateNextUpperBound(unaffectedInfo) {
     }
 }
 
-/**
- * Enhanced Linux Kernel Detection
- * @param {Object} rawPlatformData - Raw platform data
- * @param {string} cpeBase - Base CPE string
- * @returns {boolean} True if the platform data is for Linux kernel
- */
-function isLinuxKernelPlatformData(rawPlatformData, cpeBase) {
-    if (!rawPlatformData || !cpeBase) {
-        return false;
-    }
-    
-    // Primary detection: Check product and vendor in platform data
-    const isLinuxProduct = 
-        rawPlatformData.product === "Linux" || 
-        rawPlatformData.product === "Linux Kernel" ||
-        (typeof rawPlatformData.product === "string" && 
-         rawPlatformData.product.toLowerCase().includes("linux kernel"));
-    
-    const isLinuxVendor = 
-        rawPlatformData.vendor === "Linux" || 
-        rawPlatformData.vendor === "Linux Foundation" ||
-        (typeof rawPlatformData.vendor === "string" && 
-         rawPlatformData.vendor.toLowerCase().includes("linux"));
-    
-    const hasCpeMatch = cpeBase.includes(":linux:linux_kernel:") || 
-                        cpeBase.includes(":linux:");
-    
-    // Check for Linux kernel in CPE
-    if (isLinuxProduct && isLinuxVendor && hasCpeMatch) {
-        return true;
-    }
-    
-    // Secondary detection: Check for complex version structure specific to Linux kernel
-    if (rawPlatformData.versions && rawPlatformData.versions.length > 0 && hasCpeMatch) {
-        // Count number of versions with wildcard formats like "5.4.*"
-        const wildcardVersions = rawPlatformData.versions.filter(v => 
-            v && v.lessThanOrEqual && typeof v.lessThanOrEqual === "string" && 
-            v.lessThanOrEqual.includes("*")
-        );
-        
-        // If we have multiple wildcarded versions and a Linux-like CPE, it's likely Linux kernel
-        if (wildcardVersions.length >= 2 && hasCpeMatch) {
-            console.debug("Detected Linux kernel based on version pattern analysis");
-            return true;
-        }
-    }
-    
-    return false;
-}
 
 /**
  * Create a CPE match object from version info
@@ -1234,81 +1130,30 @@ function isVersionCoveredByRange(version, cpeMatch) {
 }
 
 /**
- * Add a warning indicator for git versionType
- * @param {string|number} tableIndex - The table index
+ * Check for special version structure patterns
+ * @param {Object} rawPlatformData - Raw platform data
+ * @returns {boolean} True if special case handling is needed
  */
-function addGitVersionTypeWarning(tableIndex) {
-    try {
-        // Find all rowDataTable elements
-        const rowDataTable = document.getElementById(`rowDataTable_${tableIndex}`);
-        if (!rowDataTable) return;
-        
-        // Find the Raw Platform Data row
-        const rows = rowDataTable.querySelectorAll('tr');
-        for (const row of rows) {
-            const cells = row.querySelectorAll('td');
-            if (cells.length >= 2 && cells[0].textContent.trim() === "Raw Platform Data") {
-                // Check if badge already exists
-                if (cells[1].querySelector('.git-versiontype-badge')) {
-                    continue;
-                }
-                
-                // Find the details element
-                const detailsElement = cells[1].querySelector('details');
-                if (detailsElement) {
-                    // Create the badge - uses CSS from styles.css like Linux kernel badge
-                    const badge = document.createElement('span');
-                    badge.className = 'git-versiontype-badge';
-                    badge.title = 'git versionType not advised for CPE Ranges';
-                    badge.textContent = 'git versionType';
-                    
-                    // Insert the badge before the details element
-                    detailsElement.parentNode.insertBefore(badge, detailsElement);
-                    
-                    // Add info icon
-                    const infoIcon = document.createElement('i');
-                    infoIcon.className = 'fas fa-info-circle ml-1';
-                    infoIcon.style.fontSize = '0.9em';
-                    badge.appendChild(document.createTextNode(' '));
-                    badge.appendChild(infoIcon);
-                    
-                    console.debug("Added git versionType warning badge");
-                }
-            }
-        }
-    } catch (e) {
-        console.error("Error adding git versionType warning badge:", e);
+function hasSpecialVersionStructure(rawPlatformData) {
+    if (!rawPlatformData) {
+        return false;
     }
-}
-
-// Add this function to scan for git versionTypes on page load
-function scanForGitVersionTypes() {
-    // Look for all rawPlatformData elements
-    const rawPlatformDataElements = document.querySelectorAll('[id^="rawPlatformData_"]');
     
-    rawPlatformDataElements.forEach(element => {
-        try {
-            // Extract the table index from the ID
-            const tableIndex = element.id.replace('rawPlatformData_', '');
-            
-            // Parse the JSON content
-            const rawPlatformData = JSON.parse(element.textContent);
-            
-            // Check if any versions have git versionType
-            if (rawPlatformData && 
-                rawPlatformData.versions && 
-                Array.isArray(rawPlatformData.versions) &&
-                rawPlatformData.versions.some(versionInfo => 
-                    versionInfo && versionInfo.versionType === "git")) {
-                
-                // Add the warning badge
-                addGitVersionTypeWarning(tableIndex);
-            }
-        } catch (e) {
-            console.warn("Error checking for git versionType:", e);
-        }
-    });
+    // Check for unaffected default status with explicit affected entries
+    const hasUnaffectedDefault = rawPlatformData.defaultStatus === 'unaffected';
+    
+    // Count affected and unaffected entries
+    let affectedEntries = 0;
+    let unaffectedEntries = 0;
+    
+    if (rawPlatformData.versions && Array.isArray(rawPlatformData.versions)) {
+        rawPlatformData.versions.forEach(v => {
+            if (v && v.status === 'affected') affectedEntries++;
+            if (v && v.status === 'unaffected') unaffectedEntries++;
+        });
+    }
+    
+    // Special case if default is unaffected but there are affected entries
+    // Or if there are multiple unaffected entries
+    return (hasUnaffectedDefault && affectedEntries > 0) || unaffectedEntries > 1;
 }
-
-// Instead, export the function so it can be called from the existing initialization
-window.scanForGitVersionTypes = scanForGitVersionTypes;
