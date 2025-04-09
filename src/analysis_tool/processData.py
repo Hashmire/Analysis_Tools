@@ -354,6 +354,7 @@ def suggestCPEData(apiKey, rawDataset, case):
 
                     # Generate CPE Match Strings based on available content for 'platform'
                     if 'platform' in platform_data:
+                        # 1. First, create a direct search using the exact platform value
                         cpeValidstring = formatFor23CPE(platform_data['platform'])
                         
                         part = "*"
@@ -365,14 +366,57 @@ def suggestCPEData(apiKey, rawDataset, case):
                         lang = "*"
                         swEdition = "*"
                         targetSW = "*"
-                        targetHW = culledString
+                        targetHW = cpeValidstring  # Use exact platform string
                         other = "*"
 
-                        # Build a CPE Search String from supported elements
-                        rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW  + ":" + other
+                        # Build a CPE Search String with exact platform value
+                        rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
                         scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                         scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                         cpeBaseStrings.append(scratchMatchString)
+                        
+                        # 2. Extract and search for specific target hardware values
+                        platform_string = platform_data['platform'].lower()
+                        platform_values_searched = False
+                        
+                        # Check for specific architecture terms
+                        if "x64" in platform_string:
+                            targetHW = "x64"
+                            platform_values_searched = True
+                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                            cpeBaseStrings.append(scratchMatchString)
+                        
+                        if "arm64" in platform_string:
+                            targetHW = "arm64"
+                            platform_values_searched = True
+                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                            cpeBaseStrings.append(scratchMatchString)
+                        
+                        if "arm" in platform_string and "arm64" not in platform_string:
+                            targetHW = "arm"
+                            platform_values_searched = True
+                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                            cpeBaseStrings.append(scratchMatchString)
+                        
+                        # Map x86 and x32 to x86
+                        if "x86" in platform_string or "x32" in platform_string:
+                            targetHW = "x86"
+                            platform_values_searched = True
+                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                            cpeBaseStrings.append(scratchMatchString)
+                        
+                        # Track if we couldn't map platform data to known values
+                        if not platform_values_searched:
+                            if 'platformDataConcern' not in rawDataset.at[index, 'platformEntryMetadata']:
+                                rawDataset.at[index, 'platformEntryMetadata']['platformDataConcern'] = True
 
                     # Generate CPE Match Strings based on available content for 'packageName'
                     if 'packageName' in platform_data:
@@ -419,6 +463,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                         # Build a CPE Search String from supported elements
                         rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW  + ":" + other
                         scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                        # Use the standard baseQuery type for the partvendorproduct search - this will add wildcards to the product field
                         scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                         cpeBaseStrings.append(scratchMatchString)
 

@@ -49,10 +49,11 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     keys_and_labels = [
         ('platformEntryMetadata.dataSource', 'Data Source'),
         ('sourceID', 'Source ID'),
-        ('sourceRole', 'Source Role'),
-        ('rawPlatformData', 'Raw Platform Data')
+        ('sourceRole', 'Source Role')
+        # rawPlatformData is handled separately below
     ]
     
+    # Process the standard metadata keys first
     for key, label in keys_and_labels:
         if '.' in key:  # Handle nested properties
             parent, child = key.split('.')
@@ -66,81 +67,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
                 """
         elif key in row:  # Handle direct properties
             value = row[key]
-            if key == 'rawPlatformData':
-                if 'vendor' in value:
-                    html += f"""
-                    <tr>
-                        <td>Vendor Value</td>
-                        <td>{value['vendor']}</td>
-                    </tr>
-                    """
-                if 'product' in value:
-                    html += f"""
-                    <tr>
-                        <td>Product Value</td>
-                        <td>{value['product']}</td>
-                    </tr>
-                    """
-                if 'repo' in value:
-                    html += f"""
-                    <tr>
-                        <td>Repo</td>
-                        <td>{value['repo']}</td>
-                    </tr>
-                    """
-                if 'collectionUrl' in value:
-                    html += f"""
-                    <tr>
-                        <td>Collection URL</td>
-                        <td>{value['collectionUrl']}</td>
-                    </tr>
-                    """
-                if 'packageName' in value:
-                    html += f"""
-                    <tr>
-                        <td>Package Name</td>
-                        <td>{value['packageName']}</td>
-                    </tr>
-                    """
-                if 'platforms' in value:
-                    html += f"""
-                    <tr>
-                        <td>Platforms</td>
-                        <td>{value['platforms']}</td>
-                    </tr>
-                    """
-                if 'modules' in value:
-                    html += f"""
-                    <tr>
-                        <td>Modules</td>
-                        <td>{value['modules']}</td>
-                    </tr>
-                    """
-                if 'programFiles' in value:
-                    html += f"""
-                    <tr>
-                        <td>Program Files</td>
-                        <td>{value['programFiles']}</td>
-                    </tr>
-                    """
-                if 'programRoutines' in value:
-                    html += f"""
-                    <tr>
-                        <td>Program Routines</td>
-                        <td>{value['programRoutines']}</td>
-                    </tr>
-                    """
-                import json
-                json_value = json.dumps(value, cls=CustomJSONEncoder)
-                
-                html += f"""
-                <tr>
-                    <td>{label}</td>
-                    <td><details><summary>Review rawPlatformData</summary>
-                    <code id="rawPlatformData_{tableIndex}" class="rawPlatformData">{json_value}</code></details></td>
-                </tr>
-                """
-            elif key == 'sourceID':
+            if key == 'sourceID':
                 source_info = processData.getNVDSourceDataByUUID(value, nvdSourceData)
                 if source_info:
                     name = source_info.get('name', 'N/A')
@@ -161,10 +88,16 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
                     <td>{value}</td>
                 </tr>
                 """
-    
-    # Add Platform Entry Notifications with badges
+
+    # Add Platform Entry Notifications with badges immediately after sourceRole
     html += "<tr><td>Platform Entry Notifications</td><td>"
-    
+
+    # Group badges by priority level
+    danger_badges = []
+    warning_badges = []
+    info_badges = []
+    standard_badges = []
+
     # 1. Platform Format Type badge with version checks tooltip
     version_checks = platform_metadata.get('cpeVersionChecks', [])
     version_tooltip = "No versions detected!"
@@ -177,20 +110,18 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         
         version_tooltip = "&#013;".join(version_lines)
 
-    # Select badge color based on platform format type
-    badge_color = "bg-info"  # Default color for most cases
+    # Select badge color and priority based on platform format type
     if platform_format_type == 'cveAffectsNoVersions':
-        badge_color = "bg-danger"  # Red badge for no versions case
+        danger_badges.append(f'<span class="badge bg-danger" title="{version_tooltip}">{readable_format_type}</span> ')
+    else:
+        info_badges.append(f'<span class="badge bg-info" title="{version_tooltip}">{readable_format_type}</span> ')
 
-    # Use readable_format_type and appropriate badge color
-    html += f'<span class="badge {badge_color}" title="{version_tooltip}">{readable_format_type}</span> '
-    
     # 2. Duplicate Entries badge (warning) if duplicateRowIndices exist
     duplicate_indices = platform_metadata.get('duplicateRowIndices', [])
     if duplicate_indices:
         duplicate_tooltip = f"This entry has duplicate data at row(s): {', '.join(map(str, duplicate_indices))}"
-        html += f'<span class="badge bg-warning" title="{duplicate_tooltip}">Duplicate Entries Detected</span> '
-    
+        warning_badges.append(f'<span class="badge bg-warning" title="{duplicate_tooltip}">Duplicate Entries Detected</span> ')
+
     # 3. Git version type badge - checking version type
     if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
         has_git_version = any(
@@ -199,8 +130,17 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         )
         if has_git_version:
             git_tooltip = "git versionType not advised for CPE Ranges"
-            html += f'<span class="badge bg-warning" title="{git_tooltip}">git versionType</span> '
-    
+            
+            # Determine badge color based on platform format type
+            git_badge_color = "bg-warning"  # Default: warning level
+            
+            # Elevate to danger level when used with version ranges
+            if platform_format_type in ['cveAffectsVersionRange', 'cveAffectsVersionMix']:
+                git_badge_color = "bg-danger"  # Danger level for ranges
+                git_tooltip = "CRITICAL: CPE Range Matching Logic does not currently support git versionTypes"
+                
+            html += f'<span class="badge {git_badge_color}" title="{git_tooltip}">git versionType</span> '
+
     # 4. Special Version Structure badges - more detailed detection of special cases
     if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
         versions = raw_platform_data['versions']
@@ -213,7 +153,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
                 if '*' in str(constraint_value):
                     has_wildcards = True
                     version_tooltip = 'Versions array contains wildcard patterns requiring special handling'
-                    html += f'<span class="badge bg-warning" title="{version_tooltip}">Wildcard Patterns</span> '
+                    warning_badges.append(f'<span class="badge bg-warning" title="{version_tooltip}">Wildcard Patterns</span> ')
                     break
         
         # 4.2 Check for inverse version definition (unaffected with affected exceptions)
@@ -223,10 +163,10 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         
         if default_status_unaffected and affected_versions:
             version_tooltip = 'Versions array contains default unaffected status with specific affected entries'
-            html += f'<span class="badge bg-warning" title="{version_tooltip}">Inverse Status Pattern</span> '
+            warning_badges.append(f'<span class="badge bg-warning" title="{version_tooltip}">Inverse Status Pattern</span> ')
         elif len(unaffected_versions) > 1 and affected_versions:
             version_tooltip = 'Versions array contains multiple unaffected version entries with affected entries'
-            html += f'<span class="badge bg-warning" title="{version_tooltip}">Mixed Status Pattern</span> '
+            warning_badges.append(f'<span class="badge bg-warning" title="{version_tooltip}">Mixed Status Pattern</span> ')
         
         # 4.3 Check for multiple version branches
         version_branches = set()
@@ -238,7 +178,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         
         if len(version_branches) >= 3:  # Three or more distinct version branches
             branch_tooltip = f'Versions array contains multiple version branches: {", ".join(version_branches)}'
-            html += f'<span class="badge bg-warning" title="{branch_tooltip}">Multiple Version Branches</span> '
+            warning_badges.append(f'<span class="badge bg-warning" title="{branch_tooltip}">Multiple Version Branches</span> ')
         
         # 4.4 Check for version with changes
         has_changes = False
@@ -246,7 +186,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
             if v and 'changes' in v and v['changes']:
                 has_changes = True
                 changes_tooltip = 'Versions array contains change history information requiring special handling'
-                html += f'<span class="badge bg-warning" title="{changes_tooltip}">Has Version Changes</span> '
+                warning_badges.append(f'<span class="badge bg-warning" title="{changes_tooltip}">Has Version Changes</span> ')
                 break
                 
         # 4.5 Check for special version types
@@ -258,8 +198,8 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         
         if special_version_types:
             types_tooltip = f'Versions array contains special version types: {", ".join(special_version_types)}'
-            html += f'<span class="badge bg-warning" title="{types_tooltip}">Special Version Types</span> '
-    
+            warning_badges.append(f'<span class="badge bg-warning" title="{types_tooltip}">Special Version Types</span> ')
+
     # 5. CPE Array badge - only show count in tooltip if there are actual CPEs
     cpes_array = []
     has_cpe_array = platform_metadata.get('hasCPEArray', False)
@@ -268,15 +208,103 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         if cpes_array:  # Only show badge if there are actual CPEs
             cpe_count = len(cpes_array)
             cpe_tooltip = f"Versions array contains {cpe_count} CPEs from affected entry: " + ", ".join(cpes_array)
-            html += f'<span class="badge bg-info" title="{cpe_tooltip}">CVE Affected CPEs: {cpe_count}</span> '
-    
+            info_badges.append(f'<span class="badge bg-info" title="{cpe_tooltip}">CVE Affected CPEs: {cpe_count}</span> ')
+
     # 6. CPE Base Strings badge - only show if strings were generated
     cpe_base_strings = platform_metadata.get('cpeBaseStrings', [])
     if cpe_base_strings:
         base_strings_tooltip = "&#013;".join(cpe_base_strings)
-        html += f'<span class="badge bg-secondary" title="{base_strings_tooltip}">CPE Base String Searches</span> '
+        standard_badges.append(f'<span class="badge bg-secondary" title="{base_strings_tooltip}">CPE Base String Searches</span> ')
+
+    # Add Platform Data Concern badge if needed
+    if platform_metadata.get('platformDataConcern', False):
+        platform_tooltip = 'Platform Data was not able to be mapped to any known target hardware values'
+        warning_badges.append(f'<span class="badge bg-warning" title="{platform_tooltip}">Platform Data Concern</span> ')
+
+    # Add badges in priority order: Danger -> Warning -> Info -> Standard
+    html += ''.join(danger_badges)
+    html += ''.join(warning_badges)
+    html += ''.join(info_badges)
+    html += ''.join(standard_badges)
 
     html += "</td></tr>"
+    
+    # Now handle rawPlatformData after the notifications section
+    if 'rawPlatformData' in row:
+        value = row['rawPlatformData']
+        if 'vendor' in value:
+            html += f"""
+            <tr>
+                <td>Vendor Value</td>
+                <td>{value['vendor']}</td>
+            </tr>
+            """
+        if 'product' in value:
+            html += f"""
+            <tr>
+                <td>Product Value</td>
+                <td>{value['product']}</td>
+            </tr>
+            """
+        if 'repo' in value:
+            html += f"""
+            <tr>
+                <td>Repo</td>
+                <td>{value['repo']}</td>
+            </tr>
+            """
+        if 'collectionUrl' in value:
+            html += f"""
+            <tr>
+                <td>Collection URL</td>
+                <td>{value['collectionUrl']}</td>
+            </tr>
+            """
+        if 'packageName' in value:
+            html += f"""
+            <tr>
+                <td>Package Name</td>
+                <td>{value['packageName']}</td>
+            </tr>
+            """
+        if 'platforms' in value:
+            html += f"""
+            <tr>
+                <td>Platforms</td>
+                <td>{value['platforms']}</td>
+            </tr>
+            """
+        if 'modules' in value:
+            html += f"""
+            <tr>
+                <td>Modules</td>
+                <td>{value['modules']}</td>
+            </tr>
+            """
+        if 'programFiles' in value:
+            html += f"""
+            <tr>
+                <td>Program Files</td>
+                <td>{value['programFiles']}</td>
+            </tr>
+            """
+        if 'programRoutines' in value:
+            html += f"""
+            <tr>
+                <td>Program Routines</td>
+                <td>{value['programRoutines']}</td>
+            </tr>
+            """
+        import json
+        json_value = json.dumps(value, cls=CustomJSONEncoder)
+        
+        html += f"""
+        <tr>
+            <td>Raw Platform Data</td>
+            <td><details><summary>Review rawPlatformData</summary>
+            <code id="rawPlatformData_{tableIndex}" class="rawPlatformData">{json_value}</code></details></td>
+        </tr>
+        """
     
     html += "</table>"
         
@@ -450,6 +478,7 @@ def buildHTMLPage(affectedHtml, targetCve, vdbIntelHtml=None):
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+jjXkk+Q2h455rYXK/7HAuoJl+0I4" crossorigin="anonymous"></script>
         <style>
         {css_content}
         </style>
