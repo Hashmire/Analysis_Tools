@@ -149,11 +149,6 @@ def setOperationMode(modeSetting):
                     primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
                     
                     # Based on the collected information, use the NVD API to gather relevant CPE data
-                    #  
-                    ## Added sorting of cpeQueryResults to ensure that the most relevant CPEs are presented first 
-                    ## Version checks are not occurring as desired, need to revisit analyzeBaseStrings function
-                    # TODO Add support for cpes array content on CVE records, mirror existing approach
-                    # TODO Add support for cpeApplicability content on CVE and NVD records, mirror existing approach
                     primaryDataframe = processData.suggestCPEData(nvdAPIKey, primaryDataframe, 1)
                             
                     # Do a rough convert of the dataframe to html for debug display
@@ -162,6 +157,7 @@ def setOperationMode(modeSetting):
                     primaryDataframe = primaryDataframe.drop('sourceID', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('sourceRole', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('rawPlatformData', axis=1, errors='ignore')
+                    primaryDataframe = primaryDataframe.drop('rawCPEsQueryData', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('sortedCPEsQueryData', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('trimmedCPEsQueryData', axis=1, errors='ignore')
                     primaryDataframe = primaryDataframe.drop('platformEntryMetadata', axis=1, errors='ignore')
@@ -172,12 +168,11 @@ def setOperationMode(modeSetting):
                     # Create appropriate column widths based on number of columns
                     if num_cols == 2:
                         col_widths = ['20%', '80%']
-                    elif num_cols == 3:
-                        col_widths = ['20%', '80%', '0%']
                     else:
                         # For any other number of columns, calculate evenly
                         col_width = f"{100/num_cols}%"
                         col_widths = [col_width] * num_cols
+                        print(f"Warning: {num_cols} columns detected, should be two.")
 
                     # Convert to HTML with correct column spacing
                     affectedHtml2 = primaryDataframe.to_html(

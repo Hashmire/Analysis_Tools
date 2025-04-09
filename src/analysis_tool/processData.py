@@ -184,7 +184,28 @@ def populateRawCPEsQueryData(rawDataSet: pd.DataFrame, cpeQueryData: List[Dict[s
             for entry in cpeQueryData:
                 for key, value in entry.items():
                     if cpeBaseString == key:
-                        matchedValues[key] = value
+                        # Create a copy of the results to modify
+                        result_copy = value.copy()
+                        
+                        # If there are row-specific results, use only this row's data
+                        if "row_specific_results" in result_copy and index in result_copy["row_specific_results"]:
+                            # Get this row's specific results
+                            row_result = result_copy["row_specific_results"][index]
+                            
+                            # Replace general results with row-specific ones
+                            if "base_strings" in row_result:
+                                result_copy["base_strings"] = row_result["base_strings"]
+                            if "unique_base_count" in row_result:
+                                result_copy["unique_base_count"] = row_result["unique_base_count"]
+                            if "total_deprecated" in row_result:
+                                result_copy["total_deprecated"] = row_result["total_deprecated"]
+                            if "total_active" in row_result:
+                                result_copy["total_active"] = row_result["total_active"]
+                            
+                            # Remove the row_specific_results to avoid redundancy
+                            del result_copy["row_specific_results"]
+                        
+                        matchedValues[key] = result_copy
         
         # Update the content of the 'rawCPEsQueryData' field with the dictionary of matched values
         updated_df.at[index, 'rawCPEsQueryData'] = matchedValues
@@ -441,11 +462,24 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
     
     print(f"[INFO]  Querying NVD /cpes/ API to get CPE Dictionary information...")
     
-    # Extract cpeVersionChecks from platformEntryMetadata for all rows
-    cpe_version_checks = []
-    for _, row in rawDataSet.iterrows():
+    # Track which version checks belong to which row
+    row_version_checks = {}
+    for index, row in rawDataSet.iterrows():
         if 'platformEntryMetadata' in row and 'cpeVersionChecks' in row['platformEntryMetadata']:
-            cpe_version_checks.extend(row['platformEntryMetadata']['cpeVersionChecks'])
+            checks = row['platformEntryMetadata']['cpeVersionChecks']
+            if checks:  # Only add non-empty lists
+                row_version_checks[index] = checks
+    
+    # Track which rows are interested in which query strings
+    row_query_mapping = {}
+    for index, row in rawDataSet.iterrows():
+        if 'platformEntryMetadata' in row and 'cpeBaseStrings' in row['platformEntryMetadata']:
+            cpe_strings = row['platformEntryMetadata']['cpeBaseStrings']
+            if isinstance(cpe_strings, list):
+                for cpe_string in cpe_strings:
+                    if cpe_string not in row_query_mapping:
+                        row_query_mapping[cpe_string] = []
+                    row_query_mapping[cpe_string].append(index)
     
     for query_string in tqdm(query_list):
         # Skip empty queries
@@ -455,21 +489,33 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
         json_response = gatherData.gatherNVDCPEData(apiKey, "cpeMatchString", query_string)
         
         if 'totalResults' in json_response:
-
-            # General statistics
-            stats = {
+            # General statistics common to all rows
+            base_stats = {
                 "matches_found": json_response['totalResults'],
                 "is_truncated": json_response["resultsPerPage"] < json_response["totalResults"],
             }
             
-            # Additional Stats if content is found
             if "products" in json_response:
-                base_string_stats = analyzeBaseStrings(cpe_version_checks, json_response)
-                stats.update({
-                    "unique_base_count": base_string_stats["unique_base_count"],
-                    "base_strings": base_string_stats["base_strings"]
-                })
-            
+                # Find which rows care about this query string
+                relevant_row_indices = row_query_mapping.get(query_string, [])
+                row_specific_results = {}
+                
+                # For each relevant row, perform row-specific version matching
+                for row_index in relevant_row_indices:
+                    # Get this row's version checks
+                    row_checks = row_version_checks.get(row_index, [])
+                    
+                    # Process with just this row's checks
+                    row_stats = analyzeBaseStrings(row_checks, json_response)
+                    row_specific_results[row_index] = row_stats
+                
+                # Store both common stats and row-specific results
+                stats = {
+                    **base_stats,
+                    "row_specific_results": row_specific_results
+                }
+            else:
+                stats = base_stats
         else:
             stats = {
                 "matches_found": 0,
