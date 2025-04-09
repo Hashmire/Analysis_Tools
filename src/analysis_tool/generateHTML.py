@@ -208,7 +208,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         if cpes_array:  # Only show badge if there are actual CPEs
             cpe_count = len(cpes_array)
             cpe_tooltip = f"Versions array contains {cpe_count} CPEs from affected entry: " + ", ".join(cpes_array)
-            info_badges.append(f'<span class="badge bg-info" title="{cpe_tooltip}">CVE Affected CPEs: {cpe_count}</span> ')
+            info_badges.append(f'<span class="badge bg-info" title="{cpe_tooltip}">CVE Affected CPES Data: {cpe_count}</span> ') # We have no way of knowing if this is supposed to be Match Criteria or CPE Names, safer to treat as Match Strings.
 
     # 6. CPE Base Strings badge - only show if strings were generated
     cpe_base_strings = platform_metadata.get('cpeBaseStrings', [])

@@ -55,30 +55,37 @@ def sort_broad_entries(data):
     return sorted_data
 #                    ,
 def sort_base_strings(unique_base_strings: dict) -> dict:
-    # Enhanced sorting logic to include cveAffectedCPEsArray priority
+    # Enhanced sorting logic with more granular priority handling
     def sort_key(item):
         base_key, attributes = item
         # Check for the presence of specific tags
-        has_affected_cpes_array = 'searchSourcecveAffectedCPEsArray' in attributes
-        has_vendor_product = 'searchSourcevendorproduct' in attributes
-        has_product = 'searchSourceproduct' in attributes
-        has_vendor = 'searchSourcevendor' in attributes
+        has_affected_cpes_array = any(key.startswith('searchSourcecveAffectedCPEsArray') for key in attributes.keys())
+        has_vendor_product = any(key.startswith('searchSourcevendorproduct') for key in attributes.keys())
+        has_product = any(key.startswith('searchSourceproduct') and not key.startswith('searchSourcevendorproduct') for key in attributes.keys())
+        has_vendor = any(key.startswith('searchSourcevendor') and not key.startswith('searchSourcevendorproduct') for key in attributes.keys())
 
-        # Prioritize based on the presence of tags
-        if has_affected_cpes_array:
-            priority = -1  # Highest priority: from cpes array
-        elif has_vendor_product:
-            priority = 0   # Second priority: vendor+product
+        # Multi-level priority system - create a composite priority value
+        # Primary level: cpes array (yes/no) - 0 or 10
+        # Secondary level: source type priority (0-4)
+        
+        primary_priority = 0 if has_affected_cpes_array else 10
+        
+        if has_vendor_product:
+            secondary_priority = 0   # vendor+product (highest secondary)
         elif has_product:
-            priority = 1   # Third priority: just product
+            secondary_priority = 1   # product only
         elif has_vendor:
-            priority = 2   # Fourth priority: just vendor
+            secondary_priority = 2   # vendor only
         else:
-            priority = 3   # Lowest priority: other sources
+            secondary_priority = 3   # other sources (lowest)
 
-        # Apply additional sorting criteria
+        # Combine to get a composite priority score where CPE array entries are always higher
+        # regardless of secondary priority, but among CPE array entries, vendor+product > product > vendor
+        composite_priority = primary_priority + secondary_priority
+
+        # Apply additional sorting criteria after the composite priority
         return (
-            priority,                                # Primary: source priority
+            composite_priority,                      # Primary: composite source priority
             attributes.get('depFalseCount', 0) == 0, # Secondary: depFalseCount
             -attributes.get('searchCount', 0),       # Tertiary: searchCount
             -attributes.get('versionsFound', 0),     # Quaternary: versionsFound
@@ -352,6 +359,9 @@ def suggestCPEData(apiKey, rawDataset, case):
                             scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                             cpeBaseStrings.append(scratchMatchString)
 
+                    # Initialize platform_values_searched at the beginning of the platform entry processing
+                    platform_values_searched = False
+
                     # Generate CPE Match Strings based on available content for 'platform'
                     if 'platform' in platform_data:
                         # 1. First, create a direct search using the exact platform value
@@ -377,43 +387,43 @@ def suggestCPEData(apiKey, rawDataset, case):
                         
                         # 2. Extract and search for specific target hardware values
                         platform_string = platform_data['platform'].lower()
-                        platform_values_searched = False
                         
                         # Check for specific architecture terms
-                        if "x64" in platform_string:
-                            targetHW = "x64"
+                        if any(term in platform_string for term in ["x64", "arm64", "arm", "x86", "x32"]):
                             platform_values_searched = True
-                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                            cpeBaseStrings.append(scratchMatchString)
-                        
-                        if "arm64" in platform_string:
-                            targetHW = "arm64"
-                            platform_values_searched = True
-                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                            cpeBaseStrings.append(scratchMatchString)
-                        
-                        if "arm" in platform_string and "arm64" not in platform_string:
-                            targetHW = "arm"
-                            platform_values_searched = True
-                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                            cpeBaseStrings.append(scratchMatchString)
-                        
-                        # Map x86 and x32 to x86
-                        if "x86" in platform_string or "x32" in platform_string:
-                            targetHW = "x86"
-                            platform_values_searched = True
-                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                            cpeBaseStrings.append(scratchMatchString)
-                        
-                        # Track if we couldn't map platform data to known values
+                            
+                            # Handle specific architectures
+                            if "x64" in platform_string:
+                                targetHW = "x64"
+                                rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                                scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                cpeBaseStrings.append(scratchMatchString)
+                                
+                            if "arm64" in platform_string:
+                                targetHW = "arm64"
+                                rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                                scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                cpeBaseStrings.append(scratchMatchString)
+                            
+                            if "arm" in platform_string and "arm64" not in platform_string:
+                                targetHW = "arm"
+                                rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                                scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                cpeBaseStrings.append(scratchMatchString)
+                            
+                            # Map x86 and x32 to x86
+                            if "x86" in platform_string or "x32" in platform_string:
+                                targetHW = "x86"
+                                rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                                scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                cpeBaseStrings.append(scratchMatchString)
+                            
+                        # Track if we couldn't identify any established hardware architecture
+                        # This will flag not just "unknown" but any platform value that doesn't match our expectations
                         if not platform_values_searched:
                             if 'platformDataConcern' not in rawDataset.at[index, 'platformEntryMetadata']:
                                 rawDataset.at[index, 'platformEntryMetadata']['platformDataConcern'] = True
@@ -443,8 +453,30 @@ def suggestCPEData(apiKey, rawDataset, case):
 
                     # Generate CPE Match Strings based on available content for 'vendor' and 'product'
                     if 'vendor' in platform_data and 'product' in platform_data:
+                        # 1. Create base string with uncurated values first
                         cpeValidstringVendor = formatFor23CPE(platform_data['vendor'])
                         cpeValidstringProduct = formatFor23CPE(platform_data['product'])
+                        
+                        part = "*"
+                        vendor = cpeValidstringVendor
+                        product = cpeValidstringProduct
+                        version = "*"
+                        update = "*"
+                        edition = "*"
+                        lang = "*"
+                        swEdition = "*"
+                        targetSW = "*"
+                        targetHW = "*"
+                        other = "*"
+
+                        # Build a CPE Search String with raw values
+                        rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                        rawSearchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                        if rawSearchString not in cpeBaseStrings:
+                            cpeBaseStrings.append(rawSearchString)
+                        
+                        # 2. Now create base string with curated values
                         culledStringVendor = curateCPEAttributes('vendor', cpeValidstringVendor, True)
                         culledStringProduct = curateCPEAttributes('vendorProduct', culledStringVendor, cpeValidstringProduct)
                         
@@ -460,12 +492,13 @@ def suggestCPEData(apiKey, rawDataset, case):
                         targetHW = "*"
                         other = "*"
 
-                        # Build a CPE Search String from supported elements
-                        rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW  + ":" + other
-                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                        # Build a CPE Search String from curated elements
+                        curatedMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                        scratchSearchStringBreakout = breakoutCPEAttributes(curatedMatchString)
                         # Use the standard baseQuery type for the partvendorproduct search - this will add wildcards to the product field
-                        scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                        cpeBaseStrings.append(scratchMatchString)
+                        curatedSearchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                        if curatedSearchString not in cpeBaseStrings:
+                            cpeBaseStrings.append(curatedSearchString)
 
                     # Generate CPE Match Strings based on available content for 'vendor' and 'packageName'
                     if 'vendor' in platform_data and 'packageName' in platform_data:
@@ -880,12 +913,11 @@ def formatFor23CPE(rawAttribute):
 
     return ''.join([cpeEscape.get(x, x) for x in rawAttribute])
 #
-# Removes/replaces problematic text from vendor and product attribute values
-def curateCPEAttributes(case, attributeString1, attributeString2):
+# Enhanced version of curateCPEAttributes to remove version information from product attributes
 
+def curateCPEAttributes(case, attributeString1, attributeString2):
     match case:
         case 'vendor':
-
             # Vendor Aliases
             if ("apache_software_foundation") in attributeString1:
                 attributeString1 = attributeString1.replace("apache_software_foundation", "apache")
@@ -893,6 +925,8 @@ def curateCPEAttributes(case, attributeString1, attributeString2):
             return (attributeString1)
 
         case 'product':
+            # Store original value before curation
+            originalAttribute = attributeString1
             
             # General Trimming
             if ("apache_") in attributeString1:
@@ -906,10 +940,33 @@ def curateCPEAttributes(case, attributeString1, attributeString2):
 
             if ("_plugin") in attributeString1:
                 attributeString1 = attributeString1.replace("_plugin", "")
-
-            return (attributeString1)      
+                
+            # Remove version numbers
+            # Pattern: product 1.2.3 or product 1.2 or product 1
+            attributeString1 = re.sub(r'[\s_][\d]+\.[\d]+\.[\d]+$', '', attributeString1)
+            attributeString1 = re.sub(r'[\s_][\d]+\.[\d]+$', '', attributeString1)
+            attributeString1 = re.sub(r'[\s_][\d]+$', '', attributeString1)
+            
+            # Remove "version X.Y" patterns
+            attributeString1 = re.sub(r'[\s_]version[\s_][\d]+\.[\d]+(?:\s\(.+\))?', '', attributeString1)
+            attributeString1 = re.sub(r'[\s_]version[\s_][\d]+(?:\s\(.+\))?', '', attributeString1)
+            
+            # Remove "vX.Y" patterns
+            attributeString1 = re.sub(r'[\s_]v[\d]+\.[\d]+(?:\s\(.+\))?', '', attributeString1)
+            attributeString1 = re.sub(r'[\s_]v[\d]+(?:\s\(.+\))?', '', attributeString1)
+            
+            # Special case for AND/OR in version strings
+            attributeString1 = re.sub(r'[\s_][\d]+\.[\d]+[\s_](?:AND|OR)[\s_][\d]+\.[\d]+', '', attributeString1)
+            
+            # Clean up trailing whitespace converted to underscores
+            attributeString1 = attributeString1.rstrip('_')
+            
+            return (attributeString1)
         
         case 'vendorProduct':
+            # Store original value before curation
+            originalProduct = attributeString2
+            
             # Remove the vendor name if it is duplicated in the product
             productVCullValue = formatFor23CPE(attributeString1 + "_")          
             if productVCullValue in attributeString2:
@@ -927,7 +984,27 @@ def curateCPEAttributes(case, attributeString1, attributeString2):
 
             if ("_plugin") in attributeString2:
                 attributeString2 = attributeString2.replace("_plugin", "")
-
+                
+            # Remove version numbers
+            # Pattern: product 1.2.3 or product 1.2 or product 1
+            attributeString2 = re.sub(r'[\s_][\d]+\.[\d]+\.[\d]+$', '', attributeString2)
+            attributeString2 = re.sub(r'[\s_][\d]+\.[\d]+$', '', attributeString2)
+            attributeString2 = re.sub(r'[\s_][\d]+$', '', attributeString2)
+            
+            # Remove "version X.Y" patterns
+            attributeString2 = re.sub(r'[\s_]version[\s_][\d]+\.[\d]+(?:\s\(.+\))?', '', attributeString2)
+            attributeString2 = re.sub(r'[\s_]version[\s_][\d]+(?:\s\(.+\))?', '', attributeString2)
+            
+            # Remove "vX.Y" patterns
+            attributeString2 = re.sub(r'[\s_]v[\d]+\.[\d]+(?:\s\(.+\))?', '', attributeString2)
+            attributeString2 = re.sub(r'[\s_]v[\d]+(?:\s\(.+\))?', '', attributeString2)
+            
+            # Special case for AND/OR in version strings
+            attributeString2 = re.sub(r'[\s_][\d]+\.[\d]+[\s_](?:AND|OR)[\s_][\d]+\.[\d]+', '', attributeString2)
+            
+            # Clean up trailing whitespace converted to underscores
+            attributeString2 = attributeString2.rstrip('_')
+            
             return attributeString2
             
 # Build a CPE Search string from a cpeBreakout based on type desired
