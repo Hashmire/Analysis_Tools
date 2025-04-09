@@ -201,33 +201,64 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
             git_tooltip = "git versionType not advised for CPE Ranges"
             html += f'<span class="badge bg-warning" title="{git_tooltip}">git versionType</span> '
     
-    # 4. Special Version Structure badge - entirely neutral
-    # Check for inverse version definition (unaffected ranges)
-    is_special_version_case = False
-    
+    # 4. Special Version Structure badges - more detailed detection of special cases
     if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
-        # Check if default status is set to unaffected
+        versions = raw_platform_data['versions']
+        
+        # 4.1 Check for wildcard patterns in version ranges
+        has_wildcards = False
+        for v in versions:
+            if isinstance(v, dict) and ('lessThanOrEqual' in v or 'lessThan' in v):
+                constraint_value = v.get('lessThanOrEqual', '') or v.get('lessThan', '')
+                if '*' in str(constraint_value):
+                    has_wildcards = True
+                    version_tooltip = 'Versions array contains wildcard patterns requiring special handling'
+                    html += f'<span class="badge bg-warning" title="{version_tooltip}">Wildcard Patterns</span> '
+                    break
+        
+        # 4.2 Check for inverse version definition (unaffected with affected exceptions)
         default_status_unaffected = raw_platform_data.get('defaultStatus') == 'unaffected'
+        affected_versions = [v for v in versions if v and v.get('status') == 'affected']
+        unaffected_versions = [v for v in versions if v and v.get('status') == 'unaffected']
         
-        # Count affected vs unaffected entries
-        unaffected_versions = [
-            v for v in raw_platform_data['versions'] 
-            if v and v.get('status') == 'unaffected'
-        ]
+        if default_status_unaffected and affected_versions:
+            version_tooltip = 'Versions array contains default unaffected status with specific affected entries'
+            html += f'<span class="badge bg-warning" title="{version_tooltip}">Inverse Status Pattern</span> '
+        elif len(unaffected_versions) > 1 and affected_versions:
+            version_tooltip = 'Versions array contains multiple unaffected version entries with affected entries'
+            html += f'<span class="badge bg-warning" title="{version_tooltip}">Mixed Status Pattern</span> '
         
-        affected_versions = [
-            v for v in raw_platform_data['versions'] 
-            if v and v.get('status') == 'affected'
-        ]
+        # 4.3 Check for multiple version branches
+        version_branches = set()
+        for v in versions:
+            if v and 'version' in v and isinstance(v['version'], str):
+                parts = v['version'].split('.')
+                if len(parts) >= 2:
+                    version_branches.add('.'.join(parts[:2]))  # Add major.minor
         
-        # Define special version case based on pattern analysis
-        if (default_status_unaffected and affected_versions) or len(unaffected_versions) > 1:
-            is_special_version_case = True
-    
-    # Show special version case badge if detected
-    if is_special_version_case:
-        version_tooltip = 'Version data will be processed with special case handling'
-        html += f'<span class="badge bg-warning" title="{version_tooltip}">Unique Version Structure</span> '
+        if len(version_branches) >= 3:  # Three or more distinct version branches
+            branch_tooltip = f'Versions array contains multiple version branches: {", ".join(version_branches)}'
+            html += f'<span class="badge bg-warning" title="{branch_tooltip}">Multiple Version Branches</span> '
+        
+        # 4.4 Check for version with changes
+        has_changes = False
+        for v in versions:
+            if v and 'changes' in v and v['changes']:
+                has_changes = True
+                changes_tooltip = 'Versions array contains change history information requiring special handling'
+                html += f'<span class="badge bg-warning" title="{changes_tooltip}">Has Version Changes</span> '
+                break
+                
+        # 4.5 Check for special version types
+        special_version_types = set()
+        for v in versions:
+            if v and 'versionType' in v and v['versionType'] not in ['semver', 'string']:
+                if v['versionType'] != 'git':  # git is already handled separately
+                    special_version_types.add(v['versionType'])
+        
+        if special_version_types:
+            types_tooltip = f'Versions array contains special version types: {", ".join(special_version_types)}'
+            html += f'<span class="badge bg-warning" title="{types_tooltip}">Special Version Types</span> '
     
     # 5. CPE Array badge - check for actual CPEs array
     cpes_array = []
