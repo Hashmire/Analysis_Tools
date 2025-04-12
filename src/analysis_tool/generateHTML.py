@@ -2,7 +2,6 @@
 import pandas as pd
 import json
 import html
-from sys import exit
 from build_info import VERSION, TOOLNAME
 import os
 import datetime
@@ -96,6 +95,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     # Group badges by priority level
     danger_badges = []
     warning_badges = []
+    sourceDataConcern_badges = []
     info_badges = []
     standard_badges = []
 
@@ -157,31 +157,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
                     warning_badges.append(f'<span class="badge bg-warning" title="{version_tooltip}">Wildcard Patterns</span> ')
                     break
         
-        # 4.2 Check for inverse version definition (unaffected with affected exceptions)
-        default_status_unaffected = raw_platform_data.get('defaultStatus') == 'unaffected'
-        affected_versions = [v for v in versions if v and v.get('status') == 'affected']
-        unaffected_versions = [v for v in versions if v and v.get('status') == 'unaffected']
-        
-        if default_status_unaffected and affected_versions:
-            version_tooltip = 'Versions array contains default unaffected status with specific affected entries'
-            warning_badges.append(f'<span class="badge bg-warning" title="{version_tooltip}">Inverse Status Pattern</span> ')
-        elif len(unaffected_versions) > 1 and affected_versions:
-            version_tooltip = 'Versions array contains multiple unaffected version entries with affected entries'
-            warning_badges.append(f'<span class="badge bg-warning" title="{version_tooltip}">Mixed Status Pattern</span> ')
-        
-        # 4.3 Check for multiple version branches
-        version_branches = set()
-        for v in versions:
-            if v and 'version' in v and isinstance(v['version'], str):
-                parts = v['version'].split('.')
-                if len(parts) >= 2:
-                    version_branches.add('.'.join(parts[:2]))  # Add major.minor
-        
-        if len(version_branches) >= 3:  # Three or more distinct version branches
-            branch_tooltip = f'Versions array contains multiple version branches: {", ".join(version_branches)}'
-            warning_badges.append(f'<span class="badge bg-warning" title="{branch_tooltip}">Multiple Version Branches</span> ')
-        
-        # 4.4 Check for version with changes
+        # 4.2 Check for version with changes
         has_changes = False
         for v in versions:
             if v and 'changes' in v and v['changes']:
@@ -189,17 +165,6 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
                 changes_tooltip = 'Versions array contains change history information requiring special handling'
                 warning_badges.append(f'<span class="badge bg-warning" title="{changes_tooltip}">Has Version Changes</span> ')
                 break
-                
-        # 4.5 Check for special version types
-        special_version_types = set()
-        for v in versions:
-            if v and 'versionType' in v and v['versionType'] not in ['semver', 'string']:
-                if v['versionType'] != 'git':  # git is already handled separately
-                    special_version_types.add(v['versionType'])
-        
-        if special_version_types:
-            types_tooltip = f'Versions array contains special version types: {", ".join(special_version_types)}'
-            warning_badges.append(f'<span class="badge bg-warning" title="{types_tooltip}">Special Version Types</span> ')
 
     # 5. CPE Array badge - only show count in tooltip if there are actual CPEs
     cpes_array = []
@@ -214,17 +179,143 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     # 6. CPE Base Strings badge - only show if strings were generated
     cpe_base_strings = platform_metadata.get('cpeBaseStrings', [])
     if cpe_base_strings:
-        base_strings_tooltip = "&#013;".join(cpe_base_strings)
+        # Sort the strings for the tooltip
+        sorted_cpe_base_strings = sort_cpe_strings_for_tooltip(cpe_base_strings)
+        base_strings_tooltip = "&#013;".join(sorted_cpe_base_strings)
         standard_badges.append(f'<span class="badge bg-secondary" title="{base_strings_tooltip}">CPE Base String Searches</span> ')
 
-    # 7. Add Platform Data Concern badge if needed - THIS IS THE FIX
+    # 7. Add Platform Data Concern badge if needed - UPDATED TO USE CUSTOM STYLE
     if platform_metadata.get('platformDataConcern', False):
         platform_tooltip = 'Platforms array data was not able to be mapped to any known target hardware values'
-        warning_badges.append(f'<span class="badge bg-warning" title="{platform_tooltip}">Platforms Data Concern</span> ')
+        sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{platform_tooltip}">Platforms Data Concern</span> ')
+
+    # 8. Add Versions Data Concern badge for improper version formatting
+    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
+        versions = raw_platform_data['versions']
+        version_concerns = []
+        
+        # Extended list of comparators to check for
+        comparators = ['<', '>', '=', '<=', '=<', '=>', '>=', '!=']
+        
+        # Add text-based version comparators
+        text_comparators = [
+            # Range indicators
+            'through', 'thru', 'to', 'between', 'and',
+            
+            # Upper bound indicators
+            'before', 'prior to', 'earlier than', 'up to', 'until', 
+            'not after', 'older than', 'below',
+            
+            # Lower bound indicators
+            'after', 'since', 'later than', 'newer than', 
+            'starting with', 'from', 'above',
+            
+            # Approximation indicators
+            'about', 'approximately', 'circa', 'around', 'roughly',
+            
+            # Inclusive/exclusive indicators
+            'inclusive', 'exclusive', 'including', 'excluding',
+            
+            # Non-specific versions
+            'all versions', 'any version', 'multiple versions',
+            
+            # Reference directives
+            'see references', 'see advisory', 'refer to', 'check', 'as noted',
+            
+            # Missing/Unknown values
+            'unspecified', 'unknown', 'none', 'undefined', 'various',
+            
+            # Descriptive statements
+            'supported', 'unstable', 'development', 'beta', 'release candidate', 'nightly',
+            
+            # Date-based indicators that aren't version numbers
+            'builds', 'release', 'pre-', 'post-',
+            
+            # Unclear bounds
+            'earliest', 'recent', 'legacy', 'past', 'future', 'latest',
+            
+            # Commitish references
+            'commit', 'git hash', 'branch'
+        ]
+        
+        # Check for improper comparators in version fields
+        for v in versions:
+            if not isinstance(v, dict):
+                continue
+            
+            # Check 'version' field
+            if 'version' in v and isinstance(v['version'], str):
+                version_value = v['version'].lower()  # Convert to lowercase for case-insensitive matching
+                
+                # Check for symbolic comparators
+                if any(comp in version_value for comp in comparators):
+                    version_concerns.append(f"Version field may contain comparator: {v['version']}")
+                
+                # Check for text comparators
+                elif any(text_comp in version_value for text_comp in text_comparators):
+                    version_concerns.append(f"Version field may contain inappropriate text: {v['version']}")
+            
+            # Check 'lessThan' field
+            if 'lessThan' in v and isinstance(v['lessThan'], str):
+                less_than_value = v['lessThan'].lower()  # Add toLowerCase for consistency
+                if any(comp in less_than_value for comp in comparators):
+                    version_concerns.append(f"LessThan field contains comparator: {v['lessThan']}")
+                elif any(text_comp in less_than_value for text_comp in text_comparators):
+                    version_concerns.append(f"LessThan field contains text comparator: {v['lessThan']}")
+            
+            # Check 'lessThanOrEqual' field
+            if 'lessThanOrEqual' in v and isinstance(v['lessThanOrEqual'], str):
+                less_than_or_equal_value = v['lessThanOrEqual'].lower()  # Add toLowerCase for consistency
+                if any(comp in less_than_or_equal_value for comp in comparators):
+                    version_concerns.append(f"LessThanOrEqual field contains comparator: {v['lessThanOrEqual']}")
+                elif any(text_comp in less_than_or_equal_value for text_comp in text_comparators):
+                    version_concerns.append(f"LessThanOrEqual field contains text comparator: {v['lessThanOrEqual']}")
+        
+        # If we found any version concerns, add the badge
+        if version_concerns:
+            versions_tooltip = 'Versions array contains formatting issues:&#013;' + '&#013;'.join(version_concerns)
+            sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{versions_tooltip}">Versions Data Concern</span> ')
+
+    # 9. Add N/A Data Concern badges for problematic vendor/product values
+    if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str) and raw_platform_data['vendor'].lower() == 'n/a':
+        vendor_na_tooltip = 'Vendor field contains "n/a" which prevents proper CPE matching'
+        sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{vendor_na_tooltip}">Vendor: N/A</span> ')
+
+    if 'product' in raw_platform_data and isinstance(raw_platform_data['product'], str) and raw_platform_data['product'].lower() == 'n/a':
+        product_na_tooltip = 'Product field contains "n/a" which prevents proper CPE matching'
+        sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{product_na_tooltip}">Product: N/A</span> ')
+
+    # 10. Add CPE Curation Badge for tracking when CPE strings were modified
+    curation_tracking = platform_metadata.get('cpeCurationTracking', {})
+    if curation_tracking:
+        # Check if any curation happened in any fields
+        has_vendor_curation = curation_tracking.get('vendor', [])
+        has_product_curation = curation_tracking.get('product', [])
+        has_platform_curation = curation_tracking.get('platform', [])  # New: check for platform curation
+        
+        if has_vendor_curation or has_product_curation or has_platform_curation:  # Include platform curation
+            # Build a simple tooltip listing all value changes
+            curation_tooltip = 'Modified values:&#013;'
+            
+            # List vendor modifications
+            for mod in has_vendor_curation:
+                curation_tooltip += f"Vendor: {mod['original']} → {mod['curated']}&#013;"
+            
+            # List product modifications
+            for mod in has_product_curation:
+                curation_tooltip += f"Product: {mod['original']} → {mod['curated']}&#013;"
+                
+            # List platform modifications that were successfully mapped
+            for mod in has_platform_curation:
+                curation_tooltip += f"Platform: {mod['original']} → {mod['curated']}&#013;"
+            
+            # Create a badge with the new name - no count included
+            sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{curation_tooltip}">Source to CPE Attribute Curation</span> ')
 
     # Add badges in priority order: Danger -> Warning -> Info -> Standard
     html += ''.join(danger_badges)
     html += ''.join(warning_badges)
+    html += ''.join(sourceDataConcern_badges)
     html += ''.join(info_badges)
     html += ''.join(standard_badges)
 
@@ -347,11 +438,35 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
             for version in versions_found_content
         )
         
-        # Create Relevant Match String Searches tooltip content from ('search' + recorded_keys_str) keys 
-        search_keys_tooltip_content = ""
+        # Create Relevant Match String Searches tooltip content
+        search_keys = []
         for key in base_value.keys():
             if key.startswith('searchSource'):
-                search_keys_tooltip_content += f"{key}:  {base_value[key]}&#10;"
+                search_keys.append((key, base_value[key]))
+
+        # Sort the search keys based on a priority order
+        def sort_search_keys(item):
+            key, _ = item
+            if 'cveAffectedCPEsArray' in key:
+                return 0  # Highest priority
+            elif 'partvendorproduct' in key:
+                return 1
+            elif 'vendorproduct' in key:
+                return 2
+            elif 'product' in key:
+                return 3
+            elif 'vendor' in key:
+                return 4
+            else:
+                return 5
+
+        # Sort the keys
+        sorted_search_keys = sorted(search_keys, key=sort_search_keys)
+
+        # Create the tooltip content
+        search_keys_tooltip_content = ""
+        for key, value in sorted_search_keys:
+            search_keys_tooltip_content += f"{key}:  {value}&#10;"
         
         # Sanitize base_key for use as ID
         base_key_id = base_key.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
@@ -567,3 +682,56 @@ def buildHTMLPage(affectedHtml, targetCve, vdbIntelHtml=None):
                 pageBodyCPESuggesterHTML + pageBodyVDBIntelHTML + pageEndHTML)
     
     return fullHtml
+
+def sort_cpe_strings_for_tooltip(base_strings):
+    """Sort CPE base strings for tooltip display in a logical order."""
+    def get_sort_key(cpe_string):
+        # Extract parts to use for sorting
+        parts = cpe_string.split(':')
+        if len(parts) < 12:
+            # Not a valid CPE - sort to bottom
+            return (9, cpe_string)
+            
+        # Get the key parts
+        part_type = parts[2]  # 'a', 'o', 'h' or '*'
+        vendor = parts[3]
+        product = parts[4]
+        has_specific_vendor = vendor != '*'
+        has_specific_product = product != '*' and not product.startswith('*') and not product.endswith('*')
+        has_wildcard_product = product != '*' and (product.startswith('*') or product.endswith('*')) 
+        has_hardware_info = parts[11] != '*'  # targetHW field
+        
+        # Prioritize strings
+        if "cpe:2.3:a:" in cpe_string and has_specific_vendor and has_specific_product:
+            # Exact application CPE priority
+            priority = 0
+        elif part_type != '*' and has_specific_vendor and has_specific_product:
+            # Other exact part type with specific vendor and product
+            priority = 1
+        elif has_hardware_info:
+            # Hardware-specific CPE strings
+            priority = 2
+        elif has_specific_vendor and has_wildcard_product:
+            # Vendor + wildcarded product
+            priority = 3
+        elif has_specific_vendor:
+            # Vendor only
+            priority = 4
+        elif has_specific_product or has_wildcard_product:
+            # Product only
+            priority = 5
+        else:
+            # Generic patterns
+            priority = 6
+            
+        return (priority, vendor, product, cpe_string)
+    
+    # Sort the strings using the custom sort key
+    return sorted(base_strings, key=get_sort_key)
+
+def strings_were_curated(original, curated):
+    """Compare original string with curated string, ignoring insignificant differences"""
+    # Remove trailing underscores that might be added/removed during formatting
+    original = original.rstrip('_')
+    curated = curated.rstrip('_')
+    return original != curated

@@ -297,6 +297,13 @@ def suggestCPEData(apiKey, rawDataset, case):
                 # Initialize a list to store the dictionaries for each row
                 cpeBaseStrings = []
 
+                # Initialize curation tracking
+                curation_tracking = {
+                    "vendor": [],
+                    "product": [],
+                    "vendorProduct": []
+                }
+
                 # Get platformFormatType from platformEntryMetadata
                 platform_metadata = row.get('platformEntryMetadata', {})
                 platform_format_type = platform_metadata.get('platformFormatType', '')
@@ -309,11 +316,25 @@ def suggestCPEData(apiKey, rawDataset, case):
                         
                     # Generate CPE Match Strings based on available content
                     if 'vendor' in platform_data:
-                        if platform_data['vendor'] == "n\\/a":
-                            print("[DEBUG]  Placeholder values detected when gathering Vendor search strings ")
+                        # Improved check for n/a values - convert to lowercase and check multiple formats
+                        vendor_value = platform_data['vendor']
+                        if isinstance(vendor_value, str) and vendor_value.lower() in ["n/a", "n\\/a", "n/a"]:
+                            print("[INFO] Skipping vendor search string generation - 'n/a' placeholder detected")
+                            # Set a flag in metadata
+                            if 'vendorNAConcern' not in rawDataset.at[index, 'platformEntryMetadata']:
+                                rawDataset.at[index, 'platformEntryMetadata']['vendorNAConcern'] = True
                         else:
+                            # Only proceed with normal CPE string generation if not n/a
                             cpeValidstring = formatFor23CPE(platform_data['vendor'])
+                            original_vendor = cpeValidstring
                             culledString = curateCPEAttributes('vendor', cpeValidstring, True)
+
+                            # Track curation
+                            if culledString != original_vendor:
+                                curation_tracking["vendor"].append({
+                                    "original": original_vendor,
+                                    "curated": culledString
+                                })
                             
                             part = "*"
                             vendor = culledString
@@ -328,18 +349,32 @@ def suggestCPEData(apiKey, rawDataset, case):
                             other = "*"
 
                             # Build a CPE Search String from supported elements
-                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW  + ":" + other
+                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
                             scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                             scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                             cpeBaseStrings.append(scratchMatchString)
 
                     # Generate CPE Match Strings based on available content for 'product'
                     if 'product' in platform_data:
-                        if platform_data['product'] == "n\\/a":
-                            print("[DEBUG]  Placeholder values detected when gathering Product search strings ")
+                        # Improved check for n/a values - convert to lowercase and check multiple formats
+                        product_value = platform_data['product']
+                        if isinstance(product_value, str) and product_value.lower() in ["n/a", "n\\/a", "n/a"]:
+                            print("[INFO] Skipping product search string generation - 'n/a' placeholder detected")
+                            # Set a flag in metadata
+                            if 'productNAConcern' not in rawDataset.at[index, 'platformEntryMetadata']:
+                                rawDataset.at[index, 'platformEntryMetadata']['productNAConcern'] = True
                         else:
+                            # Only proceed with normal CPE string generation if not n/a
                             cpeValidstring = formatFor23CPE(platform_data['product'])
+                            original_product = cpeValidstring
                             culledString = curateCPEAttributes('product', cpeValidstring, True)
+
+                            # Track curation
+                            if culledString != original_product:
+                                curation_tracking["product"].append({
+                                    "original": original_product,
+                                    "curated": culledString
+                                })
                             
                             part = "*"
                             vendor = "*"
@@ -354,7 +389,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                             other = "*"
 
                             # Build a CPE Search String from supported elements
-                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW  + ":" + other
+                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
                             scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                             scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                             cpeBaseStrings.append(scratchMatchString)
@@ -417,77 +452,204 @@ def suggestCPEData(apiKey, rawDataset, case):
                             if 'platformDataConcern' not in rawDataset.at[index, 'platformEntryMetadata']:
                                 rawDataset.at[index, 'platformEntryMetadata']['platformDataConcern'] = True
 
-                    # Generate CPE Match Strings based on available content for 'packageName'
-                    if 'packageName' in platform_data:
-                        cpeValidstring = formatFor23CPE(platform_data['packageName'])
-                        culledString = curateCPEAttributes('product', cpeValidstring, True)
+                    # When processing platform data
+                    if 'platforms' in platform_data and isinstance(platform_data['platforms'], list):
+                        all_platforms_mapped = True  # Start with assumption that all platforms can be mapped
                         
-                        part = "*"
-                        vendor = "*"
-                        product = culledString
-                        version = "*"
-                        update = "*"
-                        edition = "*"
-                        lang = "*"
-                        swEdition = "*"
-                        targetSW = "*"
-                        targetHW = "*"
-                        other = "*"
+                        for platform_item in platform_data['platforms']:
+                            if platform_item and isinstance(platform_item, str):
+                                original_platform = platform_item
+                                
+                                # Try to map the platform using the curateCPEAttributes function
+                                curated_platform, was_mapped = curateCPEAttributes('platform', platform_item, None)
+                                
+                                if was_mapped:
+                                    platform_values_searched = True
+                                    targetHW = curated_platform
+                                    rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                                    scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                    scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                    cpeBaseStrings.append(scratchMatchString)
+                                    
+                                    # Track the mapping in the curation tracking
+                                    if 'platform' not in curation_tracking:
+                                        curation_tracking["platform"] = []
+                                        
+                                    curation_tracking["platform"].append({
+                                        "original": original_platform,
+                                        "curated": curated_platform
+                                    })
+                                else:
+                                    all_platforms_mapped = False
+                        
+                        # Set the platformDataConcern flag if any platform couldn't be mapped
+                        if platform_data['platforms'] and not all_platforms_mapped:
+                            rawDataset.at[index, 'platformEntryMetadata']['platformDataConcern'] = True
 
-                        # Build a CPE Search String from supported elements
-                        rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW  + ":" + other
-                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                        scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                        cpeBaseStrings.append(scratchMatchString)
+                    # Generate CPE Match Strings based on available content for 'packageName'
+                    if 'packageName' in platform_data and isinstance(platform_data['packageName'], str):
+                        package_name = platform_data['packageName']
+                        
+                        # Check if this is a Maven package (based on collection URL or package format)
+                        is_maven_package = False
+                        if 'collectionURL' in platform_data and 'repo.maven.apache.org' in platform_data['collectionURL']:
+                            is_maven_package = True
+                        elif ':' in package_name and ('.' in package_name.split(':')[0]):
+                            # Heuristic: if there's a colon and dots in the first part, it's likely Maven format
+                            is_maven_package = True
+                        
+                        if is_maven_package and ':' in package_name:
+                            print(f"[INFO] Processing Maven package: {package_name}")
+                            
+                            # Split Maven package name into groupId and artifactId
+                            group_id, artifact_id = package_name.split(':', 1)
+                            
+                            # Format properly for CPE string
+                            cpe_group_id = formatFor23CPE(group_id)
+                            cpe_artifact_id = formatFor23CPE(artifact_id)
+                            
+                            # 1. Create a CPE string with just the groupId as the vendor
+                            part = "*"
+                            vendor = cpe_group_id
+                            product = "*"
+                            version = "*"
+                            update = "*"
+                            edition = "*"
+                            lang = "*"
+                            swEdition = "*"
+                            targetSW = "*"
+                            targetHW = "*"
+                            other = "*"
+                            
+                            group_id_match_string = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                            if group_id_match_string not in cpeBaseStrings:
+                                cpeBaseStrings.append(group_id_match_string)
+                            
+                            # 2. Create a CPE string with the artifactId as the product
+                            part = "*"
+                            vendor = "*"
+                            product = "*" + cpe_artifact_id + "*"
+                            version = "*"
+                            update = "*"
+                            edition = "*"
+                            lang = "*"
+                            swEdition = "*"
+                            targetSW = "*"
+                            targetHW = "*"
+                            other = "*"
+                            
+                            artifact_id_match_string = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                            if artifact_id_match_string not in cpeBaseStrings:
+                                cpeBaseStrings.append(artifact_id_match_string)
+                            
+                            # 3. Create a CPE string with groupId as vendor and artifactId as product
+                            part = "*"
+                            vendor = cpe_group_id
+                            product = "*" + cpe_artifact_id + "*"
+                            version = "*"
+                            update = "*"
+                            edition = "*"
+                            lang = "*"
+                            swEdition = "*"
+                            targetSW = "*"
+                            targetHW = "*"
+                            other = "*"
+                            
+                            combined_match_string = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                            if combined_match_string not in cpeBaseStrings:
+                                cpeBaseStrings.append(combined_match_string)
+                                
+                            # Add metadata to track Maven package processing
+                            if 'packageSourceTypes' not in rawDataset.at[index, 'platformEntryMetadata']:
+                                rawDataset.at[index, 'platformEntryMetadata']['packageSourceTypes'] = []
+                            if 'maven' not in rawDataset.at[index, 'platformEntryMetadata']['packageSourceTypes']:
+                                rawDataset.at[index, 'platformEntryMetadata']['packageSourceTypes'].append('maven')
+                        
+                        else:
+                            # Process non-Maven packages with the existing code
+                            cpeValidstring = formatFor23CPE(platform_data['packageName'])
+                            culledString = curateCPEAttributes('product', cpeValidstring, True)
+                            
+                            part = "*"
+                            vendor = "*"
+                            product = culledString
+                            version = "*"
+                            update = "*"
+                            edition = "*"
+                            lang = "*"
+                            swEdition = "*"
+                            targetSW = "*"
+                            targetHW = "*"
+                            other = "*"
+
+                            # Build a CPE Search String from supported elements
+                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                            cpeBaseStrings.append(scratchMatchString)
 
                     # Generate CPE Match Strings based on available content for 'vendor' and 'product'
                     if 'vendor' in platform_data and 'product' in platform_data:
-                        # 1. Create base string with uncurated values first
-                        cpeValidstringVendor = formatFor23CPE(platform_data['vendor'])
-                        cpeValidstringProduct = formatFor23CPE(platform_data['product'])
+                        vendor_value = platform_data['vendor']
+                        product_value = platform_data['product']
                         
-                        part = "*"
-                        vendor = cpeValidstringVendor
-                        product = cpeValidstringProduct
-                        version = "*"
-                        update = "*"
-                        edition = "*"
-                        lang = "*"
-                        swEdition = "*"
-                        targetSW = "*"
-                        targetHW = "*"
-                        other = "*"
+                        # Skip vendor+product CPE generation if either contains n/a
+                        if (isinstance(vendor_value, str) and vendor_value.lower() in ["n/a", "n\\/a", "n/a"]) or \
+                           (isinstance(product_value, str) and product_value.lower() in ["n/a", "n\\/a", "n/a"]):
+                            print("[INFO] Skipping vendor+product search string generation - 'n/a' placeholder detected")
+                        else:
+                            # Only proceed with normal CPE string generation if neither is n/a
+                            # 1. Create base string with uncurated values first
+                            cpeValidstringVendor = formatFor23CPE(platform_data['vendor'])
+                            cpeValidstringProduct = formatFor23CPE(platform_data['product'])
+                            original_vendor_product = {
+                                "vendor": cpeValidstringVendor,
+                                "product": cpeValidstringProduct
+                            }
+                            
+                            part = "*"
+                            vendor = cpeValidstringVendor
+                            product = cpeValidstringProduct
+                            version = "*"
+                            update = "*"
+                            edition = "*"
+                            lang = "*"
+                            swEdition = "*"
+                            targetSW = "*"
+                            targetHW = "*"
+                            other = "*"
 
-                        # Build a CPE Search String with raw values
-                        rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                        rawSearchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                        if rawSearchString not in cpeBaseStrings:
-                            cpeBaseStrings.append(rawSearchString)
-                        
-                        # 2. Now create base string with curated values
-                        culledStringVendor = curateCPEAttributes('vendor', cpeValidstringVendor, True)
-                        culledStringProduct = curateCPEAttributes('vendorProduct', culledStringVendor, cpeValidstringProduct)
-                        
-                        part = "*"
-                        vendor = culledStringVendor
-                        product = culledStringProduct
-                        version = "*"
-                        update = "*"
-                        edition = "*"
-                        lang = "*"
-                        swEdition = "*"
-                        targetSW = "*"
-                        targetHW = "*"
-                        other = "*"
+                            # Build a CPE Search String with raw values
+                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                            rawSearchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                            if rawSearchString not in cpeBaseStrings:
+                                cpeBaseStrings.append(rawSearchString)
+                            
+                            # 2. Now create base string with curated values
+                            culledStringVendor = curateCPEAttributes('vendor', cpeValidstringVendor, True)
+                            culledStringProduct = curateCPEAttributes('vendorProduct', culledStringVendor, cpeValidstringProduct)
 
-                        # Build a CPE Search String from curated elements
-                        curatedMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                        scratchSearchStringBreakout = breakoutCPEAttributes(curatedMatchString)
-                        # Use the standard baseQuery type for the partvendorproduct search - this will add wildcards to the product field
-                        curatedSearchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                        if curatedSearchString not in cpeBaseStrings:
-                            cpeBaseStrings.append(curatedSearchString)
+                            
+                            part = "*"
+                            vendor = culledStringVendor
+                            product = culledStringProduct
+                            version = "*"
+                            update = "*"
+                            edition = "*"
+                            lang = "*"
+                            swEdition = "*"
+                            targetSW = "*"
+                            targetHW = "*"
+                            other = "*"
+
+                            # Build a CPE Search String from curated elements
+                            curatedMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                            scratchSearchStringBreakout = breakoutCPEAttributes(curatedMatchString)
+                            # Use the standard baseQuery type for the partvendorproduct search - this will add wildcards to the product field
+                            curatedSearchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                            if curatedSearchString not in cpeBaseStrings:
+                                cpeBaseStrings.append(curatedSearchString)
 
                     # Generate CPE Match Strings based on available content for 'vendor' and 'packageName'
                     if 'vendor' in platform_data and 'packageName' in platform_data:
@@ -521,30 +683,60 @@ def suggestCPEData(apiKey, rawDataset, case):
                             if cpe and isinstance(cpe, str) and cpe.startswith('cpe:'):
                                 # Parse CPE to make sure it's properly formatted
                                 cpe_attributes = breakoutCPEAttributes(cpe)
-                                # For CPEs from the array, preserve the structure but standardize version fields
-                                cpe_attributes['version'] = '*'  # Always set version to wildcard
-                                cpe_attributes['update'] = '*'   # Always set update to wildcard
                                 
-                                # Create a modified version of constructSearchString for CPE array entries
-                                # that doesn't add wildcards to the product field
-                                cpeStringResult = ""
-                                for item in cpe_attributes:
-                                    # Don't add wildcards to product field for CPE array entries
-                                    cpeStringResult += str(cpe_attributes[item]) + ":"
-                                    
+                                # For CPEs from the array, create two different versions
+                                # 1. The exact CPE with wildcarded version/update for direct search
+                                exact_cpe_attributes = dict(cpe_attributes)
+                                exact_cpe_attributes['version'] = '*'  # Always set version to wildcard
+                                exact_cpe_attributes['update'] = '*'   # Always set update to wildcard
+                                
+                                # Build the exact CPE string (no added wildcards to product)
+                                exact_cpe_string = ""
+                                for item in exact_cpe_attributes:
+                                    exact_cpe_string += str(exact_cpe_attributes[item]) + ":"
+                                
                                 # Remove the trailing colon
-                                base_cpe = cpeStringResult.rstrip(":")
+                                exact_cpe_string = exact_cpe_string.rstrip(":")
                                 
-                                if base_cpe not in cpeBaseStrings:
-                                    cpeBaseStrings.append(base_cpe)
+                                # Add to cpeBaseStrings if not already there
+                                if exact_cpe_string not in cpeBaseStrings:
+                                    cpeBaseStrings.append(exact_cpe_string)
+                                    
                                     # Track the source of this CPE base string
                                     if 'cpeSourceTypes' not in rawDataset.at[index, 'platformEntryMetadata']:
                                         rawDataset.at[index, 'platformEntryMetadata']['cpeSourceTypes'] = []
                                     if 'cveAffectedCPEsArray' not in rawDataset.at[index, 'platformEntryMetadata']['cpeSourceTypes']:
                                         rawDataset.at[index, 'platformEntryMetadata']['cpeSourceTypes'].append('cveAffectedCPEsArray')
+                                
+                                # 2. Add a searchSourcepartvendorproduct version that follows the same pattern as other searches
+                                # Only if there is a valid product in the CPE
+                                if cpe_attributes['product'] != '*':
+                                    part = cpe_attributes['part']  # Preserve the part from the CPE
+                                    vendor = cpe_attributes['vendor']  # Preserve the vendor from the CPE
+                                    product = "*" + cpe_attributes['product'] + "*"  # Add wildcards like other searches
+                                    version = "*"
+                                    update = "*"
+                                    edition = "*"
+                                    lang = "*"
+                                    swEdition = "*"
+                                    targetSW = "*"
+                                    targetHW = "*"
+                                    other = "*"
+
+                                    # Build a CPE Search String with wildcarded product
+                                    wildcarded_match_string = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                                    
+                                    # Add this search string if it's not already in the list
+                                    if wildcarded_match_string not in cpeBaseStrings:
+                                        cpeBaseStrings.append(wildcarded_match_string)
 
                 # Update the cpeBaseStrings in platformEntryMetadata instead of as a separate column
                 rawDataset.at[index, 'platformEntryMetadata']['cpeBaseStrings'] = cpeBaseStrings
+
+                # Store curation tracking in metadata if any changes were found
+                has_curations = any(curation_tracking.values())
+                if has_curations:
+                    rawDataset.at[index, 'platformEntryMetadata']['cpeCurationTracking'] = curation_tracking
             
             # Generate unique string list for API queries using the updated deriveCPEMatchStringList
             uniqueStringList = deriveCPEMatchStringList(rawDataset)
@@ -907,9 +1099,22 @@ def formatFor23CPE(rawAttribute):
 def curateCPEAttributes(case, attributeString1, attributeString2):
     match case:
         case 'vendor':
+            # Store original value before curation
+            originalAttribute = attributeString1
+            
             # Vendor Aliases
             if ("apache_software_foundation") in attributeString1:
                 attributeString1 = attributeString1.replace("apache_software_foundation", "apache")
+                
+            # Remove "inc" and preceding spaces from the end of vendor names
+            attributeString1 = re.sub(r'[\s_]+inc$', '', attributeString1)
+            
+            # Also handle variations like "inc." with a period
+            attributeString1 = re.sub(r'[\s_]+inc\.$', '', attributeString1)
+            attributeString1 = re.sub(r'[\s_]+inc\\\.$', '', attributeString1)  # Handle escaped period
+            
+            # Clean up trailing underscores that might be left
+            attributeString1 = attributeString1.rstrip('_')
 
             return (attributeString1)
 
@@ -995,6 +1200,31 @@ def curateCPEAttributes(case, attributeString1, attributeString2):
             attributeString2 = attributeString2.rstrip('_')
             
             return attributeString2
+
+        case 'platform':
+            # New case to handle platform data curation
+            originalPlatform = attributeString1
+            
+            # Map common platform designations to CPE targetHW values
+            platform_mappings = {
+                'x86': 'x86',
+                'x86_64': 'x64',
+                'x64': 'x64',
+                'arm': 'arm',
+                'arm64': 'arm64',
+                '32-bit': 'x86',
+                '64-bit': 'x64',
+            }
+            
+            # Try to match the platform to known values (case-insensitive)
+            platform_lower = attributeString1.lower() if isinstance(attributeString1, str) else ""
+            for key, value in platform_mappings.items():
+                if key in platform_lower:
+                    # Return the mapped value and True to indicate successful mapping
+                    return (value, True)
+                    
+            # If no match is found, return original and False flag
+            return (originalPlatform, False)
             
 # Build a CPE Search string from a cpeBreakout based on type desired
 def constructSearchString(rawBreakout, constructType):

@@ -87,9 +87,9 @@ def setOperationMode(modeSetting):
                     index=False
                 )
 
-                vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
+                # vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
                 # Put all the html together into a main console view
-                allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, targetCve, vdbIntelHtml)
+                allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, targetCve)
 
                 # Create html file for CVE, write to it,
                 sub_directory = Path(f"{os.getcwd()}{os.sep}analysis_tool_files")
@@ -189,9 +189,9 @@ def setOperationMode(modeSetting):
                         index=False
                     )
 
-                    vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
+                    # vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
                     # Put all the html together into a main console view
-                    allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, targetCve, vdbIntelHtml)
+                    allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, targetCve)
 
                     # Create html file for CVE, write to it,
                     sub_directory = Path(f"{os.getcwd()}{os.sep}analysis_tool_files")

@@ -143,3 +143,31 @@ table.dataframe td:last-child {
     background-color: #e0a800; /* darker warning color on hover */
     transform: scale(1.05);
 }
+
+/* Custom purple badge type for source data concerns */
+.badge.bg-sourceDataConcern {
+    background-color: #8e44ad !important; /* Deep purple color */
+    color: #fff;
+    display: inline-block;
+    padding: 0.25em 0.6em;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25rem;
+    transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+}
+
+/* Hover effect */
+.badge.bg-sourceDataConcern:hover {
+    background-color: #7d3c98 !important; /* Slightly darker purple on hover */
+    cursor: help;
+}
+
+/* Focus state for accessibility */
+.badge.bg-sourceDataConcern:focus {
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(142, 68, 173, 0.25);
+}
