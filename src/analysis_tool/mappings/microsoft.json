@@ -1,0 +1,103 @@
+{
+    "cnaId": "6abe59d8-c742-4dff-8ce8-9b0ca1073da8",
+    "confirmedMappings": [
+        {
+            "cpebasestring": "cpe:2.3:o:microsoft:windows_10_1809:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 version 1809"
+                },
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 1809"
+                }
+            ]
+        },
+        {
+            "cpebasestring": "cpe:2.3:o:microsoft:windows_10_1809:*:*:*:*:*:*:x64:*",
+            "aliases":[
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 1809",
+                    "platform": "x64"
+                },
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 1809",
+                    "platform": "64-bit"
+                },
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 1809",
+                    "platform": "x64-based systems"
+                },
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 version 1809",
+                    "platform": "x64"
+                },
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 version 1809",
+                    "platform": "64-bit"
+                },
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 version 1809",
+                    "platform": "x64-based systems"
+                }
+            ]
+        },
+        {
+            "cpebasestring": "cpe:2.3:o:microsoft:windows_10_1809:*:*:*:*:*:*:x86:*",
+            "aliases":[
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 1809",
+                    "platform": "x86"
+                },
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 1809",
+                    "platform": "32-bit"
+                },
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 1809",
+                    "platform": "32-bit systems"
+                },
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 version 1809",
+                    "platform": "x86"
+                },
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 version 1809",
+                    "platform": "32-bit"
+                },
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 version 1809",
+                    "platform": "32-bit systems"
+                }
+            ]
+        },
+        {
+            "cpebasestring": "cpe:2.3:o:microsoft:windows_10_1809:*:*:*:*:*:*:arm64:*",
+            "aliases":[
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 1809",
+                    "platform": "arm64"
+                },
+                {
+                    "vendor": "microsoft",
+                    "product": "windows 10 1809",
+                    "platform": "arm64-based systems"
+                }
+            ]
+        }
+    ]
+}

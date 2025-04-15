@@ -92,7 +92,7 @@ def setOperationMode(modeSetting):
                 allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, targetCve)
 
                 # Create html file for CVE, write to it,
-                sub_directory = Path(f"{os.getcwd()}{os.sep}analysis_tool_files")
+                sub_directory = Path(f"{os.getcwd()}{os.sep}generated_pages")
                 sub_directory.mkdir(parents=True, exist_ok=True)
                 filename = (targetCve + ".html")
                 filepath = sub_directory / filename
@@ -194,7 +194,7 @@ def setOperationMode(modeSetting):
                     allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, targetCve)
 
                     # Create html file for CVE, write to it,
-                    sub_directory = Path(f"{os.getcwd()}{os.sep}analysis_tool_files")
+                    sub_directory = Path(f"{os.getcwd()}{os.sep}generated_pages")
                     sub_directory.mkdir(parents=True, exist_ok=True)
                     filename = (targetCve + ".html")
                     filepath = sub_directory / filename

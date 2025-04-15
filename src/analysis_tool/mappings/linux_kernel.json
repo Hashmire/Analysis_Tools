@@ -1,0 +1,14 @@
+{
+    "cnaId": "416baaa9-dc9f-4396-8d5f-8c081fb06d67",
+    "confirmedMappings": [
+        {
+            "cpeBaseString": "cpe:2.3:o:linux:linux_kernel:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "linux",
+                    "product": "linux"
+                }
+            ]
+        }
+    ]
+}
