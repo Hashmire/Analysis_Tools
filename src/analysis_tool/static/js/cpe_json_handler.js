@@ -794,20 +794,21 @@ function calculateAndAddStatistics(json, selectedRows, rawPlatformData, metadata
  */
 function generateAllConfigurationsJson() {
     try {
-        // Create master JSON with all configurations
+        // Create master JSON with proper structure
         const masterJson = {
-            // Add the timestamp directly here, at the top level
-            "generatorTimestamp": window.timestampHandler ? window.timestampHandler.getTimestamp() : new Date().toISOString(),
-            "configurations": []
+            "generatorTimestamp": window.timestampHandler ? 
+                window.timestampHandler.getTimestamp() : new Date().toISOString(),
+            "configurations": []  // Direct array - each entry will be an object with a nodes array
         };
         
-        // Add each table's configuration as a separate node in the configurations array
+        // Add each table's configuration as a separate configuration entry
         consolidatedJsons.forEach((json, tableId) => {
-            if (json && json.configurations && json.configurations.length > 0) {
-                // Each configuration from a table should retain its generatorData
+            if (json && json.configurations && Array.isArray(json.configurations)) {
+                // Each configuration becomes its own entry with a nodes array
                 json.configurations.forEach(config => {
-                    // Ensure the generatorData structure is preserved
-                    masterJson.configurations.push(config);
+                    masterJson.configurations.push({
+                        "nodes": [config]  // Wrap each config in a nodes array
+                    });
                 });
             }
         });
@@ -815,10 +816,10 @@ function generateAllConfigurationsJson() {
         return masterJson;
     } catch(e) {
         console.error("Error generating all configurations JSON:", e);
-        // Even in case of error, include the timestamp
         return { 
-            "generatorTimestamp": window.timestampHandler ? window.timestampHandler.getTimestamp() : new Date().toISOString(),
-            "configurations": [] 
+            "generatorTimestamp": window.timestampHandler ? 
+                window.timestampHandler.getTimestamp() : new Date().toISOString(),
+            "configurations": []  // Direct array, not an object with a nodes property
         };
     }
 }
