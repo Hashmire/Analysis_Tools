@@ -570,8 +570,9 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
     
     return result_df
 
-# Builds a simple html page with Bootstrap styling
-def buildHTMLPage(affectedHtml, targetCve, vdbIntelHtml=None):
+# Modify the buildHTMLPage function to accept and include globalCVEMetadata
+
+def buildHTMLPage(affectedHtml, targetCve, globalCVEMetadata=None, vdbIntelHtml=None,):
     
     # Generate UTC timestamp for the page creation
     utc_timestamp = datetime.datetime.utcnow().isoformat() + "Z"
@@ -605,12 +606,29 @@ def buildHTMLPage(affectedHtml, targetCve, vdbIntelHtml=None):
     </head>
     <body>
     """
+    
+    # Add the hidden div for globalCVEMetadata if provided
+    globalCVEMetadataHTML = ""
+    if globalCVEMetadata is not None:
+        # Encode the JSON data and escape any HTML special characters
+        global_metadata_json = json.dumps(globalCVEMetadata, cls=CustomJSONEncoder)
+        escaped_metadata = html.escape(global_metadata_json)
+        
+        # Create hidden div with the data attribute
+        globalCVEMetadataHTML = f"""
+        <!-- Hidden div containing global CVE metadata for Provenance Assistance -->
+        <div id="global-cve-metadata" style="display:none;" data-cve-metadata='{escaped_metadata}'></div>
+        """
+    
     pageBodyHeaderHTML = f"""
     <!-- Tool Info Header -->
     <div class="header" style="margin-left: 10px;">
         <h1>NVD Analysis Intelligence Tool <small>{TOOLNAME} version: {VERSION}</small></h1>
     </div>
+    {globalCVEMetadataHTML}
     """
+    
+    # Rest of the function remains unchanged
     pageBodyTabsHTML = """
     <!-- Tab links -->
     <div class="tab">

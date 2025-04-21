@@ -898,8 +898,42 @@ def processCVEData(dataframe, cveRecordData):
     
     row_index = len(result_df)
     
+    # Create global CVE metadata to store information that applies to the entire CVE
+    global_cve_metadata = {
+        'cveId': cveRecordData.get('cveMetadata', {}).get('cveId', ''),
+        'descriptionData': []
+    }
+    
     if 'containers' in cveRecordData:
-        # Process each container type
+        # First, collect all descriptions from both CNA and ADP
+        for container_type in ['cna', 'adp']:
+            if container_type == 'cna' and 'cna' in cveRecordData['containers']:
+                containers = [cveRecordData['containers']['cna']]
+            elif container_type == 'adp' and 'adp' in cveRecordData.get('containers', {}):
+                containers = cveRecordData['containers']['adp']
+            else:
+                continue
+                
+            for container in containers:
+                source_id = container.get('providerMetadata', {}).get('orgId', 'Unknown')
+                source_role = container_type.upper()
+                
+                # Extract descriptions for Provenance Assistance
+                if 'descriptions' in container:
+                    description_data = {
+                        'sourceId': source_id,
+                        'sourceRole': source_role,
+                        'descriptions': [
+                            {'lang': desc.get('lang', ''), 'value': desc.get('value', '')}
+                            for desc in container['descriptions']
+                            if 'lang' in desc and 'value' in desc
+                        ]
+                    }
+                    
+                    # Add to global CVE metadata
+                    global_cve_metadata['descriptionData'].append(description_data)
+        
+        # Now process affected entries and add rows to dataframe
         for container_type in ['cna', 'adp']:
             if container_type == 'cna' and 'cna' in cveRecordData['containers']:
                 containers = [cveRecordData['containers']['cna']]
@@ -966,11 +1000,11 @@ def processCVEData(dataframe, cveRecordData):
                             # First occurrence of this product key
                             product_key_to_row_indices[product_key] = [row_index]
                         
-                        # Append to dataframe (always keep all rows)
+                        # Append to dataframe
                         result_df = pd.concat([result_df, pd.DataFrame([new_row])], ignore_index=True)
                         row_index += 1
     
-    return result_df
+    return result_df, global_cve_metadata
 
 def processNVDRecordData(dataframe, nvdRecordData):
     """Process NVD Record Data to extract platform-related information"""

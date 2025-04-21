@@ -49,8 +49,8 @@ def setOperationMode(modeSetting):
                 cveRecordData = gatherData.gatherCVEListRecord(targetCve)
                 nvdRecordData = gatherData.gatherNVDCVERecord(nvdAPIKey, targetCve)
 
-                # Process the vulnerability record data to extract useful platform related information
-                primaryDataframe = processData.processCVEData(primaryDataframe, cveRecordData)             
+                # Process the vulnerability record data to extract useful information
+                primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData)             
                 primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
 
                 # Based on the collected information, use the NVD API to gather relevant CPE data
@@ -89,7 +89,7 @@ def setOperationMode(modeSetting):
 
                 # vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
                 # Put all the html together into a main console view
-                allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, targetCve)
+                allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, targetCve, globalCVEMetadata)
 
                 # Create html file for CVE, write to it,
                 sub_directory = Path(f"{os.getcwd()}{os.sep}generated_pages")
@@ -152,7 +152,7 @@ def setOperationMode(modeSetting):
                     nvdRecordData = gatherData.gatherNVDCVERecord(nvdAPIKey, targetCve)
 
                     # Process the vulnerability record data to extract useful platform related information
-                    primaryDataframe = processData.processCVEData(primaryDataframe, cveRecordData)             
+                    primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData)             
                     primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
                     
                     # Based on the collected information, use the NVD API to gather relevant CPE data
@@ -191,7 +191,7 @@ def setOperationMode(modeSetting):
 
                     # vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
                     # Put all the html together into a main console view
-                    allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, targetCve)
+                    allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, targetCve, globalCVEMetadata)
 
                     # Create html file for CVE, write to it,
                     sub_directory = Path(f"{os.getcwd()}{os.sep}generated_pages")
