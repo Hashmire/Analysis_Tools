@@ -142,13 +142,18 @@ function toggleDescription(button) {
     
     const description = source.descriptions[descIndex];
     
-    // Show the description - trim text to remove leading spaces
+    // Simple approach - just replace newlines with <br> tags
+    const displayText = description.value ? 
+        description.value.replace(/\n/g, '<br>') : 
+        "(No description provided)";
+    
+    // Show the description
     contentArea.innerHTML = `
         <h6 class="mb-3 text-muted">
             ${source.sourceRole}: ${source.sourceId} (${description.lang})
         </h6>
         <div class="description-text">
-            ${description.value.trim().replace(/\n\s*/g, '<br>')}
+            ${displayText}
         </div>
     `;
     
