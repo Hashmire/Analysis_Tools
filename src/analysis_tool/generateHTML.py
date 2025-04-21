@@ -562,8 +562,19 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
         # Create the main HTML div with all data attributes and a unique ID
         if ('trimmedCPEsQueryData' in row):
             sortedCPEsQueryData = row['trimmedCPEsQueryData'] 
+            
+            # Determine if matches table is empty to decide if provenance div should be expanded
+            has_matches = bool(sortedCPEsQueryData)
+            
             attr_string = " ".join(data_attrs)
             html_content = f"""<div id="cpe-query-container-{index}" class="cpe-query-container" {attr_string}>"""
+            
+            # Add provenance assistance div ABOVE the matches table
+            # Expand it by default if there are no matches
+            provenance_div = create_provenance_assistance_div(index, collapsed=has_matches)
+            html_content += provenance_div
+            
+            # Add the matches table after the provenance div
             html_content += convertCPEsQueryDataToHTML(sortedCPEsQueryData, index)
             html_content += "</div>"  # Close the container div
             result_df.at[index, 'cpeQueryHTML'] = html_content
@@ -753,3 +764,44 @@ def strings_were_curated(original, curated):
     original = original.rstrip('_')
     curated = curated.rstrip('_')
     return original != curated
+
+def create_provenance_assistance_div(index, collapsed=True):
+    """Creates a collapsible div for Provenance Assistance
+    
+    Args:
+        index: The row index for unique IDs
+        collapsed: Whether the div should be collapsed by default
+    """
+    collapse_class = "collapse" if collapsed else "collapse show"
+    arrow_direction = "down" if collapsed else "up"
+    
+    html = f"""
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center" 
+             id="provenanceHeader_{index}" 
+             data-bs-toggle="collapse" 
+             data-bs-target="#provenanceCollapse_{index}" 
+             style="cursor: pointer;">
+            <h5 class="mb-0">
+                Provenance Assistance
+            </h5>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" 
+                 class="bi bi-chevron-{arrow_direction}" viewBox="0 0 16 16">
+                <path fill-rule="evenodd" 
+                      d="M1.646 {4 if arrow_direction == 'down' else 11}.646a.5.5 0 0 1 .708 0L8 {10.293 if arrow_direction == 'down' else 5.707}l5.646-{5.647 if arrow_direction == 'down' else 5.647}a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+            </svg>
+        </div>
+        <div id="provenanceCollapse_{index}" class="{collapse_class}" aria-labelledby="provenanceHeader_{index}">
+            <div class="card-body">
+                <div id="provenanceContent_{index}" class="provenance-content">
+                    <!-- Provenance content will be populated by JavaScript -->
+                    <div class="placeholder-content">
+                        Provenance information will be loaded here...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+    
+    return html.replace('\n', '')

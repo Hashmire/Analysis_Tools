@@ -171,3 +171,24 @@ table.dataframe td:last-child {
     outline: 0;
     box-shadow: 0 0 0 0.2rem rgba(142, 68, 173, 0.25);
 }
+
+/* Provenance Assistance Styles */
+.provenance-content {
+    font-size: 0.9rem;
+}
+
+.btn-link {
+    text-decoration: none;
+    color: #0d6efd;
+    padding: 0;
+}
+
+.btn-link:hover {
+    text-decoration: underline;
+    color: #0a58ca;
+}
+
+.placeholder-content {
+    color: #6c757d;
+    font-style: italic;
+}
