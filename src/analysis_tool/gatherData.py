@@ -72,6 +72,9 @@ def gatherNVDCVERecord(apiKey, targetCve):
             print(f"[ERROR] {timestamp} - Error fetching NVD CVE record data (Attempt {attempt + 1}/{max_retries}): {e}")
             print(f"Current public IP address: {public_ip}")
             
+            if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
+                print(f"[ERROR] NVD API Message: {e.response.headers['message']}")
+            
             if attempt < max_retries - 1:
                 print(f"Waiting 6 seconds before retry...")
                 sleep(6)
@@ -105,6 +108,9 @@ def gatherNVDSourceData(apiKey):
                 timestamp = get_utc_timestamp()
                 print(f"[ERROR] {timestamp} - Error fetching source data (Attempt {attempt + 1}/{max_retries}): {e}")
                 print(f"Current public IP address: {public_ip}")
+    
+                if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
+                    print(f"[ERROR] NVD API Message: {e.response.headers['message']}")
                 
                 if attempt < max_retries - 1:
                     print(f"Waiting 6 seconds before retry...")
@@ -149,6 +155,7 @@ def gatherNVDCPEData(apiKey, case, query_string):
                    
                     response = requests.get(nvd_cpes_url, params=initial_params, headers=headers)
                     response.raise_for_status()
+                    
                     initial_data = response.json()
                    
                     total_results = initial_data.get("totalResults", 0)
@@ -182,6 +189,7 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                
                                 response = requests.get(nvd_cpes_url, params=params, headers=headers)
                                 response.raise_for_status()
+                                
                                 page_data = response.json()
                                
                                 # Add products from this page to consolidated results
@@ -201,6 +209,10 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                 print(f"[ERROR] {timestamp} - Error fetching page data (Attempt {page_attempt + 1}/{max_retries}): {e}")
                                 print(f"Current public IP address: {public_ip}")
                                 
+                                # Check for message header and display if present - error response
+                                if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
+                                    print(f"[ERROR] NVD API Message: {e.response.headers['message']}")
+                                
                                 if page_attempt < max_retries - 1:
                                     print(f"Waiting 6 seconds before retry...")
                                     sleep(6)
@@ -219,6 +231,10 @@ def gatherNVDCPEData(apiKey, case, query_string):
                     timestamp = get_utc_timestamp()
                     print(f"[ERROR] {timestamp} - Error fetching data (Attempt {attempt + 1}/{max_retries}): {e}")
                     print(f"Current public IP address: {public_ip}")
+                    
+                    # Check for message header and display if present - error response
+                    if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
+                        print(f"[ERROR] NVD API Message: {e.response.headers['message']}")
                     
                     if attempt < max_retries - 1:
                         print(f"Waiting 6 seconds before retry...")
