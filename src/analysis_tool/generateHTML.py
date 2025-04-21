@@ -186,7 +186,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
 
     # 7. Add Platform Data Concern badge if needed - UPDATED TO USE CUSTOM STYLE
     if platform_metadata.get('platformDataConcern', False):
-        platform_tooltip = 'Platforms array data was not able to be mapped to any known target hardware values'
+        platform_tooltip = 'Unexpected Platforms data detected in affected entry'
         sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{platform_tooltip}">Platforms Data Concern</span> ')
 
     # 8. Add Versions Data Concern badge for improper version formatting
@@ -776,7 +776,7 @@ def create_provenance_assistance_div(index, collapsed=True):
     """
     collapse_class = "collapse" if collapsed else "collapse show"
     
-    # Use simple HTML arrows instead of Bootstrap icons
+    # Use simple HTML arrows
     arrow_icon = "▼" if collapsed else "▲"
     
     html = f"""
@@ -793,9 +793,17 @@ def create_provenance_assistance_div(index, collapsed=True):
         </div>
         <div id="provenanceCollapse_{index}" class="{collapse_class}" aria-labelledby="provenanceHeader_{index}">
             <div class="card-body">
-                <!-- Description buttons will be horizontally aligned -->
-                <div id="descriptionButtons_{index}" class="description-buttons mb-3 d-flex flex-wrap gap-2">
-                    <!-- Buttons will be populated via JavaScript -->
+                <!-- Main container for all provenance elements -->
+                <div class="d-flex flex-row flex-wrap gap-3">
+                    <!-- Provenance links -->
+                    <div id="provenanceLinks_{index}" class="provenance-links">
+                        <!-- Link cards will be populated via JavaScript -->
+                    </div>
+                    
+                    <!-- Description buttons -->
+                    <div id="descriptionButtons_{index}" class="description-buttons">
+                        <!-- Buttons will be populated via JavaScript -->
+                    </div>
                 </div>
                 
                 <!-- Dedicated area for displaying description content -->
