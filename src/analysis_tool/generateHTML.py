@@ -507,7 +507,8 @@ def getCPEJsonScript() -> str:
         os.path.join(current_dir, "static", "js", "cpe_json_handler.js"),
         os.path.join(current_dir, "static", "js", "ui_controller.js"),
         os.path.join(current_dir, "static", "js", "selection_manager.js"),
-        os.path.join(current_dir, "static", "js", "timestamp_handler.js")  # Add the new file
+        os.path.join(current_dir, "static", "js", "timestamp_handler.js"),
+        os.path.join(current_dir, "static", "js", "provenance_assistance.js")
     ]
     
     # Read JavaScript files
@@ -570,7 +571,6 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
             html_content = f"""<div id="cpe-query-container-{index}" class="cpe-query-container" {attr_string}>"""
             
             # Add provenance assistance div ABOVE the matches table
-            # Expand it by default if there are no matches
             provenance_div = create_provenance_assistance_div(index, collapsed=has_matches)
             html_content += provenance_div
             
@@ -793,11 +793,14 @@ def create_provenance_assistance_div(index, collapsed=True):
         </div>
         <div id="provenanceCollapse_{index}" class="{collapse_class}" aria-labelledby="provenanceHeader_{index}">
             <div class="card-body">
-                <div id="provenanceContent_{index}" class="provenance-content">
-                    <!-- Provenance content will be populated by JavaScript -->
-                    <div class="placeholder-content">
-                        Provenance information will be loaded here...
-                    </div>
+                <!-- Description buttons will be horizontally aligned -->
+                <div id="descriptionButtons_{index}" class="description-buttons mb-3 d-flex flex-wrap gap-2">
+                    <!-- Buttons will be populated via JavaScript -->
+                </div>
+                
+                <!-- Dedicated area for displaying description content -->
+                <div id="descriptionContent_{index}" class="description-content mt-3 border-top pt-3" style="display: none;">
+                    <!-- Description content will be populated here when a button is clicked -->
                 </div>
             </div>
         </div>
