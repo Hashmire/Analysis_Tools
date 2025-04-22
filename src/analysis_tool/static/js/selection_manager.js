@@ -37,95 +37,73 @@ function toggleRowCollapse(tableIndex) {
         const matchesTable = document.getElementById(`matchesTable_${tableIndex}`);
         const jsonContainer = document.querySelector(`.consolidated-json-container[data-index="${tableIndex}"]`);
         const collapseButton = document.getElementById(`collapseRowButton_${tableIndex}`);
-        const tableId = `matchesTable_${tableIndex}`; 
+        const tableId = `matchesTable_${tableIndex}`;
         
-        // Define isCollapsed variable outside the if block
-        let isCollapsed = false;
+        // Add transition classes to elements
+        if (rowDataTable) rowDataTable.classList.add('row-transition');
+        if (matchesTable) matchesTable.classList.add('row-transition');
+        if (collapseButton) collapseButton.classList.add('btn-transition');
         
         if (rowDataTable && matchesTable) {
-            // Toggle visibility for tables
-            isCollapsed = rowDataTable.classList.toggle('d-none');
-            matchesTable.classList.toggle('d-none');
+            // Toggle display with existing logic
+            const isCollapsed = rowDataTable.classList.contains('d-none');
             
-            // Always ensure the JSON container is in the right place
-            // regardless of collapsed state
-            if (jsonContainer && collapseButton) {
-                // Get the parent of the collapse button
-                const buttonParent = collapseButton.parentNode;
+            if (isCollapsed) {
+                // Expand row
+                rowDataTable.classList.remove('d-none');
+                matchesTable.classList.remove('d-none');
+            } else {
+                // Collapse row
+                rowDataTable.classList.add('d-none');
+                matchesTable.classList.add('d-none');
+            }
+            
+            // Update button styling with transition
+            if (collapseButton) {
+                // Updated state is opposite of what it was before
+                const newIsCollapsed = !isCollapsed;
+                collapseButton.textContent = newIsCollapsed ? 'Expand Row (Completed)' : 'Collapse Row (Mark Complete)';
                 
-                // Always move the JSON container to be adjacent to the button
-                buttonParent.parentNode.insertBefore(jsonContainer, buttonParent.nextSibling);
-                
-                // Add some spacing for better visual separation
-                jsonContainer.classList.add('mt-2');
-                
-                // IMPORTANT: Update the consolidated JSON button to maintain selection count
-                const selectedRows = tableSelections.get(tableId);
-                const selectionCount = selectedRows ? selectedRows.size : 0;
-                
-                // Find the consolidated JSON button
-                const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
-                const altShowButton = document.getElementById(`showConsolidatedJson_matchesTable_${tableIndex}`);
-                const buttonToUpdate = showButton || altShowButton;
-                
-                // Update the button text to maintain selection count
-                if (buttonToUpdate) {
-                    // Check if display is visible
-                    const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
-                    const isVisible = display && display.style.display !== 'none';
-                    
-                    // ADDED: Make sure we're seeing consistent behavior between the display and button
-                    if (isVisible && display.style.display !== 'block') {
-                        display.style.display = 'block';
-                    }
-                    
-                    if (selectionCount > 0) {
-                        buttonToUpdate.textContent = isVisible 
-                            ? `Hide Consolidated JSON (${selectionCount} selected)` 
-                            : `Show Consolidated JSON (${selectionCount} selected)`;
-                    } else {
-                        buttonToUpdate.textContent = isVisible 
-                            ? `Hide Consolidated JSON` 
-                            : `Show Consolidated JSON`;
-                    }
-                    
-                    // ADDED: Ensure button styling matches display state
-                    if (isVisible) {
-                        buttonToUpdate.classList.remove('btn-primary');
-                        buttonToUpdate.classList.add('btn-success');
-                    } else {
-                        buttonToUpdate.classList.remove('btn-success');
-                        buttonToUpdate.classList.add('btn-primary');
+                if (newIsCollapsed) {
+                    collapseButton.classList.remove('btn-secondary');
+                    collapseButton.classList.add('btn-success');
+                } else {
+                    collapseButton.classList.remove('btn-success');
+                    collapseButton.classList.add('btn-secondary');
+                }
+            }
+            
+            // Remove the call to updateWorkingStateUI since it's not defined
+            // Instead, handle the essential functionality directly:
+            const selectedRows = window.tableSelections ? window.tableSelections.get(tableId) : null;
+            const selectionCount = selectedRows ? selectedRows.size : 0;
+            
+            // Update JSON button state if needed
+            const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
+            if (showButton) {
+                showButton.disabled = selectionCount === 0;
+            }
+            
+            // Show or hide the JSON container based on table state
+            if (jsonContainer) {
+                if (!isCollapsed) { // We're collapsing the table, hide the JSON
+                    const jsonDisplay = document.getElementById(`consolidatedJsonDisplay_${tableIndex}`);
+                    if (jsonDisplay && jsonDisplay.style.display !== 'none') {
+                        // Only hide if it's defined in the global scope
+                        if (typeof toggleConsolidatedJson === 'function') {
+                            toggleConsolidatedJson(tableId);
+                        } else if (window.toggleConsolidatedJson) {
+                            window.toggleConsolidatedJson(tableId);
+                        }
                     }
                 }
-                
-                // Also update the display content if it's visible
-                updateJsonDisplayIfVisible(tableId);
             }
             
-            // Update button text
-            if (collapseButton) {
-                collapseButton.textContent = isCollapsed ? 'Expand Row (Completed)' : 'Collapse Row (Mark Complete)';
-                collapseButton.classList.toggle('btn-success', isCollapsed);
-                collapseButton.classList.toggle('btn-secondary', !isCollapsed);
+            // If these functions are defined, call them
+            if (typeof preserveJsonDisplayState === 'function') {
+                preserveJsonDisplayState(tableIndex);
             }
         }
-        // Define variables before using them in console.debug
-        const selectedRows = tableSelections.get(tableId) || new Set();
-        const selectionCount = selectedRows.size;
-        
-        // Get display visibility state
-        const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
-        const isVisible = display && display.style.display !== 'none';
-        
-        console.debug(`Table ${tableId} collapsed: ${isCollapsed}, Selection count: ${selectionCount}, JSON visible: ${isVisible}`);
-        // Update the completion tracker
-        updateCompletionTracker();
-        // Update the export all configurations button text
-        updateExportAllButton();
-        
-        // Preserve JSON display state
-        preserveJsonDisplayState(tableIndex);
     } catch(e) {
         console.error(`Error in toggleRowCollapse for tableIndex ${tableIndex}:`, e);
     }
@@ -139,6 +117,39 @@ function initializeEventListeners() {
         // Find all matchesTables (there may be multiple)
         const tables = document.querySelectorAll('table[id^="matchesTable"]');
         
+        // Add transition class to all tables
+        tables.forEach((table, tableIndex) => {
+            // Add transition class to the matches table
+            if (!table.classList.contains('row-transition')) {
+                table.classList.add('row-transition');
+            }
+            
+            // Add transition class to the corresponding row data table
+            const rowDataTable = document.getElementById(`rowDataTable_${tableIndex}`);
+            if (rowDataTable && !rowDataTable.classList.contains('row-transition')) {
+                rowDataTable.classList.add('row-transition');
+            }
+        });
+        
+        // Handling of the JSON display toggle - Fix for 'display is not defined' error
+        document.querySelectorAll('[id^="showConsolidatedJson_"]').forEach(button => {
+            if (button) {
+                button.addEventListener('click', function() {
+                    try {
+                        const tableId = this.id.replace('showConsolidatedJson_', '');
+                        const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
+                        
+                        if (display) {
+
+                            const isVisible = display.style.display !== 'none';
+                        }
+                    } catch(e) {
+                        console.error(`Error handling button click:`, e);
+                    }
+                });
+            }
+        });
+        
         // Add a master "Export All Configurations" button at the top of cveListCPESuggester
         const cveListCPESuggester = document.getElementById('cveListCPESuggester');
         
@@ -146,8 +157,6 @@ function initializeEventListeners() {
         if (typeof scanForGitVersionTypes === 'function') {
             scanForGitVersionTypes();
         }
-        
-        // ... existing initialization code ...
         
         if (cveListCPESuggester) {
             // Create the Export All container at the beginning
@@ -190,12 +199,48 @@ function initializeEventListeners() {
                     }
                     
                     // Toggle display
-                    display.style.display = display.style.display === 'none' ? 'block' : 'none';
+                    const isVisible = display.style.display !== 'none';
+                    if (isVisible) {
+                        // Prepare to hide
+                        display.style.opacity = '0';
+                        display.style.maxHeight = '0';
+                        
+                        setTimeout(() => {
+                            display.style.display = 'none';
+                        }, 300);
+                    } else {
+                        // Prepare to show
+                        display.style.display = 'block';
+                        display.style.opacity = '0';
+                        display.style.maxHeight = '0';
+                        
+                        setTimeout(() => {
+                            display.style.opacity = '1';
+                            display.style.maxHeight = display.scrollHeight + 'px';
+                        }, 10);
+                    }
                     
                     // Update the button text to reflect current state (without configuration details)
-                    this.textContent = display.style.display === 'none' ? 'Show All Configurations' : 'Hide All Configurations';
+                    this.textContent = isVisible ? 'Show All Configurations' : 'Hide All Configurations';
+                    
+                    // Toggle button styling with transition
+                    if (isVisible) {
+                        this.classList.remove('btn-success');
+                        this.classList.add('btn-danger');
+                    } else {
+                        this.classList.remove('btn-danger');
+                        this.classList.add('btn-success');
+                    }
                 }
             });
+            
+            // Add transition class to Export All button
+            const exportButton = document.getElementById('exportAllConfigurations');
+            if (exportButton) {
+                if (!exportButton.classList.contains('btn-transition')) {
+                    exportButton.classList.add('btn-transition');
+                }
+            }
             
             // Create a completion tracker container only if allContainer exists
             const completionTrackerContainer = document.createElement('div');
@@ -218,6 +263,11 @@ function initializeEventListeners() {
 
             // Initialize the completion tracker
             updateCompletionTracker();
+        }
+        // After creating allContainer
+        const allConfigurationsDisplay = document.getElementById('allConfigurationsDisplay');
+        if (allConfigurationsDisplay && !allConfigurationsDisplay.classList.contains('consolidated-json-container')) {
+            allConfigurationsDisplay.classList.add('consolidated-json-container');
         }
 
         // Initialize each table
@@ -263,6 +313,8 @@ function initializeEventListeners() {
             // Add a container for consolidated JSON right after this table
             const container = document.createElement('div');
             container.classList.add('consolidated-json-container', 'mt-3', 'mb-4', 'json-container');
+            // Add the transition class
+            container.classList.add('row-transition');
             container.setAttribute('data-index', tableIndex);
             container.innerHTML = `
                 <div id="consolidatedJsonDisplay_${tableId}" class="mt-3" style="display: none;">
@@ -278,6 +330,8 @@ function initializeEventListeners() {
             const jsonButton = document.createElement('button');
             jsonButton.id = `showConsolidatedJson_${tableId}`;
             jsonButton.className = 'btn btn-primary';
+            // Add the btn-transition class
+            jsonButton.classList.add('btn-transition');
             jsonButton.textContent = 'Show Consolidated JSON';
 
             // Find the button container and add the JSON button
@@ -285,7 +339,6 @@ function initializeEventListeners() {
             if (collapseButtonContainer) {
                 collapseButtonContainer.appendChild(jsonButton);
             }
-
             // Add click handler to the button - find it first since it's already in the DOM
             const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
             if (showButton) {
@@ -348,6 +401,11 @@ function initializeEventListeners() {
                     }
                 });
             }
+
+            // Also for any existing buttons that we find later:
+            if (showButton && !showButton.classList.contains('btn-transition')) {
+                showButton.classList.add('btn-transition');
+            }
         });
         
         // Initial update of Export All button visibility
@@ -406,3 +464,21 @@ function preserveJsonDisplayState(tableIndex) {
         buttonParent.parentNode.insertBefore(jsonContainer, buttonParent.nextSibling);
     }
 }
+
+// Add transition classes to elements when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Add transition classes to all tables
+    document.querySelectorAll('table[id^="rowDataTable_"], table[id^="matchesTable_"]').forEach(table => {
+        table.classList.add('row-transition');
+    });
+    
+    // Add transition class to buttons
+    document.querySelectorAll('[id^="collapseRowButton_"], [id^="showConsolidatedJson_"]').forEach(button => {
+        button.classList.add('btn-transition');
+    });
+    
+    // Add transition class to JSON containers
+    document.querySelectorAll('.consolidated-json-container, [id^="consolidatedJsonDisplay_"]').forEach(container => {
+        container.classList.add('consolidated-json-container');
+    });
+});

@@ -901,11 +901,12 @@ def processCVEData(dataframe, cveRecordData):
     # Create global CVE metadata to store information that applies to the entire CVE
     global_cve_metadata = {
         'cveId': cveRecordData.get('cveMetadata', {}).get('cveId', ''),
-        'descriptionData': []
+        'descriptionData': [],
+        'referencesData': []  # Add new array for references data
     }
     
     if 'containers' in cveRecordData:
-        # First, collect all descriptions from both CNA and ADP
+        # First, collect all descriptions and references from both CNA and ADP
         for container_type in ['cna', 'adp']:
             if container_type == 'cna' and 'cna' in cveRecordData['containers']:
                 containers = [cveRecordData['containers']['cna']]
@@ -932,6 +933,24 @@ def processCVEData(dataframe, cveRecordData):
                     
                     # Add to global CVE metadata
                     global_cve_metadata['descriptionData'].append(description_data)
+                
+                # Extract references data
+                if 'references' in container:
+                    references_data = {
+                        'sourceId': source_id,
+                        'sourceRole': source_role,
+                        'references': [
+                            {
+                                'url': ref.get('url', ''),
+                                'name': ref.get('name', ''),
+                                'tags': ref.get('tags', [])
+                            }
+                            for ref in container.get('references', [])
+                        ]
+                    }
+                    
+                    # Add to global CVE metadata
+                    global_cve_metadata['referencesData'].append(references_data)
         
         # Now process affected entries and add rows to dataframe
         for container_type in ['cna', 'adp']:

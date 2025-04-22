@@ -177,103 +177,7 @@ table.dataframe td:last-child {
     font-size: 0.9rem;
 }
 
-.btn-link {
-    text-decoration: none;
-    color: #0d6efd;
-    padding: 0;
-}
-
-.btn-link:hover {
-    text-decoration: underline;
-    color: #0a58ca;
-}
-
-.placeholder-content {
-    color: #6c757d;
-    font-style: italic;
-}
-
-.description-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-.description-button {
-    font-size: 0.85rem;
-    padding: 0.35rem 0.7rem;
-    text-align: center;
-    line-height: 1.2;
-}
-
-.description-button.active {
-    background-color: #0d6efd;
-    color: white;
-}
-
-.description-content {
-    background-color: #f8f9fa;
-    border-radius: 0.25rem;
-    padding: 1rem;
-    min-height: 100px;
-}
-
-.placeholder-text {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 80px;
-}
-
-.description-text {
-    white-space: pre-wrap;
-}
-
-/* Provenance Assistance Styles */
-.description-buttons {
-    display: flex;
-    flex-wrap: wrap;
-}
-
-.source-card {
-    min-width: 180px;
-    max-width: 250px;
-    background-color: #f8f9fa;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    height: auto;
-    display: flex;
-    flex-direction: column;
-}
-
-.source-card .card-header {
-    background-color: #e9ecef;
-    font-size: 0.85rem;
-    padding: 0.4rem 0.75rem;
-    height: 38px; /* Set fixed height for card headers */
-    display: flex;
-    align-items: center;
-}
-
-.source-card .card-body {
-    padding: 0.5rem;
-    flex: 1; /* Make card body take up remaining space */
-    display: flex;
-    flex-direction: column;
-    justify-content: center; /* Center content vertically */
-}
-
-.language-button {
-    font-size: 0.8rem;
-    padding: 0.2rem 0.5rem;
-    text-transform: uppercase;
-}
-
-.language-button.active {
-    background-color: #0d6efd;
-    color: white;
-    border-color: #0d6efd;
-}
-
+/* Description content area */
 .description-content {
     background-color: #f8f9fa;
     border-radius: 0.25rem;
@@ -287,6 +191,8 @@ table.dataframe td:last-child {
     justify-content: center;
     align-items: center;
     height: 80px;
+    color: #6c757d;
+    font-style: italic;
 }
 
 .description-text {
@@ -294,106 +200,140 @@ table.dataframe td:last-child {
     line-height: 1.5;
 }
 
-/* Provenance Link Cards */
-.link-card {
-    background-color: #f8f9fa;
-    min-width: 120px;
+/* Container styling for both types of cards */
+.provenance-links, 
+.description-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: stretch;
 }
 
-/* Provenance Card Styles */
+/* Card styling - unified for all provenance cards */
 .source-card {
     min-width: 180px;
-    max-width: 250px;
+    max-width: 300px;
     background-color: #f8f9fa;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     height: auto;
+    margin-right: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
     display: flex;
     flex-direction: column;
 }
 
+/* Card header styling */
 .source-card .card-header {
     background-color: #e9ecef;
     font-size: 0.85rem;
     padding: 0.4rem 0.75rem;
-    height: 38px; /* Set fixed height for card headers */
+    height: 38px;
     display: flex;
     align-items: center;
 }
 
+/* Card body styling */
 .source-card .card-body {
     padding: 0.5rem;
-    flex: 1; /* Make card body take up remaining space */
+    flex: 1;
     display: flex;
     flex-direction: column;
-    justify-content: center; /* Center content vertically */
 }
 
-.provenance-button, .language-button {
+/* Button styling - unified for all buttons */
+.language-button,
+.provenance-button {
     font-size: 0.8rem;
     padding: 0.2rem 0.5rem;
     transition: background-color 0.2s, color 0.2s;
     width: 100%;
     text-align: center;
-    white-space: normal;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    height: 30px; /* Fixed height for buttons */
+    margin-bottom: 0.5rem;
+    min-height: 30px;
+    height: auto;
 }
 
-/* Special case for collection URL card which has two buttons */
-.card-body.has-multiple-buttons {
-    justify-content: space-between;
+/* Remove margin from last button */
+.language-button:last-child,
+.provenance-button:last-child {
+    margin-bottom: 0;
 }
 
-.language-button, .provenance-button {
-    font-size: 0.8rem;
-    padding: 0.2rem 0.5rem;
-    transition: background-color 0.2s, color 0.2s;
-    width: 100%;
-    text-align: center;
-    white-space: normal;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.language-button:hover, .provenance-button:hover {
+/* Hover state for buttons */
+.language-button:hover,
+.provenance-button:hover {
     background-color: #0d6efd;
     color: white;
     border-color: #0d6efd;
 }
 
+/* Active state for language buttons */
 .language-button.active {
     background-color: #0d6efd;
     color: white;
     border-color: #0d6efd;
 }
 
-.provenance-links, .description-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: stretch; /* Make items stretch to match tallest */
+/* Specific layout for center-aligned buttons (single button cards) */
+.card-body.d-flex.align-items-center.justify-content-center {
+    justify-content: center;
 }
 
-/* Make card bodies more compact */
-.source-card .card-body {
+.card-body.d-flex.align-items-center.justify-content-center .language-button,
+.card-body.d-flex.align-items-center.justify-content-center .provenance-button {
+    margin-bottom: 0;
+}
+
+/* For cards with multiple buttons */
+.card-body.has-multiple-buttons {
+    justify-content: space-between;
     padding: 0.5rem;
+    gap: 0.5rem;
 }
 
-/* Ensure all buttons have consistent height */
-.btn-sm {
-    height: auto;
-    min-height: 30px;
-}
-
-/* Apply the same height to source cards where possible */
-.description-buttons .source-card {
+/* Make specific adjustments for reference tag cards to match description cards */
+#provenanceLinks_* .source-card,
+#descriptionButtons_* .source-card {
     height: 100%;
+    width: auto;
 }
 
-.provenance-links {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 0.75rem;
+/* Link button styles */
+.btn-link {
+    text-decoration: none;
+    color: #0d6efd;
+    padding: 0;
 }
+
+.btn-link:hover {
+    text-decoration: underline;
+    color: #0a58ca;
+}
+
+/* Transitions for row collapse and JSON toggle */
+.row-transition {
+    transition: opacity 0.3s ease, max-height 0.4s ease, transform 0.3s ease !important;
+    overflow: hidden;
+}
+
+.consolidated-json-container {
+    transition: opacity 0.3s ease, max-height 0.3s ease !important;
+    overflow: hidden;
+}
+
+/* Button transitions */
+.btn-transition {
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s !important;
+}
+
+/* Add this to your existing .collapsing class or use Bootstrap's */
+.collapsing {
+    position: relative;
+    height: 0;
+    overflow: hidden;
+    transition: height 0.35s ease;
+}
+

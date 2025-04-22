@@ -285,3 +285,66 @@ function preserveJsonDisplayState(tableIndex) {
         buttonParent.parentNode.insertBefore(jsonContainer, buttonParent.nextSibling);
     }
 }
+
+function toggleConsolidatedJson(tableId) {
+    try {
+        const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
+        const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
+        
+        if (!display || !showButton) return;
+        
+        const selectedRows = tableSelections.get(tableId);
+        const selectionCount = selectedRows ? selectedRows.size : 0;
+        
+        // Get the current visibility state
+        const isVisible = display.style.display === 'block' || display.style.display === '';
+        
+        // Implement proper transition
+        if (isVisible) {
+            // HIDE with transition
+            display.style.opacity = '1';
+            display.style.maxHeight = display.scrollHeight + 'px';
+            
+            // Start transition
+            setTimeout(() => {
+                display.style.opacity = '0';
+                display.style.maxHeight = '0';
+            }, 10);
+            
+            // After transition completes
+            setTimeout(() => {
+                display.style.display = 'none';
+                
+                // Update button
+                const statsStr = getStatisticsString(consolidatedJsons.get(tableId), selectionCount);
+                showButton.textContent = `Show Consolidated JSON (${statsStr})`;
+                showButton.classList.remove('btn-success');
+                showButton.classList.add('btn-primary');
+            }, 310); // Slightly longer than transition duration
+        } else {
+            // SHOW with transition
+            display.style.display = 'block';
+            display.style.opacity = '0';
+            display.style.maxHeight = '0';
+            
+            // Trigger transition
+            setTimeout(() => {
+                display.style.opacity = '1';
+                display.style.maxHeight = display.scrollHeight + 'px';
+                
+                // Update button
+                const statsStr = getStatisticsString(consolidatedJsons.get(tableId), selectionCount);
+                showButton.textContent = `Hide Consolidated JSON (${statsStr})`;
+                showButton.classList.remove('btn-primary');
+                showButton.classList.add('btn-success');
+            }, 10);
+        }
+        
+        // Update content when showing
+        if (!isVisible) {
+            updateJsonDisplayIfVisible(tableId);
+        }
+    } catch(e) {
+        console.error(`Error in toggleConsolidatedJson for tableId ${tableId}:`, e);
+    }
+}

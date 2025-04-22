@@ -68,7 +68,7 @@ function createDescriptionButtons(rowIndex) {
         if (source.descriptions.length === 1) {
             body.className = 'card-body py-2 px-2 d-flex align-items-center justify-content-center';
         } else {
-            body.className = 'card-body py-2 px-2 d-flex flex-wrap gap-1';
+            body.className = 'card-body py-2 px-2 d-flex flex-wrap gap-1 has-multiple-buttons';
         }
         
         // Create buttons for each language
@@ -165,7 +165,7 @@ function toggleDescription(button) {
 /**
  * Initialize all provenance assistance sections in the page
  */
-function initializeProvenanceAssistance() {
+function setupProvenanceStructure() {
     // Populate description buttons for each row
     const rows = document.querySelectorAll('.cpe-query-container');
     rows.forEach(row => {
@@ -309,5 +309,209 @@ function addLinkCard(container, label, url) {
     container.appendChild(card);
 }
 
-// Initialize when the DOM is loaded
-document.addEventListener('DOMContentLoaded', initializeProvenanceAssistance);
+// Initialize the provenance assistance module
+function processProvenanceMetadata() {
+    // Get global CVE metadata if available
+    const metadataContainer = document.getElementById('global-cve-metadata');
+    if (!metadataContainer) return;
+    
+    const metadataJson = metadataContainer.getAttribute('data-cve-metadata');
+    if (!metadataJson) return;
+    
+    try {
+        const metadata = JSON.parse(metadataJson);
+        
+        // Get all provenance containers in the document
+        const provenanceContainers = document.querySelectorAll('[id^="provenanceCollapse_"]');
+        provenanceContainers.forEach(container => {
+            // Get the index number from the container ID
+            const index = container.id.split('_')[1];
+            
+            // Process descriptions
+            if (metadata.descriptionData && metadata.descriptionData.length > 0) {
+                createDescriptionButtons(index);
+            }
+            
+            // Process references - new section
+            if (metadata.referencesData && metadata.referencesData.length > 0) {
+                createReferenceCards(index, metadata.referencesData);
+            }
+
+        });
+    } catch (error) {
+        console.error('Error processing provenance metadata:', error);
+    }
+}
+
+/**
+ * Create reference cards based on tags
+ * @param {number} rowIndex - The row index
+ * @param {Array} referencesData - Array of reference data objects
+ */
+function createReferenceCards(rowIndex, referencesData) {
+    console.debug("Creating reference cards for row", rowIndex);
+    console.debug("References data:", referencesData);
+    
+    // Target div where we'll add the reference cards
+    const referenceLinksContainer = document.getElementById(`provenanceLinks_${rowIndex}`);
+    if (!referenceLinksContainer) {
+        console.error(`Container provenanceLinks_${rowIndex} not found!`);
+        return;
+    }
+    
+    // Debug: Log ALL tags we find to see what's available
+    const allFoundTags = new Set();
+    referencesData.forEach(sourceData => {
+        (sourceData.references || []).forEach(reference => {
+            (reference.tags || []).forEach(tag => {
+                allFoundTags.add(tag);
+            });
+        });
+    });
+    console.debug("All available tags in the data:", Array.from(allFoundTags));
+    
+    // Define the tags we're interested in
+    const targetTags = ['patch', 'mitigation', 'product', 'issue-tracking'];
+    
+    // Group references by tag and URL (to handle duplicates)
+    const referencesByTag = {};
+    targetTags.forEach(tag => referencesByTag[tag] = new Map()); // Map to store by URL
+    
+    // Track if we found any references with our target tags
+    let foundTargetTagReferences = false;
+    
+    // Process all references from all sources
+    referencesData.forEach(sourceData => {
+        const sourceId = sourceData.sourceId || 'Unknown';
+        const sourceRole = sourceData.sourceRole || 'Unknown';
+        
+        // Process each reference in this source
+        (sourceData.references || []).forEach(reference => {
+            const url = reference.url;
+            const name = reference.name || url;
+            const tags = reference.tags || [];
+            
+            console.debug(`Processing reference: ${name}, tags:`, tags);
+            
+            // Only process references that have one of our target tags
+            tags.forEach(tag => {
+                if (targetTags.includes(tag) && url) {
+                    foundTargetTagReferences = true;
+                    // Create a unique key for the URL
+                    const urlKey = url.toLowerCase();
+                    
+                    // Check if we've seen this URL before for this tag
+                    if (referencesByTag[tag].has(urlKey)) {
+                        // Add this source to the existing reference
+                        const existingRef = referencesByTag[tag].get(urlKey);
+                        existingRef.sources.push({
+                            sourceId,
+                            sourceRole,
+                            tags: reference.tags || []
+                        });
+                    } else {
+                        // Create a new reference entry
+                        referencesByTag[tag].set(urlKey, {
+                            url,
+                            name,
+                            sources: [{
+                                sourceId,
+                                sourceRole,
+                                tags: reference.tags || []
+                            }]
+                        });
+                    }
+                }
+            });
+        });
+    });
+    
+    if (!foundTargetTagReferences) {
+        console.log("No references with patch, mitigation, product, or issue-tracking tags found for row ", rowIndex);
+        return;
+    }
+    
+    console.debug("References by tag:", referencesByTag);
+    
+    // Create a card for each tag that has references
+    targetTags.forEach(tag => {
+        const references = Array.from(referencesByTag[tag].values());
+        if (references.length === 0) return;
+        
+        console.debug(`Creating card for tag ${tag} with ${references.length} references`);
+        
+        // Create a source-card style card for consistency
+        const card = document.createElement('div');
+        card.className = 'card source-card me-2 mb-2';
+        
+        // Create the card header using the same style as other cards
+        const header = document.createElement('div');
+        header.className = 'card-header py-1';
+        
+        // Format the tag name for display (capitalize, replace hyphens)
+        const displayName = tag.charAt(0).toUpperCase() + tag.slice(1).replace('-', ' ');
+        header.innerHTML = `<strong>${displayName}</strong>`;
+        card.appendChild(header);
+        
+        // Create the card body with consistent styling
+        const body = document.createElement('div');
+        
+        if (references.length === 1) {
+            // If there's only one reference, use center alignment like repo cards
+            body.className = 'card-body py-2 px-2 d-flex align-items-center justify-content-center';
+        } else {
+            body.className = 'card-body py-2 px-2 d-flex flex-wrap gap-1';
+        }
+        
+        // Create buttons for each reference
+        references.forEach((ref, idx) => {
+            const button = document.createElement('button');
+            button.className = 'btn btn-sm btn-outline-secondary provenance-button';
+            
+            // Add margin to all but the last button if there are multiple
+            if (references.length > 1 && idx < references.length - 1) {
+                button.className += ' mb-2';
+            }
+            
+            // Truncate long names
+            const displayName = ref.name.length > 25 
+                ? ref.name.substring(0, 22) + '...' 
+                : ref.name;
+            
+            button.textContent = displayName;
+            button.onclick = function() {
+                window.open(ref.url, '_blank');
+            };
+            
+            // Create comprehensive tooltip with all info
+            let tooltip = '';
+            
+            // Add each source's information to the tooltip
+            ref.sources.forEach((source, i) => {
+                if (i > 0) tooltip += '\n\n'; // Add spacing between sources
+                
+                tooltip += `Source: ${source.sourceRole} (${source.sourceId})\n`;
+                tooltip += `Name: ${ref.name}\n`;
+                tooltip += `URL: ${ref.url}\n`;
+                
+                if (source.tags && source.tags.length > 0) {
+                    tooltip += `Tags: ${source.tags.join(', ')}`;
+                }
+            });
+            
+            button.title = tooltip;
+            body.appendChild(button);
+        });
+        
+        // Add the body to the card
+        card.appendChild(body);
+        referenceLinksContainer.appendChild(card);
+        console.debug(`Card for tag ${tag} added to container`);
+    });
+}
+
+// Make sure the initialization runs when the page is fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+    setupProvenanceStructure();
+    processProvenanceMetadata();
+});
