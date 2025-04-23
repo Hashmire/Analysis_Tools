@@ -68,7 +68,7 @@ function updateJsonDisplay(tableId, json, selectionCount) {
         
         if (display && content) {
             // Check if the display is already visible
-            const isVisible = display.style.display !== 'none';
+            const isVisible = !display.classList.contains('collapsed');
             
             // Update the content
             if (json) {
@@ -112,7 +112,7 @@ function updateCompletionTracker() {
         
         // Count how many tables are collapsed (completed)
         tables.forEach(table => {
-            if (table.classList.contains('d-none')) {
+            if (table.classList.contains('collapsed')) {
                 completedCount++;
             }
         });
@@ -296,52 +296,33 @@ function toggleConsolidatedJson(tableId) {
         const selectedRows = tableSelections.get(tableId);
         const selectionCount = selectedRows ? selectedRows.size : 0;
         
-        // Get the current visibility state
-        const isVisible = display.style.display === 'block' || display.style.display === '';
+        // Using classList.toggle to add/remove the collapsed class
+        const wasCollapsed = display.classList.contains('collapsed');
         
-        // Implement proper transition
-        if (isVisible) {
-            // HIDE with transition
-            display.style.opacity = '1';
+        if (wasCollapsed) {
+            // SHOW the content
+            display.classList.remove('collapsed');
             display.style.maxHeight = display.scrollHeight + 'px';
             
-            // Start transition
-            setTimeout(() => {
-                display.style.opacity = '0';
-                display.style.maxHeight = '0';
-            }, 10);
-            
-            // After transition completes
-            setTimeout(() => {
-                display.style.display = 'none';
-                
-                // Update button
-                const statsStr = getStatisticsString(consolidatedJsons.get(tableId), selectionCount);
-                showButton.textContent = `Show Consolidated JSON (${statsStr})`;
-                showButton.classList.remove('btn-success');
-                showButton.classList.add('btn-primary');
-            }, 310); // Slightly longer than transition duration
+            // Update button
+            const statsStr = getStatisticsString(consolidatedJsons.get(tableId), selectionCount);
+            showButton.textContent = `Hide Consolidated JSON (${statsStr})`;
+            showButton.classList.remove('btn-primary');
+            showButton.classList.add('btn-success');
         } else {
-            // SHOW with transition
-            display.style.display = 'block';
-            display.style.opacity = '0';
+            // HIDE the content
+            display.classList.add('collapsed');
             display.style.maxHeight = '0';
             
-            // Trigger transition
-            setTimeout(() => {
-                display.style.opacity = '1';
-                display.style.maxHeight = display.scrollHeight + 'px';
-                
-                // Update button
-                const statsStr = getStatisticsString(consolidatedJsons.get(tableId), selectionCount);
-                showButton.textContent = `Hide Consolidated JSON (${statsStr})`;
-                showButton.classList.remove('btn-primary');
-                showButton.classList.add('btn-success');
-            }, 10);
+            // Update button
+            const statsStr = getStatisticsString(consolidatedJsons.get(tableId), selectionCount);
+            showButton.textContent = `Show Consolidated JSON (${statsStr})`;
+            showButton.classList.remove('btn-success');
+            showButton.classList.add('btn-primary');
         }
         
         // Update content when showing
-        if (!isVisible) {
+        if (wasCollapsed) {
             updateJsonDisplayIfVisible(tableId);
         }
     } catch(e) {

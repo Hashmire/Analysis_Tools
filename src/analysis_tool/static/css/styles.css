@@ -10,6 +10,8 @@
 /* JSON container transitions */
 .json-container {
     transition: all 0.3s ease-in-out;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
 }
 
 /* Button transitions */
@@ -317,16 +319,19 @@ table.dataframe td:last-child {
 .row-transition {
     transition: opacity 0.3s ease, max-height 0.4s ease, transform 0.3s ease !important;
     overflow: hidden;
+    transition: all 0.3s ease-out;
 }
 
 .consolidated-json-container {
     transition: opacity 0.3s ease, max-height 0.3s ease !important;
     overflow: hidden;
+    transition: opacity 0.3s ease-out, max-height 0.3s ease-out;
 }
 
 /* Button transitions */
 .btn-transition {
     transition: background-color 0.3s, color 0.3s, border-color 0.3s !important;
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
 }
 
 /* Add this to your existing .collapsing class or use Bootstrap's */
@@ -335,5 +340,57 @@ table.dataframe td:last-child {
     height: 0;
     overflow: hidden;
     transition: height 0.35s ease;
+}
+
+/* Collapsible content styles */
+.collapsible-content {
+    overflow: hidden;
+    transition: max-height 0.5s ease-out;
+}
+
+.collapsible-content.collapsed {
+    max-height: 0 !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    display: none;
+}
+
+/* JSON container styles */
+.consolidated-json-container pre {
+    max-height: 400px;
+    overflow-y: auto;
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+}
+
+/* All configurations display */
+#allConfigurationsContent {
+    max-height: 600px;
+    overflow-y: auto;
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+}
+
+/* Completion tracker styles */
+.completion-tracker-container {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+}
+
+/* JSON display container */
+[id^="consolidatedJsonDisplay_"] {
+    transition: max-height 0.3s ease-out;
+}
+
+/* Configuration summary styling */
+#configurationSummary {
+    font-weight: 500;
 }
 
