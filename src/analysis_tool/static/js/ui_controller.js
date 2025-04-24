@@ -7,8 +7,8 @@ function updateJsonDisplayIfVisible(tableId) {
         const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
         const content = document.getElementById(`consolidatedJsonContent_${tableId}`);
         
-        // Only update if the display is visible
-        if (display && content && display.style.display !== 'none') {
+        // Use class check instead of style.display
+        if (display && content && !display.classList.contains('collapsed')) {
             const selectedRows = tableSelections.get(tableId);
             const selectionCount = selectedRows ? selectedRows.size : 0;
             
@@ -177,7 +177,8 @@ function updateExportAllButton() {
         const configSummary = document.getElementById('configurationSummary');
         
         if (container && exportButton) {
-            container.style.display = hasSelections ? 'block' : 'none';
+            // Use CSS class instead of style.display
+            container.classList.toggle('d-none', !hasSelections);
             
             // Update the summary text with selection count and version information
             if (hasSelections && configSummary) {
@@ -190,7 +191,7 @@ function updateExportAllButton() {
                 configSummary.textContent = summaryText;
                 
                 // Keep button text simple - just show/hide state
-                exportButton.textContent = display && display.style.display !== 'none' ? 
+                exportButton.textContent = display && !display.classList.contains('collapsed') ? 
                     'Hide All Configurations' : 'Show All Configurations';
             } else if (configSummary) {
                 configSummary.textContent = '';
@@ -209,7 +210,8 @@ function updateAllConfigurationsDisplay() {
         const display = document.getElementById('allConfigurationsDisplay');
         const content = document.getElementById('allConfigurationsContent');
         
-        if (display && content && display.style.display !== 'none') {
+        // Use class check instead of style.display
+        if (display && content && !display.classList.contains('collapsed')) {
             // Create master JSON with configurations from all tables
             const masterJson = generateAllConfigurationsJson();
             
@@ -236,8 +238,8 @@ function preserveJsonDisplayState(tableIndex) {
     
     if (!jsonContainer || !display || !showButton) return;
     
-    // Store current state
-    const isDisplayVisible = display.style.display !== 'none';
+    // Store current state using class check
+    const isDisplayVisible = !display.classList.contains('collapsed');
     const selectedRows = tableSelections.get(tableId);
     const selectionCount = selectedRows ? selectedRows.size : 0;
     
@@ -283,49 +285,5 @@ function preserveJsonDisplayState(tableIndex) {
     if (collapseButton) {
         const buttonParent = collapseButton.parentNode;
         buttonParent.parentNode.insertBefore(jsonContainer, buttonParent.nextSibling);
-    }
-}
-
-function toggleConsolidatedJson(tableId) {
-    try {
-        const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
-        const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
-        
-        if (!display || !showButton) return;
-        
-        const selectedRows = tableSelections.get(tableId);
-        const selectionCount = selectedRows ? selectedRows.size : 0;
-        
-        // Using classList.toggle to add/remove the collapsed class
-        const wasCollapsed = display.classList.contains('collapsed');
-        
-        if (wasCollapsed) {
-            // SHOW the content
-            display.classList.remove('collapsed');
-            display.style.maxHeight = display.scrollHeight + 'px';
-            
-            // Update button
-            const statsStr = getStatisticsString(consolidatedJsons.get(tableId), selectionCount);
-            showButton.textContent = `Hide Consolidated JSON (${statsStr})`;
-            showButton.classList.remove('btn-primary');
-            showButton.classList.add('btn-success');
-        } else {
-            // HIDE the content
-            display.classList.add('collapsed');
-            display.style.maxHeight = '0';
-            
-            // Update button
-            const statsStr = getStatisticsString(consolidatedJsons.get(tableId), selectionCount);
-            showButton.textContent = `Show Consolidated JSON (${statsStr})`;
-            showButton.classList.remove('btn-success');
-            showButton.classList.add('btn-primary');
-        }
-        
-        // Update content when showing
-        if (wasCollapsed) {
-            updateJsonDisplayIfVisible(tableId);
-        }
-    } catch(e) {
-        console.error(`Error in toggleConsolidatedJson for tableId ${tableId}:`, e);
     }
 }

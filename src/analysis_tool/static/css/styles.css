@@ -79,6 +79,15 @@ pre {
     background-color: #ccc;
 }
 
+/* Tab content classes */
+.tabcontent {
+    display: block;  /* Changed from "display: none" */
+}
+
+.tabcontent.d-none {
+    display: none !important;
+}
+
 .tabcontent {
     display: none;
     margin-left: 10px;
@@ -184,7 +193,6 @@ table.dataframe td:last-child {
     background-color: #f8f9fa;
     border-radius: 0.25rem;
     padding: 1rem;
-    min-height: 100px;
     border: 1px solid #dee2e6;
 }
 
@@ -322,16 +330,27 @@ table.dataframe td:last-child {
     transition: all 0.3s ease-out;
 }
 
+/* Improve consolidated-json-container transitions */
 .consolidated-json-container {
-    transition: opacity 0.3s ease, max-height 0.3s ease !important;
-    overflow: hidden;
-    transition: opacity 0.3s ease-out, max-height 0.3s ease-out;
+  overflow: hidden;
+  max-height: 2000px; /* Large enough for most content */
+  opacity: 1;
+  transition: max-height 0.4s ease-out, opacity 0.3s ease-out;
+  display: block;
+}
+
+.consolidated-json-container.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0;
+  margin: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 /* Button transitions */
 .btn-transition {
-    transition: background-color 0.3s, color 0.3s, border-color 0.3s !important;
-    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+  transition: background-color 0.3s, color 0.3s, border-color 0.3s;
 }
 
 /* Add this to your existing .collapsing class or use Bootstrap's */
@@ -392,5 +411,134 @@ table.dataframe td:last-child {
 /* Configuration summary styling */
 #configurationSummary {
     font-weight: 500;
+}
+
+/* Table container styles */
+.table-container {
+  overflow: hidden;
+  transition: max-height 0.4s ease, opacity 0.3s ease;
+  max-height: 2000px; /* Large enough for most tables */
+  opacity: 1;
+}
+
+/* Collapsed state */
+.table-container.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  pointer-events: none; /* Prevents interaction when collapsed */
+}
+
+/* Collapsible content styles - moved from inline JS */
+.collapsible-content {
+  overflow: hidden;
+  transition: max-height 0.5s ease-out;
+}
+
+.collapsible-content.collapsed {
+  max-height: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  display: none;
+}
+
+/* Button transitions - moved from inline JS */
+.btn-transition {
+  transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+/* JSON display containers */
+.json-display-container {
+  overflow: hidden;
+  transition: max-height 0.4s ease, opacity 0.3s ease;
+  max-height: 1000px;
+  opacity: 1;
+}
+
+.json-display-container.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0;
+  margin: 0;
+}
+
+/* Add these to your styles.css file */
+.description-container {
+  overflow: hidden;
+  max-height: 2000px; /* Large enough for most descriptions */
+  opacity: 1;
+  transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+  margin-bottom: 1rem; /* Add some spacing when visible */
+}
+
+.description-container.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0;
+  margin: 0; /* No margin when collapsed */
+  pointer-events: none;
+  display: block; /* Keep as block to maintain layout */
+}
+
+/* Add these CSS rules for description transitions */
+.description-container {
+  overflow: hidden;
+  max-height: 2000px;
+  opacity: 1;
+  transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+  margin-bottom: 1rem; /* Add some spacing when visible */
+}
+
+.description-container.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0;
+  margin: 0; /* No margin when collapsed */
+  pointer-events: none;
+  display: block; /* Keep as block to maintain layout */
+}
+
+/* For the description content area in provenance assistance */
+.description-content {
+  overflow: hidden;
+  max-height: 2000px;
+  opacity: 1;
+  transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+  margin-bottom: 1rem; /* Add some spacing when visible */
+}
+
+.description-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0;
+  margin: 0; /* No margin when collapsed */
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* Fix for any parent containers that might add extra spacing */
+.provenance-container .row {
+  margin-bottom: 0;
+}
+
+/* Collapse any description parent containers when all children are collapsed */
+.description-container-wrapper:empty,
+.description-container-wrapper:has(> .description-container.collapsed:only-child) {
+  margin: 0;
+  padding: 0;
+}
+
+/* Make description content completely collapse with no whitespace */
+.description-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0 !important; /* Override Bootstrap padding */
+  margin: 0 !important; /* Override Bootstrap margin */
+  border: none !important; /* Remove any borders */
+  overflow: hidden;
 }
 

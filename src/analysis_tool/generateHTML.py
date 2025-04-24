@@ -43,7 +43,8 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         readable_format_type = "NVD Configuration"
 
     # Add ID to the table based on the index
-    html = f"<table id=\"rowDataTable_{tableIndex}\" class=\"table table-hover\">"
+    html = f"""<div id="rowDataTable_{tableIndex}_container" class="table-container">
+    <table id="rowDataTable_{tableIndex}" class="table table-hover">"""
     
     # Define the keys and their labels, ensuring rawPlatformData is last
     keys_and_labels = [
@@ -398,19 +399,19 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         </tr>
         """
     
-    html += "</table>"
+    html += "</table></div>"
         
     return html.replace('\n', '')
 
 def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
     
-    # Remove JSON column from table
-    html = f"""
+    # Start with a container div
+    html = f"""<div id="matchesTable_{tableIndex}_container" class="table-container">
     <table id="matchesTable_{tableIndex}" class="table table-hover matchesTable">
     <thead>
       <tr>
-        <th style="width: 50%">CPE Base String</th>
-        <th style="width: 50%">Match Details</th>
+        <th style="width: 65%">CPE Base String</th>
+        <th style="width: 35%">Match Details</th>
       </tr>
     </thead>
     <tbody>
@@ -433,7 +434,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
         versions_found_content = base_value.get('versionsFoundContent', [])
         
         # Create Version Matches Identified tooltip content from versionsFoundContent
-        versions_found_tooltip_content = "&#10;".join(
+        versions_found_tooltip_content = "Versions Matches Identified:  &#10;".join(
             "&#10;".join(f"{k}: {v}" for k, v in version.items())
             for version in versions_found_content
         )
@@ -464,7 +465,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
         sorted_search_keys = sorted(search_keys, key=sort_search_keys)
 
         # Create the tooltip content
-        search_keys_tooltip_content = ""
+        search_keys_tooltip_content = "Relevant Match String Searches:&#10;"
         for key, value in sorted_search_keys:
             search_keys_tooltip_content += f"{key}:  {value}&#10;"
         
@@ -476,8 +477,8 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
             <td class="text-break">{base_key}</td>
             <td>
                 <div class="d-flex flex-wrap gap-1 align-items-center">
-                    <span class="badge rounded-pill bg-secondary" title="{search_keys_tooltip_content}">Relevant Match String Searches: {search_count}</span>
-                    <span class="badge rounded-pill bg-success" title="{versions_found_tooltip_content}">Version Matches Identified: {versions_found}</span>
+                    <span class="badge rounded-pill bg-secondary" title="{search_keys_tooltip_content}">Relevant Searches: {search_count}</span>
+                    <span class="badge rounded-pill bg-success" title="{versions_found_tooltip_content}">Version Matches: {versions_found}</span>
                     <div class="badge bg-primary d-inline-flex align-items-center">
                         Total CPE Names: {total_match_count}
                         <span class="badge bg-info ms-1">Final: {dep_false_count}</span>
@@ -488,9 +489,11 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
         </tr>
         """
 
+    # Close both the table and the container div
     html += """
     </tbody>
     </table>
+    </div>
     """
 
     return html.replace('\n', '')
@@ -816,3 +819,20 @@ def create_provenance_assistance_div(index, collapsed=True):
     """
     
     return html.replace('\n', '')
+
+# Update the HTML generation for provenance descriptions:
+def generateProvenanceDetailsHTML(provenance_data, provenance_id):
+    html = f"""
+    <div class="description-container-wrapper">
+        <button id="toggle_{provenance_id}" class="btn btn-info btn-sm btn-transition mb-2"
+                onclick="toggleProvenanceDescription('toggle_{provenance_id}')">Show Description</button>
+        <div id="description_{provenance_id}" class="description-container collapsed">
+            <div class="card">
+                <div class="card-body">
+                    {provenance_data['description']}
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+    return html

@@ -36,14 +36,20 @@ function createDescriptionButtons(rowIndex) {
         return;
     }
     
-    // Hide the description area initially
+    // Wrap all buttons and content in a container that can be collapsed
+    buttonContainer.innerHTML = '<div class="description-buttons-container mb-2"></div>';
+    const buttonsWrapper = buttonContainer.querySelector('.description-buttons-container');
+    
+    // Initialize the description area with collapsed class instead of inline style
     const contentArea = document.getElementById(`descriptionContent_${rowIndex}`);
     if (contentArea) {
-        contentArea.style.display = 'none';
+        contentArea.classList.add('description-content', 'collapsed');
+        // Remove any direct style.display setting
+        contentArea.style.display = '';
     }
     
     // Clear existing buttons
-    buttonContainer.innerHTML = '';
+    buttonsWrapper.innerHTML = '';
     
     // Create source cards with language buttons
     descriptionData.forEach((source, sourceIndex) => {
@@ -93,7 +99,7 @@ function createDescriptionButtons(rowIndex) {
         card.appendChild(body);
         
         // Add the card to the container
-        buttonContainer.appendChild(card);
+        buttonsWrapper.appendChild(card);
     });
 }
 
@@ -122,9 +128,16 @@ function toggleDescription(button) {
     
     // If the button was already active, hide the content area and exit
     if (isActive) {
-        contentArea.style.display = 'none';
+        // Use class toggle for smooth animation
+        contentArea.classList.add('collapsed');
+        // Remove spacing classes when collapsed
+        contentArea.classList.remove('mt-3', 'border-top', 'pt-3');
         return;
     }
+    
+    // When showing content, add back spacing classes
+    contentArea.classList.remove('collapsed');
+    contentArea.classList.add('mt-3', 'border-top', 'pt-3');
     
     // Otherwise, mark this button as active
     button.classList.add('active');
@@ -148,7 +161,7 @@ function toggleDescription(button) {
         description.value.replace(/\n/g, '<br>') : 
         "(No description provided)";
     
-    // Show the description
+    // Update the content then show it with animation
     contentArea.innerHTML = `
         <h6 class="mb-3 text-muted">
             ${source.sourceRole}: ${source.sourceId} (${description.lang})
@@ -158,8 +171,8 @@ function toggleDescription(button) {
         </div>
     `;
     
-    // Make the content area visible
-    contentArea.style.display = 'block';
+    // Remove collapsed class for smooth animation
+    contentArea.classList.remove('collapsed');
 }
 
 /**
