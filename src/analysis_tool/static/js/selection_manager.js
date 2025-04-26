@@ -162,7 +162,7 @@ function toggleConsolidatedJson(tableId) {
 }
 
 /**
- * Update the completion tracker
+ * Update the completion tracker with source-specific information
  */
 function updateCompletionTracker() {
     try {
@@ -170,9 +170,84 @@ function updateCompletionTracker() {
         let completedCount = 0;
         const totalCount = tableContainers.length;
         
-        // Count collapsed containers (completed)
+        // Track completion by source
+        const sourceStats = {};
+        const sourceNames = {};
+        
+        // Get source data from global metadata
+        const sourceData = getSourceData();
+        
+        // First pass: examine all tables to find source identifiers
         tableContainers.forEach(container => {
-            if (container.classList.contains('collapsed')) {
+            const isCompleted = container.classList.contains('collapsed');
+            const tableIndex = container.id.replace('rowDataTable_', '').replace('_container', '');
+            
+            // Get the actual table
+            const rowDataTable = document.getElementById(`rowDataTable_${tableIndex}`);
+            if (!rowDataTable) return;
+            
+            // Find source information - specifically look for Source ID row
+            const sourceRows = rowDataTable.querySelectorAll('tr');
+            let sourceId = null;
+            
+            // First try to find Source ID row with UUID
+            for (const row of sourceRows) {
+                const firstCell = row.querySelector('td:first-child');
+                if (!firstCell || firstCell.textContent.trim() !== 'Source ID') continue;
+                
+                const sourceCell = row.querySelector('td:nth-child(2) span[title]');
+                if (!sourceCell || !sourceCell.title) continue;
+                
+                const titleText = sourceCell.title;
+                
+                // Check if this is the NIST source (special case)
+                if (titleText.includes('Contact Email: nvd@nist.gov')) {
+                    sourceId = 'nvd@nist.gov';
+                    break;
+                }
+                
+                // Extract all UUIDs from Source Identifiers section
+                const identifiersSection = titleText.match(/Source Identifiers:\s*([^]*?)(?=\n|$)/);
+                if (identifiersSection && identifiersSection[1]) {
+                    // Split by comma and trim whitespace
+                    const identifiers = identifiersSection[1].split(',').map(id => id.trim());
+                    
+                    // Find a valid UUID format in the identifiers
+                    for (const id of identifiers) {
+                        if (id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+                            sourceId = id;
+                            break;
+                        }
+                    }
+                    
+                    // If we found a UUID, break out of the row loop
+                    if (sourceId) break;
+                }
+            }
+            
+            // Skip if no source ID found
+            if (!sourceId) {
+                console.debug(`No source ID found for table ${tableIndex}`);
+                return;
+            }
+            
+            // Initialize source stats if not already tracked
+            if (!sourceStats[sourceId]) {
+                sourceStats[sourceId] = { total: 0, completed: 0 };
+                
+                // Get source name from global metadata
+                if (sourceData && sourceData[sourceId]) {
+                    sourceNames[sourceId] = sourceData[sourceId].name || sourceId;
+                } else {
+                    // Basic fallback for display - just use the first 8 chars for UUID
+                    sourceNames[sourceId] = sourceId;
+                }
+            }
+            
+            // Update source stats
+            sourceStats[sourceId].total++;
+            if (isCompleted) {
+                sourceStats[sourceId].completed++;
                 completedCount++;
             }
         });
@@ -189,11 +264,66 @@ function updateCompletionTracker() {
             progressBar.style.width = `${percentage}%`;
             progressBar.textContent = `${percentage}%`;
             progressBar.setAttribute('aria-valuenow', percentage);
-            completedRowsCount.textContent = `${completedCount}/${totalCount} rows`;
+            
+            const displayElements = [];
+            
+            // Add the overall completion count
+            displayElements.push(`${completedCount}/${totalCount} rows`);
+            
+            // Sort sources by name for consistent display
+            const sortedSourceIds = Object.keys(sourceStats).sort((a, b) => 
+                sourceNames[a].localeCompare(sourceNames[b])
+            );
+            
+            // Add each source with its completion status
+            if (sortedSourceIds.length > 0) {
+                const sourceElements = [];
+                
+                sortedSourceIds.forEach(sourceId => {
+                    const stats = sourceStats[sourceId];
+                    const sourceName = sourceNames[sourceId];
+                    
+                    // Use a checkmark for fully completed sources, otherwise show fraction
+                    const indicator = stats.completed === stats.total ? 
+                        '\u2713' : // Unicode checkmark character
+                        `${stats.completed}/${stats.total}`;
+                    
+                    sourceElements.push(`${sourceName}: ${indicator}`);
+                });
+                
+                // Join the source elements with commas
+                if (sourceElements.length > 0) {
+                    displayElements.push(`Sources: ${sourceElements.join(', ')}`);
+                }
+            }
+            
+            // Update the text content with all elements
+            completedRowsCount.textContent = displayElements.join(' | ');
+            
+            // Hide the separate total count as it's now incorporated
             totalRowsCount.textContent = '';
         }
     } catch(e) {
         console.error('Error updating completion tracker:', e);
+    }
+}
+
+/**
+ * Get the source data from the global metadata
+ * @returns {Object|null} The source data object or null if not found
+ */
+function getSourceData() {
+    try {
+        const metadataDiv = document.getElementById('global-cve-metadata');
+        if (!metadataDiv || !metadataDiv.hasAttribute('data-cve-metadata')) {
+            return null;
+        }
+        
+        const metadata = JSON.parse(metadataDiv.getAttribute('data-cve-metadata'));
+        return metadata.sourceData || {};
+    } catch (e) {
+        console.error('Error retrieving source data:', e);
+        return {};
     }
 }
 
@@ -348,6 +478,32 @@ function toggleProvenanceDescription(buttonId) {
 // Make the function available globally
 window.toggleProvenanceDescription = toggleProvenanceDescription;
 
+// Add a helper function to get source information by UUID
+
+/**
+ * Get source information from global metadata by UUID
+ * @param {string} uuid - The source UUID to look up
+ * @returns {Object|null} - The source info object or null if not found
+ */
+function getSourceInfoByUuid(uuid) {
+    const metadataDiv = document.getElementById('global-cve-metadata');
+    if (!metadataDiv || !metadataDiv.hasAttribute('data-cve-metadata')) {
+        return null;
+    }
+    
+    try {
+        const metadata = JSON.parse(metadataDiv.getAttribute('data-cve-metadata'));
+        if (!metadata || !metadata.sourceData) {
+            return null;
+        }
+        
+        return metadata.sourceData[uuid] || null;
+    } catch (e) {
+        console.error('Error parsing source metadata:', e);
+        return null;
+    }
+}
+
 // Single consolidated initialization for all DOM elements
 document.addEventListener('DOMContentLoaded', function() {
     // Find all matchesTables (there may be multiple)
@@ -369,31 +525,45 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Add a master "Export All Configurations" button at the top of cveListCPESuggester
     const cveListCPESuggester = document.getElementById('cveListCPESuggester');
+    const cpeSuggesterHeader = document.getElementById('cpeSuggesterHeader');
     
-    if (cveListCPESuggester) {
-        // Create the Export All container at the beginning
+    if (cveListCPESuggester && cpeSuggesterHeader) {
+        // Create the Export All container
         const allContainer = document.createElement('div');
-        allContainer.classList.add('all-configurations-container', 'mt-3', 'mb-5');
+        allContainer.classList.add('all-configurations-container', 'mt-1', 'mb-1');
         allContainer.id = 'allConfigurationsContainer';
         allContainer.innerHTML = `
-            <!-- NEW: Add configuration summary above the button -->
+            <!-- Configuration summary above the button -->
             <div id="configurationSummary" class="text-center mb-2"></div>
             <div class="d-grid gap-2 col-12 mx-auto">
                 <button id="exportAllConfigurations" class="btn btn-primary btn-transition">Show All Configurations</button>
             </div>
-            <div id="allConfigurationsDisplay" class="mt-3 consolidated-json-container collapsed">
+            <div id="allConfigurationsDisplay" class="mt-2 consolidated-json-container collapsed">
                 <h4>Complete Configuration JSON</h4>
                 <p class="text-muted">This combines all selected CPEs from all tables, with each table creating its own configuration node.</p>
                 <pre id="allConfigurationsContent"></pre>
             </div>
         `;
         
-        // Insert at the beginning of cveListCPESuggester
-        if (cveListCPESuggester.firstChild) {
-            cveListCPESuggester.insertBefore(allContainer, cveListCPESuggester.firstChild.nextSibling);
-        } else {
-            cveListCPESuggester.appendChild(allContainer);
-        }
+        // Create a completion tracker container
+        const completionTrackerContainer = document.createElement('div');
+        completionTrackerContainer.classList.add('completion-tracker-container', 'mt-1', 'mb-1', 'p-3', 'border', 'rounded');
+        completionTrackerContainer.id = 'completionTrackerContainer';
+        completionTrackerContainer.innerHTML = `
+            <h4>Completion Progress</h4>
+            <div class="progress mb-2">
+                <div id="completionProgressBar" class="progress-bar bg-success" role="progressbar" style="width: 0%" 
+                     aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span id="completedRowsCount">0 rows completed</span>
+                <span id="totalRowsCount">${tables.length} total rows</span>
+            </div>
+        `;
+        
+        // Insert containers after the header in the correct order
+        cpeSuggesterHeader.parentNode.insertBefore(completionTrackerContainer, cpeSuggesterHeader.nextSibling);
+        completionTrackerContainer.parentNode.insertBefore(allContainer, completionTrackerContainer.nextSibling);
         
         // Add click handler to the Export All button
         document.getElementById('exportAllConfigurations').addEventListener('click', function() {
@@ -428,31 +598,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
-        
-        // Create a completion tracker container only if allContainer exists
-        const completionTrackerContainer = document.createElement('div');
-        completionTrackerContainer.classList.add('completion-tracker-container', 'mt-3', 'mb-3', 'p-3', 'border', 'rounded');
-        completionTrackerContainer.id = 'completionTrackerContainer';
-        completionTrackerContainer.innerHTML = `
-            <h4>Completion Progress</h4>
-            <div class="progress mb-2">
-                <div id="completionProgressBar" class="progress-bar bg-success" role="progressbar" style="width: 0%" 
-                     aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</</div>
-            </div>
-            <div class="d-flex justify-content-between">
-                <span id="completedRowsCount">0 rows completed</span>
-                <span id="totalRowsCount">${tables.length} total rows</span>
-            </div>
-        `;
-
-        // Insert right after the export all container
-        allContainer.parentNode.insertBefore(completionTrackerContainer, allContainer.nextSibling);
-    }
-    
-    // After creating allContainer
-    const allConfigurationsDisplay = document.getElementById('allConfigurationsDisplay');
-    if (allConfigurationsDisplay && !allConfigurationsDisplay.classList.contains('consolidated-json-container')) {
-        allConfigurationsDisplay.classList.add('consolidated-json-container');
+    } else {
+        console.error('Error: Could not find required elements for container positioning', {
+            cveListCPESuggester: !!cveListCPESuggester,
+            cpeSuggesterHeader: !!cpeSuggesterHeader
+        });
     }
 
     // Initialize each table
@@ -490,8 +640,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     row.classList.add('table-active');
                 }
                 
-                // Update the JSON
+                // Update the consolidated JSON for this table
                 updateConsolidatedJson(tableId);
+                
+                // Update the Export All button (this will also update configSummary)
+                updateExportAllButton();
             });
         });
         

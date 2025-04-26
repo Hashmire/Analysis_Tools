@@ -171,31 +171,34 @@ function updateExportAllButton() {
             }
         });
         
-        // Show/hide the Export All button container based on whether there are selections
         const container = document.getElementById('allConfigurationsContainer');
         const exportButton = document.getElementById('exportAllConfigurations');
         const configSummary = document.getElementById('configurationSummary');
         
-        if (container && exportButton) {
-            // Use CSS class instead of style.display
-            container.classList.toggle('d-none', !hasSelections);
+        if (container && exportButton && configSummary) {
+            // Always enable/disable the button based on selections
+            exportButton.disabled = !hasSelections;
             
-            // Update the summary text with selection count and version information
-            if (hasSelections && configSummary) {
+            if (hasSelections) {
                 const display = document.getElementById('allConfigurationsDisplay');
                 
                 // Format the config summary
                 const summaryText = `${configCount} config${configCount !== 1 ? 's' : ''} (${configDetails.join(', ')})`;
                 
-                // Update the summary text instead of changing the button text
+                // Update the summary text
                 configSummary.textContent = summaryText;
                 
                 // Keep button text simple - just show/hide state
                 exportButton.textContent = display && !display.classList.contains('collapsed') ? 
                     'Hide All Configurations' : 'Show All Configurations';
-            } else if (configSummary) {
-                configSummary.textContent = '';
+            } else {
+                // No selections in any table
+                configSummary.textContent = 'No CPEs selected yet';
+                exportButton.textContent = 'Show All Configurations';
             }
+            
+            // Ensure the display is updated if it's open
+            updateAllConfigurationsDisplay();
         }
     } catch(e) {
         console.error("Error updating export all button:", e);

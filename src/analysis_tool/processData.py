@@ -889,7 +889,7 @@ def analyzeBaseStrings(cpeVersionChecks, json_response: Dict[str, Any]) -> Dict[
     }
 
 
-def processCVEData(dataframe, cveRecordData):
+def processCVEData(dataframe, cveRecordData, nvdSourceData=None):
     """Process CVE Record Data to extract platform-related information"""
     result_df = dataframe.copy()
     
@@ -902,8 +902,12 @@ def processCVEData(dataframe, cveRecordData):
     global_cve_metadata = {
         'cveId': cveRecordData.get('cveMetadata', {}).get('cveId', ''),
         'descriptionData': [],
-        'referencesData': []  # Add new array for references data
+        'referencesData': [], 
+        'sourceData': {}
     }
+    
+    # Set to track all source IDs used in this CVE
+    used_source_ids = set()
     
     if 'containers' in cveRecordData:
         # First, collect all descriptions and references from both CNA and ADP
@@ -918,6 +922,9 @@ def processCVEData(dataframe, cveRecordData):
             for container in containers:
                 source_id = container.get('providerMetadata', {}).get('orgId', 'Unknown')
                 source_role = container_type.upper()
+                
+                # Add this source ID to our set of used sources
+                used_source_ids.add(source_id)
                 
                 # Extract descriptions for Provenance Assistance
                 if 'descriptions' in container:
@@ -951,6 +958,50 @@ def processCVEData(dataframe, cveRecordData):
                     
                     # Add to global CVE metadata
                     global_cve_metadata['referencesData'].append(references_data)
+
+        # Add NVD as a used source if we're processing NVD data
+        used_source_ids.add('nvd@nist.gov')
+                
+        # Add relevant source information from nvdSourceData to global metadata - MOVED OUTSIDE THE LOOP
+        if nvdSourceData is not None:
+            for _, source_row in nvdSourceData.iterrows():
+                source_id = source_row.get('orgId', '')
+                
+                # Check if this source ID is in our used sources
+                if source_id in used_source_ids:
+                    # Add source information directly using orgId
+                    source_info = {
+                        "name": source_row.get('name', 'Unknown'),
+                        "contactEmail": source_row.get('contactEmail', ''),
+                        "sourceIdentifiers": source_row.get('sourceIdentifiers', [])
+                    }
+
+                    # Use orgId as the key if it exists
+                    global_cve_metadata['sourceData'][source_id] = source_info
+                    
+                    # Also map each sourceIdentifier (UUID) to this same source info
+                    for uuid in source_row.get('sourceIdentifiers', []):
+                        global_cve_metadata['sourceData'][uuid] = source_info
+                
+                # Also check if any of the source IDs used are in the sourceIdentifiers array
+                elif 'sourceIdentifiers' in source_row and isinstance(source_row['sourceIdentifiers'], list):
+                    for used_id in used_source_ids:
+                        if used_id in source_row['sourceIdentifiers']:
+                            # Add source information using both orgId and UUID
+                            source_info = {
+                                "name": source_row.get('name', 'Unknown'),
+                                "contactEmail": source_row.get('contactEmail', ''),
+                                "sourceIdentifiers": source_row.get('sourceIdentifiers', [])
+                            }
+                            
+                            # Use orgId as the key if it exists
+                            global_cve_metadata['sourceData'][source_row.get('orgId', '')] = source_info
+                            
+                            # Also map each sourceIdentifier (UUID) to this same source info
+                            for uuid in source_row.get('sourceIdentifiers', []):
+                                global_cve_metadata['sourceData'][uuid] = source_info
+                            
+                            break
         
         # Now process affected entries and add rows to dataframe
         for container_type in ['cna', 'adp']:

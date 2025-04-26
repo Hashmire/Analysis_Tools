@@ -4,6 +4,7 @@ import os
 import webbrowser
 from sys import exit
 from build_info import GIT_COMMIT, GIT_REPO, VERSION, TOOLNAME
+import re
 # Import console tab scripts
 import gatherData
 import processData
@@ -50,7 +51,7 @@ def setOperationMode(modeSetting):
                 nvdRecordData = gatherData.gatherNVDCVERecord(nvdAPIKey, targetCve)
 
                 # Process the vulnerability record data to extract useful information
-                primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData)             
+                primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData, nvdSourceData)             
                 primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
 
                 # Based on the collected information, use the NVD API to gather relevant CPE data
@@ -86,6 +87,19 @@ def setOperationMode(modeSetting):
                     escape=False,
                     index=False
                 )
+
+                # Add classes to specific headers to allow targeting them with CSS
+                if 'rowDataHTML' in primaryDataframe.columns:
+                    # Use regex to match the th element with any style attributes
+                    affectedHtml2 = re.sub(r'<th[^>]*>rowDataHTML</th>', 
+                                          r'<th class="hidden-header" style="min-width: 20%;">rowDataHTML</th>', 
+                                          affectedHtml2)
+
+                if 'cpeQueryHTML' in primaryDataframe.columns:
+                    # Use regex to match the th element with any style attributes
+                    affectedHtml2 = re.sub(r'<th[^>]*>cpeQueryHTML</th>', 
+                                          r'<th class="hidden-header" style="min-width: 80%;">cpeQueryHTML</th>', 
+                                          affectedHtml2)
 
                 # vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
                 # Put all the html together into a main console view
@@ -152,7 +166,7 @@ def setOperationMode(modeSetting):
                     nvdRecordData = gatherData.gatherNVDCVERecord(nvdAPIKey, targetCve)
 
                     # Process the vulnerability record data to extract useful platform related information
-                    primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData)             
+                    primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData, nvdSourceData)             
                     primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
                     
                     # Based on the collected information, use the NVD API to gather relevant CPE data
@@ -188,6 +202,19 @@ def setOperationMode(modeSetting):
                         escape=False,
                         index=False
                     )
+
+                    # Add classes to specific headers to allow targeting them with CSS
+                    if 'rowDataHTML' in primaryDataframe.columns:
+                        # Use regex to match the th element with any style attributes
+                        affectedHtml2 = re.sub(r'<th[^>]*>rowDataHTML</th>', 
+                                              r'<th class="hidden-header" style="min-width: 20%;">rowDataHTML</th>', 
+                                              affectedHtml2)
+
+                    if 'cpeQueryHTML' in primaryDataframe.columns:
+                        # Use regex to match the th element with any style attributes
+                        affectedHtml2 = re.sub(r'<th[^>]*>cpeQueryHTML</th>', 
+                                              r'<th class="hidden-header" style="min-width: 80%;">cpeQueryHTML</th>', 
+                                              affectedHtml2)
 
                     # vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
                     # Put all the html together into a main console view

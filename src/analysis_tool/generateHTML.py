@@ -666,7 +666,9 @@ def buildHTMLPage(affectedHtml, targetCve, globalCVEMetadata=None, vdbIntelHtml=
     pageBodyCPESuggesterHTML = f"""
     <!-- CVE List CPE Suggester -->
     <div id="cveListCPESuggester" class="tabcontent" style="display: block; border-left: 0px;">
-        <h3>CVE List CPE Suggester</h3>
+        <div id="cpeSuggesterHeader" class="header">
+            <h3>CVE List CPE Suggester</h3>
+        </div>
         {affectedHtml}
         <script>
             // Initialize the timestamp handler with the generated timestamp
