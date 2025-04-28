@@ -6,8 +6,7 @@ from time import sleep
 import datetime
 
 # Import Analysis Tool 
-import processData
-import vdb_checker    
+import processData   
 
 # Update get_public_ip function to include timestamp
 def get_public_ip():
@@ -97,7 +96,7 @@ def gatherNVDSourceData(apiKey):
         if apiKey:
             headers["apiKey"] = apiKey
        
-        max_retries = 100
+        max_retries = 15
         for attempt in range(max_retries):
             try:
                 response = requests.get(url, headers=headers)
@@ -135,7 +134,6 @@ def gatherNVDSourceData(apiKey):
 # Query the NVD /cpes/ API for information Supported parameters:  cpeMatchString
 def gatherNVDCPEData(apiKey, case, query_string):
     match case:
-
         case 'cpeMatchString':
             nvd_cpes_url = "https://services.nvd.nist.gov/rest/json/cpes/2.0"
             headers = {"user-agent": f"{TOOLNAME}/{VERSION}"}
@@ -211,7 +209,18 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                 
                                 # Check for message header and display if present - error response
                                 if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
-                                    print(f"[ERROR] NVD API Message: {e.response.headers['message']}")
+                                    error_message = e.response.headers['message']
+                                    print(f"[ERROR] NVD API Message: {error_message}")
+                                    
+                                    # Don't retry for "Invalid cpeMatchstring parameter" errors
+                                    if "Invalid cpeMatchstring parameter" in error_message:
+                                        print(f"[WARNING] Invalid CPE match string detected, skipping: {query_string}")
+                                        # Return what we've collected so far
+                                        consolidated_data["startIndex"] = 0
+                                        consolidated_data["resultsPerPage"] = len(consolidated_data["products"])
+                                        consolidated_data["error"] = error_message
+                                        consolidated_data["status"] = "invalid_cpe"
+                                        return consolidated_data
                                 
                                 if page_attempt < max_retries - 1:
                                     print(f"Waiting 6 seconds before retry...")
@@ -234,7 +243,21 @@ def gatherNVDCPEData(apiKey, case, query_string):
                     
                     # Check for message header and display if present - error response
                     if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
-                        print(f"[ERROR] NVD API Message: {e.response.headers['message']}")
+                        error_message = e.response.headers['message']
+                        print(f"[ERROR] NVD API Message: {error_message}")
+                        
+                        # Don't retry for "Invalid cpeMatchstring parameter" errors
+                        if "Invalid cpeMatchstring parameter" in error_message:
+                            print(f"[WARNING] Invalid CPE match string detected, skipping: {query_string}")
+                            # Return empty result structure instead of None
+                            return {
+                                "totalResults": 0,
+                                "resultsPerPage": 0,
+                                "startIndex": 0,
+                                "products": [],
+                                "error": error_message,
+                                "status": "invalid_cpe"
+                            }
                     
                     if attempt < max_retries - 1:
                         print(f"Waiting 6 seconds before retry...")
@@ -261,10 +284,10 @@ def gatherPrimaryDataframe():
     return pd.DataFrame(data)
 
 # Using the provided CVE-ID, gathers relevant VDB information from known, publicly available sources
-def gatherVDBIntel(targetCve):
-    # This currently references another file, we should bring that file into here and break it out into the appropriate Gather/Process/Generate groupings
-    try:
-        vdbIntelHtml = vdb_checker.gatherVDBCheckerData(targetCve)
-        return (vdbIntelHtml)
-    except:
-        print("[ERROR]  Failed to run vdb_checker!")
+# def gatherVDBIntel(targetCve):
+#    # This currently references another file, we should bring that file into here and break it out into the appropriate Gather/Process/Generate groupings
+#    try:
+#        vdbIntelHtml = vdb_checker.gatherVDBCheckerData(targetCve)
+#        return (vdbIntelHtml)
+#   except:
+#        print("[ERROR]  Failed to run vdb_checker!")

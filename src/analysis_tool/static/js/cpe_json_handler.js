@@ -1057,9 +1057,21 @@ function calculateNextUpperBound(unaffectedInfo) {
  * @returns {Object} CPE match object
  */
 function createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable) {
+    // Check for "n/a" and similar values that should be treated like wildcards
+    const nonSpecificVersions = ["n/a", "not available", "not applicable", "unavailable", "na", "nil", "none", "*"];
+    
     // Handle single version with no range indicators
     if (versionInfo.version && !versionInfo.lessThan && !versionInfo.lessThanOrEqual && 
         !versionInfo.greaterThan && !versionInfo.greaterThanOrEqual) {
+        
+        // Special case: If version is a wildcard or n/a value, keep the wildcard in the criteria
+        if (nonSpecificVersions.includes(versionInfo.version.toLowerCase())) {
+            return {
+                "criteria": cpeBase, // Keep base CPE with wildcard intact
+                "matchCriteriaId": generateMatchCriteriaId(),
+                "vulnerable": isVulnerable
+            };
+        }
         
         // Create a CPE match with explicit version embedded in the criteria
         const cpeParts = cpeBase.split(':');
@@ -1071,28 +1083,32 @@ function createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable) {
             "vulnerable": isVulnerable
         };
     } else {
-        // Range specification (existing code for handling ranges)
+        // Range specification with potential wildcards
         const cpeMatch = {
             "criteria": cpeBase,
             "matchCriteriaId": generateMatchCriteriaId(),
             "vulnerable": isVulnerable
         };
         
-        // Add version range attributes
-        if (versionInfo.version) {
+        // Handle start version (lower bound)
+        // If version is a wildcard or n/a value, don't include any start version constraint
+        const hasNonSpecificStartVersion = versionInfo.version && nonSpecificVersions.includes(versionInfo.version.toLowerCase());
+        if (versionInfo.version && !hasNonSpecificStartVersion) {
             cpeMatch.versionStartIncluding = versionInfo.version;
-        }
-        if (versionInfo.greaterThan) {
+        } else if (versionInfo.greaterThan) {
             cpeMatch.versionStartExcluding = versionInfo.greaterThan;
-        }
-        else if (versionInfo.greaterThanOrEqual) {
+        } else if (versionInfo.greaterThanOrEqual) {
             cpeMatch.versionStartIncluding = versionInfo.greaterThanOrEqual;
         }
         
-        if (versionInfo.lessThan) {
+        // Handle end version (upper bound)
+        // If lessThan/lessThanOrEqual is a wildcard or n/a value, don't include any end version constraint
+        const hasNonSpecificLessThan = versionInfo.lessThan && nonSpecificVersions.includes(versionInfo.lessThan.toLowerCase());
+        const hasNonSpecificLessThanOrEqual = versionInfo.lessThanOrEqual && nonSpecificVersions.includes(versionInfo.lessThanOrEqual.toLowerCase());
+        
+        if (versionInfo.lessThan && !hasNonSpecificLessThan) {
             cpeMatch.versionEndExcluding = versionInfo.lessThan;
-        }
-        else if (versionInfo.lessThanOrEqual) {
+        } else if (versionInfo.lessThanOrEqual && !hasNonSpecificLessThanOrEqual) {
             cpeMatch.versionEndIncluding = versionInfo.lessThanOrEqual;
         }
         

@@ -792,42 +792,73 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
         if not query_string:
             continue
         
-        json_response = gatherData.gatherNVDCPEData(apiKey, "cpeMatchString", query_string)
-        
-        if 'totalResults' in json_response:
-            # General statistics common to all rows
-            base_stats = {
-                "matches_found": json_response['totalResults'],
-                "is_truncated": json_response["resultsPerPage"] < json_response["totalResults"],
-            }
+        try:
+            json_response = gatherData.gatherNVDCPEData(apiKey, "cpeMatchString", query_string)
             
-            if "products" in json_response:
-                # Find which rows care about this query string
-                relevant_row_indices = row_query_mapping.get(query_string, [])
-                row_specific_results = {}
-                
-                # For each relevant row, perform row-specific version matching
-                for row_index in relevant_row_indices:
-                    # Get this row's version checks
-                    row_checks = row_version_checks.get(row_index, [])
-                    
-                    # Process with just this row's checks
-                    row_stats = analyzeBaseStrings(row_checks, json_response)
-                    row_specific_results[row_index] = row_stats
-                
-                # Store both common stats and row-specific results
+            # Check for invalid_cpe status from our updated gatherNVDCPEData function
+            if json_response and json_response.get("status") == "invalid_cpe":
+                print(f"[WARNING] Skipping invalid CPE match string: {query_string}")
                 stats = {
-                    **base_stats,
-                    "row_specific_results": row_specific_results
+                    "matches_found": 0,
+                    "status": "invalid_cpe",
+                    "error_message": json_response.get("error", "Invalid cpeMatchstring parameter")
+                }
+                bulk_results.append({query_string: stats})
+                continue
+                
+            if 'totalResults' in json_response:
+                # General statistics common to all rows
+                base_stats = {
+                    "matches_found": json_response['totalResults'],
+                    "is_truncated": json_response["resultsPerPage"] < json_response["totalResults"],
+                }
+                
+                if "products" in json_response:
+                    # Find which rows care about this query string
+                    relevant_row_indices = row_query_mapping.get(query_string, [])
+                    row_specific_results = {}
+                    
+                    # For each relevant row, perform row-specific version matching
+                    for row_index in relevant_row_indices:
+                        # Get this row's version checks
+                        row_checks = row_version_checks.get(row_index, [])
+                        
+                        # Process with just this row's checks
+                        row_stats = analyzeBaseStrings(row_checks, json_response)
+                        row_specific_results[row_index] = row_stats
+                    
+                    # Store both common stats and row-specific results
+                    stats = {
+                        **base_stats,
+                        "row_specific_results": row_specific_results
+                    }
+                else:
+                    stats = base_stats
+            else:
+                stats = {
+                    "matches_found": 0,
+                    "status": "error",
+                    "error_message": str(json_response)
+                }
+        except Exception as e:
+            error_message = str(e)
+            print(f"[WARNING] Error querying NVD API for '{query_string}': {error_message}")
+            
+            # Don't retry for invalid cpeMatchstring errors
+            if "Invalid cpeMatchstring parameter" in error_message:
+                print(f"[WARNING] Invalid CPE match string detected, skipping: {query_string}")
+                stats = {
+                    "matches_found": 0,
+                    "status": "invalid_cpe",
+                    "error_message": error_message
                 }
             else:
-                stats = base_stats
-        else:
-            stats = {
-                "matches_found": 0,
-                "status": "error",
-                "error_message": str(json_response)
-            }
+                # For other errors, report but continue
+                stats = {
+                    "matches_found": 0,
+                    "status": "error",
+                    "error_message": error_message
+                }
         
         # Store results for this query
         bulk_results.append({query_string: stats})
@@ -1431,14 +1462,14 @@ def integrityCheckCVE(checkType, checkValue, checkDataSet=False):
             if checkValue == checkDataSet["cveMetadata"]["cveId"]:
                 print("[INFO]  Getting " + checkValue +" from CVE Program services...")
             else:
-                print("[FAULT]  CVE Services CVE ID check failed! CVE-ID from Services returned as ", checkDataSet["cveMetadata"]["cveId"], "...Exiting")
-                exit()
+                print("[FAULT]  CVE Services CVE ID check failed! CVE-ID from Services returned as ", checkDataSet["cveMetadata"]["cveId"])
+                raise ValueError(f"CVE ID mismatch: expected {checkValue}, got {checkDataSet['cveMetadata']['cveId']}")
         
         case "cveStatusCheck":
             # Confirm the CVE ID is not REJECTED
             if checkDataSet["cveMetadata"]["state"] == checkValue:
                 print("[FAULT]  CVE record is in the " + checkDataSet["cveMetadata"]["state"] + " state!")
-                exit()
+                raise ValueError(f"CVE {checkDataSet['cveMetadata']['cveId']} is in {checkDataSet['cveMetadata']['state']} state")
             else:
                 checkValue == True
                 
@@ -1448,11 +1479,11 @@ def integrityCheckCVE(checkType, checkValue, checkDataSet=False):
             if re.fullmatch(pattern, checkValue):
                 checkValue == True
             else:
-                print("[FAULT]  CVE ID Format check failed! \"", checkValue, "\"...Exiting")
-                exit()
+                print("[FAULT]  CVE ID Format check failed! \"", checkValue, "\"")
+                raise ValueError(f"Invalid CVE ID format: {checkValue}")
         case _:
-            print("[FAULT]  Unexpected Case for Integrity Check! ...Exiting")
-            exit()
+            print("[FAULT]  Unexpected Case for Integrity Check!")
+            raise ValueError(f"Unknown integrity check type: {checkType}")
 
 # More sophisticated product_key to handle edge cases
 def create_product_key(affected, source_id):

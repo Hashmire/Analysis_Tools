@@ -150,11 +150,20 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         # 4.1 Check for wildcard patterns in version ranges
         has_wildcards = False
         for v in versions:
-            if isinstance(v, dict) and ('lessThanOrEqual' in v or 'lessThan' in v):
-                constraint_value = v.get('lessThanOrEqual', '') or v.get('lessThan', '')
-                if '*' in str(constraint_value):
+            if isinstance(v, dict):
+                # Check for wildcards in lessThan/lessThanOrEqual constraints
+                if ('lessThanOrEqual' in v or 'lessThan' in v):
+                    constraint_value = v.get('lessThanOrEqual', '') or v.get('lessThan', '')
+                    if '*' in str(constraint_value):
+                        has_wildcards = True
+                        version_tooltip = 'Versions array contains wildcard patterns requiring special handling'
+                        warning_badges.append(f'<span class="badge bg-warning" title="{version_tooltip}">Wildcard Patterns</span> ')
+                        break
+                
+                # Also check for wildcards in explicit version values
+                if 'version' in v and '*' in str(v['version']):
                     has_wildcards = True
-                    version_tooltip = 'Versions array contains wildcard patterns requiring special handling'
+                    version_tooltip = 'Versions array contains wildcard patterns in version values requiring special handling'
                     warning_badges.append(f'<span class="badge bg-warning" title="{version_tooltip}">Wildcard Patterns</span> ')
                     break
         
@@ -199,7 +208,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         comparators = ['<', '>', '=', '<=', '=<', '=>', '>=', '!=']
         
         # Add text-based version comparators
-        text_comparators = [
+        version_text_patterns = [
             # Range indicators
             'through', 'thru', 'to', 'between', 'and',
             
@@ -225,6 +234,10 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
             
             # Missing/Unknown values
             'unspecified', 'unknown', 'none', 'undefined', 'various',
+            'n/a', 'not available', 'not applicable', 'unavailable',
+            'na', 'nil', 'tbd', 'to be determined', 'pending',
+            'not specified', 'not determined', 'not known', 'not listed',
+            'not provided', 'missing', 'empty', 'null',
             
             # Descriptive statements
             'supported', 'unstable', 'development', 'beta', 'release candidate', 'nightly',
@@ -236,7 +249,11 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
             'earliest', 'recent', 'legacy', 'past', 'future', 'latest',
             
             # Commitish references
-            'commit', 'git hash', 'branch'
+            'commit', 'git hash', 'branch',
+            
+            # Version range text indicators
+            '_and_prior', '_and_later', '_and_earlier', '_and_newer',
+            'and_prior', 'and_later', 'and_earlier', 'and_newer'
         ]
         
         # Check for improper comparators in version fields
@@ -253,7 +270,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
                     version_concerns.append(f"Version field may contain comparator: {v['version']}")
                 
                 # Check for text comparators
-                elif any(text_comp in version_value for text_comp in text_comparators):
+                elif any(text_comp in version_value for text_comp in version_text_patterns):
                     version_concerns.append(f"Version field may contain inappropriate text: {v['version']}")
             
             # Check 'lessThan' field
@@ -261,7 +278,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
                 less_than_value = v['lessThan'].lower()  # Add toLowerCase for consistency
                 if any(comp in less_than_value for comp in comparators):
                     version_concerns.append(f"LessThan field contains comparator: {v['lessThan']}")
-                elif any(text_comp in less_than_value for text_comp in text_comparators):
+                elif any(text_comp in less_than_value for text_comp in version_text_patterns):
                     version_concerns.append(f"LessThan field contains text comparator: {v['lessThan']}")
             
             # Check 'lessThanOrEqual' field
@@ -269,13 +286,45 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
                 less_than_or_equal_value = v['lessThanOrEqual'].lower()  # Add toLowerCase for consistency
                 if any(comp in less_than_or_equal_value for comp in comparators):
                     version_concerns.append(f"LessThanOrEqual field contains comparator: {v['lessThanOrEqual']}")
-                elif any(text_comp in less_than_or_equal_value for text_comp in text_comparators):
+                elif any(text_comp in less_than_or_equal_value for text_comp in version_text_patterns):
                     version_concerns.append(f"LessThanOrEqual field contains text comparator: {v['lessThanOrEqual']}")
+        
+        # NEW CHECK: Check for multiple versions with wildcard starts
+        # Count versions that have both "version": "*" and "lessThan" or "lessThanOrEqual"
+        wildcard_branches = []
+        for v in versions:
+            if isinstance(v, dict) and v.get('version') == '*' and ('lessThan' in v or 'lessThanOrEqual' in v):
+                branch_end = v.get('lessThan') or v.get('lessThanOrEqual')
+                wildcard_branches.append(branch_end)
+        
+        # If multiple wildcard branches found, add a concern
+        if len(wildcard_branches) > 1:
+            branch_ranges = ", ".join(wildcard_branches)
+            version_concerns.append(f"Multiple overlapping branch ranges with wildcard starts: {branch_ranges}")
         
         # If we found any version concerns, add the badge
         if version_concerns:
             versions_tooltip = 'Versions array contains formatting issues:&#013;' + '&#013;'.join(version_concerns)
             sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{versions_tooltip}">Versions Data Concern</span> ')
+        
+        # CPEs Array Data Concern: Check for CPEs Array with improper text patterns in version field
+        if 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
+            cpe_concerns = []
+            for cpe in raw_platform_data['cpes']:
+                if isinstance(cpe, str) and cpe.startswith('cpe:'):
+                    # Extract version part from CPE string (part at index 5 in CPE 2.3)
+                    parts = cpe.split(':')
+                    if len(parts) >= 6 and parts[0] == 'cpe' and parts[1] == '2.3':
+                        version = parts[5]
+                        # Check for text patterns in version
+                        if any(text_comp in version.lower() for text_comp in version_text_patterns):
+                            cpe_concerns.append(f"CPE contains improper version text: {cpe}")
+                            break
+            
+            # If CPE concerns found, add badge
+            if cpe_concerns:
+                cpe_tooltip = 'CPEs array contains formatting issues:&#013;' + '&#013;'.join(cpe_concerns)
+                sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{cpe_tooltip}">CPEs Array Data Concern</span> ')
 
     # 9. Add N/A Data Concern badges for problematic vendor/product values
     if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str) and raw_platform_data['vendor'].lower() == 'n/a':
@@ -639,17 +688,17 @@ def buildHTMLPage(affectedHtml, targetCve, globalCVEMetadata=None, vdbIntelHtml=
     pageBodyHeaderHTML = f"""
     <!-- Tool Info Header -->
     <div class="header" style="margin-left: 10px;">
-        <h1>NVD Analysis Intelligence Tool <small>{TOOLNAME} version: {VERSION}</small></h1>
+        <h1>CVE Analysis Tools</h1><h2><small>{TOOLNAME} version: {VERSION}</small>
     </div>
     {globalCVEMetadataHTML}
     """
     
     # Rest of the function remains unchanged
+    # <button class="tablinks" onclick="openCity(event, 'vdbIntelDashboard')">VDB Intel Dashboard</button>
     pageBodyTabsHTML = """
     <!-- Tab links -->
     <div class="tab">
         <button class="tablinks" onclick="openCity(event, 'cveListCPESuggester')">CVE List CPE Suggester</button>
-        <button class="tablinks" onclick="openCity(event, 'vdbIntelDashboard')">VDB Intel Dashboard</button>
     </div>
     """
     
@@ -664,10 +713,10 @@ def buildHTMLPage(affectedHtml, targetCve, globalCVEMetadata=None, vdbIntelHtml=
     
     # Updated pageBodyCPESuggesterHTML without the inline JavaScript
     pageBodyCPESuggesterHTML = f"""
-    <!-- CVE List CPE Suggester -->
+    <!-- CPE Applicability Generator -->
     <div id="cveListCPESuggester" class="tabcontent" style="display: block; border-left: 0px;">
         <div id="cpeSuggesterHeader" class="header">
-            <h3>CVE List CPE Suggester</h3>
+            <h3>CPE Applicability Generator</h3>
         </div>
         {affectedHtml}
         <script>
@@ -677,22 +726,22 @@ def buildHTMLPage(affectedHtml, targetCve, globalCVEMetadata=None, vdbIntelHtml=
     </div>
     """
     
-    if (vdbIntelHtml is None):
-        pageBodyVDBIntelHTML = """
-        <!-- VDB Intel Dashboard -->
-        <div id="vdbIntelDashboard" class="tabcontent" style="border-left: 0px;">
-            <h3>VDB Intel Dashboard</h3>
-            <p>Basic User Mode does not support VDB Intel Check!</p>
-        </div>
-        """
-    else:
-        pageBodyVDBIntelHTML = f"""
-        <!-- VDB Intel Dashboard -->
-        <div id="vdbIntelDashboard" class="tabcontent" style="border-left: 0px;">
-            <h3>VDB Intel Dashboard</h3>
-            {vdbIntelHtml}
-        </div>
-        """
+    #if (vdbIntelHtml is None):
+    #    pageBodyVDBIntelHTML = """
+    #    <!-- VDB Intel Dashboard -->
+    #    <div id="vdbIntelDashboard" class="tabcontent" style="border-left: 0px;">
+    #        <h3>VDB Intel Dashboard</h3>
+    #        <p>Basic User Mode does not support VDB Intel Check!</p>
+    #    </div>
+    #    """
+    #else:
+    #    pageBodyVDBIntelHTML = f"""
+    #    <!-- VDB Intel Dashboard -->
+    #    <div id="vdbIntelDashboard" class="tabcontent" style="border-left: 0px;">
+    #        <h3>VDB Intel Dashboard</h3>
+    #        {vdbIntelHtml}
+    #    </div>
+    #    """
         
     pageEndHTML = """
     <script>
@@ -715,7 +764,7 @@ def buildHTMLPage(affectedHtml, targetCve, globalCVEMetadata=None, vdbIntelHtml=
     """
     
     fullHtml = (pageStartHTML + getCPEJsonScript() + pageBodyHeaderHTML + pageBodyTabsHTML + cveIdIndicatorHTML + 
-                pageBodyCPESuggesterHTML + pageBodyVDBIntelHTML + pageEndHTML)
+                pageBodyCPESuggesterHTML + pageEndHTML)
     
     return fullHtml
 

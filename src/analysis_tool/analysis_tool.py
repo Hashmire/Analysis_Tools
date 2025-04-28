@@ -1,243 +1,304 @@
-# Import Python dependencies
-from pathlib import Path
+#!/usr/bin/env python3
+"""
+CVE Processor Script
+
+This script runs analysis_tool.py for a list of CVEs or processes all CVE records.
+"""
+
 import os
-import webbrowser
-from sys import exit
-from build_info import GIT_COMMIT, GIT_REPO, VERSION, TOOLNAME
+import sys
+import argparse
+from pathlib import Path
 import re
-# Import console tab scripts
+
+# Import modules from analysis_tool
+sys.path.append(os.path.join(os.path.dirname(__file__), 'analysis_tool'))
 import gatherData
 import processData
 import generateHTML
 
-def setOperationMode(modeSetting):
-    # Execute Test or User Mode operations based on initial user input
-    match modeSetting:
-        # User Mode runs the CPE Dictionary Search capability, requesting Vendor and product name input data
-        case "1":
-            print(f"{TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
-            print("CPE Search Mode Selected!")
-            # Prompt for API key after mode selection
-            nvdAPIKey = input("Enter NVD API Key (The process will be slower if no key is entered): ").strip()
-            print("This mode is unfinished! Please use Enrichment Assistance Mode for now.")
-            exit()
-
-        # Enrichment Mode runs both the CVE List CPE Suggester and the VDB Intel Dashboard
-        case "2":
-            print(f"{TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
-            print("Enrichment Assistance Mode Selected!")
-            # Prompt for API key after mode selection
-            nvdAPIKey = input("Enter NVD API Key (The process will be slower if no key is entered): ").strip()
-
-            # Gather NVD Source Data for mapping source data later in the process
-            nvdSourceData = gatherData.gatherNVDSourceData(nvdAPIKey) 
-            
-            processActive = True
-            while processActive == True:
-
-                # Get CVE-ID from input 
-                targetCve = input("Enter CVE-ID (CVE-YYYY-XXXXXXX)")
-                
-                # Make sure the string is formatted well
-                targetCve = targetCve.strip()
-                targetCve = targetCve.upper()
-                processData.integrityCheckCVE("cveIdFormat", targetCve)
-                
-                # Create Primary Datasets from external sources and derive useful fields for display
-                primaryDataframe = gatherData.gatherPrimaryDataframe()
-
-                # Gather CVE List Record and NVD Dataset Records for the target CVE
-                cveRecordData = gatherData.gatherCVEListRecord(targetCve)
-                nvdRecordData = gatherData.gatherNVDCVERecord(nvdAPIKey, targetCve)
-
-                # Process the vulnerability record data to extract useful information
-                primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData, nvdSourceData)             
-                primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
-
-                # Based on the collected information, use the NVD API to gather relevant CPE data
-                primaryDataframe = processData.suggestCPEData(nvdAPIKey, primaryDataframe, 1)
-                           
-                # Do a rough convert of the dataframe to html for debug display
-                primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe, nvdSourceData)
-                
-                primaryDataframe = primaryDataframe.drop('sourceID', axis=1, errors='ignore')
-                primaryDataframe = primaryDataframe.drop('sourceRole', axis=1, errors='ignore')
-                primaryDataframe = primaryDataframe.drop('rawPlatformData', axis=1, errors='ignore')
-                primaryDataframe = primaryDataframe.drop('rawCPEsQueryData', axis=1, errors='ignore')
-                primaryDataframe = primaryDataframe.drop('sortedCPEsQueryData', axis=1, errors='ignore')
-                primaryDataframe = primaryDataframe.drop('trimmedCPEsQueryData', axis=1, errors='ignore')
-                primaryDataframe = primaryDataframe.drop('platformEntryMetadata', axis=1, errors='ignore')
-
-                # Get the correct number of columns
-                num_cols = len(primaryDataframe.columns)
-
-                # Create appropriate column widths based on number of columns
-                if num_cols == 2:
-                    col_widths = ['20%', '80%']
-                else:
-                    # For any other number of columns, calculate evenly
-                    col_width = f"{100/num_cols}%"
-                    col_widths = [col_width] * num_cols
-                    print(f"Warning: {num_cols} columns detected, should be two.")
-
-                # Convert to HTML with correct column spacing
-                affectedHtml2 = primaryDataframe.to_html(
-                    classes='table table-stripped',
-                    col_space=col_widths,
-                    escape=False,
-                    index=False
-                )
-
-                # Add classes to specific headers to allow targeting them with CSS
-                if 'rowDataHTML' in primaryDataframe.columns:
-                    # Use regex to match the th element with any style attributes
-                    affectedHtml2 = re.sub(r'<th[^>]*>rowDataHTML</th>', 
-                                          r'<th class="hidden-header" style="min-width: 20%;">rowDataHTML</th>', 
-                                          affectedHtml2)
-
-                if 'cpeQueryHTML' in primaryDataframe.columns:
-                    # Use regex to match the th element with any style attributes
-                    affectedHtml2 = re.sub(r'<th[^>]*>cpeQueryHTML</th>', 
-                                          r'<th class="hidden-header" style="min-width: 80%;">cpeQueryHTML</th>', 
-                                          affectedHtml2)
-
-                # vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
-                # Put all the html together into a main console view
-                allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, targetCve, globalCVEMetadata)
-
-                # Create html file for CVE, write to it,
-                sub_directory = Path(f"{os.getcwd()}{os.sep}generated_pages")
-                sub_directory.mkdir(parents=True, exist_ok=True)
-                filename = (targetCve + ".html")
-                filepath = sub_directory / filename
-                with filepath.open("w", encoding="utf-8") as fd:
-                    fd.write(allConsoleHTML)
-                # Open html file in a new browser tab for viewing. Comment out for testing needs
-                webbrowser.open_new_tab(f"file:///{filepath}")
-        
-        # Test Mode processes a list of arbitrary test CVEs in bulk to assist with Enrichment mode development
-        # Version matching as part of cve
-        case "9":
-            print(f"{TOOLNAME} {VERSION} built from repo {GIT_REPO} at commit {GIT_COMMIT}")
-            print("Test Mode Selected!")
-            # Prompt for API key after mode selection
-            nvdAPIKey = input("Enter NVD API Key (The process will be slower if no key is entered): ").strip()
-
-            # Gather NVD Source Data for mapping source data later in the process
-            nvdSourceData = gatherData.gatherNVDSourceData(nvdAPIKey)
-            
-            def runCVESmokeTests():
-                cveSmoke = [
-                        "CVE-2024-0057",    # Lots of everything, CPEs included
-                        "CVE-2024-20698",   # Windows OS's        | multiple CPEs per entry
-                        "CVE-2023-41842",   # Three Entries       | no Changes    | multiple version branches
-                        "CVE-2024-2469",    # Single Entry        | has Changes   | multiple version branches
-                        "CVE-2024-21389",   # Single Entry, CPE included
-                        "CVE-2023-33009",   # Unhelpful Product Name Data
-                        "CVE-2024-20359",   # Many Single Version entries per product (Cisco)
-                        "CVE-2024-4072",    # product only success
-                        "CVE-2024-3371",    # Multiple CNA Provided CPE Check results, culled
-                        "CVE-2022-48655",   # Unaffected version range data
-                        "CVE-2023-5541",    # CollectionURL + PackageName Combo 
-                        "CVE-2023-4438",    # Mozilla Firefox vulnerability with multiple version branches
-                        "CVE-2023-29300",   # A vulnerability with CPE array that includes platform information
-                        "CVE-2023-23583",   # Jenkins vulnerability with complex version constraints
-                        "CVE-2023-38180",   # OpenSSL vulnerability with version range specifications
-                        "CVE-2024-1597",    # VMware vulnerability with multiple affected products
-                        "CVE-2023-46604",   # Apache ActiveMQ vulnerability with high profile, good for testing priority scoring
-                        "CVE-2023-36874",   # Microsoft Office vulnerability with complex platform dependencies
-                        "CVE-2022-47966",   # ForgeRock vulnerability with detailed version information
-                        "CVE-2023-44487",   # HTTP/2 rapid reset vulnerability that affects many products (good for testing large result sets)
-                        "CVE-2023-21608",   # Oracle WebLogic Server vulnerability with multiple version branches and complex metadata
-                            # 
-                        ]
-                for targetCve in cveSmoke: 
-
-                    # Make sure the string is formatted well
-                    targetCve = targetCve.strip()
-                    targetCve = targetCve.upper()
-                    processData.integrityCheckCVE("cveIdFormat", targetCve)
-                    
-                    # Create Primary Datasets from external sources and derive useful fields for display
-                    primaryDataframe = gatherData.gatherPrimaryDataframe()
-
-                    # Gather CVE List Record and NVD Dataset Records for the target CVE
-                    cveRecordData = gatherData.gatherCVEListRecord(targetCve)
-                    nvdRecordData = gatherData.gatherNVDCVERecord(nvdAPIKey, targetCve)
-
-                    # Process the vulnerability record data to extract useful platform related information
-                    primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData, nvdSourceData)             
-                    primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
-                    
-                    # Based on the collected information, use the NVD API to gather relevant CPE data
-                    primaryDataframe = processData.suggestCPEData(nvdAPIKey, primaryDataframe, 1)
-                            
-                    # Do a rough convert of the dataframe to html for debug display
-                    primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe, nvdSourceData)
-                    
-                    primaryDataframe = primaryDataframe.drop('sourceID', axis=1, errors='ignore')
-                    primaryDataframe = primaryDataframe.drop('sourceRole', axis=1, errors='ignore')
-                    primaryDataframe = primaryDataframe.drop('rawPlatformData', axis=1, errors='ignore')
-                    primaryDataframe = primaryDataframe.drop('rawCPEsQueryData', axis=1, errors='ignore')
-                    primaryDataframe = primaryDataframe.drop('sortedCPEsQueryData', axis=1, errors='ignore')
-                    primaryDataframe = primaryDataframe.drop('trimmedCPEsQueryData', axis=1, errors='ignore')
-                    primaryDataframe = primaryDataframe.drop('platformEntryMetadata', axis=1, errors='ignore')
-
-                    # Get the correct number of columns
-                    num_cols = len(primaryDataframe.columns)
-
-                    # Create appropriate column widths based on number of columns
-                    if num_cols == 2:
-                        col_widths = ['20%', '80%']
-                    else:
-                        # For any other number of columns, calculate evenly
-                        col_width = f"{100/num_cols}%"
-                        col_widths = [col_width] * num_cols
-                        print(f"Warning: {num_cols} columns detected, should be two.")
-
-                    # Convert to HTML with correct column spacing
-                    affectedHtml2 = primaryDataframe.to_html(
-                        classes='table table-stripped',
-                        col_space=col_widths,
-                        escape=False,
-                        index=False
-                    )
-
-                    # Add classes to specific headers to allow targeting them with CSS
-                    if 'rowDataHTML' in primaryDataframe.columns:
-                        # Use regex to match the th element with any style attributes
-                        affectedHtml2 = re.sub(r'<th[^>]*>rowDataHTML</th>', 
-                                              r'<th class="hidden-header" style="min-width: 20%;">rowDataHTML</th>', 
-                                              affectedHtml2)
-
-                    if 'cpeQueryHTML' in primaryDataframe.columns:
-                        # Use regex to match the th element with any style attributes
-                        affectedHtml2 = re.sub(r'<th[^>]*>cpeQueryHTML</th>', 
-                                              r'<th class="hidden-header" style="min-width: 80%;">cpeQueryHTML</th>', 
-                                              affectedHtml2)
-
-                    # vdbIntelHtml = gatherData.gatherVDBIntel(targetCve)
-                    # Put all the html together into a main console view
-                    allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, targetCve, globalCVEMetadata)
-
-                    # Create html file for CVE, write to it,
-                    sub_directory = Path(f"{os.getcwd()}{os.sep}generated_pages")
-                    sub_directory.mkdir(parents=True, exist_ok=True)
-                    filename = (targetCve + ".html")
-                    filepath = sub_directory / filename
-                    with filepath.open("w", encoding="utf-8") as fd:
-                        fd.write(allConsoleHTML)
-                    # Open html file in a new browser tab for viewing. Comment out for testing needs
-                    webbrowser.open_new_tab(f"file:///{filepath}")
-
-                
-                print("Smoke tests completed... Check browser tabs!")
-        
-        # General examples for unique cases to handle help identifying regressions, should create real test cases and example files for known needs.
-            runCVESmokeTests() 
-        case _:
-            print("Invalid choice, exiting")
-            exit()
+def process_cve(cve_id, nvd_api_key, nvd_source_data):
+    """Process a single CVE using the analysis tool functionality."""
+    print(f"Processing {cve_id}...")
     
-setOperationMode(input("Select Mode: \n 1 --> CPE Search Mode \n 2 --> Enrichment Assistance Mode \n 9 --> Test Mode \n"))
+    # Make sure the string is formatted well
+    cve_id = cve_id.strip().upper()
+    processData.integrityCheckCVE("cveIdFormat", cve_id)
+    
+    # Create Primary Datasets from external sources
+    primaryDataframe = gatherData.gatherPrimaryDataframe()
 
+    try:
+        # Gather CVE List Record and NVD Dataset Records for the target CVE
+        cveRecordData = gatherData.gatherCVEListRecord(cve_id)
+        
+        # Check if CVE is in REJECTED state
+        if cveRecordData and 'cveMetadata' in cveRecordData:
+            state = cveRecordData.get('cveMetadata', {}).get('state')
+            if state == 'REJECTED':
+                print(f"[WARNING] {cve_id} is in REJECTED state - skipping processing")
+                return None
+        
+        try:
+            nvdRecordData = gatherData.gatherNVDCVERecord(nvd_api_key, cve_id)
+        except Exception as api_error:
+            # Handle specific NVD API errors
+            error_str = str(api_error)
+            if "Invalid cpeMatchstring parameter" in error_str:
+                print(f"[WARNING] {cve_id} has invalid CPE match string - skipping processing")
+                print(f"          Error: {error_str}")
+                return None
+            else:
+                # Re-raise other exceptions
+                raise
+        
+        # Process the vulnerability record data
+        primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData, nvd_source_data)             
+        primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
+
+        # Suggest CPE data based on collected information
+        try:
+            primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1)
+        except Exception as cpe_error:
+            # Handle CPE suggestion errors
+            print(f"[WARNING] {cve_id} encountered an error during CPE suggestion: {str(cpe_error)}")
+            print("          Continuing with available data...")
+            # Continue processing without CPE suggestions
+        
+        # Generate HTML
+        primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe, nvd_source_data)
+        
+        # Clean up dataframe
+        columns_to_drop = ['sourceID', 'sourceRole', 'rawPlatformData', 'rawCPEsQueryData', 
+                          'sortedCPEsQueryData', 'trimmedCPEsQueryData', 'platformEntryMetadata']
+        for col in columns_to_drop:
+            primaryDataframe = primaryDataframe.drop(col, axis=1, errors='ignore')
+
+        # Set column widths
+        num_cols = len(primaryDataframe.columns)
+        col_widths = ['20%', '80%'] if num_cols == 2 else [f"{100/num_cols}%"] * num_cols
+
+        # Convert to HTML
+        affectedHtml2 = primaryDataframe.to_html(
+            classes='table table-stripped',
+            col_space=col_widths,
+            escape=False,
+            index=False
+        )
+
+        # Format HTML headers
+        if 'rowDataHTML' in primaryDataframe.columns:
+            affectedHtml2 = re.sub(r'<th[^>]*>rowDataHTML</th>', 
+                                  r'<th class="hidden-header" style="min-width: 20%;">rowDataHTML</th>', 
+                                  affectedHtml2)
+
+        if 'cpeQueryHTML' in primaryDataframe.columns:
+            affectedHtml2 = re.sub(r'<th[^>]*>cpeQueryHTML</th>', 
+                                  r'<th class="hidden-header" style="min-width: 80%;">cpeQueryHTML</th>', 
+                                  affectedHtml2)
+
+        # Generate page and save HTML
+        allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, cve_id, globalCVEMetadata)
+
+        # Save output
+        sub_directory = Path(f"{os.getcwd()}{os.sep}generated_pages")
+        sub_directory.mkdir(parents=True, exist_ok=True)
+        filename = f"{cve_id}.html"
+        filepath = sub_directory / filename
+        
+        with filepath.open("w", encoding="utf-8") as fd:
+            fd.write(allConsoleHTML)
+        
+        print(f"Generated {filepath}")
+        return filepath
+    except Exception as e:
+        print(f"[ERROR] Failed to process {cve_id}: {str(e)}")
+        return None
+
+def get_all_cves(nvd_api_key):
+    """
+    Retrieve all CVE IDs by querying the NVD API and iterating through all pages.
+    
+    Returns:
+        list: A list of CVE IDs
+    """
+    import requests
+    import time
+    
+    print("Retrieving all CVEs from NVD database...")
+    
+    base_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+    headers = {}
+    
+    # Use the same API key as for other queries if available
+    if nvd_api_key:
+        headers["apiKey"] = nvd_api_key
+    
+    results_per_page = 2000  # Maximum allowed by NVD API
+    start_index = 0
+    total_results = None
+    cve_ids = []
+    
+    # Keep querying until we've processed all pages
+    while total_results is None or start_index < total_results:
+        params = {
+            "startIndex": start_index,
+            "resultsPerPage": results_per_page
+        }
+        
+        try:
+            print(f"Querying CVEs (page {start_index // results_per_page + 1})...")
+            response = requests.get(base_url, params=params, headers=headers)
+            
+            # Rate limiting - NVD API allows ~50 requests per 30 seconds with API key
+            # or ~5 requests per 30 seconds without API key
+            if not headers.get("apiKey"):
+                time.sleep(6)  # ~5 requests per 30 seconds
+            else:
+                time.sleep(0.6)  # ~50 requests per 30 seconds
+                
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Set total results on first iteration
+                if total_results is None:
+                    total_results = data.get("totalResults", 0)
+                    print(f"Found {total_results} total CVEs")
+                
+                # Extract CVE IDs from current page
+                for vuln in data.get("vulnerabilities", []):
+                    if "cve" in vuln and "id" in vuln["cve"]:
+                        cve_ids.append(vuln["cve"]["id"])
+                
+                # Update start index for next page
+                start_index += results_per_page
+                
+                # Progress update
+                print(f"Collected {len(cve_ids)}/{total_results} CVEs")
+            else:
+                print(f"Error: API request failed with status code {response.status_code}")
+                print(f"Response: {response.text}")
+                break
+                
+        except Exception as e:
+            print(f"Error retrieving CVEs: {e}")
+            break
+    
+    print(f"Retrieved {len(cve_ids)} CVE IDs")
+    return cve_ids
+
+def main():
+    """Main function to process CVEs based on command line arguments."""
+    parser = argparse.ArgumentParser(description="Process CVE records with analysis_tool.py")
+    group = parser.add_mutually_exclusive_group()  # Remove required=True to allow default behavior
+    group.add_argument("--cve", nargs="+", help="One or more CVE IDs to process")
+    group.add_argument("--file", help="Text file with CVE IDs (one per line)")
+    group.add_argument("--all", action="store_true", help="Process all CVE records")
+    parser.add_argument("--api-key", help="NVD API Key (optional but recommended)")
+    parser.add_argument("--no-browser", action="store_true", help="Don't open results in browser")
+    parser.add_argument("--debug", action="store_true", help="Debug mode - runs with default options")
+    parser.add_argument("--save-skipped", help="Save list of skipped CVEs to specified file")
+    
+    args = parser.parse_args()
+    
+    # Debug mode - set default options
+    if args.debug or not (args.cve or args.file or args.all):
+        print("Debug mode: Processing all CVEs by default")
+        args.all = True
+    
+    # Get API key
+    nvd_api_key = args.api_key or input("Enter NVD API Key (optional, but processing will be slower without it): ").strip()
+    
+    # Gather NVD Source Data (done once)
+    print("Gathering NVD source data...")
+    nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
+    
+    cves_to_process = []
+    
+    if args.cve:
+        cves_to_process = args.cve
+    elif args.file:
+        try:
+            with open(args.file, 'r') as file:
+                cves_to_process = [line.strip() for line in file if line.strip()]
+        except Exception as e:
+            print(f"Error reading file {args.file}: {e}")
+            sys.exit(1)
+    elif args.all:
+        cves_to_process = get_all_cves(nvd_api_key)
+    
+    # Reverse the order of CVEs to process newer ones first (typically higher CVE numbers)
+    cves_to_process.sort(reverse=True)
+    
+    print(f"Processing {len(cves_to_process)} CVE records (newest first)...")
+    
+    # Process all CVEs
+    generated_files = []
+    skipped_cves = []
+    skipped_reasons = {}  # Store reasons for skipping
+    
+    total_cves = len(cves_to_process)
+    for index, cve in enumerate(cves_to_process):
+        try:
+            print(f"[{index+1}/{total_cves}] Processing {cve}...")
+            filepath = process_cve(cve, nvd_api_key, nvd_source_data)
+            if filepath:
+                generated_files.append(filepath)
+            else:
+                skipped_cves.append(cve)
+                skipped_reasons[cve] = "CVE processing returned None (possibly REJECTED state)"
+                print(f"[INFO] Skipped {cve} - continuing with next CVE")
+        except Exception as e:
+            print(f"[ERROR] Failed to process {cve}: {e}")
+            print("[INFO] Continuing with next CVE...")
+            skipped_cves.append(cve)
+            skipped_reasons[cve] = str(e)
+            # Continue with the next CVE regardless of any errors
+            continue
+    
+    print(f"\nProcessed {len(generated_files)} CVE records successfully.")
+    
+    # Report skipped CVEs
+    if skipped_cves:
+        print(f"Skipped {len(skipped_cves)} CVE records:")
+        
+        # Show a sample of skipped CVEs if there are many
+        display_limit = 20
+        if len(skipped_cves) <= display_limit:
+            for cve in skipped_cves:
+                reason = skipped_reasons.get(cve, "Unknown reason")
+                print(f"  - {cve}: {reason}")
+        else:
+            for cve in skipped_cves[:display_limit]:
+                reason = skipped_reasons.get(cve, "Unknown reason")
+                print(f"  - {cve}: {reason}")
+            print(f"  ...and {len(skipped_cves) - display_limit} more (see skipped CVEs file for complete list)")
+        
+        # Save skipped CVEs to file if requested
+        if args.save_skipped or len(skipped_cves) > display_limit:
+            skipped_file = args.save_skipped or "skipped_cves.txt"
+            try:
+                with open(skipped_file, 'w') as f:
+                    f.write("# Skipped CVEs and reasons\n")
+                    f.write("# Format: CVE_ID,Reason\n")
+                    for cve in skipped_cves:
+                        reason = skipped_reasons.get(cve, "Unknown reason")
+                        # Escape commas in reason to maintain CSV format
+                        reason_escaped = reason.replace(',', '\\,')
+                        f.write(f"{cve},{reason_escaped}\n")
+                print(f"Saved list of skipped CVEs to {skipped_file}")
+            except Exception as e:
+                print(f"Error saving skipped CVEs list: {e}")
+    
+    print(f"Output files saved in {Path(f'{os.getcwd()}{os.sep}generated_pages')}")
+    
+    # Open results in browser if requested
+    if not args.no_browser and generated_files:
+        import webbrowser
+        for filepath in generated_files[:5]:  # Open only first 5 files to avoid browser overload
+            webbrowser.open_new_tab(f"file:///{filepath}")
+        if len(generated_files) > 5:
+            print(f"Note: Opened only the first 5 of {len(generated_files)} generated files in browser")
+
+if __name__ == "__main__":
+    main()

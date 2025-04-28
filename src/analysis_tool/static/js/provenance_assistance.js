@@ -191,6 +191,137 @@ function setupProvenanceStructure() {
 }
 
 /**
+ * Add WordPress-specific provenance links if applicable for the row
+ * @param {number} rowIndex - The row index
+ * @param {object} platformData - The raw platform data for the row
+ * @param {Element} linksContainer - The container to add cards to
+ */
+function addWordPressProvenanceLinks(rowIndex, platformData, linksContainer) {
+    // Check if this is WordPress-related based on URL or source ID
+    const isWordPressURL = 
+        (platformData.collectionURL && platformData.collectionURL.includes('wordpress.org')) || 
+        (platformData.repo && platformData.repo.includes('wordpress.org'));
+    
+    // Identify WordPress-related sources from CVE metadata
+    const metadataDiv = document.getElementById('global-cve-metadata');
+    let isWordPressSource = false;
+    
+    if (metadataDiv && metadataDiv.hasAttribute('data-cve-metadata')) {
+        try {
+            const metadata = JSON.parse(metadataDiv.getAttribute('data-cve-metadata'));
+            
+            if (metadata && metadata.sourceData) {
+                // Check if any of the sources are WordPress-related
+                isWordPressSource = metadata.sourceData.some(source => 
+                    source.sourceId === 'b15e7b5b-3da4-40ae-a43c-f7aa60e62599' || // WordFence
+                    source.sourceId === '1bfdd5d7-9bf6-4a53-96ea-42e2716d7a81'    // WP Scan
+                );
+            }
+        } catch (e) {
+            console.error('Error checking WordPress sources:', e);
+        }
+    }
+    
+    // Exit if not WordPress-related
+    if (!isWordPressURL && !isWordPressSource) {
+        return;
+    }
+    
+    // Create a WordPress Platform card
+    const wpCard = document.createElement('div');
+    wpCard.className = 'card source-card me-2 mb-2';
+    
+    // Create the card header
+    const wpHeader = document.createElement('div');
+    wpHeader.className = 'card-header py-1';
+    wpHeader.innerHTML = '<strong>WordPress Platform</strong>';
+    wpCard.appendChild(wpHeader);
+    
+    // Create the card body
+    const wpBody = document.createElement('div');
+    wpBody.className = 'card-body py-2 px-2 d-flex flex-column has-multiple-buttons';
+    
+    // Add Maintainer Profile button if vendor is available
+    if (platformData.vendor) {
+        const profileButton = document.createElement('button');
+        profileButton.className = 'btn btn-sm btn-outline-secondary provenance-button mb-2';
+        profileButton.textContent = 'Maintainer Profile';
+        
+        const profileUrl = `https://profiles.wordpress.org/${platformData.vendor}/#content-plugins`;
+        profileButton.title = profileUrl;
+        profileButton.onclick = function() {
+            window.open(profileUrl, '_blank');
+        };
+        
+        wpBody.appendChild(profileButton);
+    }
+    
+    // Add Plugin Tracking (Product) button if product is available
+    if (platformData.product) {
+        const productButton = document.createElement('button');
+        productButton.className = 'btn btn-sm btn-outline-secondary provenance-button mb-2';
+        productButton.textContent = 'Plugin Tracking (Product)';
+        
+        const productUrl = `https://plugins.trac.wordpress.org/browser/${platformData.product}`;
+        productButton.title = productUrl;
+        productButton.onclick = function() {
+            window.open(productUrl, '_blank');
+        };
+        
+        wpBody.appendChild(productButton);
+        
+        // Add Changelog button using product name
+        const changelogButton = document.createElement('button');
+        changelogButton.className = 'btn btn-sm btn-outline-secondary provenance-button mb-2';
+        changelogButton.textContent = 'Plugin Changelog (Product)';
+        
+        const changelogUrl = `https://wordpress.org/plugins/${platformData.product}/#developers`;
+        changelogButton.title = changelogUrl;
+        changelogButton.onclick = function() {
+            window.open(changelogUrl, '_blank');
+        };
+        
+        wpBody.appendChild(changelogButton);
+    }
+    
+    // Add Plugin Tracking (Package Name) button if packageName is available and different from product
+    if (platformData.packageName && 
+        (!platformData.product || platformData.packageName !== platformData.product)) {
+        
+        const packageButton = document.createElement('button');
+        packageButton.className = 'btn btn-sm btn-outline-secondary provenance-button mb-2';
+        packageButton.textContent = 'Plugin Tracking (Package Name)';
+        
+        const packageUrl = `https://plugins.trac.wordpress.org/browser/${platformData.packageName}`;
+        packageButton.title = packageUrl;
+        packageButton.onclick = function() {
+            window.open(packageUrl, '_blank');
+        };
+        
+        wpBody.appendChild(packageButton);
+        
+        // Add Changelog button using packageName if different from product
+        const changelogPackageButton = document.createElement('button');
+        changelogPackageButton.className = 'btn btn-sm btn-outline-secondary provenance-button mb-2';
+        changelogPackageButton.textContent = 'Plugin Changelog (Package)';
+        
+        const changelogPackageUrl = `https://wordpress.org/plugins/${platformData.packageName}/#developers`;
+        changelogPackageButton.title = changelogPackageUrl;
+        changelogPackageButton.onclick = function() {
+            window.open(changelogPackageUrl, '_blank');
+        };
+        
+        wpBody.appendChild(changelogPackageButton);
+    }
+    
+    // Only add the card if it has any buttons
+    if (wpBody.children.length > 0) {
+        wpCard.appendChild(wpBody);
+        linksContainer.appendChild(wpCard);
+    }
+}
+
+/**
  * Add provenance links cards (repository, collection URL) for a row
  * @param {number} rowIndex - The row index
  */
@@ -214,6 +345,9 @@ function addProvenanceLinks(rowIndex) {
     if (!linksContainer) {
         return;
     }
+    
+    // Add WordPress-specific provenance links if applicable
+    addWordPressProvenanceLinks(rowIndex, platformData, linksContainer);
     
     // Add repository link if available
     if (platformData.repo) {
