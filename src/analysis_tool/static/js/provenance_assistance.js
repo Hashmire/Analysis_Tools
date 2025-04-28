@@ -210,7 +210,7 @@ function addWordPressProvenanceLinks(rowIndex, platformData, linksContainer) {
         try {
             const metadata = JSON.parse(metadataDiv.getAttribute('data-cve-metadata'));
             
-            if (metadata && metadata.sourceData) {
+            if (metadata && metadata.sourceData && Array.isArray(metadata.sourceData)) {
                 // Check if any of the sources are WordPress-related
                 isWordPressSource = metadata.sourceData.some(source => 
                     source.sourceId === 'b15e7b5b-3da4-40ae-a43c-f7aa60e62599' || // WordFence

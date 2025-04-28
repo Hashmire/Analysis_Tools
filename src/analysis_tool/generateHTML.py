@@ -342,8 +342,12 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         has_vendor_curation = curation_tracking.get('vendor', [])
         has_product_curation = curation_tracking.get('product', [])
         has_platform_curation = curation_tracking.get('platform', [])  # New: check for platform curation
+        has_vendor_product_curation = curation_tracking.get('vendor_product', [])  # New check for vendor+product
+        has_vendor_package_curation = curation_tracking.get('vendor_package', [])  # New check for vendor+packageName
         
-        if has_vendor_curation or has_product_curation or has_platform_curation:  # Include platform curation
+        if (has_vendor_curation or has_product_curation or has_platform_curation or 
+            has_vendor_product_curation or has_vendor_package_curation):
+            
             # Build a simple tooltip listing all value changes
             curation_tooltip = 'Modified values:&#013;'
             
@@ -358,6 +362,14 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
             # List platform modifications that were successfully mapped
             for mod in has_platform_curation:
                 curation_tooltip += f"Platform: {mod['original']} → {mod['curated']}&#013;"
+            
+            # List vendor+product combinations
+            for mod in has_vendor_product_curation:
+                curation_tooltip += f"Vendor+Product: {mod['original']} → {mod['curated']}&#013;"
+            
+            # List vendor+packageName combinations
+            for mod in has_vendor_package_curation:
+                curation_tooltip += f"Vendor+Package: {mod['original']} → {mod['curated']}&#013;"
             
             # Create a badge with the new name - no count included
             sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{curation_tooltip}">Source to CPE Attribute Curation</span> ')

@@ -310,7 +310,7 @@ function updateCompletionTracker() {
 
 /**
  * Get the source data from the global metadata
- * @returns {Object|null} The source data object or null if not found
+ * @returns {Array|null} The source data array or null if not found
  */
 function getSourceData() {
     try {
@@ -320,11 +320,26 @@ function getSourceData() {
         }
         
         const metadata = JSON.parse(metadataDiv.getAttribute('data-cve-metadata'));
-        return metadata.sourceData || {};
+        return metadata.sourceData || [];  // Return as array instead of object
     } catch (e) {
         console.error('Error retrieving source data:', e);
-        return {};
+        return [];  // Return empty array instead of empty object
     }
+}
+
+/**
+ * Get source information by ID from the global metadata
+ * @param {string} sourceId - The source ID to look for
+ * @returns {Object|null} Source information or null if not found
+ */
+function getSourceById(sourceId) {
+    const sourceData = getSourceData();
+    if (!sourceData || !Array.isArray(sourceData)) {
+        return null;
+    }
+    
+    // Find the source with matching sourceId
+    return sourceData.find(source => source.sourceId === sourceId) || null;
 }
 
 /**

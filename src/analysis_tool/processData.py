@@ -651,6 +651,20 @@ def suggestCPEData(apiKey, rawDataset, case):
                             if curatedSearchString not in cpeBaseStrings:
                                 cpeBaseStrings.append(curatedSearchString)
 
+                            vendor_original = platform_data['vendor']
+                            product_original = platform_data['product']
+                            
+                            # Track vendor+product curation if either value was modified
+                            if vendor != vendor_original or product != product_original:
+                                # Add combined vendor+product curation tracking
+                                if 'vendor_product' not in curation_tracking:
+                                    curation_tracking['vendor_product'] = []
+                                
+                                curation_tracking['vendor_product'].append({
+                                    "original": f"{vendor_original}:{product_original}",
+                                    "curated": f"{vendor}:{product}"
+                                })
+
                     # Generate CPE Match Strings based on available content for 'vendor' and 'packageName'
                     if 'vendor' in platform_data and 'packageName' in platform_data:
                         cpeValidstringVendor = formatFor23CPE(platform_data['vendor'])
@@ -660,7 +674,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                         
                         part = "*"
                         vendor = culledStringVendor
-                        product = cpeValidstringPackageName
+                        product = culledStringProduct
                         version = "*"
                         update = "*"
                         edition = "*"
@@ -675,6 +689,20 @@ def suggestCPEData(apiKey, rawDataset, case):
                         scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                         scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                         cpeBaseStrings.append(scratchMatchString)           
+
+                        vendor_original = platform_data['vendor']
+                        packageName_original = platform_data['packageName']
+                        
+                        # Track vendor+packageName curation if values were modified
+                        if vendor != vendor_original or product != packageName_original:
+                            # Add combined vendor+packageName curation tracking
+                            if 'vendor_package' not in curation_tracking:
+                                curation_tracking['vendor_package'] = []
+                            
+                            curation_tracking['vendor_package'].append({
+                                "original": f"{vendor_original}:{packageName_original}",
+                                "curated": f"{vendor}:{product}"
+                            })
 
                     # Extract and use CPEs from the CVE affected entry's 'cpes' array
                     if 'cpes' in platform_data and isinstance(platform_data['cpes'], list):
@@ -934,7 +962,7 @@ def processCVEData(dataframe, cveRecordData, nvdSourceData=None):
         'cveId': cveRecordData.get('cveMetadata', {}).get('cveId', ''),
         'descriptionData': [],
         'referencesData': [], 
-        'sourceData': {}
+        'sourceData': []
     }
     
     # Set to track all source IDs used in this CVE
@@ -993,46 +1021,49 @@ def processCVEData(dataframe, cveRecordData, nvdSourceData=None):
         # Add NVD as a used source if we're processing NVD data
         used_source_ids.add('nvd@nist.gov')
                 
-        # Add relevant source information from nvdSourceData to global metadata - MOVED OUTSIDE THE LOOP
+        # Add relevant source information from nvdSourceData to global metadata
         if nvdSourceData is not None:
+            # Track which sources we've already added to avoid duplicates
+            added_sources = set()
+            
             for _, source_row in nvdSourceData.iterrows():
                 source_id = source_row.get('orgId', '')
                 
-                # Check if this source ID is in our used sources
+                # Skip if we've already added this source
+                if source_id in added_sources:
+                    continue
+                    
+                # Check if this source ID is in our used sources (direct match by orgId)
+                source_matched = False
                 if source_id in used_source_ids:
-                    # Add source information directly using orgId
+                    source_matched = True
+                
+                # Or check if any of our used IDs are in this source's identifiers
+                elif 'sourceIdentifiers' in source_row and isinstance(source_row['sourceIdentifiers'], list):
+                    for used_id in used_source_ids:
+                        if used_id in source_row['sourceIdentifiers']:
+                            source_matched = True
+                            break
+                
+                # If we matched this source, add it and mark as added
+                if source_matched:
+                    # Create source info object
                     source_info = {
+                        "sourceId": source_id,
                         "name": source_row.get('name', 'Unknown'),
                         "contactEmail": source_row.get('contactEmail', ''),
                         "sourceIdentifiers": source_row.get('sourceIdentifiers', [])
                     }
-
-                    # Use orgId as the key if it exists
-                    global_cve_metadata['sourceData'][source_id] = source_info
                     
-                    # Also map each sourceIdentifier (UUID) to this same source info
+                    # Add to the array
+                    global_cve_metadata['sourceData'].append(source_info)
+                    added_sources.add(source_id)
+                    
+                    # Also add entries with explicit UUIDs that the frontend might check for
                     for uuid in source_row.get('sourceIdentifiers', []):
-                        global_cve_metadata['sourceData'][uuid] = source_info
-                
-                # Also check if any of the source IDs used are in the sourceIdentifiers array
-                elif 'sourceIdentifiers' in source_row and isinstance(source_row['sourceIdentifiers'], list):
-                    for used_id in used_source_ids:
-                        if used_id in source_row['sourceIdentifiers']:
-                            # Add source information using both orgId and UUID
-                            source_info = {
-                                "name": source_row.get('name', 'Unknown'),
-                                "contactEmail": source_row.get('contactEmail', ''),
-                                "sourceIdentifiers": source_row.get('sourceIdentifiers', [])
-                            }
-                            
-                            # Use orgId as the key if it exists
-                            global_cve_metadata['sourceData'][source_row.get('orgId', '')] = source_info
-                            
-                            # Also map each sourceIdentifier (UUID) to this same source info
-                            for uuid in source_row.get('sourceIdentifiers', []):
-                                global_cve_metadata['sourceData'][uuid] = source_info
-                            
-                            break
+                        uuid_source_info = source_info.copy()
+                        uuid_source_info["sourceId"] = uuid
+                        global_cve_metadata['sourceData'].append(uuid_source_info)
         
         # Now process affected entries and add rows to dataframe
         for container_type in ['cna', 'adp']:
