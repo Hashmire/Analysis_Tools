@@ -190,21 +190,30 @@ def get_all_cves(nvd_api_key):
 def main():
     """Main function to process CVEs based on command line arguments."""
     parser = argparse.ArgumentParser(description="Process CVE records with analysis_tool.py")
-    group = parser.add_mutually_exclusive_group()  # Remove required=True to allow default behavior
+    group = parser.add_mutually_exclusive_group()
     group.add_argument("--cve", nargs="+", help="One or more CVE IDs to process")
     group.add_argument("--file", help="Text file with CVE IDs (one per line)")
     group.add_argument("--all", action="store_true", help="Process all CVE records")
     parser.add_argument("--api-key", help="NVD API Key (optional but recommended)")
     parser.add_argument("--no-browser", action="store_true", help="Don't open results in browser")
-    parser.add_argument("--debug", action="store_true", help="Debug mode - runs with default options")
+    parser.add_argument("--debug", action="store_true", help="Debug mode - uses DEFAULT_CVE_MODE setting")
     parser.add_argument("--save-skipped", help="Save list of skipped CVEs to specified file")
+    
+    # Development configuration - easily change the default behavior
+    # Set to "single" for a single CVE or "all" for all CVEs
+    DEFAULT_CVE_MODE = "single"  # Change this to "all" when needed
+    DEFAULT_CVE_ID = "CVE-2024-12355"  # Default CVE to process in single mode
     
     args = parser.parse_args()
     
-    # Debug mode - set default options
+    # Debug mode - set default options based on DEFAULT_CVE_MODE
     if args.debug or not (args.cve or args.file or args.all):
-        print("Debug mode: Processing all CVEs by default")
-        args.all = True
+        if DEFAULT_CVE_MODE.lower() == "all":
+            print("Debug mode: Processing all CVEs by default")
+            args.all = True
+        else:
+            print(f"Debug mode: Processing single CVE {DEFAULT_CVE_ID}")
+            args.cve = [DEFAULT_CVE_ID]
     
     # Get API key
     nvd_api_key = args.api_key or input("Enter NVD API Key (optional, but processing will be slower without it): ").strip()

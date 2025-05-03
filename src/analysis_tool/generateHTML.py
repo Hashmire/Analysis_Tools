@@ -466,16 +466,30 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
 
 def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
     
-    # Start with a container div
-    html = f"""<div id="matchesTable_{tableIndex}_container" class="table-container">
-    <table id="matchesTable_{tableIndex}" class="table table-hover matchesTable">
-    <thead>
-      <tr>
-        <th style="width: 65%">CPE Base String</th>
-        <th style="width: 35%">Match Details</th>
-      </tr>
-    </thead>
-    <tbody>
+    # Create a collapsible card similar to Provenance Assistance
+    html = f"""
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center" 
+             id="cpeHeader_{tableIndex}" 
+             data-bs-toggle="collapse" 
+             data-bs-target="#cpeCollapse_{tableIndex}" 
+             style="cursor: pointer;">
+            <h5 class="mb-0">
+                CPE Suggestions
+            </h5>
+            <span class="arrow-icon">▼</span>
+        </div>
+        <div id="cpeCollapse_{tableIndex}" class="collapse show" aria-labelledby="cpeHeader_{tableIndex}">
+            <div class="card-body">
+                <div id="matchesTable_{tableIndex}_container" class="table-container">
+                <table id="matchesTable_{tableIndex}" class="table table-hover matchesTable">
+                <thead>
+                  <tr>
+                    <th style="width: 65%">CPE Base String</th>
+                    <th style="width: 35%">Match Details</th>
+                  </tr>
+                </thead>
+                <tbody>
     """
     
     for base_key, base_value in sortedCPEsQueryData.items():
@@ -550,10 +564,13 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
         </tr>
         """
 
-    # Close both the table and the container div
+    # Close the table and container divs
     html += """
     </tbody>
     </table>
+    </div>
+            </div>
+        </div>
     </div>
     """
 

@@ -661,4 +661,16 @@ function createReferenceCards(rowIndex, referencesData) {
 document.addEventListener('DOMContentLoaded', function() {
     setupProvenanceStructure();
     processProvenanceMetadata();
+    document.querySelectorAll('[id^="provenanceCollapse_"]').forEach(collapseElement => {
+        const index = collapseElement.id.replace('provenanceCollapse_', '');
+        const arrowElement = document.querySelector(`#provenanceHeader_${index} .arrow-icon`);
+        
+        collapseElement.addEventListener('show.bs.collapse', function () {
+            if (arrowElement) arrowElement.textContent = "&darr;";
+        });
+        
+        collapseElement.addEventListener('hide.bs.collapse', function () {
+            if (arrowElement) arrowElement.textContent = "&uarr;";
+        });
+    });
 });

@@ -31,6 +31,10 @@ function toggleRowCollapse(tableIndex) {
         const matchesTableContainer = document.getElementById(`matchesTable_${tableIndex}_container`);
         const collapseButton = document.getElementById(`collapseRowButton_${tableIndex}`);
         
+        // Add arrow icon toggle for CPE Suggestions card
+        const cpeHeaderArrow = document.querySelector(`#cpeHeader_${tableIndex} .arrow-icon`);
+        const provenanceHeaderArrow = document.querySelector(`#provenanceHeader_${tableIndex} .arrow-icon`);
+        
         if (rowDataTableContainer && matchesTableContainer && collapseButton) {
             // Check if currently collapsed
             const isCollapsed = rowDataTableContainer.classList.contains('collapsed');
@@ -39,15 +43,49 @@ function toggleRowCollapse(tableIndex) {
                 // Expand tables
                 rowDataTableContainer.classList.remove('collapsed');
                 matchesTableContainer.classList.remove('collapsed');
+                
+                // Ensure collapse sections are also shown
+                const cpeCollapse = document.getElementById(`cpeCollapse_${tableIndex}`);
+                const provenanceCollapse = document.getElementById(`provenanceCollapse_${tableIndex}`);
+                
+                if (cpeCollapse) {
+                    cpeCollapse.classList.add('show');
+                    if (cpeHeaderArrow) cpeHeaderArrow.innerHTML = "&darr;";  // Use innerHTML with HTML entity
+                }
+                
+                if (provenanceCollapse) {
+                    provenanceCollapse.classList.add('show');
+                    if (provenanceHeaderArrow) provenanceHeaderArrow.innerHTML = "&darr;";  // Use innerHTML with HTML entity
+                }
             } else {
                 // Collapse tables
                 rowDataTableContainer.classList.add('collapsed');
                 matchesTableContainer.classList.add('collapsed');
                 
+                // Also collapse the Bootstrap collapse sections
+                const cpeCollapse = document.getElementById(`cpeCollapse_${tableIndex}`);
+                const provenanceCollapse = document.getElementById(`provenanceCollapse_${tableIndex}`);
+                
+                if (cpeCollapse) {
+                    cpeCollapse.classList.remove('show');
+                    if (cpeHeaderArrow) cpeHeaderArrow.innerHTML = "&uarr;";  // Use innerHTML with HTML entity
+                }
+                
+                if (provenanceCollapse) {
+                    provenanceCollapse.classList.remove('show'); 
+                    if (provenanceHeaderArrow) provenanceHeaderArrow.innerHTML = "&uarr;";  // Use innerHTML with HTML entity
+                }
+                
                 // Also collapse JSON if it's visible
                 const jsonDisplay = document.getElementById(`consolidatedJsonDisplay_matchesTable_${tableIndex}`);
                 if (jsonDisplay && !jsonDisplay.classList.contains('collapsed')) {
                     toggleConsolidatedJson(`matchesTable_${tableIndex}`);
+                }
+                
+                // Also hide CPE Suggestions div when row collapses - target the proper element IDs
+                const cpeQueryContainer = document.getElementById(`cpe-query-container-${tableIndex}`);
+                if (cpeQueryContainer) {
+                    cpeQueryContainer.style.display = 'none';
                 }
             }
             
@@ -56,6 +94,12 @@ function toggleRowCollapse(tableIndex) {
             if (isCollapsed) {
                 collapseButton.classList.remove('btn-success');
                 collapseButton.classList.add('btn-secondary');
+                
+                // Make sure CPE Suggestions div is visible when expanding
+                const cpeQueryContainer = document.getElementById(`cpe-query-container-${tableIndex}`);
+                if (cpeQueryContainer) {
+                    cpeQueryContainer.style.display = '';
+                }
             } else {
                 collapseButton.classList.remove('btn-secondary');
                 collapseButton.classList.add('btn-success');
@@ -236,12 +280,8 @@ function updateCompletionTracker() {
                 sourceStats[sourceId] = { total: 0, completed: 0 };
                 
                 // Get source name from global metadata
-                if (sourceData && sourceData[sourceId]) {
-                    sourceNames[sourceId] = sourceData[sourceId].name || sourceId;
-                } else {
-                    // Basic fallback for display - just use the first 8 chars for UUID
-                    sourceNames[sourceId] = sourceId;
-                }
+                const sourceInfo = getSourceById(sourceId);
+                sourceNames[sourceId] = sourceInfo ? sourceInfo.name : sourceId;
             }
             
             // Update source stats
@@ -333,13 +373,39 @@ function getSourceData() {
  * @returns {Object|null} Source information or null if not found
  */
 function getSourceById(sourceId) {
-    const sourceData = getSourceData();
-    if (!sourceData || !Array.isArray(sourceData)) {
+    try {
+        const sourceData = getSourceData();
+        if (!sourceData || !Array.isArray(sourceData)) {
+            console.warn(`No source data available when looking up sourceId: ${sourceId}`);
+            return null;
+        }
+        
+        // First try exact match on sourceId
+        let source = sourceData.find(source => source.sourceId === sourceId);
+        
+        // If not found, try checking sourceIdentifiers
+        if (!source) {
+            source = sourceData.find(source => 
+                source.sourceIdentifiers && 
+                Array.isArray(source.sourceIdentifiers) && 
+                source.sourceIdentifiers.includes(sourceId)
+            );
+        }
+        
+        // Log when source is not found
+        if (!source) {
+            console.warn(`Source not found for ID: ${sourceId}`);
+            // Debug: dump all available source IDs to help troubleshooting
+            console.debug('Available source IDs:', 
+                sourceData.map(s => ({id: s.sourceId, name: s.name, identifiers: s.sourceIdentifiers}))
+            );
+        }
+        
+        return source;
+    } catch (e) {
+        console.error(`Error retrieving source data for ID ${sourceId}:`, e);
         return null;
     }
-    
-    // Find the source with matching sourceId
-    return sourceData.find(source => source.sourceId === sourceId) || null;
 }
 
 /**
@@ -492,32 +558,6 @@ function toggleProvenanceDescription(buttonId) {
 
 // Make the function available globally
 window.toggleProvenanceDescription = toggleProvenanceDescription;
-
-// Add a helper function to get source information by UUID
-
-/**
- * Get source information from global metadata by UUID
- * @param {string} uuid - The source UUID to look up
- * @returns {Object|null} - The source info object or null if not found
- */
-function getSourceInfoByUuid(uuid) {
-    const metadataDiv = document.getElementById('global-cve-metadata');
-    if (!metadataDiv || !metadataDiv.hasAttribute('data-cve-metadata')) {
-        return null;
-    }
-    
-    try {
-        const metadata = JSON.parse(metadataDiv.getAttribute('data-cve-metadata'));
-        if (!metadata || !metadata.sourceData) {
-            return null;
-        }
-        
-        return metadata.sourceData[uuid] || null;
-    } catch (e) {
-        console.error('Error parsing source metadata:', e);
-        return null;
-    }
-}
 
 // Single consolidated initialization for all DOM elements
 document.addEventListener('DOMContentLoaded', function() {
@@ -820,5 +860,57 @@ document.addEventListener('DOMContentLoaded', function() {
             button.textContent = 'Show Description';
             button.classList.add('btn-transition', 'btn-info');
         }
+    });
+    
+    // Add event listeners for Bootstrap collapse events to update arrows
+    document.querySelectorAll('[id^="cpeCollapse_"]').forEach(collapseElement => {
+        const index = collapseElement.id.replace('cpeCollapse_', '');
+        const arrowElement = document.querySelector(`#cpeHeader_${index} .arrow-icon`);
+        
+        collapseElement.addEventListener('show.bs.collapse', function () {
+            if (arrowElement) arrowElement.innerHTML = "&darr;";  // Use innerHTML with HTML entity
+        });
+        
+        collapseElement.addEventListener('hide.bs.collapse', function () {
+            if (arrowElement) arrowElement.innerHTML = "&uarr;";  // Use innerHTML with HTML entity
+        });
+    });
+
+    // Similar fix for provenance collapse events
+    document.querySelectorAll('[id^="provenanceCollapse_"]').forEach(collapseElement => {
+        const index = collapseElement.id.replace('provenanceCollapse_', '');
+        const arrowElement = document.querySelector(`#provenanceHeader_${index} .arrow-icon`);
+        
+        collapseElement.addEventListener('show.bs.collapse', function () {
+            if (arrowElement) arrowElement.innerHTML = "&darr;";  // Use innerHTML with HTML entity
+        });
+        
+        collapseElement.addEventListener('hide.bs.collapse', function () {
+            if (arrowElement) arrowElement.innerHTML = "&uarr;";  // Use innerHTML with HTML entity
+        });
+    });
+    
+    // Ensure arrows are properly initialized for all collapsible sections
+    document.querySelectorAll('.card-header[data-bs-toggle="collapse"]').forEach(header => {
+        const arrowIcon = header.querySelector('.arrow-icon');
+        if (!arrowIcon) return;
+        
+        const targetId = header.getAttribute('data-bs-target');
+        if (!targetId) return;
+        
+        const target = document.querySelector(targetId);
+        if (!target) return;
+        
+        // Set initial arrow state based on collapse state (using HTML entities)
+        arrowIcon.innerHTML = target.classList.contains('show') ? "&darr;" : "&uarr;";
+        
+        // Add click handler directly on header to ensure arrow updates
+        header.addEventListener('click', function() {
+            // Use setTimeout to ensure this runs after Bootstrap's own handlers
+            setTimeout(() => {
+                const isShown = target.classList.contains('show');
+                arrowIcon.innerHTML = isShown ? "&darr;" : "&uarr;";  // Using HTML entities
+            }, 50);
+        });
     });
 });
