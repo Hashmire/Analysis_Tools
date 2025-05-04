@@ -589,7 +589,8 @@ def getCPEJsonScript() -> str:
         os.path.join(current_dir, "static", "js", "ui_controller.js"),
         os.path.join(current_dir, "static", "js", "selection_manager.js"),
         os.path.join(current_dir, "static", "js", "timestamp_handler.js"),
-        os.path.join(current_dir, "static", "js", "provenance_assistance.js")
+        os.path.join(current_dir, "static", "js", "provenance_assistance.js"),
+        os.path.join(current_dir, "static", "js", "completion_tracker.js")
     ]
     
     # Read JavaScript files

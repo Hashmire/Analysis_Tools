@@ -102,45 +102,6 @@ function updateJsonDisplay(tableId, json, selectionCount) {
 }
 
 /**
- * Update the completion tracker
- */
-function updateCompletionTracker() {
-    try {
-        const tables = document.querySelectorAll('table[id^="rowDataTable_"]');
-        let completedCount = 0;
-        const totalCount = tables.length;
-        
-        // Count how many tables are collapsed (completed)
-        tables.forEach(table => {
-            if (table.classList.contains('collapsed')) {
-                completedCount++;
-            }
-        });
-        
-        // Calculate percentage
-        const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-        
-        // Update the progress bar
-        const progressBar = document.getElementById('completionProgressBar');
-        const completedRowsCount = document.getElementById('completedRowsCount');
-        const totalRowsCount = document.getElementById('totalRowsCount');
-        
-        if (progressBar && completedRowsCount && totalRowsCount) {
-            progressBar.style.width = `${percentage}%`;
-            progressBar.textContent = `${percentage}%`;
-            progressBar.setAttribute('aria-valuenow', percentage);
-            
-            // Change format to succinct fraction followed by "rows"
-            completedRowsCount.textContent = `${completedCount}/${totalCount} rows`;
-            // Remove the separate total count display since it's now in the fraction
-            totalRowsCount.textContent = ''; // or just hide this element with display:none
-        }
-    } catch(e) {
-        console.error('Error updating completion tracker:', e);
-    }
-}
-
-/**
  * Update the Export All Configurations button
  */
 function updateExportAllButton() {
