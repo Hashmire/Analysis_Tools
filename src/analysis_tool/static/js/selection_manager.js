@@ -24,8 +24,9 @@ window.openCity = openCity;
 /**
  * Function to toggle row collapse state
  * @param {number} tableIndex - Index of the table
+ * @param {string} action - Optional action: 'complete' or 'skip' 
  */
-function toggleRowCollapse(tableIndex) {
+function toggleRowCollapse(tableIndex, action) {
     try {
         const rowDataTableContainer = document.getElementById(`rowDataTable_${tableIndex}_container`);
         const matchesTableContainer = document.getElementById(`matchesTable_${tableIndex}_container`);
@@ -44,23 +45,91 @@ function toggleRowCollapse(tableIndex) {
                 rowDataTableContainer.classList.remove('collapsed');
                 matchesTableContainer.classList.remove('collapsed');
                 
+                // Also remove status classes when expanding
+                rowDataTableContainer.classList.remove('completed-row');
+                rowDataTableContainer.classList.remove('skipped-row');
+                
                 // Ensure collapse sections are also shown
                 const cpeCollapse = document.getElementById(`cpeCollapse_${tableIndex}`);
                 const provenanceCollapse = document.getElementById(`provenanceCollapse_${tableIndex}`);
                 
                 if (cpeCollapse) {
                     cpeCollapse.classList.add('show');
-                    if (cpeHeaderArrow) cpeHeaderArrow.innerHTML = "&darr;";  // Use innerHTML with HTML entity
+                    if (cpeHeaderArrow) cpeHeaderArrow.innerHTML = "&darr;"; // Use innerHTML with HTML entity
                 }
                 
                 if (provenanceCollapse) {
                     provenanceCollapse.classList.add('show');
-                    if (provenanceHeaderArrow) provenanceHeaderArrow.innerHTML = "&darr;";  // Use innerHTML with HTML entity
+                    if (provenanceHeaderArrow) provenanceHeaderArrow.innerHTML = "&darr;"; // Use innerHTML with HTML entity
+                }
+                
+                // Check if we're using the dropdown approach by looking for parent .btn-group
+                const btnGroup = collapseButton.closest('.btn-group');
+                
+                if (btnGroup) {
+                    // We're using the dropdown approach
+                    collapseButton.innerHTML = 'Collapse Row <span class="caret"></span>';
+                    collapseButton.classList.remove('btn-success', 'btn-warning');
+                    collapseButton.classList.add('btn-secondary', 'dropdown-toggle');
+                    collapseButton.setAttribute('data-bs-toggle', 'dropdown');
+                    collapseButton.setAttribute('aria-haspopup', 'true');
+                    collapseButton.setAttribute('aria-expanded', 'false');
+                    
+                    // Make sure the dropdown menu is visible again
+                    const dropdownMenu = btnGroup.querySelector('.dropdown-menu');
+                    if (dropdownMenu) {
+                        dropdownMenu.style.display = '';
+                    }
+                    
+                    // Remove any directly attached click event
+                    collapseButton.onclick = null;
+                } else {
+                    // We're using the direct button approach (from HTML)
+                    collapseButton.textContent = 'Collapse Row (Complete)';
+                    collapseButton.classList.remove('btn-success', 'btn-warning');
+                    collapseButton.classList.add('btn-secondary');
+                    
+                    // Restore the original onclick handler
+                    collapseButton.onclick = function() {
+                        toggleRowCollapse(tableIndex);
+                    };
+                }
+                
+                // Make sure CPE Suggestions div is visible when expanding
+                const cpeQueryContainer = document.getElementById(`cpe-query-container-${tableIndex}`);
+                if (cpeQueryContainer) {
+                    cpeQueryContainer.style.display = '';
                 }
             } else {
-                // Collapse tables
+                // If no action was provided but we're using the original onclick handler,
+                // default to 'complete' to maintain backward compatibility
+                if (!action) {
+                    action = 'complete';
+                }
+                
+                // Collapse tables with specified action
                 rowDataTableContainer.classList.add('collapsed');
                 matchesTableContainer.classList.add('collapsed');
+                
+                // Mark the row with the appropriate status class
+                if (action === 'skip') {
+                    rowDataTableContainer.classList.add('skipped-row');
+                    rowDataTableContainer.classList.remove('completed-row');
+                    collapseButton.textContent = 'Expand Row (Skipped)';
+                    collapseButton.classList.remove('btn-secondary', 'dropdown-toggle');
+                    collapseButton.classList.add('btn-warning');
+                } else {
+                    rowDataTableContainer.classList.add('completed-row');
+                    rowDataTableContainer.classList.remove('skipped-row');
+                    collapseButton.textContent = 'Expand Row (Completed)';
+                    collapseButton.classList.remove('btn-secondary', 'dropdown-toggle');
+                    collapseButton.classList.add('btn-success');
+                }
+                
+                // Remove dropdown attributes if they exist
+                collapseButton.removeAttribute('data-bs-toggle');
+                collapseButton.removeAttribute('aria-haspopup');
+                collapseButton.removeAttribute('aria-expanded');
                 
                 // Also collapse the Bootstrap collapse sections
                 const cpeCollapse = document.getElementById(`cpeCollapse_${tableIndex}`);
@@ -68,12 +137,12 @@ function toggleRowCollapse(tableIndex) {
                 
                 if (cpeCollapse) {
                     cpeCollapse.classList.remove('show');
-                    if (cpeHeaderArrow) cpeHeaderArrow.innerHTML = "&uarr;";  // Use innerHTML with HTML entity
+                    if (cpeHeaderArrow) cpeHeaderArrow.innerHTML = "&uarr;"; // Use innerHTML with HTML entity
                 }
                 
                 if (provenanceCollapse) {
                     provenanceCollapse.classList.remove('show'); 
-                    if (provenanceHeaderArrow) provenanceHeaderArrow.innerHTML = "&uarr;";  // Use innerHTML with HTML entity
+                    if (provenanceHeaderArrow) provenanceHeaderArrow.innerHTML = "&uarr;"; // Use innerHTML with HTML entity
                 }
                 
                 // Also collapse JSON if it's visible
@@ -82,27 +151,26 @@ function toggleRowCollapse(tableIndex) {
                     toggleConsolidatedJson(`matchesTable_${tableIndex}`);
                 }
                 
-                // Also hide CPE Suggestions div when row collapses - target the proper element IDs
+                // Also hide CPE Suggestions div when row collapses
                 const cpeQueryContainer = document.getElementById(`cpe-query-container-${tableIndex}`);
                 if (cpeQueryContainer) {
                     cpeQueryContainer.style.display = 'none';
                 }
-            }
-            
-            // Update button
-            collapseButton.textContent = isCollapsed ? 'Collapse Row (Mark Complete)' : 'Expand Row (Completed)';
-            if (isCollapsed) {
-                collapseButton.classList.remove('btn-success');
-                collapseButton.classList.add('btn-secondary');
                 
-                // Make sure CPE Suggestions div is visible when expanding
-                const cpeQueryContainer = document.getElementById(`cpe-query-container-${tableIndex}`);
-                if (cpeQueryContainer) {
-                    cpeQueryContainer.style.display = '';
+                // Hide the dropdown menu when an option is selected (if using dropdown)
+                const btnGroup = collapseButton.closest('.btn-group');
+                if (btnGroup) {
+                    const dropdownMenu = btnGroup.querySelector('.dropdown-menu');
+                    if (dropdownMenu) {
+                        // Hide the dropdown menu
+                        dropdownMenu.style.display = 'none';
+                    }
                 }
-            } else {
-                collapseButton.classList.remove('btn-secondary');
-                collapseButton.classList.add('btn-success');
+                
+                // Set the click handler for the expand button
+                collapseButton.onclick = function() {
+                    toggleRowCollapse(tableIndex);
+                };
             }
             
             // Update completion tracker
@@ -212,6 +280,7 @@ function updateCompletionTracker() {
     try {
         const tableContainers = document.querySelectorAll('div[id^="rowDataTable_"][id$="_container"]');
         let completedCount = 0;
+        let skippedCount = 0;
         const totalCount = tableContainers.length;
         
         // Track completion by source
@@ -223,7 +292,8 @@ function updateCompletionTracker() {
         
         // First pass: examine all tables to find source identifiers
         tableContainers.forEach(container => {
-            const isCompleted = container.classList.contains('collapsed');
+            const isCompleted = container.classList.contains('collapsed') && container.classList.contains('completed-row');
+            const isSkipped = container.classList.contains('collapsed') && container.classList.contains('skipped-row');
             const tableIndex = container.id.replace('rowDataTable_', '').replace('_container', '');
             
             // Get the actual table
@@ -277,7 +347,7 @@ function updateCompletionTracker() {
             
             // Initialize source stats if not already tracked
             if (!sourceStats[sourceId]) {
-                sourceStats[sourceId] = { total: 0, completed: 0 };
+                sourceStats[sourceId] = { total: 0, completed: 0, skipped: 0 };
                 
                 // Get source name from global metadata
                 const sourceInfo = getSourceById(sourceId);
@@ -286,14 +356,19 @@ function updateCompletionTracker() {
             
             // Update source stats
             sourceStats[sourceId].total++;
+            
             if (isCompleted) {
                 sourceStats[sourceId].completed++;
                 completedCount++;
+            } else if (isSkipped) {
+                sourceStats[sourceId].skipped++;
+                skippedCount++;
             }
         });
         
-        // Calculate percentage
-        const percentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+        // Calculate percentage - include both completed and skipped in progress
+        const processedCount = completedCount + skippedCount;
+        const percentage = totalCount > 0 ? Math.round((processedCount / totalCount) * 100) : 0;
         
         // Update UI
         const progressBar = document.getElementById('completionProgressBar');
@@ -308,7 +383,12 @@ function updateCompletionTracker() {
             const displayElements = [];
             
             // Add the overall completion count
-            displayElements.push(`${completedCount}/${totalCount} rows`);
+            displayElements.push(`${processedCount}/${totalCount} rows`);
+            
+            // Add completed/skipped breakdown if there are any skipped rows
+            if (skippedCount > 0) {
+                displayElements.push(`${completedCount} completed, ${skippedCount} skipped`);
+            }
             
             // Sort sources by name for consistent display
             const sortedSourceIds = Object.keys(sourceStats).sort((a, b) => 
@@ -323,10 +403,21 @@ function updateCompletionTracker() {
                     const stats = sourceStats[sourceId];
                     const sourceName = sourceNames[sourceId];
                     
-                    // Use a checkmark for fully completed sources, otherwise show fraction
-                    const indicator = stats.completed === stats.total ? 
-                        '\u2713' : // Unicode checkmark character
-                        `${stats.completed}/${stats.total}`;
+                    // Count both completed and skipped for the source's progress
+                    const processedForSource = stats.completed + stats.skipped;
+                    
+                    // Use 'Complete' text for fully processed sources, otherwise show fraction
+                    let indicator;
+                    if (processedForSource === stats.total) {
+                        indicator = 'Done';
+                    } else {
+                        indicator = `${processedForSource}/${stats.total}`;
+                    }
+                    
+                    // If there are skipped items, add details in parentheses using ASCII
+                    if (stats.skipped > 0) {
+                        indicator += ` (${stats.completed} complete, ${stats.skipped} skipped)`;
+                    }
                     
                     sourceElements.push(`${sourceName}: ${indicator}`);
                 });
@@ -703,6 +794,67 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
         
+        // Find the existing button container
+        const buttonContainer = document.getElementById(`buttonContainer_${tableIndex}`);
+        if (buttonContainer) {
+            // Clear any existing collapse button
+            const existingButton = document.getElementById(`collapseRowButton_${tableIndex}`);
+            if (existingButton) {
+                buttonContainer.removeChild(existingButton);
+            }
+            
+            // Create dropdown group
+            const dropdownGroup = document.createElement('div');
+            dropdownGroup.className = 'btn-group';
+            
+            // Create main button
+            const mainButton = document.createElement('button');
+            mainButton.id = `collapseRowButton_${tableIndex}`;
+            mainButton.className = 'btn btn-secondary dropdown-toggle btn-transition';
+            mainButton.innerHTML = 'Collapse Row <span class="caret"></span>';
+            mainButton.setAttribute('data-bs-toggle', 'dropdown');
+            mainButton.setAttribute('aria-haspopup', 'true');
+            mainButton.setAttribute('aria-expanded', 'false');
+            dropdownGroup.appendChild(mainButton);
+            
+            // Create dropdown menu
+            const dropdownMenu = document.createElement('ul');
+            dropdownMenu.className = 'dropdown-menu';
+            
+            // Create menu items
+            const completeItem = document.createElement('li');
+            const completeLink = document.createElement('a');
+            completeLink.className = 'dropdown-item';
+            completeLink.href = '#';
+            completeLink.textContent = 'Mark as Complete';
+            completeLink.onclick = function(e) {
+                e.preventDefault();
+                toggleRowCollapse(tableIndex, 'complete');
+            };
+            completeItem.appendChild(completeLink);
+            
+            const skipItem = document.createElement('li');
+            const skipLink = document.createElement('a');
+            skipLink.className = 'dropdown-item';
+            skipLink.href = '#';
+            skipLink.textContent = 'Mark as Skip';
+            skipLink.onclick = function(e) {
+                e.preventDefault();
+                toggleRowCollapse(tableIndex, 'skip');
+            };
+            skipItem.appendChild(skipLink);
+            
+            // Add items to menu
+            dropdownMenu.appendChild(completeItem);
+            dropdownMenu.appendChild(skipItem);
+            
+            // Add menu to group
+            dropdownGroup.appendChild(dropdownMenu);
+            
+            // Add the group to the container
+            buttonContainer.appendChild(dropdownGroup);
+        }
+        
         // Find the row data table's container - it's in the first cell of the row
         const rowDataTable = document.getElementById(`rowDataTable_${tableIndex}`);
         let containerTarget = null;
@@ -862,55 +1014,45 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Add event listeners for Bootstrap collapse events to update arrows
-    document.querySelectorAll('[id^="cpeCollapse_"]').forEach(collapseElement => {
-        const index = collapseElement.id.replace('cpeCollapse_', '');
-        const arrowElement = document.querySelector(`#cpeHeader_${index} .arrow-icon`);
-        
-        collapseElement.addEventListener('show.bs.collapse', function () {
-            if (arrowElement) arrowElement.innerHTML = "&darr;";  // Use innerHTML with HTML entity
-        });
-        
-        collapseElement.addEventListener('hide.bs.collapse', function () {
-            if (arrowElement) arrowElement.innerHTML = "&uarr;";  // Use innerHTML with HTML entity
-        });
-    });
-
-    // Similar fix for provenance collapse events
-    document.querySelectorAll('[id^="provenanceCollapse_"]').forEach(collapseElement => {
-        const index = collapseElement.id.replace('provenanceCollapse_', '');
-        const arrowElement = document.querySelector(`#provenanceHeader_${index} .arrow-icon`);
-        
-        collapseElement.addEventListener('show.bs.collapse', function () {
-            if (arrowElement) arrowElement.innerHTML = "&darr;";  // Use innerHTML with HTML entity
-        });
-        
-        collapseElement.addEventListener('hide.bs.collapse', function () {
-            if (arrowElement) arrowElement.innerHTML = "&uarr;";  // Use innerHTML with HTML entity
+    // Add a single mutation observer for all collapse sections
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach(mutation => {
+            if (mutation.attributeName === 'class') {
+                const target = mutation.target;
+                if (target.id && (target.id.startsWith('cpeCollapse_') || target.id.startsWith('provenanceCollapse_'))) {
+                    const index = target.id.split('_')[1];
+                    const type = target.id.startsWith('cpe') ? 'cpe' : 'provenance';
+                    const arrowElement = document.querySelector(`#${type}Header_${index} .arrow-icon`);
+                    
+                    if (arrowElement) {
+                        // Use HTML entities and innerHTML instead of Unicode and textContent
+                        const isShown = target.classList.contains('show');
+                        arrowElement.innerHTML = isShown ? "&darr;" : "&uarr;";
+                    }
+                }
+            }
         });
     });
     
-    // Ensure arrows are properly initialized for all collapsible sections
-    document.querySelectorAll('.card-header[data-bs-toggle="collapse"]').forEach(header => {
-        const arrowIcon = header.querySelector('.arrow-icon');
-        if (!arrowIcon) return;
+    // Apply the observer to all collapse sections
+    const collapseSections = document.querySelectorAll('[id^="cpeCollapse_"],[id^="provenanceCollapse_"]');
+    collapseSections.forEach(section => {
+        observer.observe(section, { attributes: true });
+    });
+    
+    // Initialize all arrow icons with HTML entities
+    document.querySelectorAll('.arrow-icon').forEach(arrow => {
+        const parentHeader = arrow.closest('.card-header');
+        if (!parentHeader) return;
         
-        const targetId = header.getAttribute('data-bs-target');
+        const targetId = parentHeader.getAttribute('data-bs-target');
         if (!targetId) return;
         
         const target = document.querySelector(targetId);
         if (!target) return;
         
-        // Set initial arrow state based on collapse state (using HTML entities)
-        arrowIcon.innerHTML = target.classList.contains('show') ? "&darr;" : "&uarr;";
-        
-        // Add click handler directly on header to ensure arrow updates
-        header.addEventListener('click', function() {
-            // Use setTimeout to ensure this runs after Bootstrap's own handlers
-            setTimeout(() => {
-                const isShown = target.classList.contains('show');
-                arrowIcon.innerHTML = isShown ? "&darr;" : "&uarr;";  // Using HTML entities
-            }, 50);
-        });
+        // Set initial state using HTML entities
+        const isShown = target.classList.contains('show');
+        arrow.innerHTML = isShown ? "&darr;" : "&uarr;";
     });
 });
