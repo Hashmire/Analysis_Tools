@@ -49,53 +49,87 @@ function toggleRowCollapse(tableIndex, action) {
                 rowDataTableContainer.classList.remove('completed-row');
                 rowDataTableContainer.classList.remove('skipped-row');
                 
-                // Ensure collapse sections are also shown
-                const cpeCollapse = document.getElementById(`cpeCollapse_${tableIndex}`);
-                const provenanceCollapse = document.getElementById(`provenanceCollapse_${tableIndex}`);
+                // Recreate the dropdown button and menu
+                const btnGroup = collapseButton.closest('.btn-group') || collapseButton.parentNode;
                 
-                if (cpeCollapse) {
-                    cpeCollapse.classList.add('show');
-                    if (cpeHeaderArrow) cpeHeaderArrow.innerHTML = "&darr;"; // Use innerHTML with HTML entity
-                }
-                
-                if (provenanceCollapse) {
-                    provenanceCollapse.classList.add('show');
-                    if (provenanceHeaderArrow) provenanceHeaderArrow.innerHTML = "&darr;"; // Use innerHTML with HTML entity
-                }
-                
-                // Check if we're using the dropdown approach by looking for parent .btn-group
-                const btnGroup = collapseButton.closest('.btn-group');
-                
+                // Clear existing content
                 if (btnGroup) {
-                    // We're using the dropdown approach
+                    btnGroup.innerHTML = '';
+                    
+                    // Create main button
+                    const mainButton = document.createElement('button');
+                    mainButton.id = `collapseRowButton_${tableIndex}`;
+                    mainButton.className = 'btn btn-secondary dropdown-toggle btn-transition';
+                    mainButton.innerHTML = 'Collapse Row <span class="caret"></span>';
+                    mainButton.setAttribute('data-bs-toggle', 'dropdown');
+                    mainButton.setAttribute('aria-haspopup', 'true');
+                    mainButton.setAttribute('aria-expanded', 'false');
+                    btnGroup.appendChild(mainButton);
+                    
+                    // Create dropdown menu
+                    const dropdownMenu = document.createElement('ul');
+                    dropdownMenu.className = 'dropdown-menu';
+                    
+                    // Create menu items
+                    const completeItem = document.createElement('li');
+                    const completeLink = document.createElement('a');
+                    completeLink.className = 'dropdown-item';
+                    completeLink.href = '#';
+                    completeLink.textContent = 'Mark as Complete';
+                    completeLink.onclick = function(e) {
+                        e.preventDefault();
+                        toggleRowCollapse(tableIndex, 'complete');
+                    };
+                    completeItem.appendChild(completeLink);
+                    
+                    const skipItem = document.createElement('li');
+                    const skipLink = document.createElement('a');
+                    skipLink.className = 'dropdown-item';
+                    skipLink.href = '#';
+                    skipLink.textContent = 'Mark as Skip';
+                    skipLink.onclick = function(e) {
+                        e.preventDefault();
+                        toggleRowCollapse(tableIndex, 'skip');
+                    };
+                    skipItem.appendChild(skipLink);
+                    
+                    // Add items to menu
+                    dropdownMenu.appendChild(completeItem);
+                    dropdownMenu.appendChild(skipItem);
+                    
+                    // Add menu to group
+                    btnGroup.appendChild(dropdownMenu);
+                } else {
+                    // Fallback if group not found
                     collapseButton.innerHTML = 'Collapse Row <span class="caret"></span>';
                     collapseButton.classList.remove('btn-success', 'btn-warning');
                     collapseButton.classList.add('btn-secondary', 'dropdown-toggle');
                     collapseButton.setAttribute('data-bs-toggle', 'dropdown');
                     collapseButton.setAttribute('aria-haspopup', 'true');
                     collapseButton.setAttribute('aria-expanded', 'false');
-                    
-                    // Make sure the dropdown menu is visible again
-                    const dropdownMenu = btnGroup.querySelector('.dropdown-menu');
-                    if (dropdownMenu) {
-                        dropdownMenu.style.display = '';
-                    }
-                    
-                    // Remove any directly attached click event
-                    collapseButton.onclick = null;
-                } else {
-                    // We're using the direct button approach (from HTML)
-                    collapseButton.textContent = 'Collapse Row (Complete)';
-                    collapseButton.classList.remove('btn-success', 'btn-warning');
-                    collapseButton.classList.add('btn-secondary');
-                    
-                    // Restore the original onclick handler
-                    collapseButton.onclick = function() {
-                        toggleRowCollapse(tableIndex);
-                    };
                 }
                 
-                // Make sure CPE Suggestions div is visible when expanding
+                // Enable collapse functionality for Bootstrap components
+                const cpeCollapse = document.getElementById(`cpeCollapse_${tableIndex}`);
+                if (cpeCollapse) {
+                    cpeCollapse.classList.add('show');
+                    if (cpeHeaderArrow) cpeHeaderArrow.innerHTML = "&darr;";
+                }
+                
+                // Call the function from provenance_assistance.js
+                if (typeof window.updateProvenanceState === 'function') {
+                    window.updateProvenanceState(tableIndex, true);
+                } else {
+                    const provenanceCollapse = document.getElementById(`provenanceCollapse_${tableIndex}`);
+                    const provenanceHeaderArrow = document.querySelector(`#provenanceHeader_${tableIndex} .arrow-icon`);
+                    
+                    if (provenanceCollapse) {
+                        provenanceCollapse.classList.add('show');
+                        if (provenanceHeaderArrow) provenanceHeaderArrow.innerHTML = "&darr;";
+                    }
+                }
+                
+                // Show CPE Suggestions div if it was hidden
                 const cpeQueryContainer = document.getElementById(`cpe-query-container-${tableIndex}`);
                 if (cpeQueryContainer) {
                     cpeQueryContainer.style.display = '';
@@ -133,16 +167,22 @@ function toggleRowCollapse(tableIndex, action) {
                 
                 // Also collapse the Bootstrap collapse sections
                 const cpeCollapse = document.getElementById(`cpeCollapse_${tableIndex}`);
-                const provenanceCollapse = document.getElementById(`provenanceCollapse_${tableIndex}`);
-                
                 if (cpeCollapse) {
                     cpeCollapse.classList.remove('show');
-                    if (cpeHeaderArrow) cpeHeaderArrow.innerHTML = "&uarr;"; // Use innerHTML with HTML entity
+                    if (cpeHeaderArrow) cpeHeaderArrow.innerHTML = "&uarr;";
                 }
                 
-                if (provenanceCollapse) {
-                    provenanceCollapse.classList.remove('show'); 
-                    if (provenanceHeaderArrow) provenanceHeaderArrow.innerHTML = "&uarr;"; // Use innerHTML with HTML entity
+                // Call the function from provenance_assistance.js
+                if (typeof window.updateProvenanceState === 'function') {
+                    window.updateProvenanceState(tableIndex, false);
+                } else {
+                    const provenanceCollapse = document.getElementById(`provenanceCollapse_${tableIndex}`);
+                    const provenanceHeaderArrow = document.querySelector(`#provenanceHeader_${tableIndex} .arrow-icon`);
+                    
+                    if (provenanceCollapse) {
+                        provenanceCollapse.classList.remove('show');
+                        if (provenanceHeaderArrow) provenanceHeaderArrow.innerHTML = "&uarr;";
+                    }
                 }
                 
                 // Also collapse JSON if it's visible
@@ -162,7 +202,6 @@ function toggleRowCollapse(tableIndex, action) {
                 if (btnGroup) {
                     const dropdownMenu = btnGroup.querySelector('.dropdown-menu');
                     if (dropdownMenu) {
-                        // Hide the dropdown menu
                         dropdownMenu.style.display = 'none';
                     }
                 }
@@ -390,39 +429,6 @@ function updateButton(tableId, hasSelections) {
         console.error(`Error updating button for table ${tableId}:`, e);
     }
 }
-
-/**
- * Toggle provenance description visibility with smooth animation
- * @param {string} buttonId - ID of the toggle button
- */
-function toggleProvenanceDescription(buttonId) {
-    try {
-        const descriptionId = buttonId.replace('toggle_', 'description_');
-        const descriptionElement = document.getElementById(descriptionId);
-        const button = document.getElementById(buttonId);
-        
-        if (!descriptionElement || !button) return;
-        
-        // Toggle the collapsed class for animation
-        descriptionElement.classList.toggle('collapsed');
-        const isCollapsed = descriptionElement.classList.contains('collapsed');
-        
-        // Update the button text and styling
-        button.textContent = isCollapsed ? 'Show Description' : 'Hide Description';
-        if (isCollapsed) {
-            button.classList.remove('btn-success');
-            button.classList.add('btn-info');
-        } else {
-            button.classList.remove('btn-info');
-            button.classList.add('btn-success');
-        }
-    } catch(e) {
-        console.error(`Error toggling provenance description for ${buttonId}:`, e);
-    }
-}
-
-// Make the function available globally
-window.toggleProvenanceDescription = toggleProvenanceDescription;
 
 // Single consolidated initialization for all DOM elements
 document.addEventListener('DOMContentLoaded', function() {
@@ -713,67 +719,14 @@ document.addEventListener('DOMContentLoaded', function() {
         scanForGitVersionTypes();
     }
     
-    // Initialize provenance description containers
-    document.querySelectorAll('[id^="description_"]').forEach(container => {
-        container.classList.add('description-container', 'collapsed');
-        
-        // Find associated button and update its text/style
-        const buttonId = container.id.replace('description_', 'toggle_');
-        const button = document.getElementById(buttonId);
-        if (button) {
-            button.textContent = 'Show Description';
-            button.classList.add('btn-transition', 'btn-info');
-        }
-    });
-    
-    // Initialize provenance description containers
-    document.querySelectorAll('[id^="description_"]').forEach(container => {
-        container.classList.add('description-container');
-        
-        // If not already collapsed, add collapsed class
-        if (!container.classList.contains('collapsed')) {
-            container.classList.add('collapsed');
-        }
-        
-        // Find associated button and update its text/style
-        const buttonId = container.id.replace('description_', 'toggle_');
-        const button = document.getElementById(buttonId);
-        if (button) {
-            button.textContent = 'Show Description';
-            button.classList.add('btn-transition', 'btn-info');
-        }
-    });
-    
-    // Also check for description content areas from the provenance assistance module
-    document.querySelectorAll('.description-content').forEach(content => {
-        // Make sure they have the proper transition classes
-        if (!content.classList.contains('collapsed')) {
-            content.classList.add('collapsed');
-        }
-    });
-    
-    // Initialize provenance description containers
-    document.querySelectorAll('[id^="description_"]').forEach(container => {
-        container.classList.add('description-container', 'collapsed');
-        
-        // Find associated button and update its text/style
-        const buttonId = container.id.replace('description_', 'toggle_');
-        const button = document.getElementById(buttonId);
-        if (button) {
-            button.textContent = 'Show Description';
-            button.classList.add('btn-transition', 'btn-info');
-        }
-    });
-    
-    // Add a single mutation observer for all collapse sections
+    // Modify the mutation observer to only handle CPE sections
     const observer = new MutationObserver((mutations) => {
         mutations.forEach(mutation => {
             if (mutation.attributeName === 'class') {
                 const target = mutation.target;
-                if (target.id && (target.id.startsWith('cpeCollapse_') || target.id.startsWith('provenanceCollapse_'))) {
+                if (target.id && target.id.startsWith('cpeCollapse_')) {
                     const index = target.id.split('_')[1];
-                    const type = target.id.startsWith('cpe') ? 'cpe' : 'provenance';
-                    const arrowElement = document.querySelector(`#${type}Header_${index} .arrow-icon`);
+                    const arrowElement = document.querySelector(`#cpeHeader_${index} .arrow-icon`);
                     
                     if (arrowElement) {
                         // Use HTML entities and innerHTML instead of Unicode and textContent
@@ -785,14 +738,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Apply the observer to all collapse sections
-    const collapseSections = document.querySelectorAll('[id^="cpeCollapse_"],[id^="provenanceCollapse_"]');
-    collapseSections.forEach(section => {
+    // Apply the observer to CPE collapse sections only
+    const cpeCollapseSections = document.querySelectorAll('[id^="cpeCollapse_"]');
+    cpeCollapseSections.forEach(section => {
         observer.observe(section, { attributes: true });
     });
     
-    // Initialize all arrow icons with HTML entities
-    document.querySelectorAll('.arrow-icon').forEach(arrow => {
+    // Initialize CPE arrow icons with HTML entities
+    document.querySelectorAll('#cpeHeader_\\d+ .arrow-icon').forEach(arrow => {
         const parentHeader = arrow.closest('.card-header');
         if (!parentHeader) return;
         
@@ -805,6 +758,19 @@ document.addEventListener('DOMContentLoaded', function() {
         // Set initial state using HTML entities
         const isShown = target.classList.contains('show');
         arrow.innerHTML = isShown ? "&darr;" : "&uarr;";
+    });
+
+    // Initialize provenance description containers
+    document.querySelectorAll('[id^="description_"]').forEach(container => {
+        container.classList.add('description-container', 'collapsed');
+        
+        // Find associated button and update its text/style
+        const buttonId = container.id.replace('description_', 'toggle_');
+        const button = document.getElementById(buttonId);
+        if (button) {
+            button.textContent = 'Show Description';
+            button.classList.add('btn-transition', 'btn-info');
+        }
     });
 });
 

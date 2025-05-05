@@ -657,20 +657,133 @@ function createReferenceCards(rowIndex, referencesData) {
     });
 }
 
-// Make sure the initialization runs when the page is fully loaded
+/**
+ * Toggle provenance description visibility with smooth animation
+ * @param {string} buttonId - ID of the toggle button
+ */
+function toggleProvenanceDescription(buttonId) {
+    try {
+        const descriptionId = buttonId.replace('toggle_', 'description_');
+        const descriptionElement = document.getElementById(descriptionId);
+        const button = document.getElementById(buttonId);
+        
+        if (!descriptionElement || !button) return;
+        
+        // Toggle the collapsed class for animation
+        descriptionElement.classList.toggle('collapsed');
+        const isCollapsed = descriptionElement.classList.contains('collapsed');
+        
+        // Update the button text and styling
+        button.textContent = isCollapsed ? 'Show Description' : 'Hide Description';
+        if (isCollapsed) {
+            button.classList.remove('btn-success');
+            button.classList.add('btn-info');
+        } else {
+            button.classList.remove('btn-info');
+            button.classList.add('btn-success');
+        }
+    } catch(e) {
+        console.error(`Error toggling provenance description for ${buttonId}:`, e);
+    }
+}
+
+// Make the function available globally
+window.toggleProvenanceDescription = toggleProvenanceDescription;
+
+// Add this to provenance_assistance.js:
+
+/**
+ * Update provenance collapse state
+ * @param {string} tableIndex - The table index
+ * @param {boolean} expand - Whether to expand (true) or collapse (false)
+ */
+function updateProvenanceState(tableIndex, expand) {
+    const provenanceCollapse = document.getElementById(`provenanceCollapse_${tableIndex}`);
+    const provenanceHeaderArrow = document.querySelector(`#provenanceHeader_${tableIndex} .arrow-icon`);
+    
+    if (provenanceCollapse) {
+        if (expand) {
+            provenanceCollapse.classList.add('show');
+            if (provenanceHeaderArrow) provenanceHeaderArrow.innerHTML = "&darr;";
+        } else {
+            provenanceCollapse.classList.remove('show');
+            if (provenanceHeaderArrow) provenanceHeaderArrow.innerHTML = "&uarr;";
+        }
+    }
+}
+
+// Make function available globally
+window.updateProvenanceState = updateProvenanceState;
+
+// Combine into a single DOMContentLoaded event listener:
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialization functions
     setupProvenanceStructure();
     processProvenanceMetadata();
-    document.querySelectorAll('[id^="provenanceCollapse_"]').forEach(collapseElement => {
-        const index = collapseElement.id.replace('provenanceCollapse_', '');
-        const arrowElement = document.querySelector(`#provenanceHeader_${index} .arrow-icon`);
+    
+    // Initialize provenance description containers
+    document.querySelectorAll('[id^="description_"]').forEach(container => {
+        container.classList.add('description-container', 'collapsed');
         
-        collapseElement.addEventListener('show.bs.collapse', function () {
-            if (arrowElement) arrowElement.textContent = "&darr;";
-        });
-        
-        collapseElement.addEventListener('hide.bs.collapse', function () {
-            if (arrowElement) arrowElement.textContent = "&uarr;";
+        // Find associated button and update its text/style
+        const buttonId = container.id.replace('description_', 'toggle_');
+        const button = document.getElementById(buttonId);
+        if (button) {
+            button.textContent = 'Show Description';
+            button.classList.add('btn-transition', 'btn-info');
+        }
+    });
+    
+    // Also check for description content areas
+    document.querySelectorAll('.description-content').forEach(content => {
+        // Make sure they have the proper transition classes
+        if (!content.classList.contains('collapsed')) {
+            content.classList.add('collapsed');
+        }
+    });
+    
+    // Add a single mutation observer for provenance collapse sections
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach(mutation => {
+            if (mutation.attributeName === 'class') {
+                const target = mutation.target;
+                if (target.id && target.id.startsWith('provenanceCollapse_')) {
+                    const index = target.id.split('_')[1];
+                    const arrowElement = document.querySelector(`#provenanceHeader_${index} .arrow-icon`);
+                    
+                    if (arrowElement) {
+                        // Use HTML entities and innerHTML instead of Unicode and textContent
+                        const isShown = target.classList.contains('show');
+                        arrowElement.innerHTML = isShown ? "&darr;" : "&uarr;";
+                    }
+                }
+            }
         });
     });
+    
+    // Apply the observer to all provenance collapse sections
+    const provenanceCollapseSections = document.querySelectorAll('[id^="provenanceCollapse_"]');
+    provenanceCollapseSections.forEach(section => {
+        observer.observe(section, { attributes: true });
+    });
+    
+    // Initialize all provenance arrow icons with HTML entities
+    document.querySelectorAll('#provenanceHeader_\\d+ .arrow-icon').forEach(arrow => {
+        const parentHeader = arrow.closest('.card-header');
+        if (!parentHeader) return;
+        
+        const targetId = parentHeader.getAttribute('data-bs-target');
+        if (!targetId) return;
+        
+        const target = document.querySelector(targetId);
+        if (!target) return;
+        
+        // Set initial state using HTML entities
+        const isShown = target.classList.contains('show');
+        arrow.innerHTML = isShown ? "&darr;" : "&uarr;";
+    });
 });
+
+// Make functions available globally
+window.toggleProvenanceDescription = toggleProvenanceDescription;
+window.updateProvenanceState = updateProvenanceState;

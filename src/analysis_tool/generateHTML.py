@@ -477,7 +477,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
             <h5 class="mb-0">
                 CPE Suggestions
             </h5>
-            <span class="arrow-icon">▼</span>
+            <span class="arrow-icon">&uarr;</span>
         </div>
         <div id="cpeCollapse_{tableIndex}" class="collapse show" aria-labelledby="cpeHeader_{tableIndex}">
             <div class="card-body">
@@ -861,7 +861,7 @@ def create_provenance_assistance_div(index, collapsed=True):
     collapse_class = "collapse" if collapsed else "collapse show"
     
     # Use simple HTML arrows
-    arrow_icon = "▼" if collapsed else "▲"
+    arrow_icon = "&darr;" if collapsed else "&uarr;"
     
     html = f"""
     <div class="card mb-3">
