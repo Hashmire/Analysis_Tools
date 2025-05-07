@@ -681,6 +681,8 @@ function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata) {
             // Process the basic version data
             const config = processBasicVersionData(selectedCPEs, rawPlatformData);
             
+            // Comment out generatorData creation
+            /* 
             // Add metadata
             config.generatorData = {
                 "generatedFromSource": {
@@ -689,6 +691,7 @@ function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata) {
                     "sourceRole": metadata.sourceRole || "Unknown"
                 }
             };
+            */
             
             json.configurations.push(config);
         }
@@ -703,15 +706,15 @@ function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata) {
         // Create a fallback configuration
         json.configurations.push({
             "operator": "OR",
-            "cpeMatch": [],
-            "generatorData": {
+            "cpeMatch": []
+            /*"generatorData": {
                 "generatedFromSource": {
                     "dataSource": metadata.dataSource || "Unknown",
                     "sourceId": metadata.sourceId || "Unknown",
                     "sourceRole": metadata.sourceRole || "Unknown",
                     "error": e.message
                 }
-            }
+            }*/
         });
         
         return json;
@@ -760,6 +763,8 @@ function calculateAndAddStatistics(json, selectedRows, rawPlatformData, metadata
         });
     }
     
+    // Comment out generatorData creation
+    /*
     // Always create generatorData if it doesn't exist
     if (!json.configurations[0].generatorData) {
         json.configurations[0].generatorData = {
@@ -778,14 +783,7 @@ function calculateAndAddStatistics(json, selectedRows, rawPlatformData, metadata
         exactMatches: exactMatches,
         selectedCriteria: selectionCount
     };
-    
-    // Remove any old-style statistics to avoid confusion
-    if (json.configurations[0].matchStats) {
-        delete json.configurations[0].matchStats;
-    }
-    if (json.configurations[0].versionStats) {
-        delete json.configurations[0].versionStats;
-    }
+    */
 }
 
 /**
@@ -796,8 +794,11 @@ function generateAllConfigurationsJson() {
     try {
         // Create master JSON with proper structure
         const masterJson = {
+            // Comment out generatorTimestamp
+            /*
             "generatorTimestamp": window.timestampHandler ? 
                 window.timestampHandler.getTimestamp() : new Date().toISOString(),
+            */
             "configurations": []  // Direct array - each entry will be an object with a nodes array
         };
         
@@ -817,8 +818,11 @@ function generateAllConfigurationsJson() {
     } catch(e) {
         console.error("Error generating all configurations JSON:", e);
         return { 
+            // Comment out generatorTimestamp here too
+            /*
             "generatorTimestamp": window.timestampHandler ? 
                 window.timestampHandler.getTimestamp() : new Date().toISOString(),
+            */
             "configurations": []  // Direct array, not an object with a nodes property
         };
     }
@@ -1362,10 +1366,13 @@ function generateJsonOutput() {
         // ... existing properties
     };
     
+    // Comment out timestamp addition
+    /*
     // Add timestamp if available through the timestamp handler
     if (window.timestampHandler && typeof window.timestampHandler.getTimestamp === 'function') {
         json.generatorTimestamp = window.timestampHandler.getTimestamp();
     }
+    */
     
     return json;
 }

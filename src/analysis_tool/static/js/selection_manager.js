@@ -151,13 +151,13 @@ function toggleRowCollapse(tableIndex, action) {
                     rowDataTableContainer.classList.remove('completed-row');
                     collapseButton.textContent = 'Expand Row (Skipped)';
                     collapseButton.classList.remove('btn-secondary', 'dropdown-toggle');
-                    collapseButton.classList.add('btn-warning');
+                    collapseButton.classList.add('btn-warning', 'rounded'); // Add rounded class
                 } else {
                     rowDataTableContainer.classList.add('completed-row');
                     rowDataTableContainer.classList.remove('skipped-row');
                     collapseButton.textContent = 'Expand Row (Completed)';
                     collapseButton.classList.remove('btn-secondary', 'dropdown-toggle');
-                    collapseButton.classList.add('btn-success');
+                    collapseButton.classList.add('btn-success', 'rounded'); // Add rounded class
                 }
                 
                 // Remove dropdown attributes if they exist
