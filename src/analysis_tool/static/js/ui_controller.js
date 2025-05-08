@@ -21,6 +21,7 @@ function updateJsonDisplayIfVisible(tableId) {
             const json = consolidatedJsons.get(tableId);
             
             if (json) {
+                // json is now already an array, so just stringify it
                 content.textContent = JSON.stringify(json, null, 2);
             } else {
                 content.textContent = 'No selections or error generating JSON.';
@@ -31,26 +32,6 @@ function updateJsonDisplayIfVisible(tableId) {
         }
     } catch(e) {
         console.error(`Error updating JSON display for table ${tableId}:`, e);
-    }
-}
-
-/**
- * Update the button state and text
- * @param {string} tableId - ID of the table
- * @param {boolean} hasSelections - Whether there are selections
- */
-function updateButton(tableId, hasSelections) {
-    try {
-        const button = document.getElementById(`showConsolidatedJson_${tableId}`);
-        
-        if (button) {
-            button.disabled = !hasSelections;
-            button.title = hasSelections ? 
-                'Show/hide the consolidated JSON' : 
-                'Select rows to generate JSON';
-        }
-    } catch(e) {
-        console.error(`Error updating button for table ${tableId}:`, e);
     }
 }
 
@@ -174,15 +155,21 @@ function updateAllConfigurationsDisplay() {
         const display = document.getElementById('allConfigurationsDisplay');
         const content = document.getElementById('allConfigurationsContent');
         
-        // Use class check instead of style.display
-        if (display && content && !display.classList.contains('collapsed')) {
-            // Create master JSON with configurations from all tables
-            const masterJson = generateAllConfigurationsJson();
+        // Always update regardless of visibility - this ensures content is ready when display is shown
+        if (display && content) {
+            const allConfigs = generateAllConfigurationsJson();
+            console.debug("updateAllConfigurationsDisplay - allConfigs:", allConfigs, "length:", allConfigs.length);
             
-            if (!masterJson || !masterJson.configurations || masterJson.configurations.length === 0) {
-                content.textContent = 'No CPEs selected in any table. Please select at least one CPE row.';
+            // More detailed debugging
+            console.debug("allConfigs type:", typeof allConfigs);
+            console.debug("allConfigs isArray:", Array.isArray(allConfigs));
+            console.debug("allConfigs content:", JSON.stringify(allConfigs).substring(0, 100) + "...");
+            
+            // Simplify the condition - just check if array has items
+            if (Array.isArray(allConfigs) && allConfigs.length > 0) {
+                content.textContent = JSON.stringify(allConfigs, null, 2);
             } else {
-                content.textContent = JSON.stringify(masterJson, null, 2);
+                content.textContent = 'No CPEs selected in any table. Please select at least one CPE row.';
             }
         }
     } catch(e) {

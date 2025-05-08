@@ -479,16 +479,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const content = document.getElementById('allConfigurationsContent');
             
             if (display && content) {
-                // Create master JSON
-                const masterJson = generateAllConfigurationsJson();
-                
-                // Update content
-                if (!masterJson || !masterJson.configurations || masterJson.configurations.length === 0) {
-                    content.textContent = 'No CPEs selected in any table. Please select at least one CPE row.';
-                } else {
-                    content.textContent = JSON.stringify(masterJson, null, 2);
-                }
-                
                 // Toggle visibility class
                 display.classList.toggle('collapsed');
                 
@@ -503,6 +493,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     this.classList.remove('btn-primary');
                     this.classList.add('btn-success');
+                    
+                    // CHANGE: Explicitly call updateAllConfigurationsDisplay when showing
+                    updateAllConfigurationsDisplay();
                 }
             }
         });

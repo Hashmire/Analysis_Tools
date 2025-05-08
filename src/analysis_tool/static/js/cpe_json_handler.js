@@ -661,10 +661,8 @@ function processJsonBasedOnSourceOld(json, selectedRows, metadata) {
  * @returns {Object} Generated JSON
  */
 function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata) {
-    // Create a base JSON structure
-    const json = {
-        "configurations": []
-    };
+    // Create a base structure WITHOUT the outer wrapper
+    let configs = [];
     
     try {
         console.debug(`Processing JSON based on ${metadata.dataSource} source with ${selectedCPEs.size} selected CPEs`);
@@ -673,15 +671,14 @@ function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata) {
         if (metadata.dataSource === 'NVDAPI' && rawPlatformData && rawPlatformData.rawConfigData) {
             // For NVD API data, we have the complete configuration
             console.debug("Using embedded NVD configuration");
-            json.configurations.push(rawPlatformData.rawConfigData);
+            configs.push(rawPlatformData.rawConfigData);
         } 
         // Regular version data processing
         else {
             console.debug("Processing version data for CPEs");
             // Process the basic version data
             const config = processBasicVersionData(selectedCPEs, rawPlatformData);
-            
-            // Comment out generatorData creation
+                        // Comment out generatorData creation
             /* 
             // Add metadata
             config.generatorData = {
@@ -692,32 +689,19 @@ function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata) {
                 }
             };
             */
-            
-            json.configurations.push(config);
+
+            // Add directly to the configs array
+            configs.push(config);
         }
         
-        // Calculate and add statistics
-        calculateAndAddStatistics(json, selectedCPEs, rawPlatformData, metadata);
+        // Calculate and add statistics to the array items if needed
         
-        return json;
+        return configs;
     } catch (e) {
         console.error("Error processing JSON:", e);
         
-        // Create a fallback configuration
-        json.configurations.push({
-            "operator": "OR",
-            "cpeMatch": []
-            /*"generatorData": {
-                "generatedFromSource": {
-                    "dataSource": metadata.dataSource || "Unknown",
-                    "sourceId": metadata.sourceId || "Unknown",
-                    "sourceRole": metadata.sourceRole || "Unknown",
-                    "error": e.message
-                }
-            }*/
-        });
-        
-        return json;
+        // Return an empty array as fallback
+        return [];
     }
 }
 
@@ -788,43 +772,41 @@ function calculateAndAddStatistics(json, selectedRows, rawPlatformData, metadata
 
 /**
  * Generate JSON with all configurations from all tables
- * @returns {Object} Master JSON with all configurations
+ * @returns {Array} Array of configurations
  */
 function generateAllConfigurationsJson() {
     try {
-        // Create master JSON with proper structure
-        const masterJson = {
-            // Comment out generatorTimestamp
-            /*
-            "generatorTimestamp": window.timestampHandler ? 
-                window.timestampHandler.getTimestamp() : new Date().toISOString(),
-            */
-            "configurations": []  // Direct array - each entry will be an object with a nodes array
-        };
+        // Create direct array of configurations without outer wrapper
+        const allConfigs = [];
+        
+        // Add debugging to inspect the consolidatedJsons content
+        console.debug("generateAllConfigurationsJson - entries in consolidatedJsons:", consolidatedJsons.size);
         
         // Add each table's configuration as a separate configuration entry
         consolidatedJsons.forEach((json, tableId) => {
-            if (json && json.configurations && Array.isArray(json.configurations)) {
+            console.debug(`Checking table ${tableId}, json type: ${typeof json}, is array: ${Array.isArray(json)}, length: ${json ? (Array.isArray(json) ? json.length : 'not array') : 'null'}`);
+            
+            // If json is not what we expect, examine its structure
+            if (json && !Array.isArray(json)) {
+                console.debug("Unexpected json structure:", JSON.stringify(json).substring(0, 200) + "...");
+            }
+            
+            if (json && Array.isArray(json) && json.length > 0) {
                 // Each configuration becomes its own entry with a nodes array
-                json.configurations.forEach(config => {
-                    masterJson.configurations.push({
+                json.forEach(config => {
+                    allConfigs.push({
                         "nodes": [config]  // Wrap each config in a nodes array
                     });
                 });
+                console.debug(`Added ${json.length} configs to allConfigs from table ${tableId}`);
             }
         });
         
-        return masterJson;
+        console.debug(`Total configurations in allConfigs: ${allConfigs.length}`);
+        return allConfigs;
     } catch(e) {
         console.error("Error generating all configurations JSON:", e);
-        return { 
-            // Comment out generatorTimestamp here too
-            /*
-            "generatorTimestamp": window.timestampHandler ? 
-                window.timestampHandler.getTimestamp() : new Date().toISOString(),
-            */
-            "configurations": []  // Direct array, not an object with a nodes property
-        };
+        return [];  // Return empty array as fallback
     }
 }
 
@@ -863,8 +845,17 @@ function updateConsolidatedJson(tableId) {
             extractedData.metadata
         );
         
+        // Add debugging
+        console.debug(`Processed JSON for table ${tableId}:`, json);
+        console.debug(`JSON is array: ${Array.isArray(json)}, length: ${Array.isArray(json) ? json.length : 'N/A'}`);
+        
         // Store the consolidated JSON for this table
         consolidatedJsons.set(tableId, json);
+        
+        // Verify the JSON was stored correctly
+        const storedJson = consolidatedJsons.get(tableId);
+        console.debug(`Stored JSON retrieval check for ${tableId}:`, storedJson);
+        console.debug(`Stored JSON is array: ${Array.isArray(storedJson)}, length: ${Array.isArray(storedJson) ? storedJson.length : 'N/A'}`);
         
         console.debug(`Updated consolidated JSON for table ${tableId}`);
         
@@ -1375,22 +1366,4 @@ function generateJsonOutput() {
     */
     
     return json;
-}
-
-/**
- * Update the function that displays the JSON content
- */
-function updateAllConfigurationsDisplay() {
-    const container = document.getElementById('allConfigurationsContent');
-    if (container) {
-        const json = generateAllConfigurationsJson();
-        try {
-            // Format the JSON for display
-            container.textContent = JSON.stringify(json, null, 2);
-        } catch (e) {
-            console.error("Error stringifying JSON:", e);
-            container.textContent = '{"error": "Error generating JSON", "generatorTimestamp": "' + 
-                (window.timestampHandler ? window.timestampHandler.getTimestamp() : new Date().toISOString()) + '"}';
-        }
-    }
 }
