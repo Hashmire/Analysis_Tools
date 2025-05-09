@@ -547,3 +547,25 @@ table.dataframe td:last-child {
     display: none;
 }
 
+/* Add to existing styles.css */
+
+/* Button styling for copy/export buttons */
+.copy-button {
+    margin-bottom: 8px;
+}
+
+/* Feedback animation */
+.btn-transition {
+    transition: all 0.2s ease-in-out;
+}
+
+/* Button container spacing */
+#allConfigButtonsContainer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* Add Font Awesome if not already included in your HTML */
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css');
+

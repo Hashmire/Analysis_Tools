@@ -23,6 +23,19 @@ function updateJsonDisplayIfVisible(tableId) {
             if (json) {
                 // json is now already an array, so just stringify it
                 content.textContent = JSON.stringify(json, null, 2);
+                
+                // Add copy button if it doesn't exist
+                if (!document.getElementById(`copyButton_${tableId}`)) {
+                    const copyButton = document.createElement('button');
+                    copyButton.id = `copyButton_${tableId}`;
+                    copyButton.className = 'btn btn-sm btn-outline-secondary copy-button';
+                    copyButton.innerHTML = '<i class="fas fa-copy"></i> Copy to Clipboard';
+                    copyButton.onclick = function() { 
+                        copyToClipboard(content.textContent, `copyButton_${tableId}`);
+                    };
+                    // Insert before the pre element
+                    display.insertBefore(copyButton, content);
+                }
             } else {
                 content.textContent = 'No selections or error generating JSON.';
             }
@@ -155,25 +168,67 @@ function updateAllConfigurationsDisplay() {
         const display = document.getElementById('allConfigurationsDisplay');
         const content = document.getElementById('allConfigurationsContent');
         
-        // Always update regardless of visibility - this ensures content is ready when display is shown
-        if (display && content) {
-            const allConfigs = generateAllConfigurationsJson();
-            console.debug("updateAllConfigurationsDisplay - allConfigs:", allConfigs, "length:", allConfigs.length);
+        if (!display || !content) {
+            console.warn('Could not find allConfigurations display elements');
+            return;
+        }
+        
+        // Check if display is currently visible
+        const isDisplayVisible = !display.classList.contains('collapsed');
+        if (!isDisplayVisible) return;
+        
+        // Generate all configurations JSON
+        const allConfigs = generateAllConfigurationsJson();
+        
+        // Make sure we have configurations to display
+        if (allConfigs && allConfigs.length > 0) {
+            content.textContent = JSON.stringify(allConfigs, null, 2);
             
-            // More detailed debugging
-            console.debug("allConfigs type:", typeof allConfigs);
-            console.debug("allConfigs isArray:", Array.isArray(allConfigs));
-            console.debug("allConfigs content:", JSON.stringify(allConfigs).substring(0, 100) + "...");
-            
-            // Simplify the condition - just check if array has items
-            if (Array.isArray(allConfigs) && allConfigs.length > 0) {
-                content.textContent = JSON.stringify(allConfigs, null, 2);
-            } else {
-                content.textContent = 'No CPEs selected in any table. Please select at least one CPE row.';
+            // Add buttons container if it doesn't exist
+            let buttonsContainer = document.getElementById('allConfigButtonsContainer');
+            if (!buttonsContainer) {
+                buttonsContainer = document.createElement('div');
+                buttonsContainer.id = 'allConfigButtonsContainer';
+                buttonsContainer.className = 'mb-2';
+                // Insert before the pre element
+                display.insertBefore(buttonsContainer, content);
+                
+                // Add copy button
+                const copyButton = document.createElement('button');
+                copyButton.id = 'copyAllConfigsButton';
+                copyButton.className = 'btn btn-sm btn-outline-secondary me-2';
+                copyButton.innerHTML = '<i class="fas fa-copy"></i> Copy to Clipboard';
+                copyButton.onclick = function() { 
+                    copyToClipboard(content.textContent, 'copyAllConfigsButton');
+                };
+                buttonsContainer.appendChild(copyButton);
+                
+                // Add export button
+                const exportButton = document.createElement('button');
+                exportButton.id = 'exportAllConfigsButton';
+                exportButton.className = 'btn btn-sm btn-outline-primary';
+                exportButton.innerHTML = '<i class="fas fa-download"></i> Export to File';
+                exportButton.onclick = function() { 
+                    exportToFile(content.textContent);
+                };
+                buttonsContainer.appendChild(exportButton);
             }
+            
+            // Update configuration summary with count of configurations
+            const summary = document.getElementById('configurationSummary');
+            if (summary) {
+                let totalCPEMatches = 0;
+                allConfigs.forEach(config => {
+                    totalCPEMatches += getTotalCPEMatches(config);
+                });
+                
+                summary.textContent = `${allConfigs.length} configurations with ${totalCPEMatches} total matches`;
+            }
+        } else {
+            content.textContent = 'No configurations available. Please select rows from tables.';
         }
     } catch(e) {
-        console.error("Error updating all configurations display:", e);
+        console.error('Error updating all configurations display:', e);
     }
 }
 
@@ -236,5 +291,68 @@ function preserveJsonDisplayState(tableIndex) {
     if (collapseButton) {
         const buttonParent = collapseButton.parentNode;
         buttonParent.parentNode.insertBefore(jsonContainer, buttonParent.nextSibling);
+    }
+}
+
+/**
+ * Copy content to clipboard and show feedback
+ * @param {string} text - Text to copy
+ * @param {string} buttonId - ID of button that was clicked
+ */
+function copyToClipboard(text, buttonId) {
+    try {
+        navigator.clipboard.writeText(text).then(() => {
+            // Show success feedback on button
+            const button = document.getElementById(buttonId);
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            button.classList.add('btn-success');
+            button.classList.remove('btn-outline-secondary');
+            
+            // Reset button after delay
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.classList.remove('btn-success');
+                button.classList.add('btn-outline-secondary');
+            }, 2000);
+        }).catch(err => {
+            console.error('Could not copy text: ', err);
+        });
+    } catch(e) {
+        console.error('Error copying to clipboard:', e);
+    }
+}
+
+/**
+ * Export JSON content to file
+ * @param {string} content - Content to export
+ */
+function exportToFile(content) {
+    try {
+        // Get CVE ID directly from the element with id "cve-id"
+        let cveId = "config";
+        const cveElement = document.getElementById("cve-id");
+        
+        if (cveElement && cveElement.textContent) {
+            cveId = cveElement.textContent.trim();
+        }
+        
+        // Create blob and download link
+        const blob = new Blob([content], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${cveId}-configurations.json`;
+        document.body.appendChild(link);
+        link.click();
+        
+        // Clean up
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+            document.body.removeChild(link);
+        }, 100);
+    } catch(e) {
+        console.error('Error exporting to file:', e);
     }
 }

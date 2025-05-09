@@ -735,7 +735,7 @@ def buildHTMLPage(affectedHtml, targetCve, globalCVEMetadata=None, vdbIntelHtml=
     # Updated cveIdIndicatorHTML without the inline JavaScript
     cveIdIndicatorHTML = f"""
     <div class="d-flex align-items-center justify-content-between" style="margin-left: 10px; margin-right: 10px;">
-        <h3 style="margin-bottom: 0px;"><b>{targetCve}</b></h3>
+        <h3 id="cve-id" style="margin-bottom: 0px;"><b>{targetCve}</b></h3>
         <span id="generationTimestamp" class="text-muted">Generated: <time datetime="{utc_timestamp}"></time></span>
     </div>
     <hr style="margin: 10px; border: 1px solid;">
