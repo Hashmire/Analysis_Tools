@@ -116,76 +116,8 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
         return None
 
 def get_all_cves(nvd_api_key):
-    """
-    Retrieve all CVE IDs by querying the NVD API and iterating through all pages.
-    
-    Returns:
-        list: A list of CVE IDs
-    """
-    import requests
-    import time
-    
-    print("Retrieving all CVEs from NVD database...")
-    
-    base_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-    headers = {}
-    
-    # Use the same API key as for other queries if available
-    if nvd_api_key:
-        headers["apiKey"] = nvd_api_key
-    
-    results_per_page = 2000  # Maximum allowed by NVD API
-    start_index = 0
-    total_results = None
-    cve_ids = []
-    
-    # Keep querying until we've processed all pages
-    while total_results is None or start_index < total_results:
-        params = {
-            "startIndex": start_index,
-            "resultsPerPage": results_per_page
-        }
-        
-        try:
-            print(f"Querying CVEs (page {start_index // results_per_page + 1})...")
-            response = requests.get(base_url, params=params, headers=headers)
-            
-            # Rate limiting - NVD API allows ~50 requests per 30 seconds with API key
-            # or ~5 requests per 30 seconds without API key
-            if not headers.get("apiKey"):
-                time.sleep(6)  # ~5 requests per 30 seconds
-            else:
-                time.sleep(0.6)  # ~50 requests per 30 seconds
-                
-            if response.status_code == 200:
-                data = response.json()
-                
-                # Set total results on first iteration
-                if total_results is None:
-                    total_results = data.get("totalResults", 0)
-                    print(f"Found {total_results} total CVEs")
-                
-                # Extract CVE IDs from current page
-                for vuln in data.get("vulnerabilities", []):
-                    if "cve" in vuln and "id" in vuln["cve"]:
-                        cve_ids.append(vuln["cve"]["id"])
-                
-                # Update start index for next page
-                start_index += results_per_page
-                
-                # Progress update
-                print(f"Collected {len(cve_ids)}/{total_results} CVEs")
-            else:
-                print(f"Error: API request failed with status code {response.status_code}")
-                print(f"Response: {response.text}")
-                break
-                
-        except Exception as e:
-            print(f"Error retrieving CVEs: {e}")
-            break
-    
-    print(f"Retrieved {len(cve_ids)} CVE IDs")
-    return cve_ids
+    """Get all CVEs from NVD API."""
+    return gatherData.gatherAllCVEIDs(nvd_api_key)
 
 def main():
     """Main function to process CVEs based on command line arguments."""

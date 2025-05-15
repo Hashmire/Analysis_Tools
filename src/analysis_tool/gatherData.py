@@ -59,7 +59,7 @@ def gatherNVDCVERecord(apiKey, targetCve):
     if apiKey:
         headers["apiKey"] = apiKey
    
-    max_retries = 100
+    max_retries = 50
     for attempt in range(max_retries):
         try:
             response = requests.get(url, headers=headers)
@@ -75,8 +75,9 @@ def gatherNVDCVERecord(apiKey, targetCve):
                 print(f"[ERROR] NVD API Message: {e.response.headers['message']}")
             
             if attempt < max_retries - 1:
-                print(f"Waiting 6 seconds before retry...")
-                sleep(6)
+                wait_time = 6 if not apiKey else 0
+                print(f"Waiting {wait_time} seconds before retry...")
+                sleep(wait_time)
             else:
                 print("Max retries reached. Giving up.")
                 return None
@@ -96,7 +97,7 @@ def gatherNVDSourceData(apiKey):
         if apiKey:
             headers["apiKey"] = apiKey
        
-        max_retries = 15
+        max_retries = 50
         for attempt in range(max_retries):
             try:
                 response = requests.get(url, headers=headers)
@@ -112,8 +113,9 @@ def gatherNVDSourceData(apiKey):
                     print(f"[ERROR] NVD API Message: {e.response.headers['message']}")
                 
                 if attempt < max_retries - 1:
-                    print(f"Waiting 6 seconds before retry...")
-                    sleep(6)
+                    wait_time = 6 if not apiKey else 0
+                    print(f"Waiting {wait_time} seconds before retry...")
+                    sleep(wait_time)
                 else:
                     print("Max retries reached. Giving up.")
                     return None
@@ -177,8 +179,11 @@ def gatherNVDCPEData(apiKey, case, query_string):
                     while remaining_results > 0:
                         for page_attempt in range(max_retries):
                             try:
-                                # Add delay to respect rate limits (non-API Key)
-                                sleep(0.6)
+                                # Add delay to respect rate limits
+                                if not headers.get("apiKey"):
+                                    sleep(6)  # Conservative approach without API key
+                                else:
+                                    sleep(0)  # More aggressive with API key
                                
                                 params = {
                                     "cpeMatchString": query_string,
@@ -291,3 +296,104 @@ def gatherPrimaryDataframe():
 #        return (vdbIntelHtml)
 #   except:
 #        print("[ERROR]  Failed to run vdb_checker!")
+
+def gatherAllCVEIDs(apiKey):
+    """
+    Gather all CVE IDs from the NVD API with proper retry mechanism.
+    
+    Args:
+        apiKey: NVD API key for authentication
+        
+    Returns:
+        List of all CVE IDs
+    """
+    import requests
+    import time
+    from time import sleep
+    
+    base_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": f"{TOOLNAME}/{VERSION}"
+    }
+    
+    # Add API key to headers if provided
+    if apiKey:
+        headers["apiKey"] = apiKey
+    
+    params = {
+        "startIndex": 0,
+    }
+    
+    all_cves = []
+    total_results = None
+    results_per_page = 2000  # Default NVD API page size
+    start_index = 0
+    
+    # Define retry parameters
+    max_retries = 50
+    
+    while total_results is None or start_index < total_results:
+        params["startIndex"] = start_index
+        
+        # Implement retry mechanism
+        for attempt in range(max_retries):
+            try:
+                # Querying CVEs (page 1, startIndex=0, resultsPerPage=2000)
+                current_page = start_index // results_per_page + 1
+                pages_estimate = total_results // results_per_page + 1 if total_results else "?"
+                
+                if total_results:
+                    progress = min(start_index, total_results) / total_results * 100
+                    print(f"Querying CVEs [Page {current_page}/{pages_estimate}] - {progress:.1f}% complete ({len(all_cves)} CVEs collected so far)")
+                else:
+                    print(f"Querying CVEs [Page {current_page}/?] - Determining total count...")
+                
+                response = requests.get(base_url, params=params, headers=headers)
+                response.raise_for_status()
+                
+                data = response.json()
+                
+                # Set total results on first iteration
+                if total_results is None:
+                    total_results = data.get("totalResults", 0)
+                    print(f"Found {total_results} total CVEs")
+                
+                # Extract CVE IDs from current page
+                for vuln in data.get("vulnerabilities", []):
+                    if "cve" in vuln and "id" in vuln["cve"]:
+                        all_cves.append(vuln["cve"]["id"])
+                
+                # Move to next page
+                start_index += results_per_page
+                
+                # Rate limiting
+                if not headers.get("apiKey"):
+                    sleep(1)  # ~5 requests per 30 seconds
+                else:
+                    sleep(0)  # ~50 requests per 30 seconds
+                    
+                # Success, break the retry loop
+                break
+                
+            except requests.exceptions.RequestException as e:
+                public_ip = get_public_ip()
+                timestamp = get_utc_timestamp()
+                print(f"[ERROR] {timestamp} - Error fetching CVE list (Attempt {attempt + 1}/{max_retries}): {e}")
+                print(f"Current public IP address: {public_ip}")
+                
+                # Check for message header and display if present
+                if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
+                    error_message = e.response.headers['message']
+                    print(f"[ERROR] NVD API Message: {error_message}")
+                
+                if attempt < max_retries - 1:
+                    print(f"Waiting 6 seconds before retry...")
+                    sleep(6)
+                else:
+                    print("Max retries reached for this page. Moving to next page.")
+                    # Move to next page even if failed
+                    start_index += results_per_page
+    
+    print(f"Total CVEs gathered: {len(all_cves)}")
+    return all_cves
