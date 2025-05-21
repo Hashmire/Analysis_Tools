@@ -681,14 +681,18 @@ function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata) {
         if (metadata.dataSource === 'NVDAPI' && rawPlatformData && rawPlatformData.rawConfigData) {
             // For NVD API data, we have the complete configuration
             console.debug("Using embedded NVD configuration");
-            configs.push(rawPlatformData.rawConfigData);
+            // Wrap in nodes array to match allConfigurations format
+            configs.push({
+                nodes: [rawPlatformData.rawConfigData]
+            });
         } 
         // Regular version data processing
         else {
             console.debug("Processing version data for CPEs");
             // Process the basic version data
             const config = processBasicVersionData(selectedCPEs, rawPlatformData);
-                        // Comment out generatorData creation
+            
+            // Comment out generatorData creation
             /* 
             // Add metadata
             config.generatorData = {
@@ -700,11 +704,11 @@ function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata) {
             };
             */
 
-            // Add directly to the configs array
-            configs.push(config);
+            // MODIFIED: Wrap config in nodes array
+            configs.push({
+                nodes: [config]
+            });
         }
-        
-        // Calculate and add statistics to the array items if needed
         
         return configs;
     } catch (e) {
@@ -786,27 +790,26 @@ function calculateAndAddStatistics(json, selectedRows, rawPlatformData, metadata
  */
 function generateAllConfigurationsJson() {
     try {
-        // Create direct array of configurations without outer wrapper
         const allConfigs = [];
         
         // Add debugging to inspect the consolidatedJsons content
         console.debug("generateAllConfigurationsJson - entries in consolidatedJsons:", consolidatedJsons.size);
         
-        // Add each table's configuration as a separate configuration entry
+        // Add each table's configuration directly to the allConfigs array
         consolidatedJsons.forEach((json, tableId) => {
             console.debug(`Checking table ${tableId}, json type: ${typeof json}, is array: ${Array.isArray(json)}, length: ${json ? (Array.isArray(json) ? json.length : 'not array') : 'null'}`);
             
-            // If json is not what we expect, examine its structure
+            // If json is not what we expect, log for debugging
             if (json && !Array.isArray(json)) {
                 console.debug("Unexpected json structure:", JSON.stringify(json).substring(0, 200) + "...");
             }
             
+            // If table has valid JSON, add all configs from this table
             if (json && Array.isArray(json) && json.length > 0) {
-                // Each configuration becomes its own entry with a nodes array
+                // Each configuration is already properly structured with a nodes array,
+                // so we can add them directly to allConfigs without additional wrapping
                 json.forEach(config => {
-                    allConfigs.push({
-                        "nodes": [config]  // Wrap each config in a nodes array
-                    });
+                    allConfigs.push(config);
                 });
                 console.debug(`Added ${json.length} configs to allConfigs from table ${tableId}`);
             }
