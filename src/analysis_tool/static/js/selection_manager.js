@@ -239,7 +239,7 @@ function preserveJsonDisplayState(tableIndex) {
     
     // Store current state
     const isDisplayVisible = !display.classList.contains('collapsed');
-    const selectedRows = tableSelections.get(tableId);
+    const selectedRows = window.tableSelections.get(tableId);
     const selectionCount = selectedRows ? selectedRows.size : 0;
     
     // Get json and statistics
@@ -275,7 +275,7 @@ function toggleConsolidatedJson(tableId) {
         
         if (!display || !showButton) return;
         
-        const selectedRows = tableSelections.get(tableId);
+        const selectedRows = window.tableSelections.get(tableId);
         const selectionCount = selectedRows ? selectedRows.size : 0;
         
         showButton.disabled = selectionCount === 0;
@@ -319,7 +319,7 @@ function toggleConsolidatedJson(tableId) {
 function updateConsolidatedJson(tableId) {
     try {
         // Get the selected rows for this table
-        const selectedRows = tableSelections.get(tableId);
+        const selectedRows = window.tableSelections.get(tableId);
         
         if (!selectedRows || selectedRows.size === 0) {
             console.debug(`No rows selected for table ${tableId}`);
@@ -409,7 +409,7 @@ function updateButton(tableId, hasSelections) {
             
             // Update button text with selection count
             const statsStr = hasSelections ? 
-                getStatisticsString(consolidatedJsons.get(tableId), tableSelections.get(tableId).size) : 
+                getStatisticsString(consolidatedJsons.get(tableId), window.tableSelections.get(tableId).size) : 
                 "0 selected";
                 
             // Check if the display is visible
@@ -511,7 +511,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const tableId = table.id;
         
         // Initialize selections for this table
-        tableSelections.set(tableId, new Set());
+        window.tableSelections.set(tableId, new Set());
         
         // Add click handlers to all CPE rows in this table
         const rows = table.querySelectorAll('.cpe-row');
@@ -531,7 +531,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Normalize CPE base string when getting it from the row
                 cpeBase = normalizeCpeString(cpeBase);
                 
-                const selections = tableSelections.get(tableId);
+                const selections = window.tableSelections.get(tableId);
                 
                 if (selections.has(cpeBase)) {
                     selections.delete(cpeBase);
