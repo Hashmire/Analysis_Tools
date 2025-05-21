@@ -590,7 +590,8 @@ def getCPEJsonScript() -> str:
         os.path.join(current_dir, "static", "js", "selection_manager.js"),
         os.path.join(current_dir, "static", "js", "timestamp_handler.js"),
         os.path.join(current_dir, "static", "js", "provenance_assistance.js"),
-        os.path.join(current_dir, "static", "js", "completion_tracker.js")
+        os.path.join(current_dir, "static", "js", "completion_tracker.js"),
+        os.path.join(current_dir, "static", "js", "custom_cpe_builder.js")
     ]
     
     # Read JavaScript files
@@ -657,8 +658,13 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
                 provenance_div = create_provenance_assistance_div(index, collapsed=has_matches)
                 html_content += provenance_div
             
-            # Add the matches table after the provenance div
+            # Add custom CPE Builder section between provenance assistance and CPE suggestions
+            customCPEBuilderHTML = create_custom_cpe_builder_div(index, collapsed=has_matches)
+            html_content += customCPEBuilderHTML
+            
+            # Add the matches table after the custom CPE Builder div
             html_content += convertCPEsQueryDataToHTML(sortedCPEsQueryData, index)
+            
             html_content += "</div>"  # Close the container div
             result_df.at[index, 'cpeQueryHTML'] = html_content
     
@@ -893,6 +899,44 @@ def create_provenance_assistance_div(index, collapsed=True):
                 <!-- Dedicated area for displaying description content -->
                 <div id="descriptionContent_{index}" class="description-content mt-3 border-top pt-3" style="display: none;">
                     <!-- Description content will be populated here when a button is clicked -->
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+    
+    return html.replace('\n', '')
+
+# Add this new function along with the other div creation functions
+
+def create_custom_cpe_builder_div(index, collapsed=True):
+    """Creates a collapsible div for Custom CPE Builder
+    
+    Args:
+        index: The row index for unique IDs
+        collapsed: Whether the div should be collapsed by default
+    """
+    collapse_class = "collapse" if collapsed else "collapse show"
+    
+    # Use simple HTML arrows
+    arrow_icon = "&darr;" if collapsed else "&uarr;"
+    
+    html = f"""
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center" 
+             id="customCPEBuilderHeader_{index}" 
+             data-bs-toggle="collapse" 
+             data-bs-target="#customCPEBuilderCollapse_{index}" 
+             style="cursor: pointer;">
+            <h5 class="mb-0">
+                Custom CPE Builder
+            </h5>
+            <span class="arrow-icon">{arrow_icon}</span>
+        </div>
+        <div id="customCPEBuilderCollapse_{index}" class="{collapse_class}" aria-labelledby="customCPEBuilderHeader_{index}">
+            <div class="card-body">
+                <div id="customCPEBuilder-content-{index}" class="customCPEBuilder">
+                    <!-- Content will be populated by custom_cpe_builder.js -->
                 </div>
             </div>
         </div>

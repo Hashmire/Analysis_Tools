@@ -770,3 +770,6 @@ document.addEventListener('DOMContentLoaded', function() {
 // Export helpers needed by completion_tracker.js
 window.getSourceData = getSourceData;
 window.getSourceById = getSourceById;
+
+// Use:
+window.tableSelections = new Map();

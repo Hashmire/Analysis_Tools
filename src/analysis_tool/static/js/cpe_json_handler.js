@@ -1,12 +1,22 @@
 // Global maps to store selections and generated JSONs
-const tableSelections = new Map(); // Map<tableId, Set<cpeBase>>
-const consolidatedJsons = new Map(); // Map<tableId, JSON>
+window.tableSelections = window.tableSelections || new Map();
+window.consolidatedJsons = window.consolidatedJsons || new Map();
 
 /**
  * Creates a CPE match object for a given CPE base string
  * @param {string} cpeBase - The base CPE string
  * @returns {Object} A CPE match object
  */
+function createCpeMatchObject(cpeBase) {
+    // Normalize the base CPE string if needed
+    cpeBase = normalizeCpeString(cpeBase);
+    
+    return {
+        "criteria": cpeBase,
+        "matchCriteriaId": generateMatchCriteriaId(),
+        "vulnerable": true
+    };
+}
 
 /**
  * Process version data into cpeMatch objects
@@ -817,11 +827,21 @@ function generateAllConfigurationsJson() {
 function updateConsolidatedJson(tableId) {
     try {
         // Get the selected rows for this table
-        const selectedRows = tableSelections.get(tableId);
+        const selectedRows = window.tableSelections.get(tableId);
+        
+        // ADD: Debug logging
+        console.log(`TRACE: Inside updateConsolidatedJson for ${tableId}`);
+        console.log(`TRACE: tableSelections type: ${typeof tableSelections}`);
+        console.log(`TRACE: tableSelections is global? ${tableSelections === window.tableSelections}`);
+        console.log(`TRACE: tableSelections has tableId? ${tableSelections.has(tableId)}`);
+        console.log(`TRACE: selectedRows type: ${typeof selectedRows}`);
+        console.log(`TRACE: selectedRows instanceof Set? ${selectedRows instanceof Set}`);
+        console.log(`TRACE: selectedRows: ${selectedRows ? (Array.isArray(selectedRows) ? JSON.stringify(Array.from(selectedRows)) : selectedRows.toString()) : 'null'}`);
+        console.log(`TRACE: selectedRows size: ${selectedRows ? selectedRows.size : 'N/A'}`);
         
         if (!selectedRows || selectedRows.size === 0) {
             console.debug(`No rows selected for table ${tableId}`);
-            consolidatedJsons.set(tableId, null);
+            window.consolidatedJsons.set(tableId, null);
             
             // Always update button state even if no rows are selected
             updateButton(tableId, false);
@@ -850,10 +870,10 @@ function updateConsolidatedJson(tableId) {
         console.debug(`JSON is array: ${Array.isArray(json)}, length: ${Array.isArray(json) ? json.length : 'N/A'}`);
         
         // Store the consolidated JSON for this table
-        consolidatedJsons.set(tableId, json);
+        window.consolidatedJsons.set(tableId, json);
         
         // Verify the JSON was stored correctly
-        const storedJson = consolidatedJsons.get(tableId);
+        const storedJson = window.consolidatedJsons.get(tableId);
         console.debug(`Stored JSON retrieval check for ${tableId}:`, storedJson);
         console.debug(`Stored JSON is array: ${Array.isArray(storedJson)}, length: ${Array.isArray(storedJson) ? storedJson.length : 'N/A'}`);
         
@@ -897,7 +917,7 @@ function updateConsolidatedJson(tableId) {
         
     } catch(e) {
         console.error(`Error updating consolidated JSON for table ${tableId}:`, e);
-        consolidatedJsons.set(tableId, null);
+        window.consolidatedJsons.set(tableId, null);
     }
 }
 
@@ -1367,3 +1387,8 @@ function generateJsonOutput() {
     
     return json;
 }
+
+// Export functions and maps to global scope for integrations with other modules
+window.tableSelections = tableSelections;
+window.consolidatedJsons = consolidatedJsons;
+window.createCpeMatchObject = createCpeMatchObject;
