@@ -26,14 +26,16 @@ Examples of the tool interface can be reviewed using the following structure:
 All available examples can be found in the /docs/ folder.  
 
 The following examples are USUALLY updated to the latest:  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-0057  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-20698  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-41842  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-2469  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-21389  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-33009  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-20359  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-4072  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-3371  
 https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2022-48655  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-5541
+https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-5541  
+https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-33009  
+https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-41842  
+https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-0057  
+https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-2469  
+https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-20698  
+https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-3371  
+https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-12355  
+https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-20359  
+https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-20515  
+https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-21389  
+

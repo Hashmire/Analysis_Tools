@@ -134,7 +134,7 @@ def main():
     # Development configuration - easily change the default behavior
     # Set to "single" for a single CVE or "all" for all CVEs
     DEFAULT_CVE_MODE = "single"  # Change this to "all" when needed
-    DEFAULT_CVE_ID = "CVE-2024-12355"  # Default CVE to process in single mode
+    DEFAULT_CVE_ID = "CVE-2024-20698"  # Default CVE to process in single mode
     
     args = parser.parse_args()
     

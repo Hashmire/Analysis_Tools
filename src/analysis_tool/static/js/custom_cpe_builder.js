@@ -656,14 +656,41 @@ function registerCustomCpeHandler(cpeBaseString, tableId) {
     
     window.customCPEHandlers.set(cpeBaseString, {
         createMatch: function() {
-            // IMPROVEMENT: Create a match object that uses version information
+            // Process all versions like the standard handler does
             if (rawPlatformData && rawPlatformData.versions && rawPlatformData.versions.length > 0) {
-                // Use the same match creation logic as regular CPEs
-                const versionInfo = rawPlatformData.versions[0]; // Use first version as an example
-                return createCpeMatchFromVersionInfo(cpeBaseString, versionInfo, true);
+                // Create array to hold all cpeMatches
+                const cpeMatches = [];
+                
+                // Check if we need special handling
+                const needsSpecialHandling = window.originalProcessVersionDataToCpeMatches && 
+                    typeof window.detectSpecialHandlingNeeded === 'function' ? 
+                    window.detectSpecialHandlingNeeded(rawPlatformData) : false;
+                
+                if (needsSpecialHandling && typeof processSpecialVersionStructure === 'function') {
+                    // Use special structure handling
+                    return processSpecialVersionStructure(cpeBaseString, rawPlatformData);
+                } else {
+                    // Use standard processing - process all versions
+                    for (const versionInfo of rawPlatformData.versions) {
+                        if (!versionInfo) continue;
+                        
+                        // Determine if this version is vulnerable based on status
+                        const isVulnerable = versionInfo.status === "affected";
+                        
+                        // Create cpeMatch using the consolidated function
+                        const cpeMatch = createCpeMatchFromVersionInfo(cpeBaseString, versionInfo, isVulnerable);
+                        cpeMatches.push(cpeMatch);
+                    }
+                    
+                    if (cpeMatches.length === 0) {
+                        return [createCpeMatchObject(cpeBaseString)];
+                    }
+                    
+                    return cpeMatches;
+                }
             } else {
                 // Fallback to basic match if no version info
-                return window.createCpeMatchObject(cpeBaseString);
+                return [createCpeMatchObject(cpeBaseString)];
             }
         }
     });
@@ -803,6 +830,7 @@ function addCustomCPERowToTable(tableId, cpeBaseString) {
 // Make functions available globally
 window.initializeCustomCPEBuilder = initializeCustomCPEBuilder;
 window.updateCustomCPEPreview = updateCustomCPEPreview;
+window.formatCPEComponent = formatCPEComponent;
 window.applyCustomCPE = applyCustomCPE;
 
 /**

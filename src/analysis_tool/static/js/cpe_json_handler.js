@@ -1093,7 +1093,10 @@ function createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable) {
         
         // Create a CPE match with explicit version embedded in the criteria
         const cpeParts = cpeBase.split(':');
-        cpeParts[5] = versionInfo.version; // Replace wildcard with explicit version
+        // Apply formatCPEComponent to properly encode the version
+        cpeParts[5] = window.formatCPEComponent ? 
+            window.formatCPEComponent(versionInfo.version) : 
+            versionInfo.version; // Replace wildcard with encoded version
         
         return {
             "criteria": cpeParts.join(':'),
@@ -1112,11 +1115,17 @@ function createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable) {
         // If version is a wildcard or n/a value, don't include any start version constraint
         const hasNonSpecificStartVersion = versionInfo.version && nonSpecificVersions.includes(versionInfo.version.toLowerCase());
         if (versionInfo.version && !hasNonSpecificStartVersion) {
-            cpeMatch.versionStartIncluding = versionInfo.version;
+            cpeMatch.versionStartIncluding = window.formatCPEComponent ? 
+                window.formatCPEComponent(versionInfo.version) : 
+                versionInfo.version;
         } else if (versionInfo.greaterThan) {
-            cpeMatch.versionStartExcluding = versionInfo.greaterThan;
+            cpeMatch.versionStartExcluding = window.formatCPEComponent ? 
+                window.formatCPEComponent(versionInfo.greaterThan) : 
+                versionInfo.greaterThan;
         } else if (versionInfo.greaterThanOrEqual) {
-            cpeMatch.versionStartIncluding = versionInfo.greaterThanOrEqual;
+            cpeMatch.versionStartIncluding = window.formatCPEComponent ? 
+                window.formatCPEComponent(versionInfo.greaterThanOrEqual) : 
+                versionInfo.greaterThanOrEqual;
         }
         
         // Handle end version (upper bound)
@@ -1125,9 +1134,13 @@ function createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable) {
         const hasNonSpecificLessThanOrEqual = versionInfo.lessThanOrEqual && nonSpecificVersions.includes(versionInfo.lessThanOrEqual.toLowerCase());
         
         if (versionInfo.lessThan && !hasNonSpecificLessThan) {
-            cpeMatch.versionEndExcluding = versionInfo.lessThan;
+            cpeMatch.versionEndExcluding = window.formatCPEComponent ? 
+                window.formatCPEComponent(versionInfo.lessThan) : 
+                versionInfo.lessThan;
         } else if (versionInfo.lessThanOrEqual && !hasNonSpecificLessThanOrEqual) {
-            cpeMatch.versionEndIncluding = versionInfo.lessThanOrEqual;
+            cpeMatch.versionEndIncluding = window.formatCPEComponent ? 
+                window.formatCPEComponent(versionInfo.lessThanOrEqual) : 
+                versionInfo.lessThanOrEqual;
         }
         
         return cpeMatch;
@@ -1390,6 +1403,50 @@ function generateJsonOutput() {
     
     return json;
 }
+
+// Add this function to detect if special handling is needed
+function detectSpecialHandlingNeeded(rawPlatformData) {
+    const hasWildcards = rawPlatformData.versions.some(v => 
+        v && (v.lessThanOrEqual && String(v.lessThanOrEqual).includes('*') || 
+             v.lessThan && String(v.lessThan).includes('*')));
+             
+    const hasDefaultUnaffected = rawPlatformData.defaultStatus === 'unaffected';
+    const affectedVersions = rawPlatformData.versions.filter(v => v && v.status === 'affected');
+    const unaffectedVersions = rawPlatformData.versions.filter(v => v && v.status === 'unaffected');
+    const hasInverseStatus = hasDefaultUnaffected && affectedVersions.length > 0;
+    
+    const hasMixedStatus = affectedVersions.length > 0 && unaffectedVersions.length > 1;
+    
+    const hasVersionChanges = rawPlatformData.versions.some(v => 
+        v && v.changes && Array.isArray(v.changes) && v.changes.length > 0);
+        
+    const versionBranches = new Set();
+    rawPlatformData.versions.forEach(v => {
+        if (v && v.version && typeof v.version === 'string') {
+            const parts = v.version.split('.');
+            if (parts.length >= 2) {
+                versionBranches.add(`${parts[0]}.${parts[1]}`);
+            }
+        }
+    });
+    
+    const hasMultipleBranches = versionBranches.size >= 3;
+    
+    const specialVersionTypes = new Set();
+    rawPlatformData.versions.forEach(v => {
+        if (v && v.versionType && !['semver', 'string'].includes(v.versionType) && v.versionType !== 'git') {
+            specialVersionTypes.add(v.versionType);
+        }
+    });
+    const hasSpecialVersionTypes = specialVersionTypes.size > 0;
+    
+    // Check if any special case applies
+    return hasWildcards || hasInverseStatus || hasMixedStatus || 
+           hasVersionChanges || hasMultipleBranches || hasSpecialVersionTypes;
+}
+
+// Make it available globally
+window.detectSpecialHandlingNeeded = detectSpecialHandlingNeeded;
 
 // Export functions and maps to global scope for integrations with other modules
 window.tableSelections = tableSelections;

@@ -5,6 +5,7 @@ import html
 from build_info import VERSION, TOOLNAME
 import os
 import datetime
+import re  # Ensure this is imported at the top of the file if not already present
 
 # Import Analysis Tool 
 import processData
@@ -261,33 +262,44 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
             if not isinstance(v, dict):
                 continue
             
+            # Define the patch-related regex pattern once - focused only on patch indicators
+            patch_pattern = re.compile(r'(patch[0-9-]*|(?:^|\s)p[0-9]+|[0-9]+p[0-9]+)', re.IGNORECASE)
+            
             # Check 'version' field
             if 'version' in v and isinstance(v['version'], str):
-                version_value = v['version'].lower()  # Convert to lowercase for case-insensitive matching
+                version_value = v['version'].lower()
                 
                 # Check for symbolic comparators
                 if any(comp in version_value for comp in comparators):
-                    version_concerns.append(f"Version field may contain comparator: {v['version']}")
+                    version_concerns.append(f"Comparator in version: {v['version']}")
                 
                 # Check for text comparators
                 elif any(text_comp in version_value for text_comp in version_text_patterns):
-                    version_concerns.append(f"Version field may contain inappropriate text: {v['version']}")
+                    version_concerns.append(f"Text in version: {v['version']}")
+                
+                # Check for patch-related information
+                elif patch_pattern.search(version_value):
+                    version_concerns.append(f"Patch info in version: {v['version']}")
             
             # Check 'lessThan' field
             if 'lessThan' in v and isinstance(v['lessThan'], str):
-                less_than_value = v['lessThan'].lower()  # Add toLowerCase for consistency
+                less_than_value = v['lessThan'].lower()
                 if any(comp in less_than_value for comp in comparators):
-                    version_concerns.append(f"LessThan field contains comparator: {v['lessThan']}")
+                    version_concerns.append(f"Comparator in lessThan: {v['lessThan']}")
                 elif any(text_comp in less_than_value for text_comp in version_text_patterns):
-                    version_concerns.append(f"LessThan field contains text comparator: {v['lessThan']}")
+                    version_concerns.append(f"Text in lessThan: {v['lessThan']}")
+                elif patch_pattern.search(less_than_value):
+                    version_concerns.append(f"Patch info in lessThan: {v['lessThan']}")
             
             # Check 'lessThanOrEqual' field
             if 'lessThanOrEqual' in v and isinstance(v['lessThanOrEqual'], str):
-                less_than_or_equal_value = v['lessThanOrEqual'].lower()  # Add toLowerCase for consistency
+                less_than_or_equal_value = v['lessThanOrEqual'].lower()
                 if any(comp in less_than_or_equal_value for comp in comparators):
-                    version_concerns.append(f"LessThanOrEqual field contains comparator: {v['lessThanOrEqual']}")
+                    version_concerns.append(f"Comparator in lessThanOrEqual: {v['lessThanOrEqual']}")
                 elif any(text_comp in less_than_or_equal_value for text_comp in version_text_patterns):
-                    version_concerns.append(f"LessThanOrEqual field contains text comparator: {v['lessThanOrEqual']}")
+                    version_concerns.append(f"Text in lessThanOrEqual: {v['lessThanOrEqual']}")
+                elif patch_pattern.search(less_than_or_equal_value):
+                    version_concerns.append(f"Patch info in lessThanOrEqual: {v['lessThanOrEqual']}")
         
         # NEW CHECK: Check for multiple versions with wildcard starts
         # Count versions that have both "version": "*" and "lessThan" or "lessThanOrEqual"
