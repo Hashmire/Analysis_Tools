@@ -1,41 +1,45 @@
-# Vulnerability Enrichment and Intelligence Tool
+# Vulnerability Analysis and Enrichment Tools
 
-The Vulnerability Enrichment and Intelligence Tool is intended to serve many needs across the vulnerability management ecosystem. This project is intended to serve as a workspace to generate proof-of-concept interfaces, as various projects mature past this repository they may no longer continue to be supported. 
+The Vulnerability Analysis and Enrichment Tools are intended to serve many needs across the vulnerability management ecosystem. This project is intended to serve as a workspace to generate proof-of-concept interfaces, as various projects mature past this repository they may no longer continue to be supported.  
 
-## Current projects:
+For more detailed information make sure to check out the [Wiki Pages](https://github.com/Hashmire/Analysis_Tools/wiki)
 
-**CPE Configuration Builder**
+## Current projects
 
-This project is primarily designed to assist with CPE Applicability Statement Enrichment efforts. 
+### CPE Applicability Generator
 
-Primary Purpose:
+This project is primarily designed to assist with CPE Applicability Statement Enrichment efforts.  
+
+Primary Purpose/Workflow:
+
 - Ingests CVE information from the CVE List
 - Manipulates the data to determine relevant CPE attribute values
 - Queries the NVD /cpes/ API for relevant CPE Names
 - Processes the data returned to determine the most likely CPE Base String values for each Affected entry
 - Displays all relevant information to a user for review
 - Enables the user to select the appropriate CPE Base String or provide their own if no valuable results were found
-- Generates appropriate CPE Applicability Statements using the selected CPE Base String(s) and the data within the Affected section of the CVE record.
+- Generates CPE Applicability Statements (configurations) using the selected CPE Base String(s) and the data within the Affected section of the CVE record
+- Users can copy/paste or download a file to use the generated content as needed
 
 Secondary Purpose(s):
-- Provide feedback to CVE record contributors regarding the usefulness of the Affects section data for CPE automation efforts.
-- Provide Macro statistics regarding Affected section data.
 
-Examples of the tool interface can be reviewed using the following structure:  
-<code>https://hashmire.github.io/Analysis_Tools/docs/[CVE-XXXX-XXXX].html</code>  
-All available examples can be found in the /docs/ folder.  
+- Provide feedback to CVE record contributors regarding the usefulness of the Affects section data for CPE automation efforts
 
-The following examples are USUALLY updated to the latest:  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2022-48655  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-5541  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-33009  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-41842  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-0057  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-2469  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-20698  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-3371  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-12355  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-20359  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-20515  
-https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-21389  
+The following examples are hosted in this repository and are updated to align with the existing main branch:  
 
+[Single CPE Match String:  CVE-2024-12355](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-12355)  
+[Many CPE Match Strings:  CVE-2024-20359](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-20359)  
+[MongoDB cpes Array Data:  CVE-2024-3371](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-3371)  
+[Package Name:  CVE-2023-5541](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-5541)  
+[Fortinet + ~Duplicate ADP:  CVE-2023-41842](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-41842)  
+[GitHub + changes Array Data:  CVE-2024-2469](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-2469)  
+[Linux Kernel:  CVE-2022-48655](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2022-48655)  
+[Microsoft Simple:  CVE-2024-21389](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-21389)  
+[Microsoft Many Rows:  CVE-2024-0057](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-0057)  
+[Unhelpful versions Array Data:  CVE-2023-33009](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-33009)  
+[Update Attribute Information in versions Array Data:  CVE-2024-20515](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-20515)  
+[Platforms Array Data:  CVE-2024-20698](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-20698)  
+
+The full dataset of generated pages can be found at [Hashmire/cpeApplicabilityGeneratorPages](https://github.com/Hashmire/cpeApplicabilityGeneratorPages).
+
+If you want to view a specific CVE record within the generated pages, use the following URL structure: `https://github.com/Hashmire/cpeApplicabilityGeneratorPages/generated_pages/<CVE-ID CVE-YYYY-NNNNNN>.html`

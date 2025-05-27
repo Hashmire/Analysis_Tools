@@ -167,7 +167,7 @@ function patchCpeJsonProcessing() {
                     console.log(`Updating JSON display for ${tableId}, selections: ${selectionCount}`);
                     
                     if (!selectedRows || selectedRows.size === 0) {
-                        content.textContent = 'No rows selected';
+                        content.textContent = `No CPE Base String(s) selected.`;
                         return;
                     }
                     

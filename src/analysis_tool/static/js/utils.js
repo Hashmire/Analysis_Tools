@@ -116,7 +116,7 @@ function gatherTableMetadata(tableIndex) {
         
         if (!container) {
             return {
-                dataSource: "Unknown",
+                dataResource: "Unknown",
                 sourceId: "Unknown",
                 sourceRole: "Unknown",
                 rawPlatformData: null
@@ -124,7 +124,7 @@ function gatherTableMetadata(tableIndex) {
         }
         
         // Extract metadata from data attributes
-        const dataSource = container.getAttribute('data-source') || "Unknown";
+        const dataResource = container.getAttribute('data-source') || "Unknown";
         const sourceId = container.getAttribute('data-source-id') || "Unknown";
         const sourceRole = container.getAttribute('data-source-role') || "Unknown";
         
@@ -143,7 +143,7 @@ function gatherTableMetadata(tableIndex) {
         }
         
         return {
-            dataSource,
+            dataResource,
             sourceId,
             sourceRole,
             rawPlatformData
@@ -151,7 +151,7 @@ function gatherTableMetadata(tableIndex) {
     } catch(e) {
         console.error(`Error gathering metadata for table ${tableIndex}:`, e);
         return {
-            dataSource: "Error",
+            dataResource: "Error",
             sourceId: "Error",
             sourceRole: "Error",
             rawPlatformData: null

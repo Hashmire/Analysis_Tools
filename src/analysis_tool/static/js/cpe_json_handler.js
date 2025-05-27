@@ -642,10 +642,10 @@ function processBasicVersionDataOld(selectedRows, rawPlatformData, json) {
 function processJsonBasedOnSourceOld(json, selectedRows, metadata) {
     try {
         // Process the JSON structure based on the data source
-        const dataSource = metadata.dataSource;
+        const dataResource = metadata.dataResource;
         let totalVersions = 0;
         
-        if (dataSource === 'NVDAPI') {
+        if (dataResource === 'NVDAPI') {
             // Special handling for NVD API data
             totalVersions = processBasicVersionDataOld(selectedRows, metadata.rawPlatformData, json);
         } else {
@@ -675,10 +675,10 @@ function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata) {
     let configs = [];
     
     try {
-        console.debug(`Processing JSON based on ${metadata.dataSource} source with ${selectedCPEs.size} selected CPEs`);
+        console.debug(`Processing JSON based on ${metadata.dataResource} source with ${selectedCPEs.size} selected CPEs`);
         
         // Check if we have embedded configuration (for NVD data)
-        if (metadata.dataSource === 'NVDAPI' && rawPlatformData && rawPlatformData.rawConfigData) {
+        if (metadata.dataResource === 'NVDAPI' && rawPlatformData && rawPlatformData.rawConfigData) {
             // For NVD API data, we have the complete configuration
             console.debug("Using embedded NVD configuration");
             // Wrap in nodes array to match allConfigurations format
@@ -697,7 +697,7 @@ function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata) {
             // Add metadata
             config.generatorData = {
                 "generatedFromSource": {
-                    "dataSource": metadata.dataSource || "Unknown",
+                    "dataResource": metadata.dataResource || "Unknown",
                     "sourceId": metadata.sourceId || "Unknown",
                     "sourceRole": metadata.sourceRole || "Unknown"
                 }
@@ -767,7 +767,7 @@ function calculateAndAddStatistics(json, selectedRows, rawPlatformData, metadata
     if (!json.configurations[0].generatorData) {
         json.configurations[0].generatorData = {
             "generatedFromSource": {
-                "dataSource": metadata.dataSource || "Unknown",
+                "dataResource": metadata.dataResource || "Unknown",
                 "sourceId": metadata.sourceId || "Unknown",
                 "sourceRole": metadata.sourceRole || "Unknown"
             }
@@ -933,7 +933,7 @@ function extractDataFromTable(tableIndex) {
     // Default metadata
     const result = {
         metadata: {
-            dataSource: "Unknown",
+            dataResource: "Unknown",
             sourceId: "Unknown", 
             sourceRole: "Unknown"
         },
@@ -955,9 +955,9 @@ function extractDataFromTable(tableIndex) {
                 const valueCell = cells[1];
                 
                 // Extract data source from first row
-                if (i === 0 && labelCell.textContent.trim() === "Data Source") {
-                    result.metadata.dataSource = valueCell.textContent.trim();
-                    console.debug(`Found dataSource: ${result.metadata.dataSource}`);
+                if (i === 0 && labelCell.textContent.trim() === "Data Resource") {
+                    result.metadata.dataResource = valueCell.textContent.trim();
+                    console.debug(`Found dataResource: ${result.metadata.dataResource}`);
                 }
                 
                 // Extract source ID from second row

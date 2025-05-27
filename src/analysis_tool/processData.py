@@ -1180,7 +1180,7 @@ def processCVEData(dataframe, cveRecordData, nvdSourceData=None):
                         
                         # Create the platformEntryMetadata dictionary with all consolidated fields
                         platform_entry_metadata = {
-                            'dataSource': 'CVEAPI',
+                            'dataResource': 'CVEAPI',
                             'platformFormatType': determine_platform_format_type(affected),
                             'hasCPEArray': has_cpe_array,
                             'cpeBaseStrings': [],
@@ -1303,7 +1303,7 @@ def processNVDRecordData(dataframe, nvdRecordData):
                         
                         # Create platformEntryMetadata
                         platform_entry_metadata = {
-                            'dataSource': 'NVDAPI',
+                            'dataResource': 'NVDAPI',
                             'platformFormatType': 'nvdConfiguration',
                             'hasCPEArray': False,
                             'cpeBaseStrings': [],

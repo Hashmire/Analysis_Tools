@@ -49,7 +49,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     
     # Define the keys and their labels, ensuring rawPlatformData is last
     keys_and_labels = [
-        ('platformEntryMetadata.dataSource', 'Data Source'),
+        ('platformEntryMetadata.dataResource', 'Data Resource'),
         ('sourceID', 'Source ID'),
         ('sourceRole', 'Source Role')
         # rawPlatformData is handled separately below
@@ -415,7 +415,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         if 'repo' in value:
             html += f"""
             <tr>
-                <td>Repo</td>
+                <td>Repository</td>
                 <td>{value['repo']}</td>
             </tr>
             """
