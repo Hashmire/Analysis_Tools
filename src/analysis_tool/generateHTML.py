@@ -622,6 +622,62 @@ def getCPEJsonScript() -> str:
     # Return the JavaScript wrapped in a script tag
     return f"<script>\n{js_content}\n</script>"
 
+def has_update_related_content(raw_platform_data):
+    """Check if rawPlatformData contains update-related content that can be extracted by JavaScript"""
+    if not raw_platform_data or 'versions' not in raw_platform_data:
+        return False
+    
+    versions = raw_platform_data.get('versions', [])
+    if not isinstance(versions, list):
+        return False
+    
+    # Synchronized patterns with JavaScript extractUpdateFromVersion function
+    # These must match exactly to ensure button only shows when extraction will work
+    update_patterns = [
+        # Enhanced patch patterns - cast wider net
+        r'^(.+?)[\s\-_\.]*(?:patch[\s\-_]*(\d+)|p[\s\-_]*(\d+))[\s\-_]*$',
+        
+        # Enhanced service pack patterns
+        r'^(.+?)[\s\-_\.]*(?:sp[\s\-_]*(\d+)|service[\s\-_]+pack[\s\-_]*(\d+))[\s\-_]*$',
+        
+        # Enhanced alpha patterns - more flexible
+        r'^(.+?)[\s\-_\.]*(?:alpha[\s\-_]*(\d*)|a[\s\-_]+(\d+))[\s\-_]*$',
+        
+        # Enhanced beta patterns
+        r'^(.+?)[\s\-_\.]*(?:beta[\s\-_]*(\d*)|b[\s\-_]*(\d+))[\s\-_]*$',
+        
+        # Enhanced release candidate patterns
+        r'^(.+?)[\s\-_\.]*(?:rc[\s\-_]*(\d*)|release[\s\-_]+candidate[\s\-_]*(\d*))[\s\-_]*$',
+        
+        # Additional broad patterns for common update keywords
+        r'^(.+?)[\s\-_\.]*(?:hotfix[\s\-_]*(\d+)|hf[\s\-_]*(\d+))[\s\-_]*$',
+        r'^(.+?)[\s\-_\.]*(?:update[\s\-_]*(\d+)|upd[\s\-_]*(\d+))[\s\-_]*$',
+        r'^(.+?)[\s\-_\.]*(?:fix[\s\-_]*(\d+))[\s\-_]*$',
+        r'^(.+?)[\s\-_\.]*(?:revision[\s\-_]*(\d+)|rev[\s\-_]*(\d+))[\s\-_]*$'
+    ]
+    
+    # Compile patterns for efficiency (case-insensitive to match JavaScript /i flag)
+    compiled_patterns = [re.compile(pattern, re.IGNORECASE) for pattern in update_patterns]
+    
+    # Check version, lessThan, and lessThanOrEqual fields
+    for version in versions:
+        if not isinstance(version, dict):
+            continue
+            
+        fields_to_check = [
+            version.get('version', ''),
+            version.get('lessThan', ''),
+            version.get('lessThanOrEqual', '')
+        ]
+        
+        for field_value in fields_to_check:
+            if field_value and isinstance(field_value, str):
+                for pattern in compiled_patterns:
+                    if pattern.match(field_value):  # Use match() for anchored patterns
+                        return True
+    
+    return False
+
 def update_cpeQueryHTML_column(dataframe, nvdSourceData):
     """Updates the dataframe to include a column with HTML for CPE query results"""
     
@@ -648,8 +704,18 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
             except Exception as e:
                 print(f"Error serializing platform data: {e}")
         
-        # Create the collapse button with a proper container ID (no changes needed here)
-        collapse_button_html = f'<div class="mb-3 d-flex gap-2" id="buttonContainer_{index}"><button id="collapseRowButton_{index}" class="btn btn-secondary" onclick="toggleRowCollapse({index})">Collapse Row (Mark Complete)</button></div>'
+        # Check if this row has update-related content
+        raw_platform_data = row.get('rawPlatformData', {})
+        has_update_content = has_update_related_content(raw_platform_data)
+        
+        # Create the collapse button and update toggle button
+        buttons_html = f'<button id="collapseRowButton_{index}" class="btn btn-secondary" onclick="toggleRowCollapse({index})">Collapse Row (Mark Complete)</button>'
+        
+        # Add update attribute toggle button if update content is detected
+        if has_update_content:
+            buttons_html += f'<button id="toggleUpdateAttributeGeneration_{index}" class="btn btn-outline-secondary ms-2" type="button" data-update-mode="false" onclick="toggleUpdateAttributeGeneration({index})" title="Toggle between version-only and version:update criteria generation">Version Only</button>'
+        
+        collapse_button_html = f'<div class="mb-3 d-flex gap-2" id="buttonContainer_{index}">{buttons_html}</div>'
         
         # Populate the rowDataHTML column with the HTML content
         row_html_content = convertRowDataToHTML(row, nvdSourceData, index)
