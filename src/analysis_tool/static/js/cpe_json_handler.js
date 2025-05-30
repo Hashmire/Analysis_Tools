@@ -2,6 +2,31 @@
 window.tableSelections = window.tableSelections || new Map();
 window.consolidatedJsons = window.consolidatedJsons || new Map();
 
+// ADD THESE MISSING GLOBAL VARIABLES:
+// Global settings for JSON generation 
+window.jsonGenerationSettings = window.jsonGenerationSettings || {
+    // Core features (hidden toggles for debugging)
+    enableStatusProcessing: true,
+    enableRangeHandling: true,
+    
+    // User-visible processing features
+    enableWildcardExpansion: true,     // Controls hasWildcards detection
+    enableGapProcessing: true,         // Controls processGapsBetweenUnaffectedRanges
+    enableVersionChanges: true,        // Controls hasVersionChanges detection
+    enableSpecialVersionTypes: true,   // Controls hasSpecialVersionTypes detection
+    enableMultipleBranches: true,      // Controls hasMultipleBranches detection
+    
+    // User-visible status features  
+    enableInverseStatus: true,         // Controls hasInverseStatus detection
+    enableMixedStatus: true,           // Controls hasMixedStatus detection
+    
+    // Processing mode
+    processingMode: 'enhanced' // 'basic' or 'enhanced'
+};
+
+// Per-row settings storage (THIS WAS MISSING!)
+window.rowSettings = window.rowSettings || new Map(); // Key: "tableId", Value: settings object
+
 /**
  * Creates a CPE match object for a given CPE base string
  * @param {string} cpeBase - The base CPE string
@@ -172,197 +197,108 @@ function processWildcardVersionPattern(cpeBase, versionInfo, isVulnerable) {
 function processSpecialVersionStructure(cpeBase, rawPlatformData) {
     console.debug("Processing special version structure");
     const cpeMatches = [];
-    const defaultIsAffected = rawPlatformData.defaultStatus === "affected";
+    const isAffected = rawPlatformData.defaultStatus === "affected";
     
-    try {
-        // Group versions by status and check for wildcards
-        const affectedVersions = [];
-        const unaffectedVersions = [];
-        const wildcardVersions = [];
+    // 1. Handle wildcards, version changes, special types
+    // 2. Process gaps between unaffected ranges
+    
+    // Group versions by status and check for wildcards
+    const affectedVersions = [];
+    const unaffectedVersions = [];
+    const wildcardVersions = [];
+    const defaultIsAffected = isAffected;
+    
+    rawPlatformData.versions.forEach(versionInfo => {
+        if (!versionInfo) return;
         
-        rawPlatformData.versions.forEach(versionInfo => {
-            if (!versionInfo) return;
-            
-            // Track versions with wildcards
-            if ((versionInfo.lessThanOrEqual && String(versionInfo.lessThanOrEqual).includes('*')) || 
-                (versionInfo.lessThan && String(versionInfo.lessThan).includes('*'))) {
-                wildcardVersions.push(versionInfo);
-            }
-            
-            // Group by affected status
-            if (versionInfo.status === "affected") {
-                affectedVersions.push(versionInfo);
-            } else if (versionInfo.status === "unaffected") {
-                unaffectedVersions.push(versionInfo);
-            }
-        });
+        // Track versions with wildcards
+        if ((versionInfo.lessThanOrEqual && String(versionInfo.lessThanOrEqual).includes('*')) || 
+            (versionInfo.lessThan && String(versionInfo.lessThan).includes('*'))) {
+            wildcardVersions.push(versionInfo);
+        }
         
-        console.debug(`Found ${affectedVersions.length} affected, ${unaffectedVersions.length} unaffected, and ${wildcardVersions.length} wildcard version entries`);
-        
-        // Handle versions with changes field
-        for (const versionInfo of rawPlatformData.versions) {
-            if (versionInfo && versionInfo.changes && Array.isArray(versionInfo.changes) && versionInfo.changes.length > 0) {
-                for (const change of versionInfo.changes) {
-                    if (change.status === "fixed" && change.at) {
-                        // Create range from affected version up to fix
-                        cpeMatches.push({
-                            criteria: cpeBase,
-                            matchCriteriaId: generateMatchCriteriaId(),
-                            vulnerable: true,
-                            versionStartIncluding: versionInfo.version,
-                            versionEndExcluding: change.at
-                        });
-                        
-                        console.debug(`Added range for version with fix: ${versionInfo.version} to ${change.at}`);
-                    }
+        // Group by affected status
+        if (versionInfo.status === "affected") {
+            affectedVersions.push(versionInfo);
+        } else if (versionInfo.status === "unaffected") {
+            unaffectedVersions.push(versionInfo);
+        }
+    });
+    
+    console.debug(`Found ${affectedVersions.length} affected, ${unaffectedVersions.length} unaffected, and ${wildcardVersions.length} wildcard version entries`);
+    
+    // Handle versions with changes field
+    for (const versionInfo of rawPlatformData.versions) {
+        if (versionInfo && versionInfo.changes && Array.isArray(versionInfo.changes) && versionInfo.changes.length > 0) {
+            for (const change of versionInfo.changes) {
+                if (change.status === "fixed" && change.at) {
+                    // Create range from affected version up to fix
+                    cpeMatches.push({
+                        criteria: cpeBase,
+                        matchCriteriaId: generateMatchCriteriaId(),
+                        vulnerable: true,
+                        versionStartIncluding: versionInfo.version,
+                        versionEndExcluding: change.at
+                    });
+                    
+                    console.debug(`Added range for version with fix: ${versionInfo.version} to ${change.at}`);
                 }
             }
         }
-        
-        // Special case 1: Default affected with unaffected ranges
-        if (defaultIsAffected && unaffectedVersions.length > 0) {
-            // Process gaps between unaffected ranges
-            processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affectedVersions, cpeMatches);
-        } 
-        // Special case 2: Default unaffected with specific affected versions
-        else if (!defaultIsAffected && affectedVersions.length > 0) {
-            // Add each affected version explicitly
-            for (const affectedInfo of affectedVersions) {
-                // Process wildcards separately
-                if ((affectedInfo.lessThanOrEqual && String(affectedInfo.lessThanOrEqual).includes('*')) || 
-                    (affectedInfo.lessThan && String(affectedInfo.lessThan).includes('*'))) {
-                    const wildcardMatches = processWildcardVersionPattern(cpeBase, affectedInfo, true);
-                    cpeMatches.push(...wildcardMatches);
-                } else {
-                    const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, affectedInfo, true);
-                    cpeMatches.push(cpeMatch);
-                }
-            }
-        }
-        // Special case 3: Just process wildcards if present
-        else if (wildcardVersions.length > 0) {
-            for (const wildcardInfo of wildcardVersions) {
-                const isVulnerable = wildcardInfo.status === "affected";
-                const wildcardMatches = processWildcardVersionPattern(cpeBase, wildcardInfo, isVulnerable);
-                cpeMatches.push(...wildcardMatches);
-            }
-        }
-        
-        // If no matches were created yet, process all versions normally
-        if (cpeMatches.length === 0) {
-            console.debug("No special case matches created, processing all versions normally");
-            for (const versionInfo of rawPlatformData.versions) {
-                if (!versionInfo) continue;
-                const isVulnerable = versionInfo.status === "affected";
-                const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable);
-                cpeMatches.push(cpeMatch);
-            }
-        }
-        
-        console.debug(`Generated ${cpeMatches.length} CPE matches for special version structure`);
-        
-        if (cpeMatches.length === 0) {
-            console.debug("No matches created, using basic CPE match");
-            const basicMatch = createCpeMatchObject(cpeBase);
-            return [basicMatch];
-        }
-        
-        return cpeMatches;
-    } catch (e) {
-        console.error("Error in special version structure processing:", e);
-        console.error(e.stack);
-        const basicMatch = createCpeMatchObject(cpeBase);
-        return [basicMatch];
     }
-}
-
-/**
- * Special handler for special version structure
- * @param {string} cpeBase - Base CPE string
- * @param {Object} rawPlatformData - Raw platform data
- * @returns {Array} Array of cpeMatch objects
- */
-function processSpecialVersionStructure(cpeBase, rawPlatformData) {
-    console.debug("Processing special version structure");
-    const cpeMatches = [];
-    const defaultIsAffected = rawPlatformData.defaultStatus === "affected";
     
-    try {
-        // Group versions by status (affected vs unaffected)
-        const affectedVersions = [];
-        const unaffectedVersions = [];
-        
-        rawPlatformData.versions.forEach(versionInfo => {
-            if (versionInfo.status === "affected") {
-                affectedVersions.push(versionInfo);
-            } else if (versionInfo.status === "unaffected") {
-                unaffectedVersions.push(versionInfo);
-            }
-        });
-        
-        console.debug(`Found ${affectedVersions.length} affected and ${unaffectedVersions.length} unaffected version entries`);
-        
-        // For defaultStatus=affected, handle unaffected ranges and gaps
-        if (defaultIsAffected) {
-            // First pass: process unaffected ranges and generate the affected ranges
-            if (unaffectedVersions.length > 0) {
-                processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affectedVersions, cpeMatches);
-            }
-            
-            // Second pass: add any explicit affected version not covered by the above
-            for (const affectedInfo of affectedVersions) {
-                // Check if this explicit affected entry is already covered by our generated ranges
-                let isCovered = false;
-                
-                // Simple case: it's a single version with no range qualifiers
-                if (affectedInfo.version && !affectedInfo.lessThan && !affectedInfo.lessThanOrEqual &&
-                    !affectedInfo.greaterThan && !affectedInfo.greaterThanOrEqual) {
-                    
-                    // Check if this version is covered by any of our generated ranges
-                    for (const cpeMatch of cpeMatches) {
-                        if (isVersionCoveredByRange(affectedInfo.version, cpeMatch)) {
-                            isCovered = true;
-                            break;
-                        }
-                    }
-                    
-                    // If not covered, add it
-                    if (!isCovered) {
-                        const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, affectedInfo, true);
-                        cpeMatches.push(cpeMatch);
-                    }
-                }
-                // For complex ranges, always add them explicitly
-                else {
-                    const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, affectedInfo, true);
-                    cpeMatches.push(cpeMatch);
-                }
-            }
-        }
-        // For defaultStatus=unaffected, just add the explicit affected entries
-        else {
-            for (const affectedInfo of affectedVersions) {
+    // Special case 1: Default affected with unaffected ranges
+    if (defaultIsAffected && unaffectedVersions.length > 0) {
+        // Process gaps between unaffected ranges
+        processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affectedVersions, cpeMatches);
+    } 
+    // Special case 2: Default unaffected with specific affected versions
+    else if (!defaultIsAffected && affectedVersions.length > 0) {
+        // Add each affected version explicitly
+        for (const affectedInfo of affectedVersions) {
+            // Process wildcards separately
+            if ((affectedInfo.lessThanOrEqual && String(affectedInfo.lessThanOrEqual).includes('*')) || 
+                (affectedInfo.lessThan && String(affectedInfo.lessThan).includes('*'))) {
+                const wildcardMatches = processWildcardVersionPattern(cpeBase, affectedInfo, true);
+                cpeMatches.push(...wildcardMatches);
+            } else {
                 const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, affectedInfo, true);
                 cpeMatches.push(cpeMatch);
             }
         }
-        
-        console.debug(`Generated ${cpeMatches.length} CPE matches for special version structure`);
-        
-        if (cpeMatches.length === 0) {
-            console.debug("No matches created, using basic CPE match");
-            const basicMatch = createCpeMatchObject(cpeBase);
-            return [basicMatch];
-        }
-        
-        return cpeMatches;
-    } catch (e) {
-        console.error("Error in special version structure processing:", e);
-        console.error(e.stack);
-        const basicMatch = createCpeMatchObject(cpeBase);
-        return [basicMatch];
     }
-}
+    // Special case 3: Just process wildcards if present
+    else if (wildcardVersions.length > 0) {
+        for (const wildcardInfo of wildcardVersions) {
+            const isVulnerable = wildcardInfo.status === "affected";
+            const wildcardMatches = processWildcardVersionPattern(cpeBase, wildcardInfo, isVulnerable);
+            cpeMatches.push(...wildcardMatches);
+        }
+    }
+    
+    // If no matches were created yet, process all versions normally
+    if (cpeMatches.length === 0) {
+        console.debug("No special case matches created, processing all versions normally");
+        for (const versionInfo of rawPlatformData.versions) {
+            if (!versionInfo) continue;
+            const isVulnerable = versionInfo.status === "affected";
+            const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable);
+            cpeMatches.push(cpeMatch);
+        }
+    }
+    
+    console.debug(`Generated ${cpeMatches.length} CPE matches for special version structure`);
+    
+    // REPLACE fallback with proper error reporting:
+    if (cpeMatches.length === 0) {
+        console.warn(`No version-specific matches created for ${cpeBase}. Raw data:`, rawPlatformData);
+        console.warn("This may indicate missing version data or processing logic gap");
+        // Return empty array - let calling function handle this
+        return [];
+    }
+    
+    return cpeMatches;
+    } 
 
 /**
  * Check if a version range is already covered by explicit affected entries
@@ -599,69 +535,7 @@ function processBasicVersionData(selectedCPEs, rawPlatformData) {
     return config;
 }
 
-/**
- * Processes the basic version data for selected CPEs
- * @param {Set} selectedRows - Set of selected CPE rows
- * @param {Object} rawPlatformData - Raw platform data
- * @param {Object} json - The JSON object to update
- * @returns {number} Total versions processed
- */
-function processBasicVersionDataOld(selectedRows, rawPlatformData, json) {
-    let totalVersions = 0;
-    
-    // Add cpeMatch objects for each selected CPE, processing version information
-    selectedRows.forEach(cpeBase => {
-        // If we have raw platform data, process each version into cpeMatch objects
-        if (rawPlatformData) {
-            const cpeMatches = processVersionDataToCpeMatches(cpeBase, rawPlatformData);
-            
-            // Track version statistics
-            cpeMatches.forEach(match => {
-                json.configurations[0].cpeMatch.push(match);
-                totalVersions++;
-            });
-        } else {
-            // No version data, just use the basic CPE
-            const basicMatch = createCpeMatchObject(cpeBase);
-            json.configurations[0].cpeMatch.push(basicMatch);
-            totalVersions++;
-        }
-    });
-    
-    // IMPORTANT: Return the totalVersions to be used by calculateAndAddStatistics
-    return totalVersions;
-}
 
-/**
- * Process JSON based on the data source
- * @param {Object} json - The JSON object to update
- * @param {Set} selectedRows - Set of selected CPE rows
- * @param {Object} metadata - Table metadata
- * @returns {boolean} True if processing was successful
- */
-function processJsonBasedOnSourceOld(json, selectedRows, metadata) {
-    try {
-        // Process the JSON structure based on the data source
-        const dataResource = metadata.dataResource;
-        let totalVersions = 0;
-        
-        if (dataResource === 'NVDAPI') {
-            // Special handling for NVD API data
-            totalVersions = processBasicVersionDataOld(selectedRows, metadata.rawPlatformData, json);
-        } else {
-            // Default handling for other data sources
-            totalVersions = processBasicVersionDataOld(selectedRows, metadata.rawPlatformData, json);
-        }
-        
-        // Store totalVersions in the metadata for use in calculateAndAddStatistics
-        metadata.totalVersions = totalVersions;
-        
-        return true;
-    } catch(e) {
-        console.error("Error processing JSON based on source:", e);
-        return false;
-    }
-}
 
 /**
  * Process JSON based on source type
@@ -719,70 +593,7 @@ function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata) {
     }
 }
 
-/**
- * Calculate and add statistics to the JSON
- * @param {Object} json - The JSON to update
- * @param {Set} selectedRows - Selected rows
- * @param {Object} rawPlatformData - Raw platform data
- * @param {Object} metadata - Table metadata
- */
-function calculateAndAddStatistics(json, selectedRows, rawPlatformData, metadata) {
-    const selectionCount = selectedRows.size;
-    let totalMatches = 0;
-    let rangeMatches = 0;
-    let exactMatches = 0;
-    
-    // Process statistics based on final JSON structure
-    if (json.configurations[0].cpeMatch && json.configurations[0].cpeMatch.length > 0) {
-        totalMatches = json.configurations[0].cpeMatch.length;
-        
-        // Count range vs exact matches
-        json.configurations[0].cpeMatch.forEach(match => {
-            if (isRangeMatch(match)) {
-                rangeMatches++;
-            } else {
-                exactMatches++;
-            }
-        });
-    } else if (json.configurations[0].nodes) {
-        json.configurations[0].nodes.forEach(node => {
-            if (node.cpeMatch) {
-                totalMatches += node.cpeMatch.length;
-                
-                // Count range vs exact matches in this node
-                node.cpeMatch.forEach(match => {
-                    if (isRangeMatch(match)) {
-                        rangeMatches++;
-                    } else {
-                        exactMatches++;
-                    }
-                });
-            }
-        });
-    }
-    
-    // Comment out generatorData creation
-    /*
-    // Always create generatorData if it doesn't exist
-    if (!json.configurations[0].generatorData) {
-        json.configurations[0].generatorData = {
-            "generatedFromSource": {
-                "dataResource": metadata.dataResource || "Unknown",
-                "sourceId": metadata.sourceId || "Unknown",
-                "sourceRole": metadata.sourceRole || "Unknown"
-            }
-        };
-    }
-    
-    // Store statistics in generatorData.matchStats only
-    json.configurations[0].generatorData.matchStats = {
-        totalMatches: totalMatches,
-        rangeMatches: rangeMatches,
-        exactMatches: exactMatches,
-        selectedCriteria: selectionCount
-    };
-    */
-}
+
 
 /**
  * Generate JSON with all configurations from all tables
@@ -823,106 +634,6 @@ function generateAllConfigurationsJson() {
     }
 }
 
-/**
- * Update the consolidated JSON for a table
- * @param {string} tableId - ID of the table
- */
-function updateConsolidatedJson(tableId) {
-    try {
-        // Get the selected rows for this table
-        const selectedRows = window.tableSelections.get(tableId);
-        
-        // ADD: Debug logging
-        console.log(`TRACE: Inside updateConsolidatedJson for ${tableId}`);
-        console.log(`TRACE: tableSelections type: ${typeof tableSelections}`);
-        console.log(`TRACE: tableSelections is global? ${tableSelections === window.tableSelections}`);
-        console.log(`TRACE: tableSelections has tableId? ${tableSelections.has(tableId)}`);
-        console.log(`TRACE: selectedRows type: ${typeof selectedRows}`);
-        console.log(`TRACE: selectedRows instanceof Set? ${selectedRows instanceof Set}`);
-        console.log(`TRACE: selectedRows: ${selectedRows ? (Array.isArray(selectedRows) ? JSON.stringify(Array.from(selectedRows)) : selectedRows.toString()) : 'null'}`);
-        console.log(`TRACE: selectedRows size: ${selectedRows ? selectedRows.size : 'N/A'}`);
-        
-        if (!selectedRows || selectedRows.size === 0) {
-            console.debug(`No rows selected for table ${tableId}`);
-            window.consolidatedJsons.set(tableId, null);
-            
-            // Always update button state even if no rows are selected
-            updateButton(tableId, false);
-            
-            // Update JSON display if it's visible
-            updateJsonDisplayIfVisible(tableId);
-            
-            return;
-        }
-        
-        // Extract the table index from the table ID
-        const tableIndex = tableId.split('_')[1];
-        
-        // Extract metadata and raw platform data from the row data table
-        const extractedData = extractDataFromTable(tableIndex);
-        
-        // Process the JSON based on the source
-        const json = processJsonBasedOnSource(
-            selectedRows, 
-            extractedData.rawPlatformData, 
-            extractedData.metadata
-        );
-        
-        // Add debugging
-        console.debug(`Processed JSON for table ${tableId}:`, json);
-        console.debug(`JSON is array: ${Array.isArray(json)}, length: ${Array.isArray(json) ? json.length : 'N/A'}`);
-        
-        // Store the consolidated JSON for this table
-        window.consolidatedJsons.set(tableId, json);
-        
-        // Verify the JSON was stored correctly
-        const storedJson = window.consolidatedJsons.get(tableId);
-        console.debug(`Stored JSON retrieval check for ${tableId}:`, storedJson);
-        console.debug(`Stored JSON is array: ${Array.isArray(storedJson)}, length: ${Array.isArray(storedJson) ? storedJson.length : 'N/A'}`);
-        
-        console.debug(`Updated consolidated JSON for table ${tableId}`);
-        
-        // Find the consolidated JSON button
-        const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
-        
-        // Update button with selection information
-        if (showButton) {
-            const statsStr = getStatisticsString(json, selectedRows.size);
-            
-            // Check if the display is currently visible
-            const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
-            const isVisible = display && display.style.display !== 'none';
-            
-            // Update button text
-            showButton.textContent = isVisible ? 
-                `Hide Consolidated JSON (${statsStr})` : 
-                `Show Consolidated JSON (${statsStr})`;
-            
-            // Update button state
-            showButton.disabled = false;
-            
-            // Update button styling based on display visibility
-            if (isVisible) {
-                showButton.classList.remove('btn-primary');
-                showButton.classList.add('btn-success');
-            } else {
-                showButton.classList.remove('btn-success');
-                showButton.classList.add('btn-primary');
-            }
-        }
-        
-        // Always update the JSON display if it's visible
-        updateJsonDisplayIfVisible(tableId);
-        
-        // Also update the "Export All" button and configurations display
-        updateExportAllButton();
-        updateAllConfigurationsDisplay();
-        
-    } catch(e) {
-        console.error(`Error updating consolidated JSON for table ${tableId}:`, e);
-        window.consolidatedJsons.set(tableId, null);
-    }
-}
 
 /**
  * Extract metadata and rawPlatformData from the row data table
@@ -1065,7 +776,6 @@ function calculateNextUpperBound(unaffectedInfo) {
         return incrementVersion(unaffectedInfo.version);
     }
 }
-
 
 /**
  * Create a CPE match object from version info
@@ -1448,7 +1158,25 @@ function detectSpecialHandlingNeeded(rawPlatformData) {
 // Make it available globally
 window.detectSpecialHandlingNeeded = detectSpecialHandlingNeeded;
 
+/**
+ * Handle settings changes for a specific row (matchesTable)
+ * @param {string} tableId - Table identifier (e.g., "matchesTable_0")
+ */
+function onRowSettingsChange(tableId) {
+    const settingsKey = tableId;
+    const rowSettings = window.rowSettings.get(settingsKey);
+    console.debug(`Row settings changed for ${settingsKey}:`, rowSettings);
+    
+    // Regenerate JSON for this specific table if it has selections
+    const selectedRows = window.tableSelections.get(tableId);
+    if (selectedRows && selectedRows.size > 0) {
+        updateConsolidatedJson(tableId);
+    }
+}
+
 // Export functions and maps to global scope for integrations with other modules
 window.tableSelections = tableSelections;
 window.consolidatedJsons = consolidatedJsons;
 window.createCpeMatchObject = createCpeMatchObject;
+window.processJsonBasedOnSource = processJsonBasedOnSource;
+
