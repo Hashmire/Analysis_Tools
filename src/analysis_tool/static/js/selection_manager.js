@@ -831,9 +831,24 @@ function initializeRowJsonSettings(tableId) {
     
     // Initialize settings if they don't exist
     if (!window.rowSettings.has(settingsKey)) {
-        window.rowSettings.set(settingsKey, {
-            ...window.jsonGenerationSettings
-        });
+        let initialSettings = {};
+        
+        // Use intelligent settings from Python
+        if (window.INTELLIGENT_SETTINGS && window.INTELLIGENT_SETTINGS[tableId]) {
+            initialSettings = { ...window.INTELLIGENT_SETTINGS[tableId] };
+            console.debug(`Using intelligent settings for ${tableId}:`, initialSettings);
+            
+            // Apply intelligent settings to actual checkbox elements
+            Object.entries(initialSettings).forEach(([setting, value]) => {
+                const checkbox = document.querySelector(`[data-table-id="${tableId}"][data-setting="${setting}"]`);
+                if (checkbox && checkbox.type === 'checkbox') {
+                    checkbox.checked = value;
+                    console.debug(`Set ${setting} to ${value} for ${tableId}`);
+                }
+            });
+        }
+        
+        window.rowSettings.set(settingsKey, initialSettings);
     }
     
     // Add event listeners to all row-setting elements for this specific table
