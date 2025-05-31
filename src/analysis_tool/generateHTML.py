@@ -491,44 +491,42 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         product_na_tooltip = 'Product field contains "n/a" which prevents proper CPE matching'
         sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{product_na_tooltip}">Product: N/A</span> ')
 
-    # 11. CPE Curation Badge (unchanged)
+    # 11. Enhanced CPE Curation Badge - includes Unicode normalization
     curation_tracking = platform_metadata.get('cpeCurationTracking', {})
-    if curation_tracking:
-        # Check if any curation happened in any fields
-        has_vendor_curation = curation_tracking.get('vendor', [])
-        has_product_curation = curation_tracking.get('product', [])
-        has_platform_curation = curation_tracking.get('platform', [])  # New: check for platform curation
-        has_vendor_product_curation = curation_tracking.get('vendor_product', [])  # New check for vendor+product
-        has_vendor_package_curation = curation_tracking.get('vendor_package', [])  # New check for vendor+packageName
+    unicode_normalization_used = platform_metadata.get('unicodeNormalizationApplied', False)
+
+    if curation_tracking or unicode_normalization_used:
+        # Build enhanced tooltip with both curation and normalization info
+        curation_tooltip = 'Source to CPE transformations applied:&#013;'
         
-        if (has_vendor_curation or has_product_curation or has_platform_curation or 
-            has_vendor_product_curation or has_vendor_package_curation):
-            
-            # Build a simple tooltip listing all value changes
-            curation_tooltip = 'Modified values:&#013;'
-            
+        # Add Unicode normalization info first if present
+        if unicode_normalization_used:
+            curation_tooltip += 'Unicode characters normalized to ASCII&#013;'
+        
+        # Add existing curation info
+        if curation_tracking:
             # List vendor modifications
-            for mod in has_vendor_curation:
+            for mod in curation_tracking.get('vendor', []):
                 curation_tooltip += f"Vendor: {mod['original']} → {mod['curated']}&#013;"
             
-            # List product modifications
-            for mod in has_product_curation:
+            # List product modifications  
+            for mod in curation_tracking.get('product', []):
                 curation_tooltip += f"Product: {mod['original']} → {mod['curated']}&#013;"
                 
-            # List platform modifications that were successfully mapped
-            for mod in has_platform_curation:
+            # List platform modifications
+            for mod in curation_tracking.get('platform', []):
                 curation_tooltip += f"Platform: {mod['original']} → {mod['curated']}&#013;"
             
             # List vendor+product combinations
-            for mod in has_vendor_product_curation:
+            for mod in curation_tracking.get('vendor_product', []):
                 curation_tooltip += f"Vendor+Product: {mod['original']} → {mod['curated']}&#013;"
             
             # List vendor+packageName combinations
-            for mod in has_vendor_package_curation:
+            for mod in curation_tracking.get('vendor_package', []):
                 curation_tooltip += f"Vendor+Package: {mod['original']} → {mod['curated']}&#013;"
-            
-            # Create a badge with the new name - no count included
-            sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{curation_tooltip}">Source to CPE Attribute Curation</span> ')
+        
+        # Enhanced badge name to reflect broader scope
+        sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{curation_tooltip}">Source to CPE Transformations Applied</span> ')
 
     # Add badges in priority order: Danger -> Warning -> Info -> Standard
     html += ''.join(danger_badges)

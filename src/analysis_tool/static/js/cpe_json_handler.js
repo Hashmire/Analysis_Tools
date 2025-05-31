@@ -2,31 +2,6 @@
 window.tableSelections = window.tableSelections || new Map();
 window.consolidatedJsons = window.consolidatedJsons || new Map();
 
-// ADD THESE MISSING GLOBAL VARIABLES:
-// Global settings for JSON generation 
-window.jsonGenerationSettings = window.jsonGenerationSettings || {
-    // Core features (hidden toggles for debugging)
-    enableStatusProcessing: true,
-    enableRangeHandling: true,
-    
-    // User-visible processing features
-    enableWildcardExpansion: true,     // Controls hasWildcards detection
-    enableGapProcessing: true,         // Controls processGapsBetweenUnaffectedRanges
-    enableVersionChanges: true,        // Controls hasVersionChanges detection
-    enableSpecialVersionTypes: true,   // Controls hasSpecialVersionTypes detection
-    enableMultipleBranches: true,      // Controls hasMultipleBranches detection
-    
-    // User-visible status features  
-    enableInverseStatus: true,         // Controls hasInverseStatus detection
-    enableMixedStatus: true,           // Controls hasMixedStatus detection
-    
-    // Processing mode
-    processingMode: 'enhanced' // 'basic' or 'enhanced'
-};
-
-// Per-row settings storage (THIS WAS MISSING!)
-window.rowSettings = window.rowSettings || new Map(); // Key: "tableId", Value: settings object
-
 /**
  * Creates a CPE match object for a given CPE base string
  * @param {string} cpeBase - The base CPE string
@@ -47,96 +22,110 @@ function createCpeMatchObject(cpeBase) {
  * Process version data into cpeMatch objects
  * @param {string} cpeBase - The base CPE string
  * @param {Object} rawPlatformData - Raw platform data
+ * @param {string} tableId - Table identifier for settings
  * @returns {Array} Array of cpeMatch objects
  */
-function processVersionDataToCpeMatches(cpeBase, rawPlatformData) {
-    try {
-        // Normalize the base CPE string first to ensure it has enough components
-        cpeBase = normalizeCpeString(cpeBase);
-        
-        const cpeMatches = [];
-        
-        // Check if we have valid version data
-        if (!rawPlatformData || !rawPlatformData.versions || !Array.isArray(rawPlatformData.versions) || rawPlatformData.versions.length === 0) {
-            console.debug("No version data available, using basic CPE match");
-            const basicMatch = createCpeMatchObject(cpeBase);
-            return [basicMatch];
-        }
-        
-        console.debug(`Processing ${rawPlatformData.versions.length} versions for ${cpeBase}`);
-        
-        // Detect all special case patterns - align with the badges in generateHTML.py
-        const hasWildcards = rawPlatformData.versions.some(v => 
-            v && (v.lessThanOrEqual && String(v.lessThanOrEqual).includes('*') || 
-                 v.lessThan && String(v.lessThan).includes('*')));
-                 
-        const hasDefaultUnaffected = rawPlatformData.defaultStatus === 'unaffected';
-        const affectedVersions = rawPlatformData.versions.filter(v => v && v.status === 'affected');
-        const unaffectedVersions = rawPlatformData.versions.filter(v => v && v.status === 'unaffected');
-        const hasInverseStatus = hasDefaultUnaffected && affectedVersions.length > 0;
-        const hasMixedStatus = affectedVersions.length > 0 && unaffectedVersions.length > 1;
-        
-        const hasVersionChanges = rawPlatformData.versions.some(v => 
-            v && v.changes && Array.isArray(v.changes) && v.changes.length > 0);
-            
-        const versionBranches = new Set();
-        rawPlatformData.versions.forEach(v => {
-            if (v && v.version && typeof v.version === 'string') {
-                const parts = v.version.split('.');
-                if (parts.length >= 2) {
-                    versionBranches.add(`${parts[0]}.${parts[1]}`);
-                }
-            }
-        });
-        const hasMultipleBranches = versionBranches.size >= 3;
-        
-        const specialVersionTypes = new Set();
-        rawPlatformData.versions.forEach(v => {
-            if (v && v.versionType && !['semver', 'string'].includes(v.versionType) && v.versionType !== 'git') {
-                specialVersionTypes.add(v.versionType);
-            }
-        });
-        const hasSpecialVersionTypes = specialVersionTypes.size > 0;
-        
-        // Check if any special case applies
-        const needsSpecialHandling = hasWildcards || hasInverseStatus || hasMixedStatus || 
-                                    hasVersionChanges || hasMultipleBranches || hasSpecialVersionTypes;
-        
-        // Use special handling if needed
-        if (needsSpecialHandling) {
-            console.debug("Special case detected: Using special version structure processing");
-            return processSpecialVersionStructure(cpeBase, rawPlatformData);
-        }
-        
-        // Standard processing for other products
-        console.debug(`Using standard processing for ${cpeBase}`);
-        
-        // Determine default vulnerability status
-        const defaultIsAffected = rawPlatformData.defaultStatus === "affected";
-        
-        for (const versionInfo of rawPlatformData.versions) {
-            if (!versionInfo) continue;
-            
-            // Determine if this version is vulnerable based on status
-            const isVulnerable = versionInfo.status === "affected";
-            
-            // Create cpeMatch using the consolidated function
-            const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable);
-            cpeMatches.push(cpeMatch);
-        }
-        
-        if (cpeMatches.length === 0) {
-            console.debug("No matches created, using basic CPE match");
-            const basicMatch = createCpeMatchObject(cpeBase);
-            cpeMatches.push(basicMatch);
-        }
-        
-        return cpeMatches;
-    } catch (e) {
-        console.error("Error processing version data:", e);
+function processVersionDataToCpeMatches(cpeBase, rawPlatformData, tableId) {
+    // Get table-specific settings instead of global
+    const tableSettings = window.rowSettings.get(tableId) || {};
+    
+    // Use table settings with conservative defaults
+    const settings = {
+        enableWildcardExpansion: tableSettings.enableWildcardExpansion || false,
+        enableVersionChanges: tableSettings.enableVersionChanges || false,
+        enableSpecialVersionTypes: tableSettings.enableSpecialVersionTypes || false,
+        enableInverseStatus: tableSettings.enableInverseStatus || false,
+        enableMultipleBranches: tableSettings.enableMultipleBranches || false,
+        enableMixedStatus: tableSettings.enableMixedStatus || false,
+        enableGapProcessing: tableSettings.enableGapProcessing || false,
+        // Core features remain enabled
+        enableStatusProcessing: true,
+        enableRangeHandling: true
+    };
+    
+    console.debug(`Processing ${tableId} with settings:`, settings);
+    
+    // Normalize the base CPE string if needed
+    cpeBase = normalizeCpeString(cpeBase);
+    
+    const cpeMatches = [];
+    
+    // Check if we have valid version data
+    if (!rawPlatformData || !rawPlatformData.versions || !Array.isArray(rawPlatformData.versions) || rawPlatformData.versions.length === 0) {
+        console.debug("No version data available, using basic CPE match");
         const basicMatch = createCpeMatchObject(cpeBase);
         return [basicMatch];
     }
+    
+    console.debug(`Processing ${rawPlatformData.versions.length} versions for ${cpeBase}`);
+    
+    // Detect all special case patterns - align with the badges in generateHTML.py
+    const hasWildcards = rawPlatformData.versions.some(v => 
+        v && (v.lessThanOrEqual && String(v.lessThanOrEqual).includes('*') || 
+             v.lessThan && String(v.lessThan).includes('*')));
+             
+    const hasDefaultUnaffected = rawPlatformData.defaultStatus === 'unaffected';
+    const affectedVersions = rawPlatformData.versions.filter(v => v && v.status === 'affected');
+    const unaffectedVersions = rawPlatformData.versions.filter(v => v && v.status === 'unaffected');
+    const hasInverseStatus = hasDefaultUnaffected && affectedVersions.length > 0;
+    const hasMixedStatus = affectedVersions.length > 0 && unaffectedVersions.length > 1;
+    
+    const hasVersionChanges = rawPlatformData.versions.some(v => 
+        v && v.changes && Array.isArray(v.changes) && v.changes.length > 0);
+        
+    const versionBranches = new Set();
+    rawPlatformData.versions.forEach(v => {
+        if (v && v.version && typeof v.version === 'string') {
+            const parts = v.version.split('.');
+            if (parts.length >= 2) {
+                versionBranches.add(`${parts[0]}.${parts[1]}`);
+            }
+        }
+    });
+    const hasMultipleBranches = versionBranches.size >= 3;
+    
+    const specialVersionTypes = new Set();
+    rawPlatformData.versions.forEach(v => {
+        if (v && v.versionType && !['semver', 'string'].includes(v.versionType) && v.versionType !== 'git') {
+            specialVersionTypes.add(v.versionType);
+        }
+    });
+    const hasSpecialVersionTypes = specialVersionTypes.size > 0;
+    
+    // Check if any special case applies
+    const needsSpecialHandling = hasWildcards || hasInverseStatus || hasMixedStatus || 
+                                hasVersionChanges || hasMultipleBranches || hasSpecialVersionTypes;
+    
+    // Use special handling if needed
+    if (needsSpecialHandling) {
+        console.debug("Special case detected: Using special version structure processing");
+        return processSpecialVersionStructure(cpeBase, rawPlatformData);
+    }
+    
+    // Standard processing for other products
+    console.debug(`Using standard processing for ${cpeBase}`);
+    
+    // Determine default vulnerability status
+    const defaultIsAffected = rawPlatformData.defaultStatus === "affected";
+    
+    for (const versionInfo of rawPlatformData.versions) {
+        if (!versionInfo) continue;
+        
+        // Determine if this version is vulnerable based on status
+        const isVulnerable = versionInfo.status === "affected";
+        
+        // Create cpeMatch using the consolidated function
+        const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable);
+        cpeMatches.push(cpeMatch);
+    }
+    
+    if (cpeMatches.length === 0) {
+        console.debug("No matches created, using basic CPE match");
+        const basicMatch = createCpeMatchObject(cpeBase);
+        cpeMatches.push(basicMatch);
+    }
+    
+    return cpeMatches;
 }
 
 /**

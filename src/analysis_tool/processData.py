@@ -5,6 +5,7 @@ from tqdm import tqdm
 from sys import exit
 from typing import List, Dict, Any, Union
 from collections import defaultdict
+import unicodedata
 
 # Import Analysis Tool 
 import gatherData
@@ -325,6 +326,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                                 rawDataset.at[index, 'platformEntryMetadata']['vendorNAConcern'] = True
                         else:
                             # Only proceed with normal CPE string generation if not n/a
+                            trackUnicodeNormalization(platform_data['vendor'], index, rawDataset)
                             cpeValidstring = formatFor23CPE(platform_data['vendor'])
                             original_vendor = cpeValidstring
                             culledString = curateCPEAttributes('vendor', cpeValidstring, True)
@@ -365,6 +367,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                                 rawDataset.at[index, 'platformEntryMetadata']['productNAConcern'] = True
                         else:
                             # Only proceed with normal CPE string generation if not n/a
+                            trackUnicodeNormalization(platform_data['product'], index, rawDataset)
                             cpeValidstring = formatFor23CPE(platform_data['product'])
                             original_product = cpeValidstring
                             culledString = curateCPEAttributes('product', cpeValidstring, True)
@@ -503,11 +506,12 @@ def suggestCPEData(apiKey, rawDataset, case):
                             
                             # Split Maven package name into groupId and artifactId
                             group_id, artifact_id = package_name.split(':', 1)
-                            
-                            # Format properly for CPE string
+                            trackUnicodeNormalization(group_id, index, rawDataset)  # ← ADD THIS
                             cpe_group_id = formatFor23CPE(group_id)
-                            cpe_artifact_id = formatFor23CPE(artifact_id)
                             
+                            trackUnicodeNormalization(artifact_id, index, rawDataset)  # ← ADD THIS
+                            cpe_artifact_id = formatFor23CPE(artifact_id)
+
                             # 1. Create a CPE string with just the groupId as the vendor
                             part = "*"
                             vendor = cpe_group_id
@@ -537,7 +541,8 @@ def suggestCPEData(apiKey, rawDataset, case):
                             targetSW = "*"
                             targetHW = "*"
                             other = "*"
-                            
+
+                            # Build a CPE Search String from supported elements
                             artifact_id_match_string = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
                             if artifact_id_match_string not in cpeBaseStrings:
                                 cpeBaseStrings.append(artifact_id_match_string)
@@ -567,6 +572,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                         
                         else:
                             # Process non-Maven packages with the existing code
+                            trackUnicodeNormalization(platform_data['packageName'], index, rawDataset)  # ← ADD THIS
                             cpeValidstring = formatFor23CPE(platform_data['packageName'])
                             culledString = curateCPEAttributes('product', cpeValidstring, True)
                             
@@ -600,6 +606,8 @@ def suggestCPEData(apiKey, rawDataset, case):
                         else:
                             # Only proceed with normal CPE string generation if neither is n/a
                             # 1. Create base string with uncurated values first
+                            trackUnicodeNormalization(platform_data['vendor'], index, rawDataset)  # ← ADD THIS
+                            trackUnicodeNormalization(platform_data['product'], index, rawDataset)  # ← ADD THIS
                             cpeValidstringVendor = formatFor23CPE(platform_data['vendor'])
                             cpeValidstringProduct = formatFor23CPE(platform_data['product'])
                             original_vendor_product = {
@@ -695,7 +703,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                         
                         # Track vendor+packageName curation if values were modified
                         if vendor != vendor_original or product != packageName_original:
-                            # Add combined vendor+packageName curation tracking
+                            # Add combined vendor+packageName tracking
                             if 'vendor_package' not in curation_tracking:
                                 curation_tracking['vendor_package'] = []
                             
@@ -1369,8 +1377,16 @@ def determine_platform_format_type(affected):
 #
 # Takes any string and returns it formatted per CPE 2.3 specification attribute value requirements
 def formatFor23CPE(rawAttribute):
+    # Store original for comparison
+    original_attribute = rawAttribute
     
-    # Mapping of chars to replace with escaped characters
+    # Normalize Unicode to ASCII first
+    ascii_attribute = normalizeToASCII(rawAttribute)
+    
+    # Track if normalization occurred
+    unicode_normalization_applied = (original_attribute != ascii_attribute)
+    
+    # Continue with existing CPE escaping logic
     cpeEscape = {
         " ": "_", 
         "\\": "\\\\",
@@ -1403,10 +1419,11 @@ def formatFor23CPE(rawAttribute):
         ",": "\\,"
     }
     
-    # Lowercase the string
-    rawAttribute = rawAttribute.lower()
-
-    return ''.join([cpeEscape.get(x, x) for x in rawAttribute])
+    ascii_attribute = ascii_attribute.lower()
+    result = ''.join([cpeEscape.get(x, x) for x in ascii_attribute])
+    
+    # Return both result and normalization flag
+    return result, unicode_normalization_applied
 #
 # Enhanced version of curateCPEAttributes to remove version information from product attributes
 
@@ -1695,3 +1712,48 @@ def create_product_key(affected, source_id):
     
     # Generate the complete key
     return f"{vendor}:{product}:{source_id}:{cpes_string}:{versions_info}"
+
+def normalizeToASCII(text):
+    """Convert Unicode text to ASCII-compatible CPE component"""
+    if not text:
+        return ''
+    
+    # Convert to string if not already
+    if not isinstance(text, str):
+        text = str(text)
+    
+    # Step 1: Unicode normalization (decompose accented chars)
+    normalized = unicodedata.normalize('NFD', text)
+    
+    # Step 2: Remove diacritical marks (accents)
+    ascii_text = ''.join(char for char in normalized 
+                        if unicodedata.category(char) != 'Mn')
+    
+    # Step 3: Handle remaining non-ASCII characters
+    ascii_replacements = {
+        'ø': 'o', 'Ø': 'O',     # Nordic
+        'æ': 'ae', 'Æ': 'AE',   # Nordic  
+        'ß': 'ss',              # German
+        'ł': 'l', 'Ł': 'L',     # Polish
+        '©': 'c',               # Copyright
+        '®': 'r',               # Registered
+        '™': 'tm',              # Trademark
+        '€': 'euro',            # Euro symbol
+        '£': 'pound',           # Pound symbol
+        '¥': 'yen',             # Yen symbol
+    }
+    
+    for unicode_char, ascii_replacement in ascii_replacements.items():
+        ascii_text = ascii_text.replace(unicode_char, ascii_replacement)
+    
+    # Step 4: Remove any remaining non-ASCII characters
+    ascii_text = ''.join(char if ord(char) < 128 else '' for char in ascii_text)
+    
+    return ascii_text
+
+# Add just this helper function:
+def trackUnicodeNormalization(original_text, row_index, rawDataset):
+    """Track if Unicode normalization would be applied to this text"""
+    if original_text and isinstance(original_text, str):
+        if original_text != normalizeToASCII(original_text):
+            rawDataset.at[row_index, 'platformEntryMetadata']['unicodeNormalizationApplied'] = True

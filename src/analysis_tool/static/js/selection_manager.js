@@ -344,7 +344,8 @@ function updateConsolidatedJson(tableId) {
         // Generate JSON using the existing working processVersionDataToCpeMatches function
         const allCpeMatches = [];
         for (const cpeBase of selectedRows) {
-            const cpeMatches = processVersionDataToCpeMatches(cpeBase, extractedData.rawPlatformData);
+            // Pass tableId to processing function
+            const cpeMatches = processVersionDataToCpeMatches(cpeBase, extractedData.rawPlatformData, tableId);
             allCpeMatches.push(...cpeMatches);
         }
         
