@@ -39,6 +39,7 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData, tableId) {
         enableMultipleBranches: tableSettings.enableMultipleBranches || false,
         enableMixedStatus: tableSettings.enableMixedStatus || false,
         enableGapProcessing: tableSettings.enableGapProcessing || false,
+        enableUpdatePatterns: tableSettings.enableUpdatePatterns || false,  
         // Core features remain enabled
         enableStatusProcessing: true,
         enableRangeHandling: true

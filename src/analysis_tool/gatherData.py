@@ -8,7 +8,6 @@ import datetime
 # Import Analysis Tool 
 import processData   
 
-# Update get_public_ip function to include timestamp
 def get_public_ip():
     """Get the current public IP address being used by the tool."""
     try:
@@ -30,9 +29,8 @@ def gatherCVEListRecord(targetCve):
     simpleCveRequestUrl = cveOrgJSON + targetCve
     
     try:
-        # Do GET Request to API and convert response to Python datatypes
         r = requests.get(simpleCveRequestUrl)
-        r.raise_for_status()  # Raise exception for HTTP errors
+        r.raise_for_status()  
         cveRecordDict = r.json()
 
         processData.integrityCheckCVE("cveIdMatch", targetCve, cveRecordDict)
@@ -336,10 +334,8 @@ def gatherAllCVEIDs(apiKey):
     while total_results is None or start_index < total_results:
         params["startIndex"] = start_index
         
-        # Implement retry mechanism
         for attempt in range(max_retries):
             try:
-                # Querying CVEs (page 1, startIndex=0, resultsPerPage=2000)
                 current_page = start_index // results_per_page + 1
                 pages_estimate = total_results // results_per_page + 1 if total_results else "?"
                 
@@ -354,7 +350,7 @@ def gatherAllCVEIDs(apiKey):
                 
                 data = response.json()
                 
-                # Set total results on first iteration
+               
                 if total_results is None:
                     total_results = data.get("totalResults", 0)
                     print(f"Found {total_results} total CVEs")
@@ -369,11 +365,10 @@ def gatherAllCVEIDs(apiKey):
                 
                 # Rate limiting
                 if not headers.get("apiKey"):
-                    sleep(1)  # ~5 requests per 30 seconds
+                    sleep(1)  
                 else:
-                    sleep(0)  # ~50 requests per 30 seconds
+                    sleep(0)  
                     
-                # Success, break the retry loop
                 break
                 
             except requests.exceptions.RequestException as e:

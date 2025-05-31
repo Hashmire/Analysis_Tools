@@ -63,7 +63,7 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
             # Handle CPE suggestion errors
             print(f"[WARNING] {cve_id} encountered an error during CPE suggestion: {str(cpe_error)}")
             print("          Continuing with available data...")
-            # Continue processing without CPE suggestions
+            
         
         # Generate HTML
         primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe, nvd_source_data)
@@ -176,7 +176,7 @@ def main():
     # Process all CVEs
     generated_files = []
     skipped_cves = []
-    skipped_reasons = {}  # Store reasons for skipping
+    skipped_reasons = {}  
     
     total_cves = len(cves_to_process)
     for index, cve in enumerate(cves_to_process):

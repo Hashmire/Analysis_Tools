@@ -5,7 +5,7 @@ import html
 from build_info import VERSION, TOOLNAME
 import os
 import datetime
-import re  # Ensure this is imported at the top of the file if not already present
+import re 
 
 # Import Analysis Tool 
 import processData
@@ -59,7 +59,6 @@ VERSION_TEXT_PATTERNS = [
     'and_prior', 'and_later', 'and_earlier', 'and_newer'
 ]
 
-# Add this class definition near the top of the file, after the imports
 class CustomJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles sets and other non-standard JSON types"""
     def default(self, obj):
@@ -85,6 +84,7 @@ def analyze_version_characteristics(raw_platform_data):
             'has_multiple_branches': False,
             'has_mixed_status': False,
             'needs_gap_processing': False,
+            'has_update_patterns': False,  
             'wildcard_patterns': [],
             'special_version_types': [],
             'version_families': set(),
@@ -105,6 +105,7 @@ def analyze_version_characteristics(raw_platform_data):
         'has_multiple_branches': False,
         'has_mixed_status': False,
         'needs_gap_processing': False,
+        'has_update_patterns': False, 
         'wildcard_patterns': [],
         'special_version_types': [],
         'version_families': set(),
@@ -115,10 +116,9 @@ def analyze_version_characteristics(raw_platform_data):
     # Extended list of comparators to check for
     comparators = ['<', '>', '=', '<=', '=<', '=>', '>=', '!=']
     
-    # MOVE VERSION CONCERNS DETECTION OUTSIDE THE LOOP
-    processed_concerns = set()  # Now at function level, not per-version
     
-    # SINGLE PASS ANALYSIS - No more multiple loops!
+    processed_concerns = set()  
+    
     for version in versions:
         if not isinstance(version, dict):
             continue
@@ -174,11 +174,10 @@ def analyze_version_characteristics(raw_platform_data):
                     
                 field_value_lower = field_value.lower()
                 
-                # Check ALL pattern types (not just first match)
+                # Check ALL pattern types
                 has_comparator = any(comp in field_value_lower for comp in comparators)
                 has_text_pattern = any(text_comp in field_value_lower for text_comp in VERSION_TEXT_PATTERNS)
                 
-                # NEW: Add update pattern detection from has_update_related_content
                 update_patterns = [
                     r'^(.+?)[\s\-_\.]*(?:patch[\s\-_]*(\d+)|p[\s\-_]*(\d+))[\s\-_]*$',
                     r'^(.+?)[\s\-_\.]*(?:sp[\s\-_]*(\d+)|service[\s\-_]+pack[\s\-_]*(\d+))[\s\-_]*$',
@@ -201,7 +200,6 @@ def analyze_version_characteristics(raw_platform_data):
                 
                 if has_text_pattern:
                     matching_patterns = [text_comp for text_comp in VERSION_TEXT_PATTERNS if text_comp in field_value_lower]
-                    # Limit to first 3 matches to avoid overly long tooltips
                     limited_patterns = matching_patterns[:3]
                     pattern_text = ', '.join(limited_patterns)
                     if len(matching_patterns) > 3:
@@ -209,7 +207,7 @@ def analyze_version_characteristics(raw_platform_data):
                     concern = f"Text in {field}: {field_value} (patterns: {pattern_text})"
                     processed_concerns.add(html.escape(concern))
                 
-                # NEW: Add update pattern concerns
+                # Add update pattern concerns
                 if has_update_pattern:
                     matching_update_patterns = [pattern.pattern for pattern in compiled_update_patterns if pattern.match(field_value)]
                     pattern_names = []
@@ -279,7 +277,7 @@ def analyze_version_characteristics(raw_platform_data):
                                     processed_concerns.add(html.escape(concern))
             
             # Handle unexpected types
-            elif field_value is not None:  # Don't report None as unexpected
+            elif field_value is not None:  
                 concern = f"Unexpected data type in {field}: {type(field_value).__name__}"
                 processed_concerns.add(html.escape(concern))
     
@@ -396,7 +394,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     info_badges = []
     standard_badges = []
 
-    # 1. Platform Format Type badge (unchanged)
+    # 1. Platform Format Type badge
     version_checks = platform_metadata.get('cpeVersionChecks', [])
     version_tooltip = "No versions detected!"
     if version_checks:
@@ -411,7 +409,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     else:
         info_badges.append(f'<span class="badge bg-info" title="{version_tooltip}">{readable_format_type}</span> ')
 
-    # 2. Duplicate Entries badge (unchanged)
+    # 2. Duplicate Entries badge
     duplicate_indices = platform_metadata.get('duplicateRowIndices', [])
     if duplicate_indices:
         duplicate_tooltip = f"This entry has duplicate data at row(s): {', '.join(map(str, duplicate_indices))}"
@@ -439,7 +437,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         changes_tooltip = 'Versions array contains change history information requiring special handling'
         warning_badges.append(f'<span class="badge bg-warning" title="{changes_tooltip}">Has Version Changes</span> ')
 
-    # 6. CPE Array badge (unchanged)
+    # 6. CPE Array badge
     cpes_array = []
     has_cpe_array = platform_metadata.get('hasCPEArray', False)
     if has_cpe_array and 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
@@ -449,14 +447,14 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
             cpe_tooltip = f"Versions array contains {cpe_count} CPEs from affected entry: " + ", ".join(cpes_array)
             info_badges.append(f'<span class="badge bg-info" title="{cpe_tooltip}">CVE Affected CPES Data: {cpe_count}</span> ')
 
-    # 7. CPE Base Strings badge (unchanged)
+    # 7. CPE Base Strings badge
     cpe_base_strings = platform_metadata.get('cpeBaseStrings', [])
     if cpe_base_strings:
         sorted_cpe_base_strings = sort_cpe_strings_for_tooltip(cpe_base_strings)
         base_strings_tooltip = "&#013;".join(sorted_cpe_base_strings)
         standard_badges.append(f'<span class="badge bg-secondary" title="{base_strings_tooltip}">CPE Base String Searches</span> ')
 
-    # 8. Platform Data Concern badge (unchanged)
+    # 8. Platform Data Concern badge
     if platform_metadata.get('platformDataConcern', False):
         platform_tooltip = 'Unexpected Platforms data detected in affected entry'
         sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{platform_tooltip}">Platforms Data Concern</span> ')
@@ -466,7 +464,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         versions_tooltip = 'Versions array contains formatting issues:&#013;' + '&#013;'.join(characteristics['version_concerns'])
         sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{versions_tooltip}">Versions Data Concern</span> ')
     
-    # 9b. CPEs Array Data Concern (keep this separate check)
+    # 9b. CPEs Array Data Concern
     if 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
         cpe_concerns = []
         for cpe in raw_platform_data['cpes']:
@@ -761,7 +759,7 @@ def getCPEJsonScript() -> str:
             # Add placeholder comment if file can't be read
             js_content += f"// Error loading {js_file}\n\n"
     
-    # Add JSON settings HTML injection (NEW)
+    # Add JSON settings HTML injection
     json_settings_injection = f"""
     // JSON Settings HTML generated by Python and injected on page load
     window.JSON_SETTINGS_HTML = {json.dumps(JSON_SETTINGS_HTML, cls=CustomJSONEncoder)};
@@ -1274,6 +1272,19 @@ def create_json_generation_settings_html(table_id, settings=None):
                                 </small>
                             </label>
                         </div>
+                        <div class="form-check mb-1">
+                            <input class="form-check-input row-setting" type="checkbox" 
+                                   id="enableUpdatePatterns_{table_id}" 
+                                   data-setting="enableUpdatePatterns"
+                                   data-table-id="{table_id}" 
+                                   {checked('enableUpdatePatterns')}>
+                            <label class="form-check-label" for="enableUpdatePatterns_{table_id}">
+                                <small>Update Pattern Processing 
+                                    <span class="text-muted">(patch, service pack, hotfix)</span>
+                                    <span class="feature-indicator" data-feature="hasUpdatePatterns"></span>
+                                </small>
+                            </label>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <h6 class="text-muted mb-2">Status Processing</h6>
@@ -1343,7 +1354,8 @@ def analyze_data_for_smart_defaults(raw_platform_data):
         'enableInverseStatus': characteristics['has_inverse_status'],
         'enableMultipleBranches': characteristics['has_multiple_branches'],
         'enableMixedStatus': characteristics['has_mixed_status'],
-        'enableGapProcessing': characteristics['needs_gap_processing']
+        'enableGapProcessing': characteristics['needs_gap_processing'],
+        'enableUpdatePatterns': characteristics['has_update_patterns']
     }
 
 def store_json_settings_html(table_id, raw_platform_data=None):
