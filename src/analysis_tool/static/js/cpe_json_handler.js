@@ -1,6 +1,7 @@
 // Global maps to store selections and generated JSONs
 window.tableSelections = window.tableSelections || new Map();
 window.consolidatedJsons = window.consolidatedJsons || new Map();
+window.rowSettings = window.rowSettings || new Map();
 
 /**
  * Creates a CPE match object for a given CPE base string

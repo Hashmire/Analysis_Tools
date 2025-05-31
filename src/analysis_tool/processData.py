@@ -1383,9 +1383,6 @@ def formatFor23CPE(rawAttribute):
     # Normalize Unicode to ASCII first
     ascii_attribute = normalizeToASCII(rawAttribute)
     
-    # Track if normalization occurred
-    unicode_normalization_applied = (original_attribute != ascii_attribute)
-    
     # Continue with existing CPE escaping logic
     cpeEscape = {
         " ": "_", 
@@ -1422,8 +1419,8 @@ def formatFor23CPE(rawAttribute):
     ascii_attribute = ascii_attribute.lower()
     result = ''.join([cpeEscape.get(x, x) for x in ascii_attribute])
     
-    # Return both result and normalization flag
-    return result, unicode_normalization_applied
+    # Return ONLY the result string (maintain existing interface)
+    return result
 #
 # Enhanced version of curateCPEAttributes to remove version information from product attributes
 
