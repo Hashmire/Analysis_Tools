@@ -42,4 +42,4 @@ The following examples are hosted in this repository and are updated to align wi
 
 The full dataset of generated pages can be found at [Hashmire/cpeApplicabilityGeneratorPages](https://github.com/Hashmire/cpeApplicabilityGeneratorPages).
 
-If you want to view a specific CVE record within the generated pages, use the following URL structure: `https://github.com/Hashmire/cpeApplicabilityGeneratorPages/generated_pages/<CVE-ID CVE-YYYY-NNNNNN>.html`
+If you want to view a specific CVE record within the generated pages, use the following URL structure: `https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/<CVE-ID CVE-YYYY-NNNNNN>.html`
