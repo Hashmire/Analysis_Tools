@@ -50,8 +50,6 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData, tableId) {
     // Normalize the base CPE string if needed
     cpeBase = normalizeCpeString(cpeBase);
     
-    const cpeMatches = [];
-    
     // Check if we have valid version data
     if (!rawPlatformData || !rawPlatformData.versions || !Array.isArray(rawPlatformData.versions) || rawPlatformData.versions.length === 0) {
         console.debug("No version data available, using basic CPE match");
@@ -60,236 +58,37 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData, tableId) {
     }
     
     console.debug(`Processing ${rawPlatformData.versions.length} versions for ${cpeBase}`);
-    
-    // Detect all special case patterns - align with the badges in generateHTML.py
-    const hasWildcards = rawPlatformData.versions.some(v => 
-        v && (v.lessThanOrEqual && String(v.lessThanOrEqual).includes('*') || 
-             v.lessThan && String(v.lessThan).includes('*')));
-             
-    const hasDefaultUnaffected = rawPlatformData.defaultStatus === 'unaffected';
-    const affectedVersions = rawPlatformData.versions.filter(v => v && v.status === 'affected');
-    const unaffectedVersions = rawPlatformData.versions.filter(v => v && v.status === 'unaffected');
-    const hasInverseStatus = hasDefaultUnaffected && affectedVersions.length > 0;
-    const hasMixedStatus = affectedVersions.length > 0 && unaffectedVersions.length > 1;
-    
-    const hasVersionChanges = rawPlatformData.versions.some(v => 
-        v && v.changes && Array.isArray(v.changes) && v.changes.length > 0);
+      // **MODULAR RULES ENGINE** - Primary approach for JSON generation
+    if (window.ModularRuleEngine) {
+        console.debug("Using modular rules engine for JSON generation");
+        const ruleEngine = new window.ModularRuleEngine(settings, rawPlatformData);
+        const matches = ruleEngine.generateMatches(cpeBase);
         
-    const versionBranches = new Set();
-    rawPlatformData.versions.forEach(v => {
-        if (v && v.version && typeof v.version === 'string') {
-            const parts = v.version.split('.');
-            if (parts.length >= 2) {
-                versionBranches.add(`${parts[0]}.${parts[1]}`);
-            }
-        }
-    });
-    const hasMultipleBranches = versionBranches.size >= 3;
-    
-    const specialVersionTypes = new Set();
-    rawPlatformData.versions.forEach(v => {
-        if (v && v.versionType && !['semver', 'string'].includes(v.versionType) && v.versionType !== 'git') {
-            specialVersionTypes.add(v.versionType);
-        }
-    });
-    const hasSpecialVersionTypes = specialVersionTypes.size > 0;
-    
-    // Check if any special case applies
-    const needsSpecialHandling = hasWildcards || hasInverseStatus || hasMixedStatus || 
-                                hasVersionChanges || hasMultipleBranches || hasSpecialVersionTypes;
-    
-    // Use special handling if needed
-    if (needsSpecialHandling) {
-        console.debug("Special case detected: Using special version structure processing");
-        return processSpecialVersionStructure(cpeBase, rawPlatformData);
-    }
-    
-    // Standard processing for other products
-    console.debug(`Using standard processing for ${cpeBase}`);
-    
-    // Determine default vulnerability status
-    const defaultIsAffected = rawPlatformData.defaultStatus === "affected";
-    
-    for (const versionInfo of rawPlatformData.versions) {
-        if (!versionInfo) continue;
-        
-        // Determine if this version is vulnerable based on status
-        const isVulnerable = versionInfo.status === "affected";
-        
-        // Create cpeMatch using the consolidated function
-        const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable);
-        cpeMatches.push(cpeMatch);
-    }
-    
-    if (cpeMatches.length === 0) {
-        console.debug("No matches created, using basic CPE match");
-        const basicMatch = createCpeMatchObject(cpeBase);
-        cpeMatches.push(basicMatch);
-    }
-    
-    return cpeMatches;
-}
-
-/**
- * Handle version patterns with wildcard in ranges
- * @param {string} cpeBase - Base CPE string
- * @param {Object} versionInfo - Version info with wildcard
- * @param {boolean} isVulnerable - Whether this is a vulnerable match
- * @returns {Array} Array of CPE matches covering the wildcard pattern
- */
-function processWildcardVersionPattern(cpeBase, versionInfo, isVulnerable) {
-    const matches = [];
-    
-    // Handle wildcards in lessThanOrEqual
-    if (versionInfo.lessThanOrEqual && String(versionInfo.lessThanOrEqual).includes('*')) {
-        const wildcard = versionInfo.lessThanOrEqual;
-        
-        // Extract the prefix before the wildcard (e.g., "5.4." from "5.4.*")
-        const prefix = wildcard.split('*')[0].replace(/\.$/, '');
-        const parts = prefix.split('.');
-        
-        // If we have a valid version structure like "5.4.*"
-        if (parts.length >= 2) {
-            const majorVersion = parseInt(parts[0], 10);
-            const minorVersion = parseInt(parts[1], 10);
+        if (matches.length > 0) {
+            console.debug(`Modular rules engine generated ${matches.length} matches for ${cpeBase}`);
+            return matches;
+        } else {
+            console.warn(`Modular rules engine returned no matches for ${cpeBase}. This may indicate:
+                - No applicable rules for the version data structure
+                - All rules were disabled in settings
+                - Version data may be malformed or empty`);
+            console.debug("Raw platform data:", JSON.stringify(rawPlatformData, null, 2));
+            console.debug("Settings:", JSON.stringify(settings, null, 2));
             
-            if (!isNaN(majorVersion) && !isNaN(minorVersion)) {
-                // Create range from exact version to next minor
-                const startVersion = versionInfo.version || `${majorVersion}.${minorVersion}`;
-                const endVersion = `${majorVersion}.${minorVersion + 1}`;
-                
-                matches.push({
-                    criteria: cpeBase,
-                    matchCriteriaId: generateMatchCriteriaId(),
-                    vulnerable: isVulnerable,
-                    versionStartIncluding: startVersion,
-                    versionEndExcluding: endVersion
-                });
-                
-                console.debug(`Created range for wildcard ${wildcard}: ${startVersion} to ${endVersion}`);
-            }
+            // Return basic match as last resort
+            const basicMatch = createCpeMatchObject(cpeBase);
+            console.debug("Returning basic CPE match as fallback");
+            return [basicMatch];
         }
-    }
-    
-    // If no specific wildcard handling was applied, fall back to standard handling
-    if (matches.length === 0) {
-        matches.push(createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable));
-    }
-    
-    return matches;
+    } else {
+        console.error("Modular rules engine (ModularRuleEngine) is not loaded. This is a critical dependency.");
+        console.error("Please ensure modular_rules.js is properly loaded before cpe_json_handler.js");
+        
+        // Return basic match to prevent complete failure
+        const basicMatch = createCpeMatchObject(cpeBase);
+        console.debug("Returning basic CPE match due to missing modular rules engine");
+        return [basicMatch];    }
 }
-
-/**
- * Enhanced version of the special structure handler that aligns with our badges
- * @param {string} cpeBase - Base CPE string
- * @param {Object} rawPlatformData - Raw platform data
- * @returns {Array} Array of cpeMatch objects
- */
-function processSpecialVersionStructure(cpeBase, rawPlatformData) {
-    console.debug("Processing special version structure");
-    const cpeMatches = [];
-    const isAffected = rawPlatformData.defaultStatus === "affected";
-    
-    // 1. Handle wildcards, version changes, special types
-    // 2. Process gaps between unaffected ranges
-    
-    // Group versions by status and check for wildcards
-    const affectedVersions = [];
-    const unaffectedVersions = [];
-    const wildcardVersions = [];
-    const defaultIsAffected = isAffected;
-    
-    rawPlatformData.versions.forEach(versionInfo => {
-        if (!versionInfo) return;
-        
-        // Track versions with wildcards
-        if ((versionInfo.lessThanOrEqual && String(versionInfo.lessThanOrEqual).includes('*')) || 
-            (versionInfo.lessThan && String(versionInfo.lessThan).includes('*'))) {
-            wildcardVersions.push(versionInfo);
-        }
-        
-        // Group by affected status
-        if (versionInfo.status === "affected") {
-            affectedVersions.push(versionInfo);
-        } else if (versionInfo.status === "unaffected") {
-            unaffectedVersions.push(versionInfo);
-        }
-    });
-    
-    console.debug(`Found ${affectedVersions.length} affected, ${unaffectedVersions.length} unaffected, and ${wildcardVersions.length} wildcard version entries`);
-    
-    // Handle versions with changes field
-    for (const versionInfo of rawPlatformData.versions) {
-        if (versionInfo && versionInfo.changes && Array.isArray(versionInfo.changes) && versionInfo.changes.length > 0) {
-            for (const change of versionInfo.changes) {
-                if (change.status === "fixed" && change.at) {
-                    // Create range from affected version up to fix
-                    cpeMatches.push({
-                        criteria: cpeBase,
-                        matchCriteriaId: generateMatchCriteriaId(),
-                        vulnerable: true,
-                        versionStartIncluding: versionInfo.version,
-                        versionEndExcluding: change.at
-                    });
-                    
-                    console.debug(`Added range for version with fix: ${versionInfo.version} to ${change.at}`);
-                }
-            }
-        }
-    }
-    
-    // Special case 1: Default affected with unaffected ranges
-    if (defaultIsAffected && unaffectedVersions.length > 0) {
-        // Process gaps between unaffected ranges
-        processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affectedVersions, cpeMatches);
-    } 
-    // Special case 2: Default unaffected with specific affected versions
-    else if (!defaultIsAffected && affectedVersions.length > 0) {
-        // Add each affected version explicitly
-        for (const affectedInfo of affectedVersions) {
-            // Process wildcards separately
-            if ((affectedInfo.lessThanOrEqual && String(affectedInfo.lessThanOrEqual).includes('*')) || 
-                (affectedInfo.lessThan && String(affectedInfo.lessThan).includes('*'))) {
-                const wildcardMatches = processWildcardVersionPattern(cpeBase, affectedInfo, true);
-                cpeMatches.push(...wildcardMatches);
-            } else {
-                const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, affectedInfo, true);
-                cpeMatches.push(cpeMatch);
-            }
-        }
-    }
-    // Special case 3: Just process wildcards if present
-    else if (wildcardVersions.length > 0) {
-        for (const wildcardInfo of wildcardVersions) {
-            const isVulnerable = wildcardInfo.status === "affected";
-            const wildcardMatches = processWildcardVersionPattern(cpeBase, wildcardInfo, isVulnerable);
-            cpeMatches.push(...wildcardMatches);
-        }
-    }
-    
-    // If no matches were created yet, process all versions normally
-    if (cpeMatches.length === 0) {
-        console.debug("No special case matches created, processing all versions normally");
-        for (const versionInfo of rawPlatformData.versions) {
-            if (!versionInfo) continue;
-            const isVulnerable = versionInfo.status === "affected";
-            const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable);
-            cpeMatches.push(cpeMatch);
-        }
-    }
-    
-    console.debug(`Generated ${cpeMatches.length} CPE matches for special version structure`);
-    
-    // REPLACE fallback with proper error reporting:
-    if (cpeMatches.length === 0) {
-        console.warn(`No version-specific matches created for ${cpeBase}. Raw data:`, rawPlatformData);
-        console.warn("This may indicate missing version data or processing logic gap");
-        // Return empty array - let calling function handle this
-        return [];
-    }
-    
-    return cpeMatches;
-    } 
 
 /**
  * Check if a version range is already covered by explicit affected entries
@@ -1104,50 +903,6 @@ function generateJsonOutput() {
     
     return json;
 }
-
-// Add this function to detect if special handling is needed
-function detectSpecialHandlingNeeded(rawPlatformData) {
-    const hasWildcards = rawPlatformData.versions.some(v => 
-        v && (v.lessThanOrEqual && String(v.lessThanOrEqual).includes('*') || 
-             v.lessThan && String(v.lessThan).includes('*')));
-             
-    const hasDefaultUnaffected = rawPlatformData.defaultStatus === 'unaffected';
-    const affectedVersions = rawPlatformData.versions.filter(v => v && v.status === 'affected');
-    const unaffectedVersions = rawPlatformData.versions.filter(v => v && v.status === 'unaffected');
-    const hasInverseStatus = hasDefaultUnaffected && affectedVersions.length > 0;
-    
-    const hasMixedStatus = affectedVersions.length > 0 && unaffectedVersions.length > 1;
-    
-    const hasVersionChanges = rawPlatformData.versions.some(v => 
-        v && v.changes && Array.isArray(v.changes) && v.changes.length > 0);
-        
-    const versionBranches = new Set();
-    rawPlatformData.versions.forEach(v => {
-        if (v && v.version && typeof v.version === 'string') {
-            const parts = v.version.split('.');
-            if (parts.length >= 2) {
-                versionBranches.add(`${parts[0]}.${parts[1]}`);
-            }
-        }
-    });
-    
-    const hasMultipleBranches = versionBranches.size >= 3;
-    
-    const specialVersionTypes = new Set();
-    rawPlatformData.versions.forEach(v => {
-        if (v && v.versionType && !['semver', 'string'].includes(v.versionType) && v.versionType !== 'git') {
-            specialVersionTypes.add(v.versionType);
-        }
-    });
-    const hasSpecialVersionTypes = specialVersionTypes.size > 0;
-    
-    // Check if any special case applies
-    return hasWildcards || hasInverseStatus || hasMixedStatus || 
-           hasVersionChanges || hasMultipleBranches || hasSpecialVersionTypes;
-}
-
-// Make it available globally
-window.detectSpecialHandlingNeeded = detectSpecialHandlingNeeded;
 
 /**
  * Handle settings changes for a specific row (matchesTable)

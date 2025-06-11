@@ -173,21 +173,47 @@ def analyze_version_characteristics(raw_platform_data):
                     continue
                     
                 field_value_lower = field_value.lower()
-                
                 # Check ALL pattern types
                 has_comparator = any(comp in field_value_lower for comp in comparators)
                 has_text_pattern = any(text_comp in field_value_lower for text_comp in VERSION_TEXT_PATTERNS)
                 
                 update_patterns = [
-                    r'^(.+?)[\s\-_\.]*(?:patch[\s\-_]*(\d+)|p[\s\-_]*(\d+))[\s\-_]*$',
-                    r'^(.+?)[\s\-_\.]*(?:sp[\s\-_]*(\d+)|service[\s\-_]+pack[\s\-_]*(\d+))[\s\-_]*$',
-                    r'^(.+?)[\s\-_\.]*(?:alpha[\s\-_]*(\d*)|a[\s\-_]+(\d+))[\s\-_]*$',
-                    r'^(.+?)[\s\-_\.]*(?:beta[\s\-_]*(\d*)|b[\s\-_]*(\d+))[\s\-_]*$',
-                    r'^(.+?)[\s\-_\.]*(?:rc[\s\-_]*(\d*)|release[\s\-_]+candidate[\s\-_]*(\d*))[\s\-_]*$',
-                    r'^(.+?)[\s\-_\.]*(?:hotfix[\s\-_]*(\d+)|hf[\s\-_]*(\d+))[\s\-_]*$',
-                    r'^(.+?)[\s\-_\.]*(?:update[\s\-_]*(\d+)|upd[\s\-_]*(\d+))[\s\-_]*$',
-                    r'^(.+?)[\s\-_\.]*(?:fix[\s\-_]*(\d+))[\s\-_]*$',
-                    r'^(.+?)[\s\-_\.]*(?:revision[\s\-_]*(\d+)|rev[\s\-_]*(\d+))[\s\-_]*$'
+                    # Alpha patterns
+                    r'^(.+?)[\.\-_]*alpha[\.\-_]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*a[\.\-_]*(\d+)[\.\-_]*$',
+                    
+                    # Beta patterns
+                    r'^(.+?)[\.\-_]*beta[\.\-_]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*b[\.\-_]*(\d+)[\.\-_]*$',
+                    
+                    # Release candidate patterns
+                    r'^(.+?)[\.\-_]*rc[\.\-_]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*release[\s\-_]+candidate[\.\-_]*(\d*)[\.\-_]*$',
+                    
+                    # Patch patterns
+                    r'^(.+?)[\.\-_]*patch[\.\-_]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*p[\.\-_]*(\d+)[\.\-_]*$',
+                    r'^(.+?)\.p(\d+)$', # Handle 3.1.0.p7
+                    
+                    # Hotfix patterns
+                    r'^(.+?)[\.\-_]*hotfix[\.\-_]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*hf[\.\-_]*(\d+)[\.\-_]*$',
+                    
+                    # Service pack patterns
+                    r'^(.+?)[\.\-_]*service[\s\-_]+pack[\.\-_]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*sp[\.\-_]*(\d+)[\.\-_]*$',
+                    r'^(.+?)\.sp(\d+)$', # Handle 3.0.0.sp1
+                    
+                    # Update patterns
+                    r'^(.+?)[\.\-_]*update[\.\-_]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*upd[\.\-_]*(\d+)[\.\-_]*$',
+                    
+                    # Fix patterns
+                    r'^(.+?)[\.\-_]*fix[\.\-_]*(\d+)[\.\-_]*$',
+                    
+                    # Revision patterns
+                    r'^(.+?)[\.\-_]*revision[\.\-_]*(\d+)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*rev[\.\-_]*(\d+)[\.\-_]*$'
                 ]
                 compiled_update_patterns = [re.compile(pattern, re.IGNORECASE) for pattern in update_patterns]
                 has_update_pattern = any(pattern.match(field_value) for pattern in compiled_update_patterns)
@@ -209,6 +235,7 @@ def analyze_version_characteristics(raw_platform_data):
                 
                 # Add update pattern concerns
                 if has_update_pattern:
+                    characteristics['has_update_patterns'] = True  # Set the flag!
                     matching_update_patterns = [pattern.pattern for pattern in compiled_update_patterns if pattern.match(field_value)]
                     pattern_names = []
                     for pattern in matching_update_patterns[:3]:  # Limit to 3
@@ -733,10 +760,10 @@ def getCPEJsonScript() -> str:
     
     # Get the current script's directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    
     # Define the files with paths relative to the current script
     js_files = [
         os.path.join(current_dir, "static", "js", "utils.js"),
+        os.path.join(current_dir, "static", "js", "modular_rules.js"),
         os.path.join(current_dir, "static", "js", "cpe_json_handler.js"),
         os.path.join(current_dir, "static", "js", "ui_controller.js"),
         os.path.join(current_dir, "static", "js", "selection_manager.js"),
@@ -789,29 +816,45 @@ def has_update_related_content(raw_platform_data):
     if not isinstance(versions, list):
         return False
     
-    # Synchronized patterns with JavaScript extractUpdateFromVersion function
+    # Synchronized patterns with JavaScript Update Patterns rule
     # These must match exactly to ensure button only shows when extraction will work
     update_patterns = [
-        # Enhanced patch patterns - cast wider net
-        r'^(.+?)[\s\-_\.]*(?:patch[\s\-_]*(\d+)|p[\s\-_]*(\d+))[\s\-_]*$',
+        # Alpha patterns
+        r'^(.+?)[\.\-_]*alpha[\.\-_]*(\d*)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*a[\.\-_]*(\d+)[\.\-_]*$',
         
-        # Enhanced service pack patterns
-        r'^(.+?)[\s\-_\.]*(?:sp[\s\-_]*(\d+)|service[\s\-_]+pack[\s\-_]*(\d+))[\s\-_]*$',
+        # Beta patterns
+        r'^(.+?)[\.\-_]*beta[\.\-_]*(\d*)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*b[\.\-_]*(\d+)[\.\-_]*$',
         
-        # Enhanced alpha patterns - more flexible
-        r'^(.+?)[\s\-_\.]*(?:alpha[\s\-_]*(\d*)|a[\s\-_]+(\d+))[\s\-_]*$',
+        # Release candidate patterns
+        r'^(.+?)[\.\-_]*rc[\.\-_]*(\d*)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*release[\s\-_]+candidate[\.\-_]*(\d*)[\.\-_]*$',
         
-        # Enhanced beta patterns
-        r'^(.+?)[\s\-_\.]*(?:beta[\s\-_]*(\d*)|b[\s\-_]*(\d+))[\s\-_]*$',
+        # Patch patterns
+        r'^(.+?)[\.\-_]*patch[\.\-_]*(\d*)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*p[\.\-_]*(\d+)[\.\-_]*$',
+        r'^(.+?)\.p(\d+)$', # Handle 3.1.0.p7
         
-        # Enhanced release candidate patterns
-        r'^(.+?)[\s\-_\.]*(?:rc[\s\-_]*(\d*)|release[\s\-_]+candidate[\s\-_]*(\d*))[\s\-_]*$',
+        # Hotfix patterns
+        r'^(.+?)[\.\-_]*hotfix[\.\-_]*(\d*)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*hf[\.\-_]*(\d+)[\.\-_]*$',
         
-        # Additional broad patterns for common update keywords
-        r'^(.+?)[\s\-_\.]*(?:hotfix[\s\-_]*(\d+)|hf[\s\-_]*(\d+))[\s\-_]*$',
-        r'^(.+?)[\s\-_\.]*(?:update[\s\-_]*(\d+)|upd[\s\-_]*(\d+))[\s\-_]*$',
-        r'^(.+?)[\s\-_\.]*(?:fix[\s\-_]*(\d+))[\s\-_]*$',
-        r'^(.+?)[\s\-_\.]*(?:revision[\s\-_]*(\d+)|rev[\s\-_]*(\d+))[\s\-_]*$'
+        # Service pack patterns
+        r'^(.+?)[\.\-_]*service[\s\-_]+pack[\.\-_]*(\d*)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*sp[\.\-_]*(\d+)[\.\-_]*$',
+        r'^(.+?)\.sp(\d+)$', # Handle 3.0.0.sp1
+        
+        # Update patterns
+        r'^(.+?)[\.\-_]*update[\.\-_]*(\d*)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*upd[\.\-_]*(\d+)[\.\-_]*$',
+        
+        # Fix patterns
+        r'^(.+?)[\.\-_]*fix[\.\-_]*(\d+)[\.\-_]*$',
+        
+        # Revision patterns
+        r'^(.+?)[\.\-_]*revision[\.\-_]*(\d+)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*rev[\.\-_]*(\d+)[\.\-_]*$'
     ]
     
     # Compile patterns for efficiency (case-insensitive to match JavaScript /i flag)

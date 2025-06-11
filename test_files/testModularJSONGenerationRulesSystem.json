@@ -1,0 +1,203 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1",  "cveMetadata": {
+    "cveId": "CVE-2024-99999",
+    "assignerOrgId": "00000000-0000-0000-0000-000000000000",
+    "state": "PUBLISHED",
+    "assignerShortName": "TestOrg",
+    "datePublished": "2024-01-15T10:00:00.000Z",
+    "dateUpdated": "2024-01-15T10:00:00.000Z",
+    "serial": 1
+  },
+  "containers": {
+    "cna": {
+      "providerMetadata": {
+        "orgId": "00000000-0000-0000-0000-000000000000",
+        "shortName": "TestOrg",
+        "dateUpdated": "2024-01-15T10:00:00.000Z"
+      },
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "A complex test CVE for validating JSON generation and modular rules processing. This vulnerability affects multiple components with various version ranges, wildcard patterns, and special handling scenarios."
+        }
+      ],
+      "affected": [
+        {
+          "vendor": "TestVendor",
+          "product": "ComplexTestProduct",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "1.1.0",
+              "status": "affected",
+              "versionType": "semver",
+              "lessThan": "1.2.0"
+            },
+            {
+              "version": "1.2.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "2.0.0",
+              "status": "affected",
+              "versionType": "semver",
+              "lessThan": "2.1.0"
+            },
+            {
+              "version": "2.1.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "3.0.0",
+              "status": "affected",
+              "versionType": "semver",
+              "lessThan": "*"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "WildcardProduct",
+          "versions": [
+            {
+              "version": "1.*",
+              "status": "affected",
+              "versionType": "glob"
+            },
+            {
+              "version": "2.0.*",
+              "status": "affected",
+              "versionType": "glob"
+            },
+            {
+              "version": "3.0.0",
+              "status": "unaffected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "GapTestProduct",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "1.1.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "1.2.0",
+              "status": "affected"
+            },
+            {
+              "version": "1.3.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "2.0.0",
+              "status": "affected",
+              "versionType": "semver",
+              "lessThan": "2.5.0"
+            },
+            {
+              "version": "2.5.0",
+              "status": "unaffected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "MixedStatusProduct",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "1.1.0",
+              "status": "unknown"
+            },
+            {
+              "version": "1.2.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "2.0.0",
+              "status": "affected",
+              "versionType": "semver",
+              "lessThan": "2.3.0",
+              "changes": [
+                {
+                  "at": "2.1.0",
+                  "status": "unknown"
+                },
+                {
+                  "at": "2.2.0",
+                  "status": "affected"
+                }
+              ]
+            }
+          ]
+        },        {
+          "vendor": "TestVendor",
+          "product": "UpdateTestProduct",
+          "versions": [
+            {
+              "version": "1.0.0-alpha",
+              "status": "affected"
+            },
+            {
+              "version": "1.0.0-beta.1",
+              "status": "affected"
+            },
+            {
+              "version": "1.0.0-rc.1",
+              "status": "affected"
+            },
+            {
+              "version": "1.0.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "1.0.1-patch",
+              "status": "affected"
+            },
+            {
+              "version": "1.1.0-update",
+              "status": "unaffected"
+            },
+            {
+              "version": "2.0.0-patch.5",
+              "status": "affected"
+            },
+            {
+              "version": "2.1.0-hotfix.2",
+              "status": "affected"
+            },
+            {
+              "version": "3.0.0.sp1",
+              "status": "affected"
+            },
+            {
+              "version": "3.1.0.p7",
+              "status": "affected"
+            }
+          ]
+        }
+      ],
+      "references": [
+        {
+          "url": "https://example.com/security-advisory-test",
+          "name": "Test Security Advisory",
+          "tags": ["vendor-advisory"]
+        }
+      ]
+    }
+  }
+}
