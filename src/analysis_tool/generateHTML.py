@@ -5,12 +5,60 @@ import html
 from build_info import VERSION, TOOLNAME
 import os
 import datetime
-import re  # Ensure this is imported at the top of the file if not already present
+import re 
 
 # Import Analysis Tool 
 import processData
 
-# Add this class definition near the top of the file, after the imports
+# Define version text patterns at module level for reuse
+VERSION_TEXT_PATTERNS = [
+    # Range indicators
+    'through', 'thru', 'to', 'between', 'and',
+    
+    # Upper bound indicators
+    'before', 'prior to', 'earlier than', 'up to', 'until', 
+    'not after', 'older than', 'below',
+    
+    # Lower bound indicators
+    'after', 'since', 'later than', 'newer than', 
+    'starting with', 'from', 'above',
+    
+    # Approximation indicators
+    'about', 'approximately', 'circa', 'around', 'roughly',
+    
+    # Inclusive/exclusive indicators
+    'inclusive', 'exclusive', 'including', 'excluding',
+    
+    # Non-specific versions
+    'all versions', 'any version', 'multiple versions',
+    
+    # Reference directives
+    'see references', 'see advisory', 'refer to', 'check', 'as noted',
+    
+    # Missing/Unknown values
+    'unspecified', 'unknown', 'none', 'undefined', 'various',
+    'n/a', 'not available', 'not applicable', 'unavailable',
+    'na', 'nil', 'tbd', 'to be determined', 'pending',
+    'not specified', 'not determined', 'not known', 'not listed',
+    'not provided', 'missing', 'empty', 'null',
+    
+    # Descriptive statements
+    'supported', 'unstable', 'development', 'beta', 'release candidate', 'nightly',
+    
+    # Date-based indicators that aren't version numbers
+    'builds', 'release', 'pre-', 'post-',
+    
+    # Unclear bounds
+    'earliest', 'recent', 'legacy', 'past', 'future', 'latest',
+    
+    # Commitish references
+    'commit', 'git hash', 'branch',
+    
+    # Version range text indicators
+    '_and_prior', '_and_later', '_and_earlier', '_and_newer',
+    'and_prior', 'and_later', 'and_earlier', 'and_newer'
+]
+
 class CustomJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles sets and other non-standard JSON types"""
     def default(self, obj):
@@ -23,6 +71,274 @@ class CustomJSONEncoder(json.JSONEncoder):
         except TypeError:
             # If we can't encode it normally, convert to string
             return str(obj)
+
+def analyze_version_characteristics(raw_platform_data):
+    """Centralized analysis of version data characteristics - SINGLE SOURCE OF TRUTH"""
+    if not raw_platform_data or not isinstance(raw_platform_data, dict):
+        return {
+            'has_wildcards': False,
+            'has_version_changes': False,
+            'has_special_version_types': False,
+            'has_git_version_type': False,
+            'has_inverse_status': False,
+            'has_multiple_branches': False,
+            'has_mixed_status': False,
+            'needs_gap_processing': False,
+            'has_update_patterns': False,  
+            'wildcard_patterns': [],
+            'special_version_types': [],
+            'version_families': set(),
+            'status_types': set(),
+            'version_concerns': []
+        }
+    
+    versions = raw_platform_data.get('versions', [])
+    if not isinstance(versions, list):
+        return {}
+    
+    characteristics = {
+        'has_wildcards': False,
+        'has_version_changes': False,
+        'has_special_version_types': False,
+        'has_git_version_type': False,
+        'has_inverse_status': False,
+        'has_multiple_branches': False,
+        'has_mixed_status': False,
+        'needs_gap_processing': False,
+        'has_update_patterns': False, 
+        'wildcard_patterns': [],
+        'special_version_types': [],
+        'version_families': set(),
+        'status_types': set(),
+        'version_concerns': []
+    }
+    
+    # Extended list of comparators to check for
+    comparators = ['<', '>', '=', '<=', '=<', '=>', '>=', '!=']
+    
+    
+    processed_concerns = set()  
+    
+    for version in versions:
+        if not isinstance(version, dict):
+            continue
+        
+        # === WILDCARD DETECTION ===
+        for field in ['version', 'lessThan', 'lessThanOrEqual']:
+            if field in version and isinstance(version[field], str) and '*' in version[field]:
+                characteristics['has_wildcards'] = True
+                characteristics['wildcard_patterns'].append(f"{field}: {version[field]}")
+        
+        # === VERSION CHANGES DETECTION ===
+        if version.get('changes'):
+            characteristics['has_version_changes'] = True
+        
+        # === VERSION TYPE DETECTION ===
+        version_type = version.get('versionType')
+        if version_type and version_type not in ['semver', 'string', None]:
+            characteristics['has_special_version_types'] = True
+            characteristics['special_version_types'].append(version_type)
+            if version_type == 'git':
+                characteristics['has_git_version_type'] = True
+        
+        # === STATUS COLLECTION ===
+        if 'status' in version and version['status']:
+            characteristics['status_types'].add(version['status'])
+        
+        # === VERSION FAMILY EXTRACTION ===
+        for field in ['version', 'lessThan', 'lessThanOrEqual']:
+            if field in version and isinstance(version[field], str):
+                version_str = version[field]
+                if version_str and version_str != '*':
+                    match = re.match(r'^(\d+)', version_str)
+                    if match:
+                        characteristics['version_families'].add(match.group(1))
+                        break
+        
+        # === DETAILED VERSION CONCERNS DETECTION (PER VERSION) ===
+        for field in ['version', 'lessThan', 'lessThanOrEqual']:
+            if field not in version:
+                continue
+                
+            field_value = version[field]
+            
+            # Skip None, empty, or non-processable values
+            if field_value is None:
+                continue
+            
+            # Handle string values
+            if isinstance(field_value, str):
+                # Skip empty strings
+                if not field_value.strip():
+                    continue
+                    
+                field_value_lower = field_value.lower()
+                # Check ALL pattern types
+                has_comparator = any(comp in field_value_lower for comp in comparators)
+                has_text_pattern = any(text_comp in field_value_lower for text_comp in VERSION_TEXT_PATTERNS)
+                
+                update_patterns = [
+                    # Alpha patterns
+                    r'^(.+?)[\.\-_]*alpha[\.\-_]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*a[\.\-_]*(\d+)[\.\-_]*$',
+                    
+                    # Beta patterns
+                    r'^(.+?)[\.\-_]*beta[\.\-_]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*b[\.\-_]*(\d+)[\.\-_]*$',
+                    
+                    # Release candidate patterns
+                    r'^(.+?)[\.\-_]*rc[\.\-_]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*release[\s\-_]+candidate[\.\-_]*(\d*)[\.\-_]*$',
+                    
+                    # Patch patterns
+                    r'^(.+?)[\.\-_]*patch[\.\-_]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*p[\.\-_]*(\d+)[\.\-_]*$',
+                    r'^(.+?)\.p(\d+)$', # Handle 3.1.0.p7
+                    
+                    # Hotfix patterns
+                    r'^(.+?)[\.\-_]*hotfix[\.\-_]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*hf[\.\-_]*(\d+)[\.\-_]*$',
+                    
+                    # Service pack patterns
+                    r'^(.+?)[\.\-_]*service[\s\-_]+pack[\.\-_]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*sp[\.\-_]*(\d+)[\.\-_]*$',
+                    r'^(.+?)\.sp(\d+)$', # Handle 3.0.0.sp1
+                    
+                    # Update patterns
+                    r'^(.+?)[\.\-_]*update[\.\-_]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*upd[\.\-_]*(\d+)[\.\-_]*$',
+                    
+                    # Fix patterns
+                    r'^(.+?)[\.\-_]*fix[\.\-_]*(\d+)[\.\-_]*$',
+                    
+                    # Revision patterns
+                    r'^(.+?)[\.\-_]*revision[\.\-_]*(\d+)[\.\-_]*$',
+                    r'^(.+?)[\.\-_]*rev[\.\-_]*(\d+)[\.\-_]*$'
+                ]
+                compiled_update_patterns = [re.compile(pattern, re.IGNORECASE) for pattern in update_patterns]
+                has_update_pattern = any(pattern.match(field_value) for pattern in compiled_update_patterns)
+                
+                # Collect all applicable concerns
+                if has_comparator:
+                    matching_comps = [comp for comp in comparators if comp in field_value_lower]
+                    concern = f"Comparator in {field}: {field_value} (found: {', '.join(matching_comps)})"
+                    processed_concerns.add(html.escape(concern))
+                
+                if has_text_pattern:
+                    matching_patterns = [text_comp for text_comp in VERSION_TEXT_PATTERNS if text_comp in field_value_lower]
+                    limited_patterns = matching_patterns[:3]
+                    pattern_text = ', '.join(limited_patterns)
+                    if len(matching_patterns) > 3:
+                        pattern_text += f" (+{len(matching_patterns) - 3} more)"
+                    concern = f"Text in {field}: {field_value} (patterns: {pattern_text})"
+                    processed_concerns.add(html.escape(concern))
+                
+                # Add update pattern concerns
+                if has_update_pattern:
+                    characteristics['has_update_patterns'] = True  # Set the flag!
+                    matching_update_patterns = [pattern.pattern for pattern in compiled_update_patterns if pattern.match(field_value)]
+                    pattern_names = []
+                    for pattern in matching_update_patterns[:3]:  # Limit to 3
+                        if 'patch' in pattern:
+                            pattern_names.append('patch')
+                        elif 'sp|service' in pattern:
+                            pattern_names.append('service pack')
+                        elif 'alpha' in pattern:
+                            pattern_names.append('alpha')
+                        elif 'beta' in pattern:
+                            pattern_names.append('beta')
+                        elif 'rc|release' in pattern:
+                            pattern_names.append('release candidate')
+                        elif 'hotfix|hf' in pattern:
+                            pattern_names.append('hotfix')
+                        elif 'update|upd' in pattern:
+                            pattern_names.append('update')
+                        elif 'fix' in pattern:
+                            pattern_names.append('fix')
+                        elif 'revision|rev' in pattern:
+                            pattern_names.append('revision')
+                    
+                    if pattern_names:
+                        concern = f"Update attribute content in {field}: {field_value} ({', '.join(set(pattern_names))})"
+                        processed_concerns.add(html.escape(concern))
+            
+            # Handle dictionary values (nested version objects)
+            elif isinstance(field_value, dict):
+                # Recursively check nested string values
+                for nested_key, nested_value in field_value.items():
+                    if isinstance(nested_value, str) and nested_value.strip():
+                        nested_value_lower = nested_value.lower()
+                        
+                        # Check nested values for concerns
+                        if any(comp in nested_value_lower for comp in comparators):
+                            concern = f"Comparator in {field}.{nested_key}: {nested_value}"
+                            processed_concerns.add(html.escape(concern))
+                        
+                        if any(text_comp in nested_value_lower for text_comp in VERSION_TEXT_PATTERNS):
+                            concern = f"Text in {field}.{nested_key}: {nested_value}"
+                            processed_concerns.add(html.escape(concern))
+                    
+                    # Handle deeply nested structures
+                    elif isinstance(nested_value, dict):
+                        for deep_key, deep_value in nested_value.items():
+                            if isinstance(deep_value, str) and deep_value.strip():
+                                deep_value_lower = deep_value.lower()
+                                if any(text_comp in deep_value_lower for text_comp in VERSION_TEXT_PATTERNS):
+                                    concern = f"Text in {field}.{nested_key}.{deep_key}: {deep_value}"
+                                    processed_concerns.add(html.escape(concern))
+            
+            # Handle list values (arrays of version objects)
+            elif isinstance(field_value, list):
+                for i, list_item in enumerate(field_value):
+                    if isinstance(list_item, str) and list_item.strip():
+                        list_item_lower = list_item.lower()
+                        if any(text_comp in list_item_lower for text_comp in VERSION_TEXT_PATTERNS):
+                            concern = f"Text in {field}[{i}]: {list_item}"
+                            processed_concerns.add(html.escape(concern))
+                    elif isinstance(list_item, dict):
+                        for list_key, list_value in list_item.items():
+                            if isinstance(list_value, str) and list_value.strip():
+                                list_value_lower = list_value.lower()
+                                if any(text_comp in list_value_lower for text_comp in VERSION_TEXT_PATTERNS):
+                                    concern = f"Text in {field}[{i}].{list_key}: {list_value}"
+                                    processed_concerns.add(html.escape(concern))
+            
+            # Handle unexpected types
+            elif field_value is not None:  
+                concern = f"Unexpected data type in {field}: {type(field_value).__name__}"
+                processed_concerns.add(html.escape(concern))
+    
+    # === MULTIPLE WILDCARD BRANCHES CHECK ===
+    wildcard_branches = []
+    for v in versions:
+        if isinstance(v, dict) and v.get('version') == '*' and ('lessThan' in v or 'lessThanOrEqual' in v):
+            branch_end = v.get('lessThan') or v.get('lessThanOrEqual')
+            wildcard_branches.append(branch_end)
+    
+    if len(wildcard_branches) > 1:
+        branch_ranges = ", ".join(wildcard_branches)
+        processed_concerns.add(f"Multiple overlapping branch ranges with wildcard starts: {branch_ranges}")
+    
+    # FINALIZE VERSION CONCERNS (AFTER ALL VERSIONS PROCESSED)
+    characteristics['version_concerns'] = list(processed_concerns)[:20]  # Limit to 20 concerns max
+    if len(processed_concerns) > 20:
+        characteristics['version_concerns'].append(f"... and {len(processed_concerns) - 20} more concerns")
+    
+    # === DERIVED CHARACTERISTICS ===
+    characteristics['has_inverse_status'] = raw_platform_data.get('defaultStatus') == 'unaffected'
+    characteristics['has_multiple_branches'] = len(characteristics['version_families']) >= 3
+    characteristics['has_mixed_status'] = (
+        len(characteristics['status_types']) > 1 and 
+        'affected' in characteristics['status_types'] and 
+        'unaffected' in characteristics['status_types']
+    )
+    
+    # Gap processing logic
+    has_ranges = any(v and isinstance(v, dict) and ('lessThan' in v or 'lessThanOrEqual' in v) for v in versions)
+    has_exact_versions = any(v and isinstance(v, dict) and 'version' in v and v['version'] and v['version'] != '*' for v in versions)
+    characteristics['needs_gap_processing'] = (has_ranges and has_exact_versions) or characteristics['has_wildcards']
+    
+    return characteristics
 
 def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     # Access platformEntryMetadata for consolidated fields
@@ -94,6 +410,10 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     # Add Platform Entry Notifications with badges immediately after sourceRole
     html += "<tr><td>Platform Entry Notifications</td><td>"
 
+    # Get characteristics once using consolidated function
+    raw_platform_data = row.get('rawPlatformData', {})
+    characteristics = analyze_version_characteristics(raw_platform_data)
+
     # Group badges by priority level
     danger_badges = []
     warning_badges = []
@@ -101,244 +421,93 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     info_badges = []
     standard_badges = []
 
-    # 1. Platform Format Type badge with version checks tooltip
+    # 1. Platform Format Type badge
     version_checks = platform_metadata.get('cpeVersionChecks', [])
     version_tooltip = "No versions detected!"
     if version_checks:
-        # Format each version check on a new line for better readability
         version_lines = []
         for check in version_checks:
             check_str = ", ".join([f"{k}: {v}" for k, v in check.items()])
             version_lines.append(check_str)
-        
         version_tooltip = "&#013;".join(version_lines)
 
-    # Select badge color and priority based on platform format type
     if platform_format_type == 'cveAffectsNoVersions':
         danger_badges.append(f'<span class="badge bg-danger" title="{version_tooltip}">{readable_format_type}</span> ')
     else:
         info_badges.append(f'<span class="badge bg-info" title="{version_tooltip}">{readable_format_type}</span> ')
 
-    # 2. Duplicate Entries badge (warning) if duplicateRowIndices exist
+    # 2. Duplicate Entries badge
     duplicate_indices = platform_metadata.get('duplicateRowIndices', [])
     if duplicate_indices:
         duplicate_tooltip = f"This entry has duplicate data at row(s): {', '.join(map(str, duplicate_indices))}"
         warning_badges.append(f'<span class="badge bg-warning" title="{duplicate_tooltip}">Duplicate Entries Detected</span> ')
 
-    # 3. Git version type badge - checking version type
-    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
-        has_git_version = any(
-            v and isinstance(v, dict) and v.get('versionType') == "git" 
-            for v in raw_platform_data.get('versions', [])
-        )
-        if has_git_version:
-            git_tooltip = "git versionType not advised for CPE Ranges"
-            
-            # Determine badge color based on platform format type
-            git_badge_color = "bg-warning"  # Default: warning level
-            
-            # Elevate to danger level when used with version ranges
-            if platform_format_type in ['cveAffectsVersionRange', 'cveAffectsVersionMix']:
-                git_badge_color = "bg-danger"  # Danger level for ranges
-                git_tooltip = "CRITICAL: CPE Range Matching Logic does not currently support git versionTypes"
-                
-            warning_badges.append(f'<span class="badge {git_badge_color}" title="{git_tooltip}">git versionType</span> ')
-
-    # 4. Special Version Structure badges - more detailed detection of special cases
-    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
-        versions = raw_platform_data['versions']
+    # 3. Git version type badge using consolidated analysis
+    if characteristics['has_git_version_type']:
+        git_tooltip = "git versionType not advised for CPE Ranges"
+        git_badge_color = "bg-warning"
         
-        # 4.1 Check for wildcard patterns in version ranges
-        has_wildcards = False
-        for v in versions:
-            if isinstance(v, dict):
-                # Check for wildcards in lessThan/lessThanOrEqual constraints
-                if ('lessThanOrEqual' in v or 'lessThan' in v):
-                    constraint_value = v.get('lessThanOrEqual', '') or v.get('lessThan', '')
-                    if '*' in str(constraint_value):
-                        has_wildcards = True
-                        version_tooltip = 'Versions array contains wildcard patterns requiring special handling'
-                        warning_badges.append(f'<span class="badge bg-warning" title="{version_tooltip}">Wildcard Patterns</span> ')
-                        break
-                
-                # Also check for wildcards in explicit version values
-                if 'version' in v and '*' in str(v['version']):
-                    has_wildcards = True
-                    version_tooltip = 'Versions array contains wildcard patterns in version values requiring special handling'
-                    warning_badges.append(f'<span class="badge bg-warning" title="{version_tooltip}">Wildcard Patterns</span> ')
-                    break
-        
-        # 4.2 Check for version with changes
-        has_changes = False
-        for v in versions:
-            if v and 'changes' in v and v['changes']:
-                has_changes = True
-                changes_tooltip = 'Versions array contains change history information requiring special handling'
-                warning_badges.append(f'<span class="badge bg-warning" title="{changes_tooltip}">Has Version Changes</span> ')
-                break
+        # Elevate to danger level when used with version ranges
+        if platform_format_type in ['cveAffectsVersionRange', 'cveAffectsVersionMix']:
+            git_badge_color = "bg-danger"
+            git_tooltip = "CRITICAL: CPE Range Matching Logic does not currently support git versionTypes"
+            
+        warning_badges.append(f'<span class="badge {git_badge_color}" title="{git_tooltip}">git versionType</span> ')
 
-    # 5. CPE Array badge - only show count in tooltip if there are actual CPEs
+    # 4. Wildcard patterns badge using consolidated analysis
+    if characteristics['has_wildcards']:
+        wildcard_tooltip = 'Versions array contains wildcard patterns requiring special handling'
+        warning_badges.append(f'<span class="badge bg-warning" title="{wildcard_tooltip}">Wildcard Patterns</span> ')
+        
+    # 5. Version changes badge using consolidated analysis
+    if characteristics['has_version_changes']:
+        changes_tooltip = 'Versions array contains change history information requiring special handling'
+        warning_badges.append(f'<span class="badge bg-warning" title="{changes_tooltip}">Has Version Changes</span> ')
+
+    # 6. CPE Array badge
     cpes_array = []
     has_cpe_array = platform_metadata.get('hasCPEArray', False)
     if has_cpe_array and 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
         cpes_array = [cpe for cpe in raw_platform_data['cpes'] if cpe and isinstance(cpe, str) and cpe.startswith('cpe:')]
-        if cpes_array:  # Only show badge if there are actual CPEs
+        if cpes_array:
             cpe_count = len(cpes_array)
             cpe_tooltip = f"Versions array contains {cpe_count} CPEs from affected entry: " + ", ".join(cpes_array)
-            info_badges.append(f'<span class="badge bg-info" title="{cpe_tooltip}">CVE Affected CPES Data: {cpe_count}</span> ') # We have no way of knowing if this is supposed to be Match Criteria or CPE Names, safer to treat as Match Strings.
+            info_badges.append(f'<span class="badge bg-info" title="{cpe_tooltip}">CVE Affected CPES Data: {cpe_count}</span> ')
 
-    # 6. CPE Base Strings badge - only show if strings were generated
+    # 7. CPE Base Strings badge
     cpe_base_strings = platform_metadata.get('cpeBaseStrings', [])
     if cpe_base_strings:
-        # Sort the strings for the tooltip
         sorted_cpe_base_strings = sort_cpe_strings_for_tooltip(cpe_base_strings)
         base_strings_tooltip = "&#013;".join(sorted_cpe_base_strings)
         standard_badges.append(f'<span class="badge bg-secondary" title="{base_strings_tooltip}">CPE Base String Searches</span> ')
 
-    # 7. Add Platform Data Concern badge if needed - UPDATED TO USE CUSTOM STYLE
+    # 8. Platform Data Concern badge
     if platform_metadata.get('platformDataConcern', False):
         platform_tooltip = 'Unexpected Platforms data detected in affected entry'
         sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{platform_tooltip}">Platforms Data Concern</span> ')
 
-    # 8. Add Versions Data Concern badge for improper version formatting
-    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
-        versions = raw_platform_data['versions']
-        version_concerns = []
+    # 9. Version concerns badge using consolidated analysis
+    if characteristics['version_concerns']:
+        versions_tooltip = 'Versions array contains formatting issues:&#013;' + '&#013;'.join(characteristics['version_concerns'])
+        sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{versions_tooltip}">Versions Data Concern</span> ')
+    
+    # 9b. CPEs Array Data Concern
+    if 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
+        cpe_concerns = []
+        for cpe in raw_platform_data['cpes']:
+            if isinstance(cpe, str) and cpe.startswith('cpe:'):
+                parts = cpe.split(':')
+                if len(parts) >= 6 and parts[0] == 'cpe' and parts[1] == '2.3':
+                    version = parts[5]
+                    if any(text_comp in version.lower() for text_comp in VERSION_TEXT_PATTERNS):
+                        cpe_concerns.append(f"CPE contains improper version text: {cpe}")
+                        break
         
-        # Extended list of comparators to check for
-        comparators = ['<', '>', '=', '<=', '=<', '=>', '>=', '!=']
-        
-        # Add text-based version comparators
-        version_text_patterns = [
-            # Range indicators
-            'through', 'thru', 'to', 'between', 'and',
-            
-            # Upper bound indicators
-            'before', 'prior to', 'earlier than', 'up to', 'until', 
-            'not after', 'older than', 'below',
-            
-            # Lower bound indicators
-            'after', 'since', 'later than', 'newer than', 
-            'starting with', 'from', 'above',
-            
-            # Approximation indicators
-            'about', 'approximately', 'circa', 'around', 'roughly',
-            
-            # Inclusive/exclusive indicators
-            'inclusive', 'exclusive', 'including', 'excluding',
-            
-            # Non-specific versions
-            'all versions', 'any version', 'multiple versions',
-            
-            # Reference directives
-            'see references', 'see advisory', 'refer to', 'check', 'as noted',
-            
-            # Missing/Unknown values
-            'unspecified', 'unknown', 'none', 'undefined', 'various',
-            'n/a', 'not available', 'not applicable', 'unavailable',
-            'na', 'nil', 'tbd', 'to be determined', 'pending',
-            'not specified', 'not determined', 'not known', 'not listed',
-            'not provided', 'missing', 'empty', 'null',
-            
-            # Descriptive statements
-            'supported', 'unstable', 'development', 'beta', 'release candidate', 'nightly',
-            
-            # Date-based indicators that aren't version numbers
-            'builds', 'release', 'pre-', 'post-',
-            
-            # Unclear bounds
-            'earliest', 'recent', 'legacy', 'past', 'future', 'latest',
-            
-            # Commitish references
-            'commit', 'git hash', 'branch',
-            
-            # Version range text indicators
-            '_and_prior', '_and_later', '_and_earlier', '_and_newer',
-            'and_prior', 'and_later', 'and_earlier', 'and_newer'
-        ]
-        
-        # Check for improper comparators in version fields
-        for v in versions:
-            if not isinstance(v, dict):
-                continue
-            
-            # Define the patch-related regex pattern once - focused only on patch indicators
-            patch_pattern = re.compile(r'(patch[0-9-]*|(?:^|\s)p[0-9]+|[0-9]+p[0-9]+)', re.IGNORECASE)
-            
-            # Check 'version' field
-            if 'version' in v and isinstance(v['version'], str):
-                version_value = v['version'].lower()
-                
-                # Check for symbolic comparators
-                if any(comp in version_value for comp in comparators):
-                    version_concerns.append(f"Comparator in version: {v['version']}")
-                
-                # Check for text comparators
-                elif any(text_comp in version_value for text_comp in version_text_patterns):
-                    version_concerns.append(f"Text in version: {v['version']}")
-                
-                # Check for patch-related information
-                elif patch_pattern.search(version_value):
-                    version_concerns.append(f"Patch info in version: {v['version']}")
-            
-            # Check 'lessThan' field
-            if 'lessThan' in v and isinstance(v['lessThan'], str):
-                less_than_value = v['lessThan'].lower()
-                if any(comp in less_than_value for comp in comparators):
-                    version_concerns.append(f"Comparator in lessThan: {v['lessThan']}")
-                elif any(text_comp in less_than_value for text_comp in version_text_patterns):
-                    version_concerns.append(f"Text in lessThan: {v['lessThan']}")
-                elif patch_pattern.search(less_than_value):
-                    version_concerns.append(f"Patch info in lessThan: {v['lessThan']}")
-            
-            # Check 'lessThanOrEqual' field
-            if 'lessThanOrEqual' in v and isinstance(v['lessThanOrEqual'], str):
-                less_than_or_equal_value = v['lessThanOrEqual'].lower()
-                if any(comp in less_than_or_equal_value for comp in comparators):
-                    version_concerns.append(f"Comparator in lessThanOrEqual: {v['lessThanOrEqual']}")
-                elif any(text_comp in less_than_or_equal_value for text_comp in version_text_patterns):
-                    version_concerns.append(f"Text in lessThanOrEqual: {v['lessThanOrEqual']}")
-                elif patch_pattern.search(less_than_or_equal_value):
-                    version_concerns.append(f"Patch info in lessThanOrEqual: {v['lessThanOrEqual']}")
-        
-        # NEW CHECK: Check for multiple versions with wildcard starts
-        # Count versions that have both "version": "*" and "lessThan" or "lessThanOrEqual"
-        wildcard_branches = []
-        for v in versions:
-            if isinstance(v, dict) and v.get('version') == '*' and ('lessThan' in v or 'lessThanOrEqual' in v):
-                branch_end = v.get('lessThan') or v.get('lessThanOrEqual')
-                wildcard_branches.append(branch_end)
-        
-        # If multiple wildcard branches found, add a concern
-        if len(wildcard_branches) > 1:
-            branch_ranges = ", ".join(wildcard_branches)
-            version_concerns.append(f"Multiple overlapping branch ranges with wildcard starts: {branch_ranges}")
-        
-        # If we found any version concerns, add the badge
-        if version_concerns:
-            versions_tooltip = 'Versions array contains formatting issues:&#013;' + '&#013;'.join(version_concerns)
-            sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{versions_tooltip}">Versions Data Concern</span> ')
-        
-        # CPEs Array Data Concern: Check for CPEs Array with improper text patterns in version field
-        if 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
-            cpe_concerns = []
-            for cpe in raw_platform_data['cpes']:
-                if isinstance(cpe, str) and cpe.startswith('cpe:'):
-                    # Extract version part from CPE string (part at index 5 in CPE 2.3)
-                    parts = cpe.split(':')
-                    if len(parts) >= 6 and parts[0] == 'cpe' and parts[1] == '2.3':
-                        version = parts[5]
-                        # Check for text patterns in version
-                        if any(text_comp in version.lower() for text_comp in version_text_patterns):
-                            cpe_concerns.append(f"CPE contains improper version text: {cpe}")
-                            break
-            
-            # If CPE concerns found, add badge
-            if cpe_concerns:
-                cpe_tooltip = 'CPEs array contains formatting issues:&#013;' + '&#013;'.join(cpe_concerns)
-                sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{cpe_tooltip}">CPEs Array Data Concern</span> ')
+        if cpe_concerns:
+            cpe_tooltip = 'CPEs array contains formatting issues:&#013;' + '&#013;'.join(cpe_concerns)
+            sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{cpe_tooltip}">CPEs Array Data Concern</span> ')
 
-    # 9. Add N/A Data Concern badges for problematic vendor/product values
+    # 10. Add N/A Data Concern badges for problematic vendor/product values
     if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str) and raw_platform_data['vendor'].lower() == 'n/a':
         vendor_na_tooltip = 'Vendor field contains "n/a" which prevents proper CPE matching'
         sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{vendor_na_tooltip}">Vendor: N/A</span> ')
@@ -347,44 +516,42 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         product_na_tooltip = 'Product field contains "n/a" which prevents proper CPE matching'
         sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{product_na_tooltip}">Product: N/A</span> ')
 
-    # 10. Add CPE Curation Badge for tracking when CPE strings were modified
+    # 11. Enhanced CPE Curation Badge - includes Unicode normalization
     curation_tracking = platform_metadata.get('cpeCurationTracking', {})
-    if curation_tracking:
-        # Check if any curation happened in any fields
-        has_vendor_curation = curation_tracking.get('vendor', [])
-        has_product_curation = curation_tracking.get('product', [])
-        has_platform_curation = curation_tracking.get('platform', [])  # New: check for platform curation
-        has_vendor_product_curation = curation_tracking.get('vendor_product', [])  # New check for vendor+product
-        has_vendor_package_curation = curation_tracking.get('vendor_package', [])  # New check for vendor+packageName
+    unicode_normalization_used = platform_metadata.get('unicodeNormalizationApplied', False)
+
+    if curation_tracking or unicode_normalization_used:
+        # Build enhanced tooltip with both curation and normalization info
+        curation_tooltip = 'Source to CPE transformations applied:&#013;'
         
-        if (has_vendor_curation or has_product_curation or has_platform_curation or 
-            has_vendor_product_curation or has_vendor_package_curation):
-            
-            # Build a simple tooltip listing all value changes
-            curation_tooltip = 'Modified values:&#013;'
-            
+        # Add Unicode normalization info first if present
+        if unicode_normalization_used:
+            curation_tooltip += 'Unicode characters normalized to ASCII&#013;'
+        
+        # Add existing curation info
+        if curation_tracking:
             # List vendor modifications
-            for mod in has_vendor_curation:
+            for mod in curation_tracking.get('vendor', []):
                 curation_tooltip += f"Vendor: {mod['original']} → {mod['curated']}&#013;"
             
-            # List product modifications
-            for mod in has_product_curation:
+            # List product modifications  
+            for mod in curation_tracking.get('product', []):
                 curation_tooltip += f"Product: {mod['original']} → {mod['curated']}&#013;"
                 
-            # List platform modifications that were successfully mapped
-            for mod in has_platform_curation:
+            # List platform modifications
+            for mod in curation_tracking.get('platform', []):
                 curation_tooltip += f"Platform: {mod['original']} → {mod['curated']}&#013;"
             
             # List vendor+product combinations
-            for mod in has_vendor_product_curation:
+            for mod in curation_tracking.get('vendor_product', []):
                 curation_tooltip += f"Vendor+Product: {mod['original']} → {mod['curated']}&#013;"
             
             # List vendor+packageName combinations
-            for mod in has_vendor_package_curation:
+            for mod in curation_tracking.get('vendor_package', []):
                 curation_tooltip += f"Vendor+Package: {mod['original']} → {mod['curated']}&#013;"
-            
-            # Create a badge with the new name - no count included
-            sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{curation_tooltip}">Source to CPE Attribute Curation</span> ')
+        
+        # Enhanced badge name to reflect broader scope
+        sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{curation_tooltip}">Source to CPE Transformations Applied</span> ')
 
     # Add badges in priority order: Danger -> Warning -> Info -> Standard
     html += ''.join(danger_badges)
@@ -593,10 +760,10 @@ def getCPEJsonScript() -> str:
     
     # Get the current script's directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    
     # Define the files with paths relative to the current script
     js_files = [
         os.path.join(current_dir, "static", "js", "utils.js"),
+        os.path.join(current_dir, "static", "js", "modular_rules.js"),
         os.path.join(current_dir, "static", "js", "cpe_json_handler.js"),
         os.path.join(current_dir, "static", "js", "ui_controller.js"),
         os.path.join(current_dir, "static", "js", "selection_manager.js"),
@@ -619,8 +786,98 @@ def getCPEJsonScript() -> str:
             # Add placeholder comment if file can't be read
             js_content += f"// Error loading {js_file}\n\n"
     
+    # Add JSON settings HTML injection
+    json_settings_injection = f"""
+    // JSON Settings HTML generated by Python and injected on page load
+    window.JSON_SETTINGS_HTML = {json.dumps(JSON_SETTINGS_HTML, cls=CustomJSONEncoder)};
+    console.log('Loaded JSON settings HTML for', Object.keys(window.JSON_SETTINGS_HTML).length, 'tables');
+    """
+    
+    # Add intelligent settings injection
+    intelligent_settings_js = ""
+    if 'INTELLIGENT_SETTINGS' in globals() and INTELLIGENT_SETTINGS:
+        intelligent_settings_js = f"""
+        // Intelligent settings computed by Python
+        window.INTELLIGENT_SETTINGS = {json.dumps(INTELLIGENT_SETTINGS, cls=CustomJSONEncoder)};
+        console.log('Loaded intelligent settings for', Object.keys(window.INTELLIGENT_SETTINGS).length, 'tables');
+        """
+    
+    js_content += json_settings_injection + intelligent_settings_js
+    
     # Return the JavaScript wrapped in a script tag
     return f"<script>\n{js_content}\n</script>"
+
+def has_update_related_content(raw_platform_data):
+    """Check if rawPlatformData contains update-related content that can be extracted by JavaScript"""
+    if not raw_platform_data or 'versions' not in raw_platform_data:
+        return False
+    
+    versions = raw_platform_data.get('versions', [])
+    if not isinstance(versions, list):
+        return False
+    
+    # Synchronized patterns with JavaScript Update Patterns rule
+    # These must match exactly to ensure button only shows when extraction will work
+    update_patterns = [
+        # Alpha patterns
+        r'^(.+?)[\.\-_]*alpha[\.\-_]*(\d*)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*a[\.\-_]*(\d+)[\.\-_]*$',
+        
+        # Beta patterns
+        r'^(.+?)[\.\-_]*beta[\.\-_]*(\d*)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*b[\.\-_]*(\d+)[\.\-_]*$',
+        
+        # Release candidate patterns
+        r'^(.+?)[\.\-_]*rc[\.\-_]*(\d*)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*release[\s\-_]+candidate[\.\-_]*(\d*)[\.\-_]*$',
+        
+        # Patch patterns
+        r'^(.+?)[\.\-_]*patch[\.\-_]*(\d*)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*p[\.\-_]*(\d+)[\.\-_]*$',
+        r'^(.+?)\.p(\d+)$', # Handle 3.1.0.p7
+        
+        # Hotfix patterns
+        r'^(.+?)[\.\-_]*hotfix[\.\-_]*(\d*)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*hf[\.\-_]*(\d+)[\.\-_]*$',
+        
+        # Service pack patterns
+        r'^(.+?)[\.\-_]*service[\s\-_]+pack[\.\-_]*(\d*)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*sp[\.\-_]*(\d+)[\.\-_]*$',
+        r'^(.+?)\.sp(\d+)$', # Handle 3.0.0.sp1
+        
+        # Update patterns
+        r'^(.+?)[\.\-_]*update[\.\-_]*(\d*)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*upd[\.\-_]*(\d+)[\.\-_]*$',
+        
+        # Fix patterns
+        r'^(.+?)[\.\-_]*fix[\.\-_]*(\d+)[\.\-_]*$',
+        
+        # Revision patterns
+        r'^(.+?)[\.\-_]*revision[\.\-_]*(\d+)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*rev[\.\-_]*(\d+)[\.\-_]*$'
+    ]
+    
+    # Compile patterns for efficiency (case-insensitive to match JavaScript /i flag)
+    compiled_patterns = [re.compile(pattern, re.IGNORECASE) for pattern in update_patterns]
+    
+    # Check version, lessThan, and lessThanOrEqual fields
+    for version in versions:
+        if not isinstance(version, dict):
+            continue
+            
+        fields_to_check = [
+            version.get('version', ''),
+            version.get('lessThan', ''),
+            version.get('lessThanOrEqual', '')
+        ]
+        
+        for field_value in fields_to_check:
+            if field_value and isinstance(field_value, str):
+                for pattern in compiled_patterns:
+                    if pattern.match(field_value):  # Use match() for anchored patterns
+                        return True
+    
+    return False
 
 def update_cpeQueryHTML_column(dataframe, nvdSourceData):
     """Updates the dataframe to include a column with HTML for CPE query results"""
@@ -648,8 +905,14 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
             except Exception as e:
                 print(f"Error serializing platform data: {e}")
         
-        # Create the collapse button with a proper container ID (no changes needed here)
-        collapse_button_html = f'<div class="mb-3 d-flex gap-2" id="buttonContainer_{index}"><button id="collapseRowButton_{index}" class="btn btn-secondary" onclick="toggleRowCollapse({index})">Collapse Row (Mark Complete)</button></div>'
+        # Check if this row has update-related content
+        raw_platform_data = row.get('rawPlatformData', {})
+        has_update_content = has_update_related_content(raw_platform_data)
+        
+        # Create the collapse button and update toggle button
+        buttons_html = f'<button id="collapseRowButton_{index}" class="btn btn-secondary" onclick="toggleRowCollapse({index})">Collapse Row (Mark Complete)</button>'
+        
+        collapse_button_html = f'<div class="mb-3 d-flex gap-2" id="buttonContainer_{index}">{buttons_html}</div>'
         
         # Populate the rowDataHTML column with the HTML content
         row_html_content = convertRowDataToHTML(row, nvdSourceData, index)
@@ -679,6 +942,11 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
             
             html_content += "</div>"  # Close the container div
             result_df.at[index, 'cpeQueryHTML'] = html_content
+        
+        # Store settings HTML for this table
+        table_id = f"matchesTable_{index}"
+        raw_platform_data = row.get('rawPlatformData', {})
+        store_json_settings_html(table_id, raw_platform_data)
     
     return result_df
 
@@ -957,6 +1225,150 @@ def create_custom_cpe_builder_div(index, collapsed=True):
     
     return html.replace('\n', '')
 
+def create_json_generation_settings_html(table_id, settings=None):
+    """Creates settings HTML with intelligent defaults"""
+    
+    # Helper function to determine if checkbox should be checked
+    def checked(setting_name):
+        if settings and setting_name in settings:
+            return 'checked' if settings[setting_name] else ''
+        return 'checked'  # Default to checked if no specific setting
+    
+    html = f"""
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center" 
+             style="cursor: pointer;"
+             data-bs-toggle="collapse" 
+             data-bs-target="#settingsCollapse_{table_id}">
+            <h6 class="mb-0">
+                <i class="fas fa-cog"></i> JSON Generation Settings
+            </h6>
+            <span class="arrow-icon">&uarr;</span>
+        </div>
+        <div id="settingsCollapse_{table_id}" class="collapse">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Processing Features</h6>
+                        <div class="form-check mb-1">
+                            <input class="form-check-input row-setting" type="checkbox" 
+                                   id="enableWildcards_{table_id}" 
+                                   data-setting="enableWildcardExpansion"
+                                   data-table-id="{table_id}" 
+                                   {checked('enableWildcardExpansion')}>
+                            <label class="form-check-label" for="enableWildcards_{table_id}">
+                                <small>Expand Wildcards 
+                                    <span class="text-muted">(5.4.* → ranges)</span>
+                                    <span class="feature-indicator" data-feature="hasWildcards"></span>
+                                </small>
+                            </label>
+                        </div>
+                        <div class="form-check mb-1">
+                            <input class="form-check-input row-setting" type="checkbox" 
+                                   id="enableGaps_{table_id}" 
+                                   data-setting="enableGapProcessing"
+                                   data-table-id="{table_id}" 
+                                   {checked('enableGapProcessing')}>
+                            <label class="form-check-label" for="enableGaps_{table_id}">
+                                <small>Fill Gaps 
+                                    <span class="text-muted">(infer affected ranges)</span>
+                                    <span class="feature-indicator" data-feature="hasInverseStatus"></span>
+                                </small>
+                            </label>
+                        </div>
+                        <div class="form-check mb-1">
+                            <input class="form-check-input row-setting" type="checkbox" 
+                                   id="enablePatches_{table_id}" 
+                                   data-setting="enableVersionChanges"
+                                   data-table-id="{table_id}" 
+                                   {checked('enableVersionChanges')}>
+                            <label class="form-check-label" for="enablePatches_{table_id}">
+                                <small>Process Patches 
+                                    <span class="text-muted">(version.changes)</span>
+                                    <span class="feature-indicator" data-feature="hasVersionChanges"></span>
+                                </small>
+                            </label>
+                        </div>
+                        <div class="form-check mb-1">
+                            <input class="form-check-input row-setting" type="checkbox" 
+                                   id="enableSpecialTypes_{table_id}" 
+                                   data-setting="enableSpecialVersionTypes"
+                                   data-table-id="{table_id}" 
+                                   {checked('enableSpecialVersionTypes')}>
+                            <label class="form-check-label" for="enableSpecialTypes_{table_id}">
+                                <small>Special Version Types 
+                                    <span class="text-muted">(dates, commits)</span>
+                                    <span class="feature-indicator" data-feature="hasSpecialVersionTypes"></span>
+                                </small>
+                            </label>
+                        </div>
+                        <div class="form-check mb-1">
+                            <input class="form-check-input row-setting" type="checkbox" 
+                                   id="enableMultipleBranches_{table_id}" 
+                                   data-setting="enableMultipleBranches"
+                                   data-table-id="{table_id}" 
+                                   {checked('enableMultipleBranches')}>
+                            <label class="form-check-label" for="enableMultipleBranches_{table_id}">
+                                <small>Multiple Branches 
+                                    <span class="text-muted">(≥3 version families)</span>
+                                    <span class="feature-indicator" data-feature="hasMultipleBranches"></span>
+                                </small>
+                            </label>
+                        </div>
+                        <div class="form-check mb-1">
+                            <input class="form-check-input row-setting" type="checkbox" 
+                                   id="enableUpdatePatterns_{table_id}" 
+                                   data-setting="enableUpdatePatterns"
+                                   data-table-id="{table_id}" 
+                                   {checked('enableUpdatePatterns')}>
+                            <label class="form-check-label" for="enableUpdatePatterns_{table_id}">
+                                <small>Update Pattern Processing 
+                                    <span class="text-muted">(patch, service pack, hotfix)</span>
+                                    <span class="feature-indicator" data-feature="hasUpdatePatterns"></span>
+                                </small>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Status Processing</h6>
+                        <div class="form-check mb-1">
+                            <input class="form-check-input row-setting" type="checkbox" 
+                                   id="enableInverseStatus_{table_id}" 
+                                   data-setting="enableInverseStatus"
+                                   data-table-id="{table_id}" 
+                                   {checked('enableInverseStatus')}>
+                            <label class="form-check-label" for="enableInverseStatus_{table_id}">
+                                <small>Inverse Status 
+                                    <span class="text-muted">(default unaffected)</span>
+                                    <span class="feature-indicator" data-feature="hasInverseStatus"></span>
+                                </small>
+                            </label>
+                        </div>
+                        <div class="form-check mb-1">
+                            <input class="form-check-input row-setting" type="checkbox" 
+                                   id="enableMixedStatus_{table_id}" 
+                                   data-setting="enableMixedStatus"
+                                   data-table-id="{table_id}" 
+                                   {checked('enableMixedStatus')}>
+                            <label class="form-check-label" for="enableMixedStatus_{table_id}">
+                                <small>Mixed Status 
+                                    <span class="text-muted">(multiple unaffected)</span>
+                                    <span class="feature-indicator" data-feature="hasMixedStatus"></span>
+                                </small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+    
+    return html.replace('\n', '')
+
+# Store generated settings HTML for JavaScript access
+JSON_SETTINGS_HTML = {}
+
 # Update the HTML generation for provenance descriptions:
 def generateProvenanceDetailsHTML(provenance_data, provenance_id):
     html = f"""
@@ -973,3 +1385,35 @@ def generateProvenanceDetailsHTML(provenance_data, provenance_id):
     </div>
     """
     return html
+
+def analyze_data_for_smart_defaults(raw_platform_data):
+    """Generate intelligent settings using centralized analysis"""
+    characteristics = analyze_version_characteristics(raw_platform_data)
+    
+    return {
+        'enableWildcardExpansion': characteristics['has_wildcards'],
+        'enableVersionChanges': characteristics['has_version_changes'],
+        'enableSpecialVersionTypes': characteristics['has_special_version_types'],
+        'enableInverseStatus': characteristics['has_inverse_status'],
+        'enableMultipleBranches': characteristics['has_multiple_branches'],
+        'enableMixedStatus': characteristics['has_mixed_status'],
+        'enableGapProcessing': characteristics['needs_gap_processing'],
+        'enableUpdatePatterns': characteristics['has_update_patterns']
+    }
+
+def store_json_settings_html(table_id, raw_platform_data=None):
+    """Store the JSON settings HTML for a table with intelligent defaults"""
+    global INTELLIGENT_SETTINGS
+    
+    # Analyze data to determine which checkboxes should be checked
+    settings = analyze_data_for_smart_defaults(raw_platform_data) if raw_platform_data else {}
+    
+    # Store the HTML
+    JSON_SETTINGS_HTML[table_id] = create_json_generation_settings_html(table_id, settings)
+    
+    # Store intelligent settings for JavaScript
+    if 'INTELLIGENT_SETTINGS' not in globals():
+        INTELLIGENT_SETTINGS = {}
+    
+    INTELLIGENT_SETTINGS[table_id] = settings
+

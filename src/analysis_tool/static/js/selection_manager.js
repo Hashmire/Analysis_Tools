@@ -341,11 +341,20 @@ function updateConsolidatedJson(tableId) {
         const extractedData = extractDataFromTable(tableIndex);
         
         // Process the JSON based on the source
-        const json = processJsonBasedOnSource(
-            selectedRows, 
-            extractedData.rawPlatformData, 
-            extractedData.metadata
-        );
+        // Generate JSON using the existing working processVersionDataToCpeMatches function
+        const allCpeMatches = [];
+        for (const cpeBase of selectedRows) {
+            // Pass tableId to processing function
+            const cpeMatches = processVersionDataToCpeMatches(cpeBase, extractedData.rawPlatformData, tableId);
+            allCpeMatches.push(...cpeMatches);
+        }
+        
+        // Store as single configuration object (original working structure)
+        const json = {
+            operator: "OR",
+            negate: false,
+            cpeMatch: allCpeMatches
+        };
         
         // Store the consolidated JSON for this table
         consolidatedJsons.set(tableId, json);
@@ -393,6 +402,8 @@ function updateConsolidatedJson(tableId) {
         consolidatedJsons.set(tableId, null);
     }
 }
+
+
 
 /**
  * Update the button state and text
@@ -636,6 +647,12 @@ document.addEventListener('DOMContentLoaded', function() {
         container.setAttribute('data-index', tableIndex);
         container.innerHTML = `
             <div id="consolidatedJsonDisplay_${tableId}" class="json-display-container collapsed">
+                <!-- JSON Generation Settings Shell (populated by Python) -->
+                <div id="jsonSettings_${tableId}" class="json-settings-container mb-3" style="display: none;">
+                    <!-- Settings content will be populated by initializeJsonSettings() -->
+                </div>
+                
+                <!-- Existing JSON Display -->
                 <h4>Consolidated Configuration JSON</h4>
                 <pre id="consolidatedJsonContent_${tableId}"></pre>
             </div>
@@ -765,6 +782,12 @@ document.addEventListener('DOMContentLoaded', function() {
             button.classList.add('btn-transition', 'btn-info');
         }
     });
+    
+    // Initialize JSON settings for all tables
+    tables.forEach((table, tableIndex) => {
+        const tableId = table.id;
+        initializeJsonSettings(tableId);
+    });
 });
 
 // Export helpers needed by completion_tracker.js
@@ -773,3 +796,91 @@ window.getSourceById = getSourceById;
 
 // Use:
 window.tableSelections = new Map();
+
+/**
+ * Initialize JSON settings for a specific table using server-generated HTML
+ * @param {string} tableId - ID of the table (e.g., "matchesTable_0")
+ */
+function initializeJsonSettings(tableId) {
+    const settingsContainer = document.getElementById(`jsonSettings_${tableId}`);
+    if (!settingsContainer) return;
+    
+    // Get the settings HTML from the global variable populated by Python
+    const settingsHTML = window.JSON_SETTINGS_HTML && window.JSON_SETTINGS_HTML[tableId];
+    
+    if (settingsHTML) {
+        settingsContainer.innerHTML = settingsHTML;
+        
+        // Show the container
+        settingsContainer.style.display = 'block';
+        
+        // Initialize event handlers for this table's settings
+        initializeRowJsonSettings(tableId);
+        
+        console.debug(`Initialized JSON settings for ${tableId}`);
+    } else {
+        console.warn(`No settings HTML found for ${tableId}`);
+    }
+}
+
+/**
+ * Initialize settings event handlers for a specific table
+ * @param {string} tableId - Table identifier
+ */
+function initializeRowJsonSettings(tableId) {
+    const settingsKey = tableId;
+    
+    // Initialize settings if they don't exist
+    if (!window.rowSettings.has(settingsKey)) {
+        let initialSettings = {};
+        
+        // Use intelligent settings from Python
+        if (window.INTELLIGENT_SETTINGS && window.INTELLIGENT_SETTINGS[tableId]) {
+            initialSettings = { ...window.INTELLIGENT_SETTINGS[tableId] };
+            console.debug(`Using intelligent settings for ${tableId}:`, initialSettings);
+            
+            // Apply intelligent settings to actual checkbox elements
+            Object.entries(initialSettings).forEach(([setting, value]) => {
+                const checkbox = document.querySelector(`[data-table-id="${tableId}"][data-setting="${setting}"]`);
+                if (checkbox && checkbox.type === 'checkbox') {
+                    checkbox.checked = value;
+                    console.debug(`Set ${setting} to ${value} for ${tableId}`);
+                }
+            });
+        }
+        
+        window.rowSettings.set(settingsKey, initialSettings);
+    }
+    
+    // Add event listeners to all row-setting elements for this specific table
+    const settingElements = document.querySelectorAll(`[data-table-id="${tableId}"].row-setting`);
+    
+    settingElements.forEach(element => {
+        element.addEventListener('change', function() {
+            const setting = this.dataset.setting;
+            const tableId = this.dataset.tableId;
+            const settingsKey = tableId;
+            
+            // Get current settings
+            const currentSettings = window.rowSettings.get(settingsKey) || {};
+            
+            // Update the specific setting
+            if (this.type === 'checkbox') {
+                currentSettings[setting] = this.checked;
+            } else if (this.type === 'radio' && this.checked) {
+                currentSettings[setting] = this.value;
+            }
+            
+            // Save updated settings
+            window.rowSettings.set(settingsKey, currentSettings);
+            
+            // Trigger the change handler
+            onRowSettingsChange(tableId);
+            
+            console.debug(`Updated ${setting} for ${settingsKey}:`, currentSettings[setting]);
+        });
+    });
+}
+
+
+window.updateConsolidatedJson = updateConsolidatedJson;

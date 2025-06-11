@@ -14,8 +14,7 @@ function patchCpeJsonProcessing() {
     // Patch processVersionDataToCpeMatches
     if (typeof processVersionDataToCpeMatches === 'function') {
         window.originalProcessVersionDataToCpeMatches = processVersionDataToCpeMatches;
-        
-        window.processVersionDataToCpeMatches = function(cpeBase, rawPlatformData) {
+          window.processVersionDataToCpeMatches = function(cpeBase, rawPlatformData) {
             // Check if this is a custom CPE
             if (window.customCPEHandlers && window.customCPEHandlers.has(cpeBase)) {
                 console.log(`Using custom handler for CPE: ${cpeBase}`);
@@ -24,9 +23,24 @@ function patchCpeJsonProcessing() {
                 if (!rawPlatformData) {
                     console.error(`CRITICAL: No rawPlatformData available for custom CPE ${cpeBase}. This may cause issues in JSON generation.`);
                 }
-                
-                const handler = window.customCPEHandlers.get(cpeBase);
-                return [handler.createMatch()];
+                  const handler = window.customCPEHandlers.get(cpeBase);
+                const rawMatches = [handler.createMatch()];
+
+                if (window.ModularRuleEngine) {
+                    console.log(`Applying modular rules to custom CPE: ${cpeBase}`);
+                    
+                    // Get current settings for the table (this CPE belongs to)
+                    const currentSettings = window.getCurrentModularSettings ? 
+                        window.getCurrentModularSettings(cpeBase) : 
+                        getDefaultModularSettings();
+                    
+                    // Create rule engine with current settings and raw platform data
+                    const ruleEngine = new window.ModularRuleEngine(currentSettings, rawPlatformData);
+                    return ruleEngine.generateMatches(cpeBase);
+                } else {
+                    console.warn(`ModularRuleEngine not available for custom CPE: ${cpeBase}, using raw matches`);
+                    return rawMatches;
+                }
             }
             
             // Use the original function for standard CPEs
@@ -894,3 +908,55 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log("DOM loaded, initializing Custom CPE Builder...");
     initializeCustomCPEBuilder();
 });
+
+/**
+ * Get default modular settings for custom CPE processing
+ */
+function getDefaultModularSettings() {
+    return {
+        enableWildcardExpansion: true,
+        enableVersionChanges: false,
+        enableSpecialVersionTypes: false,
+        enableInverseStatus: false,
+        enableMultipleBranches: true,
+        enableMixedStatus: true,
+        enableGapProcessing: true,
+        enableUpdatePatterns: false
+    };
+}
+
+/**
+ * Get current modular settings for a specific CPE (finds the table it belongs to)
+ */
+function getCurrentModularSettings(cpeBase) {
+    // Find which table this CPE belongs to by checking tableSelections
+    if (window.tableSelections) {
+        for (const [tableId, selections] of window.tableSelections.entries()) {
+            if (selections && selections.has(cpeBase)) {
+                // Found the table, get its settings
+                const tableSettings = window.rowSettings ? window.rowSettings.get(tableId) : {};
+                
+                return {
+                    enableWildcardExpansion: tableSettings.enableWildcardExpansion || false,
+                    enableVersionChanges: tableSettings.enableVersionChanges || false,
+                    enableSpecialVersionTypes: tableSettings.enableSpecialVersionTypes || false,
+                    enableInverseStatus: tableSettings.enableInverseStatus || false,
+                    enableMultipleBranches: tableSettings.enableMultipleBranches || false,
+                    enableMixedStatus: tableSettings.enableMixedStatus || false,
+                    enableGapProcessing: tableSettings.enableGapProcessing || false,
+                    enableUpdatePatterns: tableSettings.enableUpdatePatterns || false,
+                    // Core features remain enabled
+                    enableStatusProcessing: true,
+                    enableRangeHandling: true
+                };
+            }
+        }
+    }
+    
+    // Fallback to default settings
+    console.log(`Could not find table for CPE ${cpeBase}, using default settings`);
+    return getDefaultModularSettings();
+}
+
+// Make function globally available
+window.getCurrentModularSettings = getCurrentModularSettings;

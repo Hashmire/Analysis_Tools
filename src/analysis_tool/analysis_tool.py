@@ -10,12 +10,107 @@ import sys
 import argparse
 from pathlib import Path
 import re
+import json
 
-# Import modules from analysis_tool
-sys.path.append(os.path.join(os.path.dirname(__file__), 'analysis_tool'))
+
 import gatherData
 import processData
 import generateHTML
+
+def process_test_file(test_file_path, nvd_source_data):
+    """Process a test file containing CVE data for testing modular rules."""
+    print(f"Processing test file: {test_file_path}...")
+    
+    try:
+        # Load test data from JSON file
+        with open(test_file_path, 'r', encoding='utf-8') as f:
+            test_data = json.load(f)
+        
+        # Extract CVE ID from test data
+        cve_id = test_data.get('cveMetadata', {}).get('cveId', 'TEST-CVE-0000-0000')
+        print(f"Test CVE ID: {cve_id}")
+        
+        # Make sure the string is formatted well
+        cve_id = cve_id.strip().upper()
+        processData.integrityCheckCVE("cveIdFormat", cve_id)
+        
+        # Create Primary Datasets from external sources
+        primaryDataframe = gatherData.gatherPrimaryDataframe()        # Use test data as CVE record data (instead of API call)
+        cveRecordData = test_data
+        
+        # Create minimal mock NVD record data for test files
+        nvdRecordData = {
+            "vulnerabilities": [{
+                "cve": {
+                    "id": cve_id,
+                    "descriptions": [],
+                    "references": [],
+                    "configurations": []
+                }
+            }]
+        }        
+        
+        # Process the vulnerability record data
+        primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData, nvd_source_data)             
+        primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)      
+        
+        # Skip CPE suggestions for test files to avoid API calls
+        # primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1)
+        
+        # For test files, ensure CPE data fields are proper dictionaries instead of empty lists
+        for index, row in primaryDataframe.iterrows():
+            if isinstance(primaryDataframe.at[index, 'sortedCPEsQueryData'], list):
+                primaryDataframe.at[index, 'sortedCPEsQueryData'] = {}
+            if isinstance(primaryDataframe.at[index, 'trimmedCPEsQueryData'], list):
+                primaryDataframe.at[index, 'trimmedCPEsQueryData'] = {}
+          # Generate HTML
+        primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe, nvd_source_data)
+        
+        # Clean up dataframe
+        columns_to_drop = ['sourceID', 'sourceRole', 'rawPlatformData', 'rawCPEsQueryData', 
+                          'sortedCPEsQueryData', 'trimmedCPEsQueryData', 'platformEntryMetadata']
+        for col in columns_to_drop:
+            primaryDataframe = primaryDataframe.drop(col, axis=1, errors='ignore')
+
+        # Set column widths
+        num_cols = len(primaryDataframe.columns)
+        col_widths = ['20%', '80%'] if num_cols == 2 else [f"{100/num_cols}%"] * num_cols
+
+        # Convert to HTML
+        affectedHtml2 = primaryDataframe.to_html(
+            classes='table table-stripped',
+            col_space=col_widths,
+            escape=False,
+            index=False
+        )
+
+        # Format HTML headers
+        if 'rowDataHTML' in primaryDataframe.columns:
+            affectedHtml2 = re.sub(r'<th[^>]*>rowDataHTML</th>', 
+                                  r'<th class="hidden-header" style="min-width: 20%;">rowDataHTML</th>', 
+                                  affectedHtml2)
+
+        if 'cpeQueryHTML' in primaryDataframe.columns:
+            affectedHtml2 = re.sub(r'<th[^>]*>cpeQueryHTML</th>', 
+                                  r'<th class="hidden-header" style="min-width: 80%;">cpeQueryHTML</th>', 
+                                  affectedHtml2)        # Generate page and save HTML
+        allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, cve_id, globalCVEMetadata)
+
+        # Save output
+        sub_directory = Path(f"{os.getcwd()}{os.sep}generated_pages")
+        sub_directory.mkdir(parents=True, exist_ok=True)
+        filename = f"{cve_id}.html"
+        filepath = sub_directory / filename
+        
+        with filepath.open("w", encoding="utf-8") as fd:
+            fd.write(allConsoleHTML)
+        
+        print(f"Generated test file: {filepath}")
+        return filepath
+        
+    except Exception as e:
+        print(f"[ERROR] Failed to process test file {test_file_path}: {str(e)}")
+        return None
 
 def process_cve(cve_id, nvd_api_key, nvd_source_data):
     """Process a single CVE using the analysis tool functionality."""
@@ -63,7 +158,7 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
             # Handle CPE suggestion errors
             print(f"[WARNING] {cve_id} encountered an error during CPE suggestion: {str(cpe_error)}")
             print("          Continuing with available data...")
-            # Continue processing without CPE suggestions
+            
         
         # Generate HTML
         primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe, nvd_source_data)
@@ -125,18 +220,48 @@ def main():
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--cve", nargs="+", help="One or more CVE IDs to process")
     group.add_argument("--file", help="Text file with CVE IDs (one per line)")
+    group.add_argument("--test-file", help="JSON file with test CVE data for modular rules testing")
     group.add_argument("--all", action="store_true", help="Process all CVE records")
     parser.add_argument("--api-key", help="NVD API Key (optional but recommended)")
     parser.add_argument("--no-browser", action="store_true", help="Don't open results in browser")
     parser.add_argument("--debug", action="store_true", help="Debug mode - uses DEFAULT_CVE_MODE setting")
     parser.add_argument("--save-skipped", help="Save list of skipped CVEs to specified file")
     
-    # Development configuration - easily change the default behavior
     # Set to "single" for a single CVE or "all" for all CVEs
     DEFAULT_CVE_MODE = "single"  # Change this to "all" when needed
-    DEFAULT_CVE_ID = "CVE-2024-20698"  # Default CVE to process in single mode
+    DEFAULT_CVE_ID = "CVE-2024-20515"  # Default CVE to process in single mode
     
     args = parser.parse_args()
+    
+    # Handle test file processing
+    if args.test_file:
+        print("Test file mode: Processing local test file instead of querying APIs")
+        
+        # Check if test file exists
+        if not os.path.exists(args.test_file):
+            print(f"Error: Test file '{args.test_file}' not found")
+            sys.exit(1)
+        
+        # For test files, we still need NVD source data for product mapping
+        nvd_api_key = args.api_key or ""  # API key is optional for test files
+        print("Gathering NVD source data...")
+        nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
+        
+        # Process the test file
+        filepath = process_test_file(args.test_file, nvd_source_data)
+        
+        if filepath:
+            print(f"Test file processed successfully: {filepath}")
+            
+            # Open in browser if requested
+            if not args.no_browser:
+                import webbrowser
+                webbrowser.open_new_tab(f"file:///{filepath}")
+        else:
+            print("Test file processing failed")
+            sys.exit(1)
+        
+        return
     
     # Debug mode - set default options based on DEFAULT_CVE_MODE
     if args.debug or not (args.cve or args.file or args.all):
@@ -176,7 +301,7 @@ def main():
     # Process all CVEs
     generated_files = []
     skipped_cves = []
-    skipped_reasons = {}  # Store reasons for skipping
+    skipped_reasons = {}  
     
     total_cves = len(cves_to_process)
     for index, cve in enumerate(cves_to_process):

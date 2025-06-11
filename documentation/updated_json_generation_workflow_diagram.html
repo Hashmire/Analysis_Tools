@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Updated JSON Generation Workflow - Ultra-Readable Diagram</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+    <style>        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 10px;
+            background: #f8f9fa;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 1400px;
+            margin: 0 auto 20px auto;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            margin: 0;
+            font-size: 2.2em;
+            font-weight: 700;
+        }
+
+        .header p {
+            color: #7f8c8d;
+            margin: 10px 0 0 0;
+            font-size: 1.1em;
+        }
+
+        .controls {
+            text-align: center;
+            margin-bottom: 15px;
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            max-width: 1400px;
+            margin: 0 auto 15px auto;
+        }
+
+        .zoom-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .zoom-controls button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+
+        .zoom-controls button:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+        }
+
+        .zoom-controls button:active {
+            transform: translateY(0);
+        }
+
+        .zoom-level {
+            background: #e8f4fd;
+            color: #2980b9;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 14px;
+            border: 2px solid #3498db;
+        }        .diagram-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            overflow: hidden;
+            margin-bottom: 20px;
+            min-height: 80vh;
+            max-width: 1600px;
+            margin: 0 auto 20px auto;
+            width: calc(100% - 10px);
+            position: relative; /* For loading indicator positioning */
+        }
+
+        /* Loading indicator */
+        .loading-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #3498db;
+            font-size: 16px;
+            font-weight: 600;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px 25px;
+            border-radius: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .loading-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e3f2fd;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }.diagram-wrapper {
+            overflow: auto;
+            transition: none; /* Remove transition for smoother scrolling */
+            height: 80vh;
+            width: 100%;
+            position: relative;
+            padding: 10px; /* Add some padding for better appearance */
+        }
+
+        .mermaid {
+            text-align: center;
+            padding: 20px;
+            min-width: max-content;
+            width: max-content;
+            min-height: 100%;
+            display: inline-block;
+            transform-origin: top left; /* Ensure consistent transform origin */
+            transition: transform 0.3s ease; /* Smooth zoom transitions */
+        }
+
+        .features {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .features h2 {
+            color: #2c3e50;
+            margin: 0 0 15px 0;
+            font-size: 1.5em;
+        }
+
+        .features ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .features li {
+            margin: 8px 0;
+            color: #555;
+        }
+
+        .feature-highlight {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #3498db;
+        }
+
+        .legend {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .legend h3 {
+            color: #2c3e50;
+            margin: 0 0 15px 0;
+            font-size: 1.2em;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+        }
+
+        /* Touch support for mobile */
+        .diagram-wrapper {
+            touch-action: pan-x pan-y;
+        }        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+            }
+            
+            .header, .controls, .diagram-container, .legend, .features {
+                max-width: none;
+                margin-left: 5px;
+                margin-right: 5px;
+                width: calc(100% - 10px);
+            }
+            
+            .diagram-container {
+                height: 75vh;
+                min-height: 75vh;
+            }
+            
+            .diagram-wrapper {
+                height: 75vh;
+            }
+            
+            .zoom-controls {
+                gap: 6px;
+                flex-wrap: wrap;
+            }
+            
+            .zoom-controls button {
+                padding: 6px 10px;
+                font-size: 11px;
+                min-width: 70px;
+            }
+            
+            .header h1 {
+                font-size: 1.6em;
+            }
+        }
+
+        /* Print styles */
+        @media print {
+            .controls, .features, .legend {
+                display: none;
+            }
+            
+            .diagram-wrapper {
+                transform: none !important;
+            }
+        }
+    </style>
+</head>
+<body>    <div class="header">
+        <h1>🔄 Updated JSON Generation Workflow Diagram</h1>
+        <p>Enhanced Data Flow Visualization - CVE Processing Pipeline with Modular Rules System & Global State</p>
+    </div>    <div class="controls">        <div class="zoom-controls">
+            <button onclick="zoomOut()">🔍 Zoom Out</button>
+            <button onclick="zoomIn()">🔍 Zoom In</button>
+            <button onclick="resetZoom()">🔄 Reset View</button>
+            <button onclick="autoFit()">📐 Auto Fit</button>
+            <button onclick="smartFit()">🎯 Smart Fit</button>
+            <button onclick="fitWidth()">📏 Fit Width</button>
+            <div class="zoom-level" id="zoomLevel">100%</div>
+        </div>
+        <div style="text-align: center; margin-top: 10px; color: #666; font-size: 12px;">
+            💡 <strong>Keyboard shortcuts:</strong> Ctrl/Cmd + Plus (Zoom In) | Ctrl/Cmd + Minus (Zoom Out) | Ctrl/Cmd + 0 (Reset) | Ctrl/Cmd + 9 (Smart Fit)
+        </div>
+    </div>
+
+    <div class="legend">
+        <h3>🎨 Enhanced Flow Legend</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px;">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #e3f2fd;"></div>
+                <span><strong>🔵 UI Layer:</strong> User interactions & display components</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f3e5f5;"></div>
+                <span><strong>🟣 Global State:</strong> Window-level maps & settings</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #e8f5e8;"></div>
+                <span><strong>🟢 Data Processing:</strong> Core JSON generation logic</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #fff3e0;"></div>
+                <span><strong>🟠 Settings Management:</strong> Toggle settings & intelligent defaults</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ffebee;"></div>
+                <span><strong>🔴 Error Handling:</strong> Patching & fallback mechanisms</span>
+            </div>            <div class="legend-item">
+                <div class="legend-color" style="background: #f1f8e9;"></div>
+                <span><strong>🟡 Export & Display:</strong> JSON formatting & output</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #e0f2f1;"></div>
+                <span><strong>🟦 Synchronization:</strong> State updates & UI synchronization</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #fce4ec;"></div>
+                <span><strong>🟪 Modular Rules System:</strong> Enhanced pattern processing & rule engine</span>
+            </div>        </div>
+    </div>    <div class="diagram-container">
+        <div class="loading-indicator" id="loadingIndicator">
+            <div class="loading-spinner"></div>
+            <span>Loading diagram...</span>
+        </div>
+        <div class="diagram-wrapper" id="diagramWrapper">
+            <div class="mermaid" id="mermaidDiagram">
+flowchart TD
+    %% UI Layer - User Interactions
+    A["👤 User Selects CVE Table Rows<br/>📊 <strong>Row Selection Event</strong><br/>📊 <em>Example: Checkbox clicks on rows 2,4,7</em><br/>📍 <em>selection_manager.js:527</em>"] --> B["🔄 Update Global Table Selections<br/>💾 <strong>window.tableSelections.set(tableId, selections)</strong><br/>📊 <em>Global Map: matchesTable_0 → Set with CPE strings</em><br/>📍 <em>Global Window Object</em>"]
+    
+    %% Custom CPE Builder Management
+    A --> CCPE_INIT["🛠️ Custom CPE Builder Initialization<br/>🎨 <strong>initializeCustomCPEBuilder</strong><br/>📊 <em>Initialize window.customCPEHandlers Map</em><br/>📊 <em>Set up custom CPE UI components</em><br/>📊 <em>Apply function patching for custom CPEs</em><br/>📍 <em>custom_cpe_builder.js:285</em>"]
+    
+    CCPE_INIT --> CCPE_UI["🎨 Custom CPE UI Components<br/>📋 <strong>Custom CPE Builder Interface</strong><br/>📊 <em>Find .customCPEBuilder containers</em><br/>📊 <em>Populate custom CPE forms</em><br/>📊 <em>Enable custom CPE creation workflow</em><br/>📍 <em>Custom CPE UI</em>"]
+    
+    CCPE_UI --> B
+    
+    %% Settings Initialization
+    B --> B1["⚙️ Initialize Settings if needed<br/>🛠️ <strong>initializeRowJsonSettings</strong><br/>📊 <em>Check window.INTELLIGENT_SETTINGS for defaults</em><br/>📊 <em>Apply intelligent settings to checkboxes</em><br/>📍 <em>selection_manager.js:830</em>"]
+    
+    B1 --> C["🔔 Trigger updateConsolidatedJson<br/>⚡ <strong>Enhanced JSON Generation Event</strong><br/>📊 <em>Processing: 2 selected CPE strings with settings</em><br/>📍 <em>selection_manager.js:319</em>"]
+    
+    %% Global State Validation
+    C --> C1["🔍 Global State Validation<br/>🛡️ <strong>Ensure Global Maps Exist</strong><br/>📊 <em>window.tableSelections validation</em><br/>📊 <em>window.consolidatedJsons validation</em><br/>📊 <em>Fallback to local maps if needed</em><br/>📍 <em>custom_cpe_builder.js:47</em>"]
+    
+    %% Selection Management & Data Extraction
+    C1 --> D["🔍 Extract Table Data<br/>📊 <strong>extractDataFromTable</strong><br/>📊 <em>rawPlatformData: version and status data</em><br/>📊 <em>metadata: dataResource mitre, tableId matchesTable_0</em><br/>📍 <em>cpe_json_handler.js:670</em>"]
+    
+    D --> E["🎯 processJsonBasedOnSource()<br/>📋 <strong>Enhanced Processing Logic</strong><br/>📊 <em>selectedCPEs: Set with vendor product CPE strings</em><br/>📊 <em>Check for embedded NVD configuration</em><br/>📊 <em>Apply settings-based processing</em><br/>📍 <em>cpe_json_handler.js:538</em>"]
+    
+    %% Settings Integration    E --> E1["⚙️ Apply Row Settings<br/>🛠️ <strong>window.rowSettings.get(tableId)</strong><br/>📊 <em>Get toggles for special processing</em><br/>📊 <em>Apply intelligent defaults from Python</em><br/>📊 <em>Customize JSON generation behavior</em><br/>📍 <em>Row Settings Map</em>"]
+    
+    %% Core Data Processing Logic - Enhanced with Custom CPE and Configuration Detection
+    E1 --> F{"🤔 Data Source Type?<br/>📊 <strong>metadata.dataResource Detection</strong><br/>📊 <em>Check: mitre vs NVDAPI</em><br/>📍 <em>Enhanced Source Detection</em>"}
+    
+    F -->|"🌐 mitre"| F1{"🔍 CPE Type Detection<br/>🛠️ <strong>Custom vs Standard CPE Check</strong><br/>📊 <em>Check window.customCPEHandlers.has(cpeBase)</em><br/>📊 <em>Determine processing pathway</em><br/>📍 <em>custom_cpe_builder.js:23</em>"}
+    F1 -->|"🎨 Custom CPE"| CCPE["🛠️ Custom CPE Builder Processing<br/>🔧 <strong>processVersionDataToCpeMatches Patched</strong><br/>📊 <em>Use custom CPE handler for match creation</em><br/>📊 <em>handler.createMatch with custom logic</em><br/>📊 <em>Enhanced custom CPE validation</em><br/>📍 <em>custom_cpe_builder.js:27</em>"]
+    F1 -->|"📊 Standard CPE"| G["📊 processBasicVersionData<br/>⚙️ <strong>MITRE Version-Based Processing</strong><br/>📊 <em>Process version data to create configurations</em><br/>📊 <em>Input: selectedCPEs with settings applied</em><br/>📊 <em>Generate CPE matches from version data</em><br/>📍 <em>cpe_json_handler.js:555 else branch</em>"]
+    F -->|"🎯 NVDAPI"| H["🔧 NVDAPI Embedded Configuration<br/>⚙️ <strong>NVDAPI Always Has rawConfigData</strong><br/>📊 <em>rawPlatformData IS the complete NVD config</em><br/>📊 <em>Structure: nodes with operator OR and cpeMatch array</em><br/>📊 <em>Wrap as: configs.push with nodes array</em><br/>📊 <em>No version processing needed - already complete</em><br/>📍 <em>cpe_json_handler.js:547</em>"]
+    
+    %% Version Data Processing Pipeline with Settings
+    G --> G1["📊 Apply Settings to Version Processing<br/>⚙️ <strong>Settings-Enhanced Version Processing with Examples</strong><br/>📊 <em>rawPlatformData.versions: version and status arrays</em><br/>📊 <em>rowSettings.wildcardHandling: versionEndExcluding</em><br/>📊 <em>rowSettings.includeMetadata: true</em><br/>📍 <em>Settings Integration</em>"]
+      G1 --> I["🔄 Enhanced processVersionDataToCpeMatches<br/>⚡ <strong>Core Version Processing with Rich Examples</strong><br/>📊 <em>cpeBase: vendor product base string</em><br/>📊 <em>Processing 3 versions: 1.0, wildcard, 2.1.3</em><br/>📊 <em>tableId: matchesTable_0 for settings context</em><br/>📊 <em>Special handling detected for wildcard</em><br/>📍 <em>selection_manager.js:343</em>"]
+    
+    %% Custom CPE Processing Path
+    CCPE --> CCPE1["🎨 Custom CPE Match Creation<br/>🛠️ <strong>handler.createMatch</strong><br/>📊 <em>Generate custom CPE match object</em><br/>📊 <em>Apply custom logic and constraints</em><br/>📊 <em>Enhanced validation for custom entries</em><br/>📍 <em>Custom CPE Handler</em>"]
+    
+    CCPE1 --> CCPE2["🎨 Custom CPE Match Examples<br/>🛠️ <strong>handler.createMatch Output</strong><br/>📊 <em>Custom match: customvendor customproduct version 1.5</em><br/>📊 <em>Applied custom constraints: versionStartIncluding 1.0</em><br/>📊 <em>Enhanced validation: checkCustomCPEFormat passed</em><br/>📊 <em>Generated metadata: source custom, created timestamp</em><br/>📍 <em>Custom CPE Handler</em>"]
+    CCPE2 --> I
+    
+    %% Configuration Wrapping Path
+    H --> H1["🔧 Wrap NVDAPI Configuration<br/>⚙️ <strong>Direct NVDAPI Configuration Usage</strong><br/>📊 <em>configs.push with nodes array containing rawPlatformData</em><br/>📊 <em>No additional processing needed</em><br/>📊 <em>NVDAPI data is already in final format</em><br/>📍 <em>cpe_json_handler.js:547</em>"]
+    
+    H1 --> L_NVDAPI["📦 Direct Configuration Usage<br/>💾 <strong>NVDAPI Configuration Ready</strong><br/>📊 <em>NVDAPI config already in nodes format</em><br/>📊 <em>Example: 30 cpeMatch entries with full criteria</em><br/>📊 <em>No version processing needed</em><br/>📊 <em>Enhanced error handling</em><br/>📍 <em>NVDAPI Direct Path</em>"]
+    
+    %% NVDAPI bypasses modular rules and goes directly to storage
+    L_NVDAPI --> M
+    
+    I --> MRS["🎯 Modular Rules System Entry Point<br/>⚡ <strong>ModularRuleEngine Processing</strong><br/>📊 <em>new ModularRuleEngine(settings, versionData)</em><br/>📊 <em>Input: 8 versions with update patterns detected</em><br/>📊 <em>Rule precedence: Dataset rules → Per-version rules</em><br/>📍 <em>modular_rules.js:457</em>"]
+    
+    MRS --> MRS1["🔍 Rule Applicability Check<br/>🎯 <strong>getApplicableRules Analysis</strong><br/>📊 <em>enableUpdatePatterns: true → Update Patterns applicable</em><br/>📊 <em>enableMixedStatus: true → Mixed Status applicable</em><br/>📊 <em>Rule precedence order: dataset rules first</em><br/>📍 <em>modular_rules.js:482</em>"]
+    
+    MRS1 --> MRS2{"🎪 Rule Type Classification<br/>🎭 <strong>Dataset vs Per-Version Rules</strong><br/>📊 <em>Dataset Rules: mixedStatus, multipleBranches</em><br/>📊 <em>Per-Version Rules: updatePatterns, wildcardExpansion</em><br/>📊 <em>Precedence: Dataset rules process entire dataset first</em><br/>📍 <em>Rule Classification Logic</em>"}
+    
+    MRS2 -->|"📊 Dataset Rules"| MRS3["🎯 Dataset Rule Processing<br/>⚡ <strong>Mixed Status Rule Applied</strong><br/>📊 <em>Processing 8 affected versions</em><br/>📊 <em>Calls context.applyOtherRules() for each version</em><br/>📊 <em>Update Patterns rule processes version patterns</em><br/>📍 <em>modular_rules.js:166</em>"]
+    
+    MRS3 --> UPR["🔧 Update Patterns Rule Processing<br/>⚡ <strong>Enhanced Pattern Recognition</strong><br/>📊 <em>Input: 1.0.0-beta.1 → Pattern: beta with .1</em><br/>📊 <em>Processing: Remove punctuation → beta1</em><br/>📊 <em>CPE Mapping: version=1.0.0, update=beta1</em><br/>📊 <em>Output: CPE with version and update fields populated</em><br/>📍 <em>modular_rules.js:275</em>"]
+    
+    UPR --> UPR1["🎨 CPE Field Mapping Examples<br/>✨ <strong>createCpeMatchWithUpdate Results</strong><br/>📊 <em>3.1.0.p7 → version=3.1.0, update=patch7</em><br/>📊 <em>2.0.0-patch.5 → version=2.0.0, update=patch5</em><br/>📊 <em>1.0.0-beta.1 → version=1.0.0, update=beta1</em><br/>📊 <em>CPE position 5=version, position 6=update</em><br/>📍 <em>modular_rules.js:576</em>"]
+    
+    UPR1 --> MRS4["📦 Rule Engine Match Assembly<br/>🏗️ <strong>generateMatches Coordination</strong><br/>📊 <em>Dataset processing: 8 matches from Mixed Status rule</em><br/>📊 <em>No additional per-version rules duplication prevented</em><br/>📊 <em>Total output: 8 CPE matches with update fields</em><br/>📍 <em>modular_rules.js:513</em>"]
+    
+    MRS2 -->|"🔄 Per-Version Rules"| MRS5["🔄 Per-Version Rule Processing<br/>⚙️ <strong>Individual Version Processing</strong><br/>📊 <em>Fallback when no dataset rules apply</em><br/>📊 <em>Process each version through applicable rules</em><br/>📊 <em>Standard processing for simple cases</em><br/>📍 <em>modular_rules.js:525</em>"]
+    
+    MRS5 --> MRS4
+    
+    MRS4 --> J{"🎯 Special Case Detection?<br/>🔍 <strong>detectSpecialHandlingNeeded Analysis</strong><br/>📊 <em>Input versions: 1.0, wildcard, 2.1.3</em><br/>📊 <em>hasWildcards: true (found wildcard version)</em><br/>📊 <em>hasInverseStatus: false (all affected)</em><br/>📊 <em>hasMixedStatus: false (consistent status)</em><br/>📊 <em>rowSettings: wildcardHandling versionEndExcluding</em><br/>📍 <em>cpe_json_handler.js:1109</em>"}
+    
+    J -->|"✨ Special Handling"| J1["🎪 Special Case Processing<br/>🎭 <strong>Enhanced Wildcard & Mixed Status Logic</strong><br/>📊 <em>Wildcard expansion to versionEndExcluding 3.0</em><br/>📊 <em>Apply settings-based wildcard expansion</em><br/>📊 <em>Handle inverse status logic if present</em><br/>📊 <em>Generate multiple match nodes for complex cases</em><br/>📍 <em>Special Case Handler</em>"]
+    
+    J -->|"📊 Standard Processing"| K["🏗️ Standard CPE Match Creation<br/>⚙️ <strong>processVersionDataToCpeMatches Core</strong><br/>📊 <em>cpeBase: vendor product base string</em><br/>📊 <em>versions: 1.0, 2.1.3 (excluding wildcards)</em><br/>📊 <em>Generate individual version matches</em><br/>📊 <em>Apply row settings to each match</em><br/>📍 <em>cpe_json_handler.js:343</em>"]
+    
+    J1 --> K1["🎨 Enhanced Match Object Creation<br/>✨ <strong>createCpeMatchObject with Settings</strong><br/>📊 <em>Match 1: vendor product 1.0, vulnerable: true</em><br/>📊 <em>Match 2: vendor product 2.1.3, vulnerable: true</em><br/>📊 <em>Match 3: versionEndExcluding 3.0 (from wildcard)</em><br/>📊 <em>Enhanced with metadata and generation context</em><br/>📍 <em>Match Creation Engine</em>"]
+    
+    K --> K1
+    
+    K1 --> L["📦 Configuration Node Assembly<br/>🏗️ <strong>buildConfigurationNode with Examples</strong><br/>📊 <em>node.operator: OR (multiple CPE matches)</em><br/>📊 <em>node.children operator: AND</em><br/>📊 <em>node.children cpe_match: match1, match2, match3</em><br/>📊 <em>Applied settings: wildcardHandling versionEndExcluding</em><br/>📍 <em>cpe_json_handler.js:480</em>"]
+    
+    L --> L1["📦 Final Configuration Wrapping<br/>💾 <strong>configs nodes array Structure</strong><br/>📊 <em>Final JSON: nodes with operator OR and children</em><br/>📊 <em>Enhanced with generation metadata</em><br/>📊 <em>Settings-based customization applied</em><br/>📊 <em>Validation and error checking complete</em><br/>📍 <em>cpe_json_handler.js:572</em>"]
+    
+    %% Global Storage & Synchronization
+    L1 --> M["💾 Store in Global consolidatedJsons<br/>🗄️ <strong>Dual Storage with Example Data</strong><br/>📊 <em>window.consolidatedJsons.set(matchesTable_0, finalConfigs)</em><br/>📊 <em>finalConfigs nodes children cpe_match.length: 3</em><br/>📊 <em>Global cache: Map with matchesTable_0 configurations</em><br/>📊 <em>Enhanced debugging: console.log configuration structure</em><br/>📍 <em>custom_cpe_builder.js:94</em>"]
+    
+    M --> N["🔄 UI Update with Statistics<br/>📊 <strong>updateJsonDisplayIfVisible with Examples</strong><br/>📊 <em>Button text: View JSON (3 CPE matches, 1 configuration)</em><br/>📊 <em>Check display visibility state for matchesTable_0</em><br/>📊 <em>Apply enhanced styling: button.classList.add(has-data)</em><br/>📊 <em>Accessibility: aria-label with detailed stats</em><br/>📍 <em>selection_manager.js:364</em>"]
+    
+    N --> O["🎯 Toggle Display with Rich Data<br/>👆 <strong>toggleConsolidatedJson Example Flow</strong><br/>🔄 <em>User clicks: View JSON (3 CPE matches, 1 configuration)</em><br/>🔘 <em>Retrieve: window.consolidatedJsons.get(matchesTable_0)</em><br/>✨ <em>Display JSON with syntax highlighting</em><br/>📊 <em>Show: 3 CPE matches with version ranges and wildcards</em><br/>📍 <em>selection_manager.js:271</em>"]
+      O --> P["📱 Final JSON Display Example<br/>✅ <strong>Rich User Results with Sample Output</strong><br/>📊 <em>JSON structure: nodes children cpe_match entries</em><br/>📊 <em>Match 1: vendor product 1.0 vulnerable: true</em><br/>📊 <em>Match 2: vendor product 2.1.3 vulnerable: true</em><br/>📊 <em>Match 3: versionEndExcluding 3.0 from wildcard expansion</em><br/>📊 <em>Copy button: Copy 127 lines of JSON</em><br/>📍 <em>ui_controller.js</em>"]
+    
+    %% Settings Change Handling
+    B1 --> S1["⚙️ Settings Change Handler<br/>🛠️ <strong>onRowSettingsChange</strong><br/>📊 <em>Detect checkbox/radio changes</em><br/>📊 <em>Update window.rowSettings map</em><br/>📊 <em>Trigger JSON regeneration if needed</em><br/>📍 <em>cpe_json_handler.js:1151</em>"]
+    
+    S1 --> S2["🔄 Regenerate JSON on Settings Change<br/>⚡ <strong>Conditional Regeneration</strong><br/>📊 <em>Check if table has selections</em><br/>📊 <em>Call updateConsolidatedJson</em><br/>📊 <em>Apply new settings to generation</em><br/>📍 <em>Settings Change Response</em>"]
+    S2 --> C
+    
+    %% Export All Functionality
+    P --> P1["📋 Export All with Aggregated Examples<br/>🗂️ <strong>generateAllConfigurationsJson Output</strong><br/>📊 <em>Table matchesTable_0: 3 CPE matches vendor:product</em><br/>📊 <em>Table matchesTable_1: 2 CPE matches vendor:othertool</em><br/>📊 <em>Total aggregated: 5 CPE matches across 2 tables</em><br/>📊 <em>Final export JSON: 2 configuration nodes</em><br/>📍 <em>cpe_json_handler.js:593</em>"]
+    
+    P1 --> EA2["🎯 Update Export All Button with Stats<br/>📊 <strong>updateExportAllButton Rich Display</strong><br/>📊 <em>Button text: Export All 5 total matches from 2 tables</em><br/>📊 <em>Tooltip: matchesTable_0: 3 matches, matchesTable_1: 2 matches</em><br/>📊 <em>Enhanced styling: export-ready state with animation</em><br/>📊 <em>Accessibility: detailed aria-description</em><br/>📍 <em>ui_controller.js:101</em>"]
+    
+    %% Error Handling & Patching System
+    C1 --> EH1["⚠️ Enhanced Error Handling<br/>🛡️ <strong>Comprehensive Error Management</strong><br/>📊 <em>Function patching for compatibility</em><br/>📊 <em>Fallback to original functions</em><br/>📊 <em>Global error state management</em><br/>📊 <em>Enhanced logging and debugging</em><br/>📍 <em>custom_cpe_builder.js:165</em>"]
+    
+    EH1 --> EH2["🔧 Function Patching System<br/>🏗️ <strong>Dynamic Function Enhancement</strong><br/>📊 <em>Patch updateConsolidatedJson</em><br/>📊 <em>Patch updateJsonDisplayIfVisible</em><br/>📊 <em>Patch toggleConsolidatedJson</em><br/>📊 <em>Maintain backward compatibility</em><br/>📍 <em>Patching Infrastructure</em>"]
+      EH2 --> P
+    
+    %% State Preservation System
+    O --> SP1["🔒 State Preservation<br/>💾 <strong>preserveJsonDisplayState</strong><br/>📊 <em>Maintain display state across operations</em><br/>📊 <em>Preserve button states and visibility</em><br/>📊 <em>Enhanced state synchronization</em><br/>📍 <em>selection_manager.js:232</em>"]
+    
+    SP1 --> SP2["🔄 Advanced State Synchronization<br/>⚙️ <strong>Cross-Module State Updates</strong><br/>📊 <em>Sync global and local maps</em><br/>📊 <em>Update all UI components consistently</em><br/>📊 <em>Maintain coherent application state</em><br/>📍 <em>State Synchronization</em>"]
+    SP2 --> P
+      %% Styling for different layers
+    classDef uiLayer fill:#e3f2fd,stroke:#1976d2,stroke-width:4px,color:#000,font-size:20px,font-weight:bold
+    classDef globalState fill:#f3e5f5,stroke:#7b1fa2,stroke-width:4px,color:#000,font-size:20px,font-weight:bold
+    classDef dataLayer fill:#e8f5e8,stroke:#388e3c,stroke-width:4px,color:#000,font-size:20px,font-weight:bold
+    classDef settingsLayer fill:#fff3e0,stroke:#f57c00,stroke-width:4px,color:#000,font-size:20px,font-weight:bold
+    classDef errorLayer fill:#ffebee,stroke:#d32f2f,stroke-width:4px,color:#000,font-size:20px,font-weight:bold
+    classDef exportLayer fill:#f1f8e9,stroke:#689f38,stroke-width:4px,color:#000,font-size:20px,font-weight:bold
+    classDef syncLayer fill:#e0f2f1,stroke:#00695c,stroke-width:4px,color:#000,font-size:20px,font-weight:bold
+    classDef decisionLayer fill:#fce4ec,stroke:#c2185b,stroke-width:4px,color:#000,font-size:20px,font-weight:bold
+    classDef rulesLayer fill:#fce4ec,stroke:#9c27b0,stroke-width:4px,color:#000,font-size:20px,font-weight:bold
+    
+    %% Apply styles
+    class A,O,P uiLayer
+    class B,C1,M globalState
+    class C,D,E,G,H,I dataLayer
+    class B1,E1,G1,S1,S2,CCPE_INIT,CCPE_UI,CCPE,CCPE1,CCPE2 settingsLayer
+    class EH1,EH2 errorLayer
+    class EA2,L,L1,K,K1 exportLayer
+    class N,SP1,SP2 syncLayer
+    class F,F1,J,J1 decisionLayer
+    class MRS,MRS1,MRS2,MRS3,MRS4,MRS5,UPR,UPR1 rulesLayer
+    class H1,P1,L_NVDAPI dataLayer
+            </div>
+        </div>
+    </div>    <div class="features">
+        <h2>🚀 Enhanced Workflow Features</h2>
+        <div class="feature-highlight">
+            <strong>📊 Updated JSON Generation Focus:</strong> This diagram shows the enhanced workflow with the new Modular Rules System, global state management, intelligent settings, and advanced pattern processing for update components.
+        </div>
+        <ul>
+            <li>🔤 <strong>Ultra-Large Text:</strong> 20px fonts for maximum readability of all function names and enhanced descriptions</li>
+            <li>🎨 <strong>Enhanced Color-Coded Layers:</strong> 8 distinct colors for UI, Global State, Data, Settings, Error Handling, Export, Synchronization, and Decision layers</li>
+            <li>🔍 <strong>Advanced Zoom Controls:</strong> Enhanced zoom functionality with better mobile support</li>
+            <li>📱 <strong>Enhanced Touch Support:</strong> Improved pinch-to-zoom on mobile devices</li>
+            <li>📍 <strong>Detailed File References:</strong> Enhanced references showing exact source files and line numbers</li>
+            <li>⚡ <strong>Enhanced Function Details:</strong> Advanced processing functions with detailed parameter descriptions</li>
+            <li>🔄 <strong>Advanced Data Flow Tracking:</strong> Shows enhanced data transformation through global state management</li>
+            <li>🎯 <strong>Enhanced Decision Points:</strong> Advanced visualization of processing branches and settings integration</li>
+            <li>🛡️ <strong>Advanced Error Handling:</strong> Comprehensive error recovery and function patching mechanisms</li>
+            <li>⚙️ <strong>Settings Integration:</strong> Row-level settings with intelligent defaults and real-time updates</li>
+            <li>🗂️ <strong>Export All Functionality:</strong> Advanced aggregation and export capabilities</li>
+            <li>🔒 <strong>State Preservation:</strong> Advanced state management across operations</li>
+            <li>🎨 <strong>Custom CPE Builder:</strong> Enhanced workflow for creating and managing custom CPE entries</li>
+            <li>🔧 <strong>Configuration vs Version Detection:</strong> Intelligent routing based on data structure analysis</li>
+            <li>🎯 <strong>Modular Rules System:</strong> Advanced pattern processing with rule precedence and Update Patterns support</li>
+            <li>⚡ <strong>Update Patterns Rule:</strong> Enhanced processing of alpha/beta/patch patterns with CPE field mapping</li>
+            <li>🎪 <strong>Rule Precedence Logic:</strong> Dataset rules → Per-version rules processing order</li>
+        </ul>
+    </div>
+
+    <script>
+        let currentZoom = 1;
+        const zoomStep = 0.2;
+        const minZoom = 0.5;
+        const maxZoom = 3;
+
+        // Initialize Mermaid with enhanced configuration
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'base',
+            themeVariables: {
+                primaryColor: '#ffffff',
+                primaryTextColor: '#2c3e50',
+                primaryBorderColor: '#3498db',
+                lineColor: '#2c3e50',
+                sectionBkgColor: '#f8f9fa',
+                altSectionBkgColor: '#e9ecef',
+                gridColor: '#dee2e6',
+                textColor: '#2c3e50',
+                taskBkgColor: '#ffffff',
+                taskTextColor: '#2c3e50',
+                taskTextLightColor: '#2c3e50',
+                activeTaskBkgColor: '#e3f2fd',
+                activeTaskBorderColor: '#1976d2',
+                gridColor: '#e1e5e9',
+                section0: '#e3f2fd',
+                section1: '#f3e5f5',
+                section2: '#e8f5e8',
+                section3: '#fff3e0'
+            },            flowchart: {
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 10,
+                nodeSpacing: 160,      // Optimized spacing for larger display
+                rankSpacing: 180,      // Optimized rank spacing for better flow
+                diagramPadding: 20,
+                useMaxWidth: false,    // Let it be as wide as needed
+                defaultRenderer: 'dagre-wrapper'
+            },
+            fontSize: 20,              // Enhanced font size
+            fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif'
+        });        function updateZoomLevel() {
+            document.getElementById('zoomLevel').textContent = Math.round(currentZoom * 100) + '%';
+        }
+
+        function applyZoom() {
+            const wrapper = document.getElementById('diagramWrapper');
+            const mermaidDiv = wrapper.querySelector('.mermaid');
+            
+            // Apply transform to the mermaid div instead of wrapper to preserve scrolling
+            if (mermaidDiv) {
+                mermaidDiv.style.transform = `scale(${currentZoom})`;
+                mermaidDiv.style.transformOrigin = 'top left';
+            }
+            updateZoomLevel();
+        }
+
+        function zoomIn() {
+            if (currentZoom < maxZoom) {
+                currentZoom += zoomStep;
+                applyZoom();
+            }
+        }
+
+        function zoomOut() {
+            if (currentZoom > minZoom) {
+                currentZoom -= zoomStep;
+                applyZoom();
+            }
+        }
+
+        function resetZoom() {
+            currentZoom = 1;
+            applyZoom();
+        }        function autoFit() {
+            const container = document.querySelector('.diagram-container');
+            const wrapper = document.getElementById('diagramWrapper');
+            const diagram = document.querySelector('.mermaid svg');
+            
+            if (diagram) {
+                const containerWidth = container.clientWidth - 40;
+                const containerHeight = container.clientHeight - 40;
+                const diagramWidth = diagram.clientWidth || diagram.getBoundingClientRect().width;
+                const diagramHeight = diagram.clientHeight || diagram.getBoundingClientRect().height;
+                
+                // Calculate scale based on width and height
+                const scaleX = containerWidth / diagramWidth;
+                const scaleY = containerHeight / diagramHeight;
+                
+                // Use the smaller scale but don't go below 50% or above 100%
+                let targetZoom = Math.min(scaleX, scaleY);
+                targetZoom = Math.max(targetZoom, 0.5); // Never go below 50%
+                targetZoom = Math.min(targetZoom, 1.0); // Never go above 100% for auto-fit
+                
+                currentZoom = targetZoom;
+                applyZoom();
+                
+                // Center the diagram
+                setTimeout(() => {
+                    const mermaidDiv = wrapper.querySelector('.mermaid');
+                    if (mermaidDiv) {
+                        const scaledWidth = diagramWidth * currentZoom;
+                        const scaledHeight = diagramHeight * currentZoom;
+                        
+                        wrapper.scrollLeft = Math.max(0, (scaledWidth - wrapper.clientWidth) / 2);
+                        wrapper.scrollTop = Math.max(0, (scaledHeight - wrapper.clientHeight) / 2);
+                    }
+                }, 100);
+            }
+        }        function smartFit() {
+            const container = document.querySelector('.diagram-container');
+            const wrapper = document.getElementById('diagramWrapper');
+            const diagram = document.querySelector('.mermaid svg');
+            
+            if (diagram) {
+                const containerWidth = container.clientWidth - 40;
+                const diagramWidth = diagram.clientWidth || diagram.getBoundingClientRect().width;
+                
+                // Smart fit aims for 85% of width usage for optimal viewing
+                const targetScale = (containerWidth * 0.85) / diagramWidth;
+                currentZoom = Math.min(Math.max(targetScale, 0.4), 1.5); // Between 40% and 150%
+                
+                applyZoom();
+                
+                // Center horizontally
+                setTimeout(() => {
+                    const mermaidDiv = wrapper.querySelector('.mermaid');
+                    if (mermaidDiv) {
+                        const scaledWidth = diagramWidth * currentZoom;
+                        wrapper.scrollLeft = Math.max(0, (scaledWidth - wrapper.clientWidth) / 2);
+                        wrapper.scrollTop = 0; // Reset vertical scroll
+                    }
+                }, 100);
+            }
+        }
+
+        function fitWidth() {
+            const container = document.querySelector('.diagram-container');
+            const wrapper = document.getElementById('diagramWrapper');
+            const diagram = document.querySelector('.mermaid svg');
+            
+            if (diagram) {
+                const containerWidth = container.clientWidth - 40;
+                const diagramWidth = diagram.clientWidth || diagram.getBoundingClientRect().width;
+                
+                // Fit to width with small margin
+                currentZoom = (containerWidth * 0.95) / diagramWidth;
+                currentZoom = Math.min(Math.max(currentZoom, 0.2), 2.0); // Between 20% and 200%
+                
+                applyZoom();
+                
+                // Reset scroll position
+                setTimeout(() => {
+                    wrapper.scrollLeft = 0;
+                    wrapper.scrollTop = 0;
+                }, 100);
+            }
+        }
+
+        // Enhanced touch support for mobile devices
+        let startDistance = 0;
+        let startZoom = 1;
+
+        document.getElementById('diagramWrapper').addEventListener('touchstart', function(e) {
+            if (e.touches.length === 2) {
+                startDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+                startZoom = currentZoom;
+            }
+        });
+
+        document.getElementById('diagramWrapper').addEventListener('touchmove', function(e) {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const currentDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+                const scale = currentDistance / startDistance;
+                currentZoom = Math.max(minZoom, Math.min(maxZoom, startZoom * scale));
+                applyZoom();
+            }
+        });
+
+        // Auto-fit on window resize
+        window.addEventListener('resize', function() {
+            setTimeout(autoFit, 100);
+        });        // Event listener for Mermaid rendering completion
+        document.addEventListener('DOMContentLoaded', function() {
+            // Wait for mermaid to fully initialize
+            setTimeout(initializeDiagram, 100);
+        });        function initializeDiagram() {
+            // Wait for diagram to fully render before applying any auto-sizing
+            setTimeout(() => {
+                const container = document.querySelector('.diagram-container');
+                const diagram = document.querySelector('.mermaid svg');
+                const loadingIndicator = document.getElementById('loadingIndicator');
+                
+                if (diagram && container) {
+                    // Hide loading indicator
+                    if (loadingIndicator) {
+                        loadingIndicator.style.display = 'none';
+                    }
+                    
+                    const containerWidth = container.clientWidth - 40;
+                    const diagramWidth = diagram.clientWidth || diagram.getBoundingClientRect().width;
+                    
+                    // Check if diagram is much larger than container
+                    if (diagramWidth > containerWidth * 1.3) {
+                        smartFit();
+                    } else if (diagramWidth > containerWidth * 1.1) {
+                        fitWidth();
+                    }
+                }
+            }, 2000);
+        }// Initialize zoom level display
+        updateZoomLevel();
+
+        // Add keyboard shortcuts for better user experience
+        document.addEventListener('keydown', function(e) {
+            // Only activate shortcuts when not in input fields
+            if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                switch(e.code) {
+                    case 'Equal': // + key (with or without shift)
+                    case 'NumpadAdd':
+                        if (e.ctrlKey || e.metaKey) {
+                            e.preventDefault();
+                            zoomIn();
+                        }
+                        break;
+                    case 'Minus':
+                    case 'NumpadSubtract':
+                        if (e.ctrlKey || e.metaKey) {
+                            e.preventDefault();
+                            zoomOut();
+                        }
+                        break;
+                    case 'Digit0':
+                    case 'Numpad0':
+                        if (e.ctrlKey || e.metaKey) {
+                            e.preventDefault();
+                            resetZoom();
+                        }
+                        break;
+                    case 'Digit9':
+                        if (e.ctrlKey || e.metaKey) {
+                            e.preventDefault();
+                            smartFit();
+                        }
+                        break;
+                }
+            }
+        });
+    </script>
+
+    <!-- Enhanced Global State Documentation -->
+    <div class="features" style="margin-top: 30px; background: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 5px solid #007acc;">
+        <h2>🗄️ Enhanced Global State Management Patterns</h2>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px;">
+            <div style="background: white; padding: 20px; border-radius: 8px; border: 2px solid #e3f2fd;">
+                <h3>📊 window.tableSelections</h3>
+                <p><strong>Purpose:</strong> Global selection tracking across all CVE tables</p>
+                <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 10px 0; font-family: monospace; font-size: 14px;">
+                    <strong>Enhanced Structure:</strong><br/>
+                    Map&lt;string, Set&lt;string&gt;&gt;<br/><br/>
+                    <strong>Example:</strong><br/>
+                    'matchesTable_0' → Set {<br/>
+                    &nbsp;&nbsp;'cpe:2.3:a:vendor:product:*',<br/>
+                    &nbsp;&nbsp;'cpe:2.3:a:vendor:product:1.0',<br/>
+                    &nbsp;&nbsp;'cpe:2.3:a:vendor:product:2.0'<br/>
+                    }
+                </div>
+                <p><strong>Enhanced Operations:</strong></p>
+                <ul>
+                    <li><code>window.tableSelections.set(tableId, new Set())</code> - Initialize with validation</li>
+                    <li><code>selections.add(normalizedCpeString)</code> - Add with normalization</li>
+                    <li><code>selections.delete(cpeBaseString)</code> - Remove with cleanup</li>
+                    <li><code>window.tableSelections.get(tableId)</code> - Retrieve with error handling</li>
+                </ul>
+            </div>
+
+            <div style="background: white; padding: 20px; border-radius: 8px; border: 2px solid #e8f5e8;">
+                <h3>📦 window.consolidatedJsons</h3>
+                <p><strong>Purpose:</strong> Enhanced global JSON configuration cache</p>
+                <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 10px 0; font-family: monospace; font-size: 14px;">
+                    <strong>Enhanced Structure:</strong><br/>
+                    Map&lt;string, Array&gt;<br/><br/>
+                    <strong>New Format Example:</strong><br/>
+                    'matchesTable_0' → [{<br/>
+                    &nbsp;&nbsp;nodes: [{<br/>
+                    &nbsp;&nbsp;&nbsp;&nbsp;operator: "OR",<br/>
+                    &nbsp;&nbsp;&nbsp;&nbsp;cpeMatch: [3 objects]<br/>
+                    &nbsp;&nbsp;}]<br/>
+                    }]
+                </div>
+                <p><strong>Enhanced Operations:</strong></p>
+                <ul>
+                    <li><code>window.consolidatedJsons.set(tableId, configs)</code> - Store with dual sync</li>
+                    <li><code>window.consolidatedJsons.get(tableId)</code> - Retrieve with validation</li>
+                    <li><code>generateAllConfigurationsJson()</code> - Aggregate all configurations</li>
+                    <li><code>Enhanced error handling and debugging</code> - Advanced diagnostics</li>
+                </ul>
+            </div>
+        </div>
+
+        <div style="background: #fff3e0; padding: 20px; border-radius: 8px; margin-top: 20px; border: 2px solid #ff9800;">
+            <h3>⚙️ window.rowSettings</h3>
+            <p><strong>Purpose:</strong> Per-table toggle settings and intelligent defaults</p>
+            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 10px 0; font-family: monospace; font-size: 14px;">
+                <strong>Structure:</strong><br/>
+                Map&lt;string, Object&gt;<br/><br/>
+                <strong>Example:</strong><br/>
+                'matchesTable_0' → {<br/>
+                &nbsp;&nbsp;enableSpecialHandling: true,<br/>
+                &nbsp;&nbsp;processWildcards: true,<br/>
+                &nbsp;&nbsp;includeMetadata: false,<br/>
+                &nbsp;&nbsp;...intelligentDefaults<br/>
+                }
+            </div>
+            <p><strong>Operations:</strong></p>
+            <ul>
+                <li><code>initializeRowJsonSettings(tableId)</code> - Initialize with intelligent defaults</li>
+                <li><code>onRowSettingsChange(tableId)</code> - Handle setting changes</li>
+                <li><code>Apply settings to JSON generation</code> - Real-time customization</li>
+            </ul>
+        </div>
+
+        <div style="background: #ffebee; padding: 20px; border-radius: 8px; margin-top: 20px; border: 2px solid #f44336;">
+            <h3>🔧 Enhanced Function Patching</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 15px;">
+                <div>
+                    <h4>1️⃣ updateConsolidatedJson</h4>
+                    <div style="background: white; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;">
+                        // Enhanced patching<br/>
+                        window.originalUpdateConsolidatedJson<br/>
+                        = updateConsolidatedJson;<br/>
+                        <br/>
+                        window.updateConsolidatedJson = <br/>
+                        enhancedFunction;<br/>
+                        <br/>
+                        // Dual storage sync<br/>
+                        // Enhanced error handling
+                    </div>
+                </div>
+                <div>
+                    <h4>2️⃣ toggleConsolidatedJson</h4>
+                    <div style="background: white; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;">
+                        // Advanced display management<br/>
+                        window.originalToggleConsolidatedJson<br/>
+                        = toggleConsolidatedJson;<br/>
+                        <br/>
+                        // Enhanced state preservation<br/>
+                        // Advanced UI synchronization<br/>
+                        // Better error recovery
+                    </div>
+                </div>
+                <div>
+                    <h4>3️⃣ updateJsonDisplayIfVisible</h4>
+                    <div style="background: white; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;">
+                        // Global map usage<br/>
+                        const json = <br/>
+                        &nbsp;&nbsp;window.consolidatedJsons<br/>
+                        &nbsp;&nbsp;.get(tableId);<br/>
+                        <br/>                        // Enhanced display logic<br/>
+                        // Advanced formatting
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: #e8f4fd; padding: 20px; border-radius: 8px; margin-top: 20px; border: 2px solid #2196f3;">
+            <h3>🎨 Custom CPE Builder Pathway</h3>
+            <p><strong>Purpose:</strong> Handle user-created custom CPE entries with specialized processing</p>
+            <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 10px 0; font-family: monospace; font-size: 14px;">
+                <strong>Detection Logic:</strong><br/>
+                window.customCPEHandlers.has(cpeBase)<br/><br/>
+                <strong>Processing Path:</strong><br/>
+                Custom CPE → handler.createMatch() → Enhanced Match Creation
+            </div>
+            <p><strong>Key Features:</strong></p>
+            <ul>
+                <li>🛠️ <code>initializeCustomCPEBuilder()</code> - Set up custom CPE infrastructure</li>
+                <li>🎨 <code>Custom CPE UI Components</code> - User interface for CPE creation</li>
+                <li>🔧 <code>Patched processVersionDataToCpeMatches()</code> - Enhanced function routing</li>
+                <li>✅ <code>handler.createMatch()</code> - Custom match generation logic</li>
+            </ul>
+        </div>        <div style="background: #f3e5f5; padding: 20px; border-radius: 8px; margin-top: 20px; border: 2px solid #9c27b0;">
+            <h3>🔧 Data Source Processing Pathways</h3>
+            <p><strong>Purpose:</strong> Different processing logic based on data source type</p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
+                <div style="background: white; padding: 15px; border-radius: 5px;">
+                    <h4>🎯 NVDAPI Path (Always has complete configs)</h4>
+                    <div style="background: #f5f5f5; padding: 10px; border-radius: 3px; font-family: monospace; font-size: 12px;">
+                        if (metadata.dataResource === 'NVDAPI') {<br/>
+                        &nbsp;&nbsp;// rawPlatformData IS the config<br/>
+                        &nbsp;&nbsp;configs.push({<br/>
+                        &nbsp;&nbsp;&nbsp;&nbsp;nodes: [rawPlatformData]<br/>
+                        &nbsp;&nbsp;});<br/>
+                        }<br/><br/>
+                        // No version processing needed
+                    </div>
+                    <p><strong>When Used:</strong> NVDAPI data is already complete NVD configuration</p>
+                </div>
+                <div style="background: white; padding: 15px; border-radius: 5px;">
+                    <h4>🌐 MITRE/Custom CPE Path (Always version processing)</h4>
+                    <div style="background: #f5f5f5; padding: 10px; border-radius: 3px; font-family: monospace; font-size: 12px;">
+                        // MITRE and Custom CPEs always go to else branch<br/>
+                        processBasicVersionData(<br/>
+                        &nbsp;&nbsp;selectedCPEs, rawPlatformData<br/>
+                        );<br/><br/>
+                        // Generate config from version data
+                    </div>
+                    <p><strong>When Used:</strong> MITRE data and Custom CPEs always process version data</p>
+                </div>
+            </div>
+            <div style="background: #fff9c4; padding: 15px; border-radius: 5px; margin-top: 15px; border: 2px solid #ff9800;">
+                <h4>🔍 Key Insight: NVDAPI Data Structure</h4>
+                <p><strong>NVDAPI rawPlatformData Example:</strong></p>
+                <div style="background: #f5f5f5; padding: 10px; border-radius: 3px; font-family: monospace; font-size: 11px;">
+                    {"nodes": [{"operator": "OR", "cpeMatch": [<br/>
+                    &nbsp;&nbsp;{"vulnerable": true, "criteria": "cpe:2.3:a:vendor:product:1.0"},<br/>
+                    &nbsp;&nbsp;{"vulnerable": true, "criteria": "cpe:2.3:a:vendor:product:2.0"}<br/>                    ]}]}
+                </div>
+                <p><strong>This IS the final configuration</strong> - no version processing needed!</p>
+            </div>
+        </div>
+
+        <div style="background: #fce4ec; padding: 20px; border-radius: 8px; margin-top: 20px; border: 2px solid #9c27b0;">
+            <h3>🎯 Modular Rules System</h3>
+            <p><strong>Purpose:</strong> Advanced pattern recognition and processing with rule precedence</p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px;">
+                <div style="background: white; padding: 15px; border-radius: 5px;">
+                    <h4>🎪 Rule Precedence Logic</h4>
+                    <div style="background: #f5f5f5; padding: 10px; border-radius: 3px; font-family: monospace; font-size: 12px;">
+                        <strong>1. Dataset Rules (Process entire dataset)</strong><br/>
+                        - mixedStatus (handles affected/unaffected)<br/>
+                        - multipleBranches (version families)<br/>
+                        - inverseStatus (default unaffected)<br/><br/>
+                        
+                        <strong>2. Per-Version Rules (Individual processing)</strong><br/>
+                        - updatePatterns (alpha/beta/patch)<br/>
+                        - wildcardExpansion (5.4.*)<br/>
+                        - specialVersionTypes (dates, commits)
+                    </div>
+                    <p><strong>Key Insight:</strong> Dataset rules call context.applyOtherRules() to delegate specific pattern processing</p>
+                </div>
+                
+                <div style="background: white; padding: 15px; border-radius: 5px;">
+                    <h4>🔧 Update Patterns Rule - CPE Field Mapping</h4>
+                    <div style="background: #f5f5f5; padding: 10px; border-radius: 3px; font-family: monospace; font-size: 12px;">
+                        <strong>Input → Processing → CPE Output</strong><br/><br/>
+                        
+                        1.0.0-beta.1 → Remove .1 → beta1<br/>
+                        ↓<br/>
+                        cpe:2.3:a:*:*:<span style="color: #e91e63;">1.0.0</span>:<span style="color: #9c27b0;">beta1</span>:*:*:*:*:*:*<br/><br/>
+                        
+                        3.1.0.p7 → Expand p7 → patch7<br/>
+                        ↓<br/>
+                        cpe:2.3:a:*:*:<span style="color: #e91e63;">3.1.0</span>:<span style="color: #9c27b0;">patch7</span>:*:*:*:*:*:*<br/><br/>
+                        
+                        <span style="color: #e91e63;">Position 5 = version</span><br/>
+                        <span style="color: #9c27b0;">Position 6 = update</span>
+                    </div>
+                    <p><strong>Patterns Supported:</strong> alpha, beta, rc, patch, hotfix, service pack, update, fix, revision</p>
+                </div>
+            </div>
+            
+            <div style="background: #fff9c4; padding: 15px; border-radius: 5px; margin-top: 15px; border: 2px solid #ff9800;">
+                <h4>⚡ Rule Engine Flow Example</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 10px;">
+                    <div>
+                        <strong>1️⃣ Input Detection</strong>
+                        <div style="background: white; padding: 8px; border-radius: 3px; font-family: monospace; font-size: 11px;">
+                            versionData.versions: [<br/>
+                            &nbsp;&nbsp;{version: "1.0.0-alpha", status: "affected"},<br/>
+                            &nbsp;&nbsp;{version: "1.0.0-beta.1", status: "affected"},<br/>
+                            &nbsp;&nbsp;{version: "3.1.0.p7", status: "affected"}<br/>
+                            ]
+                        </div>
+                    </div>
+                    <div>
+                        <strong>2️⃣ Rule Application</strong>
+                        <div style="background: white; padding: 8px; border-radius: 3px; font-family: monospace; font-size: 11px;">
+                            Mixed Status Rule:<br/>
+                            - Processes affected versions<br/>
+                            - Calls context.applyOtherRules()<br/>
+                            - Update Patterns rule processes patterns<br/>
+                            - Returns 8 matches (no duplicates)
+                        </div>
+                    </div>
+                    <div>
+                        <strong>3️⃣ CPE Output</strong>
+                        <div style="background: white; padding: 8px; border-radius: 3px; font-family: monospace; font-size: 11px;">
+                            Result: 8 CPE matches with<br/>
+                            proper update field mapping:<br/>
+                            - version=1.0.0, update=alpha<br/>
+                            - version=1.0.0, update=beta1<br/>
+                            - version=3.1.0, update=patch7
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

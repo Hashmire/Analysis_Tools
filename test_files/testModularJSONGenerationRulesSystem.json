@@ -1,0 +1,447 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1",
+  "cveMetadata": {
+    "cveId": "CVE-2024-99999",
+    "assignerOrgId": "12345678-1234-1234-1234-123456789012",
+    "state": "PUBLISHED",
+    "assignerShortName": "TestOrg",
+    "datePublished": "2024-01-15T10:00:00.000Z",
+    "dateUpdated": "2024-01-15T12:30:00.000Z",
+    "dateReserved": "2024-01-10T08:00:00.000Z",
+    "serial": 3
+  },
+  "containers": {
+    "cna": {
+      "providerMetadata": {
+        "orgId": "12345678-1234-1234-1234-123456789012",
+        "shortName": "TestOrg",
+        "dateUpdated": "2024-01-15T12:30:00.000Z"
+      },
+      "dateAssigned": "2024-01-10T08:00:00.000Z",
+      "datePublic": "2024-01-15T10:00:00.000Z",
+      "title": "Buffer Overflow in TestVendor ComplexTestProduct",
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "A buffer overflow vulnerability exists in TestVendor ComplexTestProduct that allows remote code execution via crafted input validation.",
+          "supportingMedia": [
+            {
+              "type": "text/markdown",
+              "base64": false,
+              "value": "## Technical Details\n\nThis vulnerability affects the input parsing module and can be triggered by sending malformed data packets."
+            }
+          ]
+        },
+        {
+          "lang": "es",
+          "value": "Existe una vulnerabilidad de desbordamiento de búfer en TestVendor ComplexTestProduct que permite la ejecución remota de código."
+        }
+      ],
+      "affected": [
+        {
+          "vendor": "TestVendor",
+          "product": "ComplexTestProduct",
+          "cpes": [
+            "cpe:2.3:a:testvendor:complex_test_product:*:*:*:*:*:*:*:*",
+            "cpe:/a:testvendor:complex_test_product"
+          ],
+          "modules": [
+            "input_parser",
+            "data_validation",
+            "network_interface"
+          ],
+          "programFiles": [
+            "src/parser.c",
+            "src/validation.h",
+            "lib/network.so"
+          ],
+          "programRoutines": [
+            {
+              "name": "parse_input_buffer"
+            },
+            {
+              "name": "validate_packet_header"
+            }
+          ],
+          "platforms": [
+            "Linux",
+            "Windows",
+            "macOS",
+            "x86",
+            "ARM",
+            "64 bit"
+          ],
+          "repo": "https://github.com/testvendor/complex-test-product",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "1.1.0",
+              "status": "affected",
+              "versionType": "semver",
+              "lessThan": "1.2.0"
+            },
+            {
+              "version": "1.2.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "2.0.0",
+              "status": "affected",
+              "versionType": "semver",
+              "lessThanOrEqual": "2.0.5"
+            },
+            {
+              "version": "2.1.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "3.0.0",
+              "status": "affected",
+              "versionType": "semver",
+              "lessThan": "*"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "WildcardProduct",
+          "defaultStatus": "unknown",
+          "versions": [
+            {
+              "version": "1.*",
+              "status": "affected",
+              "versionType": "glob"
+            },
+            {
+              "version": "2.0.*",
+              "status": "affected",
+              "versionType": "glob"
+            },
+            {
+              "version": "3.0.0",
+              "status": "unaffected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "GitVersionProduct",
+          "versions": [
+            {
+              "version": "commit-abc123",
+              "status": "affected",
+              "versionType": "git"
+            },
+            {
+              "version": "commit-def456",
+              "status": "affected",
+              "versionType": "git",
+              "lessThan": "commit-xyz789"
+            }
+          ]
+        },
+        {
+          "collectionURL": "https://pypi.python.org",
+          "packageName": "vulnerable-test-package",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected",
+              "versionType": "python"
+            },
+            {
+              "version": "1.1.0",
+              "status": "affected",
+              "versionType": "python",
+              "lessThan": "1.2.0"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "UnicodeVersionProduct",
+          "versions": [
+            {
+              "version": "1.0.0-α",
+              "status": "affected"
+            },
+            {
+              "version": "1.0.0-β.1",
+              "status": "affected"
+            },
+            {
+              "version": "很长的版本号.with.unicode.字符.1.2.3",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "MixedStatusProduct",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "1.1.0",
+              "status": "unknown"
+            },
+            {
+              "version": "1.2.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "2.0.0",
+              "status": "affected",
+              "versionType": "semver",
+              "lessThan": "2.3.0",
+              "changes": [
+                {
+                  "at": "2.1.0",
+                  "status": "unknown"
+                },
+                {
+                  "at": "2.2.0",
+                  "status": "affected"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "problemTypes": [
+        {
+          "descriptions": [
+            {
+              "lang": "en",
+              "description": "Buffer Overflow",
+              "cweId": "CWE-120",
+              "type": "CWE"
+            },
+            {
+              "lang": "en",
+              "description": "Improper Input Validation",
+              "cweId": "CWE-20",
+              "type": "CWE"
+            }
+          ]
+        },
+        {
+          "descriptions": [
+            {
+              "lang": "en",
+              "description": "Injection Flaws",
+              "type": "OWASP"
+            }
+          ]
+        }
+      ],
+      "references": [
+        {
+          "url": "https://example.com/security-advisory-test",
+          "name": "Test Security Advisory",
+          "tags": ["vendor-advisory"]
+        },
+        {
+          "url": "https://example.com/exploit-poc",
+          "name": "Proof of Concept Exploit",
+          "tags": ["exploit"]
+        },
+        {
+          "url": "https://example.com/patch-release",
+          "name": "Security Patch Release",
+          "tags": ["patch"]
+        },
+        {
+          "url": "https://example.com/mitigation-guide",
+          "name": "Mitigation Guide",
+          "tags": ["mitigation"]
+        },
+        {
+          "url": "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2024-99999",
+          "name": "MITRE CVE Entry",
+          "tags": ["vdb-entry"]
+        }
+      ],
+      "impacts": [
+        {
+          "capecId": "CAPEC-100",
+          "descriptions": [
+            {
+              "lang": "en",
+              "value": "An attacker can execute arbitrary code by overflowing the input buffer through specially crafted network packets."
+            }
+          ]
+        }
+      ],
+      "metrics": [
+        {
+          "format": "cvssV3_1",
+          "scenarios": [
+            {
+              "lang": "en",
+              "value": "GENERAL"
+            }
+          ],
+          "cvssV3_1": {
+            "version": "3.1",
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+            "attackVector": "NETWORK",
+            "attackComplexity": "LOW",
+            "privilegesRequired": "NONE",
+            "userInteraction": "NONE",
+            "scope": "UNCHANGED",
+            "confidentialityImpact": "HIGH",
+            "integrityImpact": "HIGH",
+            "availabilityImpact": "HIGH",
+            "baseScore": 9.8,
+            "baseSeverity": "CRITICAL"
+          }
+        },
+        {
+          "format": "cvssV4_0",
+          "cvssV4_0": {
+            "version": "4.0",
+            "vectorString": "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N",
+            "attackVector": "NETWORK",
+            "attackComplexity": "LOW",
+            "attackRequirements": "NONE",
+            "privilegesRequired": "NONE",
+            "userInteraction": "NONE",
+            "vulnConfidentialityImpact": "HIGH",
+            "vulnIntegrityImpact": "HIGH",
+            "vulnAvailabilityImpact": "HIGH",
+            "subConfidentialityImpact": "NONE",
+            "subIntegrityImpact": "NONE",
+            "subAvailabilityImpact": "NONE",
+            "baseScore": 9.3,
+            "baseSeverity": "CRITICAL"
+          }
+        }
+      ],
+      "configurations": [
+        {
+          "lang": "en",
+          "value": "The vulnerability is exploitable when the network interface is enabled and the input validation module is configured to accept external data."
+        }
+      ],
+      "workarounds": [
+        {
+          "lang": "en",
+          "value": "Disable the network interface or implement input length validation at the firewall level until patches can be applied."
+        }
+      ],
+      "solutions": [
+        {
+          "lang": "en",
+          "value": "Update to version 1.2.0 or later. Apply the security patch KB-2024-001 for versions that cannot be upgraded."
+        }
+      ],
+      "exploits": [
+        {
+          "lang": "en",
+          "value": "Public exploit code is available that demonstrates remote code execution through buffer overflow."
+        }
+      ],
+      "timeline": [
+        {
+          "time": "2024-01-01T00:00:00.000Z",
+          "lang": "en",
+          "value": "Vulnerability discovered by security researcher"
+        },
+        {
+          "time": "2024-01-05T10:00:00.000Z",
+          "lang": "en",
+          "value": "Vendor notified through responsible disclosure"
+        },
+        {
+          "time": "2024-01-10T08:00:00.000Z",
+          "lang": "en",
+          "value": "CVE ID reserved"
+        },
+        {
+          "time": "2024-01-15T10:00:00.000Z",
+          "lang": "en",
+          "value": "Public disclosure and patch release"
+        }
+      ],
+      "credits": [
+        {
+          "lang": "en",
+          "value": "Security Researcher Jane Doe",
+          "type": "finder"
+        },
+        {
+          "lang": "en",
+          "value": "TestVendor Security Team",
+          "type": "remediation developer"
+        },
+        {
+          "lang": "en",
+          "value": "Automated scanner tool XYZ",
+          "type": "tool"
+        }
+      ],
+      "source": {
+        "discovery": "EXTERNAL"
+      },
+      "tags": [
+        "disputed",
+        "unsupported-when-assigned"
+      ]
+    },
+    "adp": [
+      {
+        "providerMetadata": {
+          "orgId": "87654321-4321-4321-4321-210987654321",
+          "shortName": "ThirdPartyOrg",
+          "dateUpdated": "2024-01-16T09:00:00.000Z"
+        },
+        "title": "Additional Analysis of Buffer Overflow CVE",
+        "descriptions": [
+          {
+            "lang": "en",
+            "value": "Additional analysis confirms this is a critical vulnerability with widespread impact across multiple platforms."
+          }
+        ],
+        "affected": [
+          {
+            "vendor": "TestVendor",
+            "product": "ComplexTestProduct",
+            "versions": [
+              {
+                "version": "0.9.0",
+                "status": "affected"
+              }
+            ]
+          }
+        ],
+        "references": [
+          {
+            "url": "https://thirdparty.example.com/analysis",
+            "name": "Third Party Security Analysis",
+            "tags": ["third-party-advisory"]
+          }
+        ],
+        "metrics": [
+          {
+            "format": "other",
+            "other": {
+              "type": "CustomScoringSystem",
+              "content": {
+                "score": 8.5,
+                "risk": "high",
+                "exploitability": "high"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
