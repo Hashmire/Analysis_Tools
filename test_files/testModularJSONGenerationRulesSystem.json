@@ -177,9 +177,69 @@
               "version": "很长的版本号.with.unicode.字符.1.2.3",
               "status": "affected"
             }
-          ]
-        },
+          ]        },
         {
+          "vendor": "TestVendor",
+          "product": "UpdatePatternsTestProduct",
+          "versions": [
+            {
+              "version": "3.0.0 p1",
+              "status": "affected"
+            },
+            {
+              "version": "3.0.0 p2",
+              "status": "affected"
+            },
+            {
+              "version": "3.0.0 p3",
+              "status": "unaffected"
+            },
+            {
+              "version": "3.1.0 p1",
+              "status": "affected"
+            },
+            {
+              "version": "3.1.0 p2",
+              "status": "unaffected"
+            },
+            {
+              "version": "3.3 Patch 1",
+              "status": "affected"
+            },
+            {
+              "version": "3.3 Patch 2",
+              "status": "unaffected"
+            },
+            {
+              "version": "1.0.0-beta.1",
+              "status": "affected"
+            },
+            {
+              "version": "1.0.0-beta.2",
+              "status": "affected"
+            },
+            {
+              "version": "1.0.0-rc.1",
+              "status": "unaffected"
+            },
+            {
+              "version": "2.1.0.p7",
+              "status": "affected"
+            },
+            {
+              "version": "2.2.0.p1",
+              "status": "unaffected"
+            },
+            {
+              "version": "4.0.0_patch1",
+              "status": "affected"
+            },
+            {
+              "version": "4.0.0_patch2",
+              "status": "unaffected"
+            }
+          ]
+        },        {
           "vendor": "TestVendor",
           "product": "MixedStatusProduct",
           "versions": [
@@ -210,6 +270,136 @@
                   "status": "affected"
                 }
               ]
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "InverseStatusProduct",
+          "defaultStatus": "unaffected",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "2.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "3.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "GapProcessingProduct",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "unaffected",
+              "versionType": "semver",
+              "lessThan": "1.5.0"
+            },
+            {
+              "version": "2.0.0",
+              "status": "unaffected",
+              "versionType": "semver",
+              "greaterThanOrEqual": "2.0.0",
+              "lessThan": "2.5.0"
+            },
+            {
+              "version": "3.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "3.5.0",
+              "status": "unaffected",
+              "versionType": "semver",
+              "greaterThanOrEqual": "3.5.0"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "SpecialVersionTypesProduct",
+          "versions": [
+            {
+              "version": "2024-01-15",
+              "status": "affected",
+              "versionType": "date"
+            },
+            {
+              "version": "2024-02-01",
+              "status": "unaffected",
+              "versionType": "date"
+            },
+            {
+              "version": "abc123def456",
+              "status": "affected",
+              "versionType": "commit"
+            },
+            {
+              "version": "xyz789abc123",
+              "status": "unaffected",
+              "versionType": "commit"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "MultipleBranchesProduct",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "1.1.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "2.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "2.1.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "3.0.0-alpha",
+              "status": "affected"
+            },
+            {
+              "version": "3.0.0-beta",
+              "status": "unaffected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "ProcessPatchesProduct",
+          "versions": [
+            {
+              "version": "5.4.0",
+              "status": "affected"
+            },
+            {
+              "version": "5.4.1",
+              "status": "affected"
+            },
+            {
+              "version": "5.4.2",
+              "status": "unaffected"
+            },
+            {
+              "version": "5.5.0",
+              "status": "affected"
+            },
+            {
+              "version": "5.5.1",
+              "status": "unaffected"
             }
           ]
         }

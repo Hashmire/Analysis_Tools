@@ -29,17 +29,16 @@ function createCpeMatchObject(cpeBase) {
 function processVersionDataToCpeMatches(cpeBase, rawPlatformData, tableId) {
     // Get table-specific settings instead of global
     const tableSettings = window.rowSettings.get(tableId) || {};
-    
-    // Use table settings with conservative defaults
+      // Use table settings with conservative defaults
     const settings = {
-        enableWildcardExpansion: tableSettings.enableWildcardExpansion || false,
-        enableVersionChanges: tableSettings.enableVersionChanges || false,
-        enableSpecialVersionTypes: tableSettings.enableSpecialVersionTypes || false,
-        enableInverseStatus: tableSettings.enableInverseStatus || false,
-        enableMultipleBranches: tableSettings.enableMultipleBranches || false,
-        enableMixedStatus: tableSettings.enableMixedStatus || false,
-        enableGapProcessing: tableSettings.enableGapProcessing || false,
-        enableUpdatePatterns: tableSettings.enableUpdatePatterns || false,  
+        enableWildcardExpansion: tableSettings.enableWildcardExpansion !== undefined ? tableSettings.enableWildcardExpansion : false,
+        enableVersionChanges: tableSettings.enableVersionChanges !== undefined ? tableSettings.enableVersionChanges : false,
+        enableSpecialVersionTypes: tableSettings.enableSpecialVersionTypes !== undefined ? tableSettings.enableSpecialVersionTypes : false,
+        enableInverseStatus: tableSettings.enableInverseStatus !== undefined ? tableSettings.enableInverseStatus : false,
+        enableMultipleBranches: tableSettings.enableMultipleBranches !== undefined ? tableSettings.enableMultipleBranches : false,
+        enableMixedStatus: tableSettings.enableMixedStatus !== undefined ? tableSettings.enableMixedStatus : false,
+        enableGapProcessing: tableSettings.enableGapProcessing !== undefined ? tableSettings.enableGapProcessing : false,
+        enableUpdatePatterns: tableSettings.enableUpdatePatterns !== undefined ? tableSettings.enableUpdatePatterns : false,  
         // Core features remain enabled
         enableStatusProcessing: true,
         enableRangeHandling: true
@@ -50,15 +49,39 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData, tableId) {
     // Normalize the base CPE string if needed
     cpeBase = normalizeCpeString(cpeBase);
     
-    // Check if we have valid version data
+    // **CUSTOM CPE HANDLING** - Check if this is a custom CPE first
+    if (window.customCPEHandlers && window.customCPEHandlers.has(cpeBase)) {
+        console.debug(`Processing custom CPE: ${cpeBase}`);
+        
+        // Check for missing rawPlatformData
+        if (!rawPlatformData) {
+            console.error(`CRITICAL: No rawPlatformData available for custom CPE ${cpeBase}. This may cause issues in JSON generation.`);
+            // For custom CPEs without platform data, return the basic custom match
+            const handler = window.customCPEHandlers.get(cpeBase);
+            return [handler.createMatch()];
+        }
+        
+        // Custom CPEs use the same modular rules engine with the same settings
+        console.debug(`Applying modular rules to custom CPE: ${cpeBase}`);
+    }
+    
+    // Check if we have valid version data (for both custom and standard CPEs)
     if (!rawPlatformData || !rawPlatformData.versions || !Array.isArray(rawPlatformData.versions) || rawPlatformData.versions.length === 0) {
         console.debug("No version data available, using basic CPE match");
+        
+        // For custom CPEs, use their handler to create the basic match
+        if (window.customCPEHandlers && window.customCPEHandlers.has(cpeBase)) {
+            const handler = window.customCPEHandlers.get(cpeBase);
+            return [handler.createMatch()];
+        }
+        
+        // For standard CPEs, use the standard basic match
         const basicMatch = createCpeMatchObject(cpeBase);
         return [basicMatch];
     }
     
     console.debug(`Processing ${rawPlatformData.versions.length} versions for ${cpeBase}`);
-      // **MODULAR RULES ENGINE** - Primary approach for JSON generation
+      // **MODULAR RULES ENGINE** - Primary approach for JSON generation (works for both custom and standard CPEs)
     if (window.ModularRuleEngine) {
         console.debug("Using modular rules engine for JSON generation");
         const ruleEngine = new window.ModularRuleEngine(settings, rawPlatformData);
@@ -76,6 +99,11 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData, tableId) {
             console.debug("Settings:", JSON.stringify(settings, null, 2));
             
             // Return basic match as last resort
+            if (window.customCPEHandlers && window.customCPEHandlers.has(cpeBase)) {
+                const handler = window.customCPEHandlers.get(cpeBase);
+                return [handler.createMatch()];
+            }
+            
             const basicMatch = createCpeMatchObject(cpeBase);
             console.debug("Returning basic CPE match as fallback");
             return [basicMatch];
@@ -85,6 +113,11 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData, tableId) {
         console.error("Please ensure modular_rules.js is properly loaded before cpe_json_handler.js");
         
         // Return basic match to prevent complete failure
+        if (window.customCPEHandlers && window.customCPEHandlers.has(cpeBase)) {
+            const handler = window.customCPEHandlers.get(cpeBase);
+            return [handler.createMatch()];
+        }
+        
         const basicMatch = createCpeMatchObject(cpeBase);
         console.debug("Returning basic CPE match due to missing modular rules engine");
         return [basicMatch];    }
@@ -276,9 +309,10 @@ function generateMatchCriteriaId() {
  * Process basic version data into a configuration object
  * @param {Set} selectedCPEs - Set of selected CPE base strings or DOM elements
  * @param {Object} rawPlatformData - Raw platform data
+ * @param {string} tableId - Table identifier for settings
  * @returns {Object} Configuration object
  */
-function processBasicVersionData(selectedCPEs, rawPlatformData) {
+function processBasicVersionData(selectedCPEs, rawPlatformData, tableId) {
     const config = {
         "operator": "OR",
         "negate": false,
@@ -312,9 +346,8 @@ function processBasicVersionData(selectedCPEs, rawPlatformData) {
             console.warn("No CPE base found for row:", cpeRow);
             return;
         }
-        
-        // Process version data into cpeMatch objects
-        const cpeMatches = processVersionDataToCpeMatches(cpeBase, rawPlatformData);
+          // Process version data into cpeMatch objects
+        const cpeMatches = processVersionDataToCpeMatches(cpeBase, rawPlatformData, tableId);
         
         console.debug(`Generated ${cpeMatches.length} CPE matches for ${cpeBase}`);
         
@@ -332,9 +365,10 @@ function processBasicVersionData(selectedCPEs, rawPlatformData) {
  * @param {Set} selectedCPEs - Set of selected CPE base strings
  * @param {Object} rawPlatformData - Raw platform data
  * @param {Object} metadata - Table metadata
+ * @param {string} tableId - Table identifier for settings
  * @returns {Object} Generated JSON
  */
-function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata) {
+function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata, tableId) {
     // Create a base structure WITHOUT the outer wrapper
     let configs = [];
     
@@ -351,10 +385,9 @@ function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata) {
             });
         } 
         // Regular version data processing
-        else {
-            console.debug("Processing version data for CPEs");
+        else {            console.debug("Processing version data for CPEs");
             // Process the basic version data
-            const config = processBasicVersionData(selectedCPEs, rawPlatformData);
+            const config = processBasicVersionData(selectedCPEs, rawPlatformData, tableId);
             
             // Comment out generatorData creation
             /* 

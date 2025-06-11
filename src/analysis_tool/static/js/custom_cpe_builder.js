@@ -9,46 +9,7 @@
 function patchCpeJsonProcessing() {
     if (window.cpeJsonProcessingPatched) return;
     
-    console.log("Patching processVersionDataToCpeMatches to handle custom CPEs");
-    
-    // Patch processVersionDataToCpeMatches
-    if (typeof processVersionDataToCpeMatches === 'function') {
-        window.originalProcessVersionDataToCpeMatches = processVersionDataToCpeMatches;
-          window.processVersionDataToCpeMatches = function(cpeBase, rawPlatformData) {
-            // Check if this is a custom CPE
-            if (window.customCPEHandlers && window.customCPEHandlers.has(cpeBase)) {
-                console.log(`Using custom handler for CPE: ${cpeBase}`);
-                
-                // Check for missing rawPlatformData
-                if (!rawPlatformData) {
-                    console.error(`CRITICAL: No rawPlatformData available for custom CPE ${cpeBase}. This may cause issues in JSON generation.`);
-                }
-                  const handler = window.customCPEHandlers.get(cpeBase);
-                const rawMatches = [handler.createMatch()];
-
-                if (window.ModularRuleEngine) {
-                    console.log(`Applying modular rules to custom CPE: ${cpeBase}`);
-                    
-                    // Get current settings for the table (this CPE belongs to)
-                    const currentSettings = window.getCurrentModularSettings ? 
-                        window.getCurrentModularSettings(cpeBase) : 
-                        getDefaultModularSettings();
-                    
-                    // Create rule engine with current settings and raw platform data
-                    const ruleEngine = new window.ModularRuleEngine(currentSettings, rawPlatformData);
-                    return ruleEngine.generateMatches(cpeBase);
-                } else {
-                    console.warn(`ModularRuleEngine not available for custom CPE: ${cpeBase}, using raw matches`);
-                    return rawMatches;
-                }
-            }
-            
-            // Use the original function for standard CPEs
-            return window.originalProcessVersionDataToCpeMatches(cpeBase, rawPlatformData);
-        };
-    } else {
-        console.error("CRITICAL: processVersionDataToCpeMatches function not found, cannot patch for custom CPEs");
-    }
+    console.log("Custom CPE support enabled - processVersionDataToCpeMatches already handles custom CPEs");
     
     // CRITICAL FIX: Ensure we have a global consolidatedJsons map
     if (typeof window.consolidatedJsons === 'undefined') {
@@ -95,12 +56,12 @@ function patchCpeJsonProcessing() {
                 
                 // Extract metadata and raw platform data from the row data table
                 const extractedData = extractDataFromTable(tableIndex);
-                
-                // Process the JSON based on the source
+                  // Process the JSON based on the source
                 const json = processJsonBasedOnSource(
                     selectedRows, 
                     extractedData.rawPlatformData, 
-                    extractedData.metadata
+                    extractedData.metadata,
+                    tableId
                 );
                 
                 // CRITICAL: Store the consolidated JSON in BOTH maps
@@ -935,16 +896,15 @@ function getCurrentModularSettings(cpeBase) {
             if (selections && selections.has(cpeBase)) {
                 // Found the table, get its settings
                 const tableSettings = window.rowSettings ? window.rowSettings.get(tableId) : {};
-                
-                return {
-                    enableWildcardExpansion: tableSettings.enableWildcardExpansion || false,
-                    enableVersionChanges: tableSettings.enableVersionChanges || false,
-                    enableSpecialVersionTypes: tableSettings.enableSpecialVersionTypes || false,
-                    enableInverseStatus: tableSettings.enableInverseStatus || false,
-                    enableMultipleBranches: tableSettings.enableMultipleBranches || false,
-                    enableMixedStatus: tableSettings.enableMixedStatus || false,
-                    enableGapProcessing: tableSettings.enableGapProcessing || false,
-                    enableUpdatePatterns: tableSettings.enableUpdatePatterns || false,
+                  return {
+                    enableWildcardExpansion: tableSettings.enableWildcardExpansion !== undefined ? tableSettings.enableWildcardExpansion : false,
+                    enableVersionChanges: tableSettings.enableVersionChanges !== undefined ? tableSettings.enableVersionChanges : false,
+                    enableSpecialVersionTypes: tableSettings.enableSpecialVersionTypes !== undefined ? tableSettings.enableSpecialVersionTypes : false,
+                    enableInverseStatus: tableSettings.enableInverseStatus !== undefined ? tableSettings.enableInverseStatus : false,
+                    enableMultipleBranches: tableSettings.enableMultipleBranches !== undefined ? tableSettings.enableMultipleBranches : false,
+                    enableMixedStatus: tableSettings.enableMixedStatus !== undefined ? tableSettings.enableMixedStatus : false,
+                    enableGapProcessing: tableSettings.enableGapProcessing !== undefined ? tableSettings.enableGapProcessing : false,
+                    enableUpdatePatterns: tableSettings.enableUpdatePatterns !== undefined ? tableSettings.enableUpdatePatterns : false,
                     // Core features remain enabled
                     enableStatusProcessing: true,
                     enableRangeHandling: true
