@@ -9,8 +9,7 @@
  * Rule Registry - Each rule is a self-contained module
  */
 const JSON_GENERATION_RULES = {
-    
-    /**
+      /**
      * Wildcard Expansion Rule
      * Converts patterns like "5.4.*" into version ranges
      */
@@ -23,47 +22,131 @@ const JSON_GENERATION_RULES = {
             return settings.enableWildcardExpansion && 
                    versionData.versions.some(v => 
                        v && (v.lessThanOrEqual && String(v.lessThanOrEqual).includes('*') || 
-                            v.lessThan && String(v.lessThan).includes('*'))
+                            v.lessThan && String(v.lessThan).includes('*') ||
+                            v.version && String(v.version).includes('*'))
                    );
         },
-        
-        // Apply the rule to version data
-        process: (cpeBase, versionInfo, isVulnerable, context) => {
+          // Process the entire dataset to handle wildcard versions and prevent fallback processing
+        processDataset: (cpeBase, versionData, settings, context) => {
+            console.debug('[Wildcard Expansion Rule] Processing dataset with wildcard versions');
             const matches = [];
+            const nonWildcardVersions = [];
+            let hasWildcards = false;
             
-            // Handle wildcards in lessThanOrEqual
-            if (versionInfo.lessThanOrEqual && String(versionInfo.lessThanOrEqual).includes('*')) {
-                const wildcard = versionInfo.lessThanOrEqual;
-                const prefix = wildcard.split('*')[0].replace(/\.$/, '');
-                const parts = prefix.split('.');
+            // First pass: Process wildcard versions and collect non-wildcard ones
+            for (const versionInfo of versionData.versions) {
+                if (!versionInfo) continue;
                 
-                if (parts.length >= 2) {
-                    const majorVersion = parseInt(parts[0], 10);
-                    const minorVersion = parseInt(parts[1], 10);
+                const isVulnerable = versionInfo.status === "affected";
+                let wildcardProcessed = false;
+                
+                // Handle wildcards in the version field directly
+                if (versionInfo.version && String(versionInfo.version).includes('*')) {
+                    hasWildcards = true;
+                    const wildcard = versionInfo.version;
+                    const prefix = wildcard.split('*')[0].replace(/\.$/, '');
+                    const parts = prefix.split('.');
                     
-                    if (!isNaN(majorVersion) && !isNaN(minorVersion)) {
-                        const startVersion = versionInfo.version || `${majorVersion}.${minorVersion}`;
-                        const endVersion = `${majorVersion}.${minorVersion + 1}`;                        matches.push({
-                            criteria: cpeBase,
-                            matchCriteriaId: generateMatchCriteriaId(),
-                            vulnerable: isVulnerable,
-                            versionStartIncluding: startVersion,
-                            versionEndExcluding: endVersion
-                        });
+                    if (parts.length >= 1) {
+                        const majorVersion = parseInt(parts[0], 10);
                         
-                        console.debug(`[Wildcard Rule] Created range for ${wildcard}: ${startVersion} to ${endVersion}`);
-                        return { processed: true, matches };
+                        if (!isNaN(majorVersion)) {
+                            let startVersion, endVersion;
+                            
+                            if (parts.length === 1) {
+                                // Handle patterns like "1.*"
+                                startVersion = `${majorVersion}.0`;
+                                endVersion = `${majorVersion + 1}.0`;
+                            } else if (parts.length >= 2) {
+                                // Handle patterns like "2.0.*"
+                                const minorVersion = parseInt(parts[1], 10);
+                                if (!isNaN(minorVersion)) {
+                                    startVersion = `${majorVersion}.${minorVersion}`;
+                                    endVersion = `${majorVersion}.${minorVersion + 1}`;
+                                }
+                            }
+                            
+                            if (startVersion && endVersion) {
+                                matches.push({
+                                    criteria: cpeBase,
+                                    matchCriteriaId: generateMatchCriteriaId(),
+                                    vulnerable: isVulnerable,
+                                    versionStartIncluding: startVersion,
+                                    versionEndExcluding: endVersion
+                                });
+                                
+                                console.debug(`[Wildcard Rule] Created range for ${wildcard}: ${startVersion} to ${endVersion}`);
+                                wildcardProcessed = true;
+                            }
+                        }
+                    }
+                }
+                
+                // Handle wildcards in lessThanOrEqual
+                if (!wildcardProcessed && versionInfo.lessThanOrEqual && String(versionInfo.lessThanOrEqual).includes('*')) {
+                    hasWildcards = true;
+                    const wildcard = versionInfo.lessThanOrEqual;
+                    const prefix = wildcard.split('*')[0].replace(/\.$/, '');
+                    const parts = prefix.split('.');
+                    
+                    if (parts.length >= 2) {
+                        const majorVersion = parseInt(parts[0], 10);
+                        const minorVersion = parseInt(parts[1], 10);
+                        
+                        if (!isNaN(majorVersion) && !isNaN(minorVersion)) {
+                            const startVersion = versionInfo.version || `${majorVersion}.${minorVersion}`;
+                            const endVersion = `${majorVersion}.${minorVersion + 1}`;
+                            
+                            matches.push({
+                                criteria: cpeBase,
+                                matchCriteriaId: generateMatchCriteriaId(),
+                                vulnerable: isVulnerable,
+                                versionStartIncluding: startVersion,
+                                versionEndExcluding: endVersion
+                            });
+                            
+                            console.debug(`[Wildcard Rule] Created range for ${wildcard}: ${startVersion} to ${endVersion}`);
+                            wildcardProcessed = true;
+                        }
+                    }
+                }
+                
+                // Handle wildcards in lessThan
+                if (!wildcardProcessed && versionInfo.lessThan && String(versionInfo.lessThan).includes('*')) {
+                    hasWildcards = true;
+                    console.debug(`[Wildcard Rule] Processing lessThan wildcard: ${versionInfo.lessThan}`);
+                    // TODO: Implement lessThan wildcard processing
+                }
+                
+                // If no wildcard was processed, keep this version for other rules
+                if (!wildcardProcessed) {
+                    nonWildcardVersions.push(versionInfo);
+                }
+            }
+            
+            // If we found wildcards, process remaining non-wildcard versions through other rules
+            if (hasWildcards && nonWildcardVersions.length > 0) {
+                console.debug(`[Wildcard Rule] Processing ${nonWildcardVersions.length} non-wildcard versions through other rules`);
+                
+                // Create a temporary version data with only non-wildcard versions
+                const cleanVersionData = { ...versionData, versions: nonWildcardVersions };
+                
+                // Process each non-wildcard version individually
+                for (const versionInfo of nonWildcardVersions) {
+                    const isVulnerable = versionInfo.status === "affected";
+                    const otherRulesResult = context.applyOtherRules(cpeBase, versionInfo, isVulnerable, ['wildcardExpansion']);
+                    
+                    if (otherRulesResult.processed) {
+                        matches.push(...otherRulesResult.matches);
+                    } else {
+                        // Standard processing for non-wildcard versions
+                        const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable);
+                        matches.push(cpeMatch);
                     }
                 }
             }
             
-            // Similar logic for lessThan wildcards
-            if (versionInfo.lessThan && String(versionInfo.lessThan).includes('*')) {
-                // Handle lessThan wildcard logic here
-                console.debug(`[Wildcard Rule] Processing lessThan wildcard: ${versionInfo.lessThan}`);
-            }
-            
-            return { processed: false, matches: [] };
+            return { processed: hasWildcards, matches };
         }
     },
 
@@ -189,39 +272,53 @@ const JSON_GENERATION_RULES = {
             
             return { processed: true, matches };
         }
-    },
-
-    /**
+    },    /**
      * Gap Processing Rule
      * Fills gaps between unaffected version ranges
      */
     gapProcessing: {
         name: 'Gap Processing',
-        description: 'Fills gaps between unaffected version ranges',
+        description: 'Fills gaps between unaffected version ranges to create affected ranges',
         
         shouldApply: (versionData, settings) => {
             if (!settings.enableGapProcessing) return false;
             
-            const hasRanges = versionData.versions.some(v => 
-                v && (v.lessThan || v.lessThanOrEqual || v.greaterThan || v.greaterThanOrEqual));
-            const hasExactVersions = versionData.versions.some(v => 
-                v && v.version && v.version !== '*');
+            // Gap processing is most valuable with default status "affected" and multiple unaffected ranges
+            const hasDefaultAffected = versionData.defaultStatus === 'affected';
+            const unaffectedVersions = versionData.versions.filter(v => v && v.status === 'unaffected');
+            const hasMultipleUnaffected = unaffectedVersions.length >= 2;
             
-            return hasRanges && hasExactVersions;
+            // Also check for range constraints (lessThan, lessThanOrEqual, etc.)
+            const hasRangeConstraints = unaffectedVersions.some(v => 
+                v && (v.lessThan || v.lessThanOrEqual || v.greaterThan || v.greaterThanOrEqual));
+            
+            return hasDefaultAffected && hasMultipleUnaffected && hasRangeConstraints;
         },
         
         processDataset: (cpeBase, versionData, settings, context) => {
-            console.debug(`[Gap Processing Rule] Analyzing version ranges for gaps`);
+            console.debug(`[Gap Processing Rule] Processing gaps between unaffected ranges`);
             
-            // This is a complex rule that would analyze unaffected ranges
-            // and create affected ranges in the gaps between them
             const matches = [];
             const unaffectedVersions = versionData.versions.filter(v => v && v.status === 'unaffected');
+            const affectedVersions = versionData.versions.filter(v => v && v.status === 'affected');
             
-            // Sort and analyze unaffected ranges to find gaps
-            // Implementation would go here based on the existing processGapsBetweenUnaffectedRanges logic
+            if (unaffectedVersions.length < 2) {
+                console.debug(`[Gap Processing Rule] Insufficient unaffected ranges (${unaffectedVersions.length}) for gap processing`);
+                return { processed: false, matches };
+            }
             
-            return { processed: false, matches }; // Placeholder for now
+            console.debug(`[Gap Processing Rule] Found ${unaffectedVersions.length} unaffected versions and ${affectedVersions.length} affected versions`);
+            
+            // Use the existing processGapsBetweenUnaffectedRanges implementation
+            processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affectedVersions, matches);
+            
+            if (matches.length > 0) {
+                console.debug(`[Gap Processing Rule] Generated ${matches.length} gap matches for ${cpeBase}`);
+                return { processed: true, matches };
+            } else {
+                console.debug(`[Gap Processing Rule] No gaps found between unaffected ranges`);
+                return { processed: false, matches };
+            }
         }
     },
 
@@ -240,8 +337,13 @@ const JSON_GENERATION_RULES = {
                 v && v.versionType && !['semver', 'string'].includes(v.versionType) && v.versionType !== 'git'
             );
         },
-        
-        process: (cpeBase, versionInfo, isVulnerable, context) => {
+          process: (cpeBase, versionInfo, isVulnerable, context) => {
+            // Skip wildcard versions if wildcard expansion is enabled
+            if (context.settings.enableWildcardExpansion && 
+                versionInfo.version && String(versionInfo.version).includes('*')) {
+                return { processed: false, matches: [] };
+            }
+            
             if (versionInfo.versionType && !['semver', 'string'].includes(versionInfo.versionType)) {                console.debug(`[Special Version Types Rule] Processing ${versionInfo.versionType}: ${versionInfo.version}`);
                 // Apply special handling based on version type
                 const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable);
@@ -851,13 +953,11 @@ class ModularRuleEngine {
         }
         
         return matches.length > 0 ? matches : null;
-    }
-
-    /**
+    }    /**
      * Fallback: Process single dataset rule with priority order
      */
     processSingleDatasetRule(cpeBase, datasetRules) {
-        const priorityOrder = ['multipleBranches', 'mixedStatus', 'inverseStatus', 'gapProcessing'];
+        const priorityOrder = ['wildcardExpansion', 'multipleBranches', 'mixedStatus', 'inverseStatus', 'gapProcessing'];
         const orderedRules = [];
         
         // Add rules in priority order first
@@ -1264,12 +1364,247 @@ function createCpeMatchWithUpdate(cpeBase, version, update, isVulnerable) {
     const cpeString = cpeComponents.join(':');
     
     console.debug(`[Update Patterns Rule] Created CPE with update field: ${cpeString}`);
-    
-    return {
+      return {
         criteria: cpeString,
         matchCriteriaId: generateMatchCriteriaId(),
         vulnerable: isVulnerable
     };
+}
+
+/**
+ * Helper functions for gap processing (from cpe_json_handler.js)
+ */
+
+/**
+ * Compare two version strings
+ * @param {string} versionA - First version
+ * @param {string} versionB - Second version
+ * @returns {number} Comparison result (-1, 0, 1)
+ */
+function compareVersions(versionA, versionB) {
+    const aParts = versionA.split('.').map(part => parseInt(part, 10) || 0);
+    const bParts = versionB.split('.').map(part => parseInt(part, 10) || 0);
+    
+    // Compare version components
+    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+        const aVal = i < aParts.length ? aParts[i] : 0;
+        const bVal = i < bParts.length ? bParts[i] : 0;
+        
+        if (aVal !== bVal) {
+            return aVal - bVal;
+        }
+    }
+    
+    return 0;
+}
+
+/**
+ * Increment a version string slightly
+ * @param {string} version - Version string
+ * @returns {string} Incremented version
+ */
+function incrementVersion(version) {
+    if (!version) return version;
+    
+    // For semantic versions
+    if (version.includes('.')) {
+        const parts = version.split('.');
+        const lastPart = parseInt(parts[parts.length - 1], 10);
+        
+        if (!isNaN(lastPart)) {
+            parts[parts.length - 1] = (lastPart + 1).toString();
+            return parts.join('.');
+        }
+    }
+    
+    // For simple integer versions
+    const numVersion = parseInt(version, 10);
+    if (!isNaN(numVersion)) {
+        return (numVersion + 1).toString();
+    }
+    
+    return version;
+}
+
+/**
+ * Generate a unique match criteria ID
+ * @returns {string} A unique match criteria ID
+ */
+function generateMatchCriteriaId() {
+    return 'generated_' + Math.random().toString(36).substr(2, 9).toUpperCase();
+}
+
+/**
+ * Process gaps between unaffected ranges to create affected ranges
+ * @param {string} cpeBase - Base CPE string
+ * @param {Array} unaffectedVersions - Array of unaffected version info objects
+ * @param {Array} affectedVersions - Array of explicitly affected version info objects
+ * @param {Array} cpeMatches - Array to add new cpeMatch objects to
+ */
+function processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affectedVersions, cpeMatches) {
+    console.debug("Processing gaps between unaffected ranges");
+    
+    // First, organize the unaffected versions by their starting version and ending version
+    const unaffectedRanges = [];
+    
+    for (const info of unaffectedVersions) {
+        let startVer, endVer;
+        
+        // Determine start version
+        if (info.version) {
+            startVer = info.version;
+        } else if (info.greaterThanOrEqual) {
+            startVer = info.greaterThanOrEqual;
+        } else if (info.greaterThan) {
+            startVer = incrementVersion(info.greaterThan);
+        } else {
+            startVer = "0"; // Default to beginning
+        }
+        
+        // Determine end version - this is the end of the unaffected range
+        if (info.lessThan) {
+            endVer = info.lessThan;
+        } else if (info.lessThanOrEqual && info.lessThanOrEqual === "*") {
+            endVer = null; // Unlimited
+        } else if (info.lessThanOrEqual && info.lessThanOrEqual.includes("*")) {
+            // Handle wildcards like 5.4.*
+            const wildcard = info.lessThanOrEqual;
+            
+            // Extract the numeric part (like "5.4" from "5.4.*")
+            const versionBase = wildcard.split("*")[0].replace(/\.$/, '');
+            const parts = versionBase.split(".");
+            
+            if (parts.length >= 2) {
+                // For 5.4.*, the end of the unaffected range is 5.5
+                const majorVersion = parseInt(parts[0], 10);
+                const minorVersion = parseInt(parts[1], 10);
+                
+                if (!isNaN(majorVersion) && !isNaN(minorVersion)) {
+                    endVer = `${majorVersion}.${minorVersion + 1}`;
+                    console.debug(`Processed wildcard ${wildcard} to next version ${endVer}`);
+                } else {
+                    endVer = incrementVersion(versionBase);
+                }
+            } else {
+                endVer = incrementVersion(versionBase);
+            }
+        } else if (info.lessThanOrEqual) {
+            endVer = incrementVersion(info.lessThanOrEqual);
+        } else {
+            // Single version, so end is next version
+            endVer = incrementVersion(startVer);
+        }
+        
+        unaffectedRanges.push({ start: startVer, end: endVer });
+    }
+    
+    // Sort the ranges by start version
+    unaffectedRanges.sort((a, b) => compareVersions(a.start, b.start));
+    
+    console.debug("Sorted unaffected ranges:");
+    unaffectedRanges.forEach((range, i) => {
+        console.debug(`Range ${i}: ${range.start} to ${range.end || "unlimited"}`);
+    });
+    
+    // Now find the gaps between unaffected ranges
+    // First, set up the initial lower bound
+    let previousRange = null;
+    
+    // Handle the special case for patched versions first - before the main loop
+    // This ensures we correctly handle cases where version 5.4 is marked affected but 5.4.277 is unaffected
+    const patchVersionCandidates = unaffectedRanges.filter(range => 
+        range.start.includes(".") && range.start.split(".").length > 2
+    );
+    
+    for (const patchRange of patchVersionCandidates) {
+        // Get the base version from the patched version (5.4 from 5.4.277)
+        const startParts = patchRange.start.split('.');
+        const baseVersion = (startParts.length >= 2) ? `${startParts[0]}.${startParts[1]}` : startParts[0];
+        
+        // Check if this base version matches an affected version
+        const matchingAffected = affectedVersions.find(av => 
+            av.version && (av.version === baseVersion || av.version.startsWith(baseVersion + "."))
+        );
+        
+        if (matchingAffected) {
+            console.debug(`Found patched version ${patchRange.start} for base affected version ${baseVersion}`);
+            
+            // Create a non-vulnerable range from base to patched version (inclusive)
+            cpeMatches.push({
+                criteria: cpeBase,
+                matchCriteriaId: generateMatchCriteriaId(),
+                vulnerable: false,
+                versionStartIncluding: baseVersion,
+                versionEndIncluding: patchRange.start
+            });
+            
+            console.debug(`Created unaffected range from ${baseVersion} to ${patchRange.start} (inclusive)`);
+            
+            // Create a vulnerable range from patched version (exclusive) to the next minor
+            if (patchRange.end) {
+                cpeMatches.push({
+                    criteria: cpeBase,
+                    matchCriteriaId: generateMatchCriteriaId(),
+                    vulnerable: true,
+                    versionStartExcluding: patchRange.start,
+                    versionEndExcluding: patchRange.end
+                });
+                
+                console.debug(`Created affected range from ${patchRange.start} (exclusive) to ${patchRange.end}`);
+            }
+        }
+    }
+    
+    // Main loop for processing gaps between unaffected ranges
+    for (let i = 0; i < unaffectedRanges.length; i++) {
+        const currentRange = unaffectedRanges[i];
+        
+        // If we have a previous range and there's a gap between
+        if (previousRange && previousRange.end && compareVersions(previousRange.end, currentRange.start) < 0) {
+            console.debug(`Found gap between ${previousRange.end} and ${currentRange.start}`);
+            
+            // Skip creating affected ranges for gaps that overlap with our patch handling above
+            let shouldCreateGapRange = true;
+            
+            // Check if this gap starts with a base version (like 5.4) that has special patched handling
+            for (const patchRange of patchVersionCandidates) {
+                const startParts = patchRange.start.split('.');
+                const baseVersion = (startParts.length >= 2) ? `${startParts[0]}.${startParts[1]}` : startParts[0];
+                
+                // If the start of this gap matches a base version we've already handled
+                if (previousRange.end === baseVersion) {
+                    console.debug(`Skipping gap starting at ${baseVersion} as it's handled by patch special case`);
+                    shouldCreateGapRange = false;
+                    break;
+                }
+            }
+            
+            // Only create the gap range if we didn't handle it as a patch case
+            if (shouldCreateGapRange) {
+                cpeMatches.push({
+                    criteria: cpeBase,
+                    matchCriteriaId: generateMatchCriteriaId(),
+                    vulnerable: true,
+                    versionStartIncluding: previousRange.end,
+                    versionEndExcluding: currentRange.start
+                });
+            }
+        }
+        
+        previousRange = currentRange;
+    }
+    
+    // If the last range doesn't extend to infinity, add a final affected range
+    if (previousRange && previousRange.end) {
+        console.debug(`Adding final range from ${previousRange.end} to infinity`);
+        
+        cpeMatches.push({
+            criteria: cpeBase,
+            matchCriteriaId: generateMatchCriteriaId(),
+            vulnerable: true,
+            versionStartIncluding: previousRange.end
+        });
+    }
 }
 
 window.ModularRuleEngine = ModularRuleEngine;

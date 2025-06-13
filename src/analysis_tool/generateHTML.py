@@ -1226,7 +1226,7 @@ def create_custom_cpe_builder_div(index, collapsed=True):
     return html.replace('\n', '')
 
 def create_json_generation_settings_html(table_id, settings=None):
-    """Creates settings HTML with intelligent defaults"""
+    """Creates settings HTML with intelligent defaults and detailed tooltips"""
     
     # Helper function to determine if checkbox should be checked
     def checked(setting_name):
@@ -1256,10 +1256,13 @@ def create_json_generation_settings_html(table_id, settings=None):
                                    data-setting="enableWildcardExpansion"
                                    data-table-id="{table_id}" 
                                    {checked('enableWildcardExpansion')}>
-                            <label class="form-check-label" for="enableWildcards_{table_id}">
+                            <label class="form-check-label" for="enableWildcards_{table_id}" 
+                                   data-bs-toggle="tooltip" data-bs-placement="top" 
+                                   title="Converts wildcard patterns into version ranges. For example, '5.4.*' becomes a range from '5.4.0' to '5.5.0' (exclusive). Useful when version data contains wildcard patterns that need to be expanded into precise ranges for matching.">
                                 <small>Expand Wildcards 
                                     <span class="text-muted">(5.4.* → ranges)</span>
                                     <span class="feature-indicator" data-feature="hasWildcards"></span>
+                                    <i class="fas fa-info-circle text-muted ms-1"></i>
                                 </small>
                             </label>
                         </div>
@@ -1269,10 +1272,13 @@ def create_json_generation_settings_html(table_id, settings=None):
                                    data-setting="enableGapProcessing"
                                    data-table-id="{table_id}" 
                                    {checked('enableGapProcessing')}>
-                            <label class="form-check-label" for="enableGaps_{table_id}">
+                            <label class="form-check-label" for="enableGaps_{table_id}"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" 
+                                   title="Fills gaps between unaffected version ranges by inferring affected versions. For example, if 1.0-2.0 and 4.0-5.0 are unaffected, it infers that 2.1-3.9 is affected. Particularly useful when vulnerability data specifies what's NOT affected rather than what IS affected.">
                                 <small>Fill Gaps 
                                     <span class="text-muted">(infer affected ranges)</span>
-                                    <span class="feature-indicator" data-feature="hasInverseStatus"></span>
+                                    <span class="feature-indicator" data-feature="hasGapProcessing"></span>
+                                    <i class="fas fa-info-circle text-muted ms-1"></i>
                                 </small>
                             </label>
                         </div>
@@ -1282,10 +1288,13 @@ def create_json_generation_settings_html(table_id, settings=None):
                                    data-setting="enableVersionChanges"
                                    data-table-id="{table_id}" 
                                    {checked('enableVersionChanges')}>
-                            <label class="form-check-label" for="enablePatches_{table_id}">
+                            <label class="form-check-label" for="enablePatches_{table_id}"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" 
+                                   title="Processes version.changes arrays to extract patch and fix information. For example, if a version has changes: [status: 'fixed', at: '1.2.3'], it creates a vulnerable range from the base version up to (but not including) the fix version. Essential for handling detailed patching timelines.">
                                 <small>Process Patches 
                                     <span class="text-muted">(version.changes)</span>
                                     <span class="feature-indicator" data-feature="hasVersionChanges"></span>
+                                    <i class="fas fa-info-circle text-muted ms-1"></i>
                                 </small>
                             </label>
                         </div>
@@ -1295,10 +1304,13 @@ def create_json_generation_settings_html(table_id, settings=None):
                                    data-setting="enableSpecialVersionTypes"
                                    data-table-id="{table_id}" 
                                    {checked('enableSpecialVersionTypes')}>
-                            <label class="form-check-label" for="enableSpecialTypes_{table_id}">
+                            <label class="form-check-label" for="enableSpecialTypes_{table_id}"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" 
+                                   title="Handles non-standard version types beyond semantic versioning. Examples include date-based versions (20231201), commit hashes (abc123def), custom version schemes, or version types marked with special versionType fields. Required when dealing with diverse software versioning schemes.">
                                 <small>Special Version Types 
                                     <span class="text-muted">(dates, commits)</span>
                                     <span class="feature-indicator" data-feature="hasSpecialVersionTypes"></span>
+                                    <i class="fas fa-info-circle text-muted ms-1"></i>
                                 </small>
                             </label>
                         </div>
@@ -1308,10 +1320,13 @@ def create_json_generation_settings_html(table_id, settings=None):
                                    data-setting="enableMultipleBranches"
                                    data-table-id="{table_id}" 
                                    {checked('enableMultipleBranches')}>
-                            <label class="form-check-label" for="enableMultipleBranches_{table_id}">
+                            <label class="form-check-label" for="enableMultipleBranches_{table_id}"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" 
+                                   title="Handles products with multiple version families or branches (≥3 major.minor combinations). For example, a product with versions 1.0.x, 2.1.x, 3.0.x, and 4.2.x has multiple branches. Groups and processes each branch separately to handle complex version trees with parallel development streams.">
                                 <small>Multiple Branches 
                                     <span class="text-muted">(≥3 version families)</span>
                                     <span class="feature-indicator" data-feature="hasMultipleBranches"></span>
+                                    <i class="fas fa-info-circle text-muted ms-1"></i>
                                 </small>
                             </label>
                         </div>
@@ -1321,10 +1336,13 @@ def create_json_generation_settings_html(table_id, settings=None):
                                    data-setting="enableUpdatePatterns"
                                    data-table-id="{table_id}" 
                                    {checked('enableUpdatePatterns')}>
-                            <label class="form-check-label" for="enableUpdatePatterns_{table_id}">
+                            <label class="form-check-label" for="enableUpdatePatterns_{table_id}"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" 
+                                   title="Recognizes and processes update patterns in version strings. Handles formats like '3.1.0 p7' (patch 7), '2.0.0 sp1' (service pack 1), '1.0.0-hotfix.2', or '4.0 update 3'. Transforms these into proper CPE format with update components for accurate vulnerability matching.">
                                 <small>Update Pattern Processing 
                                     <span class="text-muted">(patch, service pack, hotfix)</span>
                                     <span class="feature-indicator" data-feature="hasUpdatePatterns"></span>
+                                    <i class="fas fa-info-circle text-muted ms-1"></i>
                                 </small>
                             </label>
                         </div>
@@ -1337,10 +1355,13 @@ def create_json_generation_settings_html(table_id, settings=None):
                                    data-setting="enableInverseStatus"
                                    data-table-id="{table_id}" 
                                    {checked('enableInverseStatus')}>
-                            <label class="form-check-label" for="enableInverseStatus_{table_id}">
+                            <label class="form-check-label" for="enableInverseStatus_{table_id}"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" 
+                                   title="Handles cases where defaultStatus='unaffected' with explicit affected entries. Instead of assuming all versions are vulnerable, it processes only the specifically marked affected versions while treating everything else as unaffected. Common in advisories that list specific vulnerable versions.">
                                 <small>Inverse Status 
                                     <span class="text-muted">(default unaffected)</span>
                                     <span class="feature-indicator" data-feature="hasInverseStatus"></span>
+                                    <i class="fas fa-info-circle text-muted ms-1"></i>
                                 </small>
                             </label>
                         </div>
@@ -1350,10 +1371,13 @@ def create_json_generation_settings_html(table_id, settings=None):
                                    data-setting="enableMixedStatus"
                                    data-table-id="{table_id}" 
                                    {checked('enableMixedStatus')}>
-                            <label class="form-check-label" for="enableMixedStatus_{table_id}">
+                            <label class="form-check-label" for="enableMixedStatus_{table_id}"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" 
+                                   title="Handles complex scenarios with both affected and multiple unaffected versions in the same dataset. Processes mixed status combinations where some versions are explicitly marked as affected while others are marked as unaffected. Useful for complex vulnerability patterns with scattered affected versions.">
                                 <small>Mixed Status 
                                     <span class="text-muted">(multiple unaffected)</span>
                                     <span class="feature-indicator" data-feature="hasMixedStatus"></span>
+                                    <i class="fas fa-info-circle text-muted ms-1"></i>
                                 </small>
                             </label>
                         </div>

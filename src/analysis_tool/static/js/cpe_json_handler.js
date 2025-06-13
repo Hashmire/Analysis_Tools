@@ -189,43 +189,6 @@ function calculateNextUpperBound(unaffectedInfo) {
 }
 
 /**
- * Get the next version after a wildcard pattern
- * @param {string} versionPattern - Version pattern like "5.4.*"
- * @returns {string} Next version
- */
-function getNextVersionAfterWildcard(versionPattern) {
-    // Handle wildcard patterns like "5.4.*"
-    if (versionPattern.includes('*')) {
-        // Extract the prefix before the wildcard
-        const prefix = versionPattern.split('*')[0].replace(/\.$/, '');
-        
-        // Split into parts
-        const parts = prefix.split('.');
-        
-        // For patterns like "5.4.*", we want to get "5.5"
-        // For patterns like "5.4.2.*", we want to get "5.4.3"
-        if (parts.length >= 2) {
-            // Increment the last component before the wildcard
-            const lastPart = parseInt(parts[parts.length - 1], 10);
-            if (!isNaN(lastPart)) {
-                parts[parts.length - 1] = (lastPart + 1).toString();
-                
-                // Log patch-level wildcards for tracking
-                if (parts.length > 2) {
-                    console.warn(`Handling patch-level wildcard: ${versionPattern} -> ${parts.join('.')}`);
-                }
-                
-                return parts.join('.');
-            }
-        }
-        return prefix; // Fallback: Return the prefix unchanged
-    }
-    
-    // For non-wildcard patterns, defer to incrementVersion
-    return incrementVersion(versionPattern);
-}
-
-/**
  * Helper function to sort version info objects
  * @param {Array} versionInfoArray - Array of version info objects
  * @returns {Array} Sorted array
@@ -244,65 +207,6 @@ function sortVersionInfo(versionInfoArray) {
             return verA.localeCompare(verB);
         }
     });
-}
-
-/**
- * Compare two version strings
- * @param {string} versionA - First version
- * @param {string} versionB - Second version
- * @returns {number} Comparison result (-1, 0, 1)
- */
-function compareVersions(versionA, versionB) {
-    const aParts = versionA.split('.').map(part => parseInt(part, 10) || 0);
-    const bParts = versionB.split('.').map(part => parseInt(part, 10) || 0);
-    
-    // Compare version components
-    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
-        const aVal = i < aParts.length ? aParts[i] : 0;
-        const bVal = i < bParts.length ? bParts[i] : 0;
-        
-        if (aVal !== bVal) {
-            return aVal - bVal;
-        }
-    }
-    
-    return 0;
-}
-
-/**
- * Increment a version string slightly
- * @param {string} version - Version string
- * @returns {string} Incremented version
- */
-function incrementVersion(version) {
-    if (!version) return version;
-    
-    // For semantic versions
-    if (version.includes('.')) {
-        const parts = version.split('.');
-        const lastPart = parseInt(parts[parts.length - 1], 10);
-        
-        if (!isNaN(lastPart)) {
-            parts[parts.length - 1] = (lastPart + 1).toString();
-            return parts.join('.');
-        }
-    }
-    
-    // For simple integer versions
-    const numVersion = parseInt(version, 10);
-    if (!isNaN(numVersion)) {
-        return (numVersion + 1).toString();
-    }
-    
-    return version;
-}
-
-/**
- * Generate a unique match criteria ID
- * @returns {string} A unique match criteria ID
- */
-function generateMatchCriteriaId() {
-    return 'generated_' + Math.random().toString(36).substr(2, 9).toUpperCase();
 }
 
 /**
@@ -385,23 +289,10 @@ function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata, table
             });
         } 
         // Regular version data processing
-        else {            console.debug("Processing version data for CPEs");
-            // Process the basic version data
+        else {            console.debug("Processing version data for CPEs");            // Process the basic version data
             const config = processBasicVersionData(selectedCPEs, rawPlatformData, tableId);
-            
-            // Comment out generatorData creation
-            /* 
-            // Add metadata
-            config.generatorData = {
-                "generatedFromSource": {
-                    "dataResource": metadata.dataResource || "Unknown",
-                    "sourceId": metadata.sourceId || "Unknown",
-                    "sourceRole": metadata.sourceRole || "Unknown"
-                }
-            };
-            */
 
-            // MODIFIED: Wrap config in nodes array
+            // Wrap config in nodes array
             configs.push({
                 nodes: [config]
             });
@@ -541,40 +432,9 @@ function extractDataFromTable(tableIndex) {
             console.debug(`No raw platform data element found with ID rawPlatformData_${tableIndex}`);
         }
     } else {
-        console.debug(`Row data table not found for index ${tableIndex}`);
-    }
+        console.debug(`Row data table not found for index ${tableIndex}`);    }
     
     return result;
-}
-
-/**
- * Get the next version after a wildcard pattern
- * @param {string} versionPattern - Version pattern like "5.4.*"
- * @returns {string} Next version like "5.5"
- */
-function getNextVersionAfterWildcard(versionPattern) {
-    // Handle wildcard patterns like "5.4.*"
-    if (versionPattern.includes('*')) {
-        // Extract the prefix before the wildcard
-        const prefix = versionPattern.split('*')[0].replace(/\.$/, '');
-        
-        // Split into parts
-        const parts = prefix.split('.');
-        
-        // For patterns like "5.4.*", we want to get "5.5"
-        if (parts.length >= 2) {
-            // Increment the last component before the wildcard
-            const lastPart = parseInt(parts[parts.length - 1], 10);
-            if (!isNaN(lastPart)) {
-                parts[parts.length - 1] = (lastPart + 1).toString();
-                return parts.join('.');
-            }
-        }
-        return prefix; // Fallback: Return the prefix unchanged
-    }
-    
-    // For non-wildcard patterns, defer to incrementVersion
-    return incrementVersion(versionPattern);
 }
 
 /**
@@ -673,183 +533,9 @@ function createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable) {
         } else if (versionInfo.lessThanOrEqual && !hasNonSpecificLessThanOrEqual) {
             cpeMatch.versionEndIncluding = window.formatCPEComponent ? 
                 window.formatCPEComponent(versionInfo.lessThanOrEqual) : 
-                versionInfo.lessThanOrEqual;
-        }
+                versionInfo.lessThanOrEqual;        }
         
         return cpeMatch;
-    }
-}
-
-/**
- * Process gaps between unaffected ranges to create affected ranges
- * @param {string} cpeBase - Base CPE string
- * @param {Array} unaffectedVersions - Array of unaffected version info objects
- * @param {Array} affectedVersions - Array of explicitly affected version info objects
- * @param {Array} cpeMatches - Array to add new cpeMatch objects to
- */
-function processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affectedVersions, cpeMatches) {
-    console.debug("Processing gaps between unaffected ranges");
-    
-    // First, organize the unaffected versions by their starting version and ending version
-    const unaffectedRanges = [];
-    
-    for (const info of unaffectedVersions) {
-        let startVer, endVer;
-        
-        // Determine start version
-        if (info.version) {
-            startVer = info.version;
-        } else if (info.greaterThanOrEqual) {
-            startVer = info.greaterThanOrEqual;
-        } else if (info.greaterThan) {
-            startVer = incrementVersion(info.greaterThan);
-        } else {
-            startVer = "0"; // Default to beginning
-        }
-        
-        // Determine end version - this is the end of the unaffected range
-        if (info.lessThan) {
-            endVer = info.lessThan;
-        } else if (info.lessThanOrEqual && info.lessThanOrEqual === "*") {
-            endVer = null; // Unlimited
-        } else if (info.lessThanOrEqual && info.lessThanOrEqual.includes("*")) {
-            // Handle wildcards like 5.4.*
-            const wildcard = info.lessThanOrEqual;
-            
-            // Extract the numeric part (like "5.4" from "5.4.*")
-            const versionBase = wildcard.split("*")[0].replace(/\.$/, '');
-            const parts = versionBase.split(".");
-            
-            if (parts.length >= 2) {
-                // For 5.4.*, the end of the unaffected range is 5.5
-                const majorVersion = parseInt(parts[0], 10);
-                const minorVersion = parseInt(parts[1], 10);
-                
-                if (!isNaN(majorVersion) && !isNaN(minorVersion)) {
-                    endVer = `${majorVersion}.${minorVersion + 1}`;
-                    console.debug(`Processed wildcard ${wildcard} to next version ${endVer}`);
-                } else {
-                    endVer = incrementVersion(versionBase);
-                }
-            } else {
-                endVer = incrementVersion(versionBase);
-            }
-        } else if (info.lessThanOrEqual) {
-            endVer = incrementVersion(info.lessThanOrEqual);
-        } else {
-            // Single version, so end is next version
-            endVer = incrementVersion(startVer);
-        }
-        
-        unaffectedRanges.push({ start: startVer, end: endVer });
-    }
-    
-    // Sort the ranges by start version
-    unaffectedRanges.sort((a, b) => compareVersions(a.start, b.start));
-    
-    console.debug("Sorted unaffected ranges:");
-    unaffectedRanges.forEach((range, i) => {
-        console.debug(`Range ${i}: ${range.start} to ${range.end || "unlimited"}`);
-    });
-    
-    // Now find the gaps between unaffected ranges
-    // First, set up the initial lower bound
-    let previousRange = null;
-    
-    // Handle the special case for patched versions first - before the main loop
-    // This ensures we correctly handle cases where version 5.4 is marked affected but 5.4.277 is unaffected
-    const patchVersionCandidates = unaffectedRanges.filter(range => 
-        range.start.includes(".") && range.start.split(".").length > 2
-    );
-    
-    for (const patchRange of patchVersionCandidates) {
-        // Get the base version from the patched version (5.4 from 5.4.277)
-        const startParts = patchRange.start.split('.');
-        const baseVersion = (startParts.length >= 2) ? `${startParts[0]}.${startParts[1]}` : startParts[0];
-        
-        // Check if this base version matches an affected version
-        const matchingAffected = affectedVersions.find(av => 
-            av.version && (av.version === baseVersion || av.version.startsWith(baseVersion + "."))
-        );
-        
-        if (matchingAffected) {
-            console.debug(`Found patched version ${patchRange.start} for base affected version ${baseVersion}`);
-            
-            // Create a non-vulnerable range from base to patched version (inclusive)
-            cpeMatches.push({
-                criteria: cpeBase,
-                matchCriteriaId: generateMatchCriteriaId(),
-                vulnerable: false,
-                versionStartIncluding: baseVersion,
-                versionEndIncluding: patchRange.start
-            });
-            
-            console.debug(`Created unaffected range from ${baseVersion} to ${patchRange.start} (inclusive)`);
-            
-            // Create a vulnerable range from patched version (exclusive) to the next minor
-            if (patchRange.end) {
-                cpeMatches.push({
-                    criteria: cpeBase,
-                    matchCriteriaId: generateMatchCriteriaId(),
-                    vulnerable: true,
-                    versionStartExcluding: patchRange.start,
-                    versionEndExcluding: patchRange.end
-                });
-                
-                console.debug(`Created affected range from ${patchRange.start} (exclusive) to ${patchRange.end}`);
-            }
-        }
-    }
-    
-    // Main loop for processing gaps between unaffected ranges
-    for (let i = 0; i < unaffectedRanges.length; i++) {
-        const currentRange = unaffectedRanges[i];
-        
-        // If we have a previous range and there's a gap between
-        if (previousRange && previousRange.end && compareVersions(previousRange.end, currentRange.start) < 0) {
-            console.debug(`Found gap between ${previousRange.end} and ${currentRange.start}`);
-            
-            // Skip creating affected ranges for gaps that overlap with our patch handling above
-            let shouldCreateGapRange = true;
-            
-            // Check if this gap starts with a base version (like 5.4) that has special patched handling
-            for (const patchRange of patchVersionCandidates) {
-                const startParts = patchRange.start.split('.');
-                const baseVersion = (startParts.length >= 2) ? `${startParts[0]}.${startParts[1]}` : startParts[0];
-                
-                // If the start of this gap matches a base version we've already handled
-                if (previousRange.end === baseVersion) {
-                    console.debug(`Skipping gap starting at ${baseVersion} as it's handled by patch special case`);
-                    shouldCreateGapRange = false;
-                    break;
-                }
-            }
-            
-            // Only create the gap range if we didn't handle it as a patch case
-            if (shouldCreateGapRange) {
-                cpeMatches.push({
-                    criteria: cpeBase,
-                    matchCriteriaId: generateMatchCriteriaId(),
-                    vulnerable: true,
-                    versionStartIncluding: previousRange.end,
-                    versionEndExcluding: currentRange.start
-                });
-            }
-        }
-        
-        previousRange = currentRange;
-    }
-    
-    // If the last range doesn't extend to infinity, add a final affected range
-    if (previousRange && previousRange.end) {
-        console.debug(`Adding final range from ${previousRange.end} to infinity`);
-        
-        cpeMatches.push({
-            criteria: cpeBase,
-            matchCriteriaId: generateMatchCriteriaId(),
-            vulnerable: true,
-            versionStartIncluding: previousRange.end
-        });
     }
 }
 
@@ -914,27 +600,6 @@ function hasSpecialVersionStructure(rawPlatformData) {
     // Special case if default is unaffected but there are affected entries
     // Or if there are multiple unaffected entries
     return (hasUnaffectedDefault && affectedEntries > 0) || unaffectedEntries > 1;
-}
-
-/**
- * Generate JSON output with timestamp
- * @returns {Object} JSON object with timestamp
- */
-function generateJsonOutput() {
-    // Existing JSON generation code
-    const json = {
-        // ... existing properties
-    };
-    
-    // Comment out timestamp addition
-    /*
-    // Add timestamp if available through the timestamp handler
-    if (window.timestampHandler && typeof window.timestampHandler.getTimestamp === 'function') {
-        json.generatorTimestamp = window.timestampHandler.getTimestamp();
-    }
-    */
-    
-    return json;
 }
 
 /**

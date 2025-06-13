@@ -814,10 +814,18 @@ function initializeJsonSettings(tableId) {
         // Show the container
         settingsContainer.style.display = 'block';
         
+        // Initialize Bootstrap tooltips for the enhanced settings descriptions
+        const tooltipElements = settingsContainer.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltipElements.forEach(element => {
+            if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+                new bootstrap.Tooltip(element);
+            }
+        });
+        
         // Initialize event handlers for this table's settings
         initializeRowJsonSettings(tableId);
         
-        console.debug(`Initialized JSON settings for ${tableId}`);
+        console.debug(`Initialized JSON settings for ${tableId} with ${tooltipElements.length} tooltips`);
     } else {
         console.warn(`No settings HTML found for ${tableId}`);
     }
