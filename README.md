@@ -43,3 +43,19 @@ The following examples are hosted in this repository and are updated to align wi
 The full dataset of generated pages can be found at [Hashmire/cpeApplicabilityGeneratorPages](https://github.com/Hashmire/cpeApplicabilityGeneratorPages).
 
 If you want to view a specific CVE record within the generated pages, use the following URL structure: `https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/<CVE-ID CVE-YYYY-NNNNNN>.html`
+
+
+## Installation
+
+This tool isn't intended to be run locally, but if desired, the tool can be run locally with the following steps:
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   cd src/analysis_tool
+   pip install -r requirements.txt
+   ```
+3. Run the tool:
+   ```bash
+   python analysis_tool.py --help
+   ```

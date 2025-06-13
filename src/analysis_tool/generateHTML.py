@@ -2,10 +2,20 @@
 import pandas as pd
 import json
 import html
-from build_info import VERSION, TOOLNAME
 import os
 import datetime
 import re 
+
+# Load configuration
+def load_config():
+    """Load configuration from config.json"""
+    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+    with open(config_path, 'r') as f:
+        return json.load(f)
+
+config = load_config()
+VERSION = config['application']['version']
+TOOLNAME = config['application']['toolname']
 
 # Import Analysis Tool 
 import processData

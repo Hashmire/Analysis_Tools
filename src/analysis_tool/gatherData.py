@@ -1,17 +1,33 @@
 # Import Python dependencies
 import requests
 import pandas as pd
-from build_info import VERSION, TOOLNAME
+import os
+import json
 from time import sleep
 import datetime
+import requests
 
 # Import Analysis Tool 
-import processData   
+import processData
+
+# Load configuration
+def load_config():
+    """Load configuration from config.json"""
+    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+    with open(config_path, 'r') as f:
+        return json.load(f)
+
+config = load_config()
+VERSION = config['application']['version']
+TOOLNAME = config['application']['toolname']
+
+
 
 def get_public_ip():
     """Get the current public IP address being used by the tool."""
     try:
-        response = requests.get('https://api.ipify.org', timeout=5)
+        response = requests.get(config['api']['endpoints']['public_ip'], 
+                              timeout=config['api']['timeouts']['public_ip'])
         return response.text if response.status_code == 200 else "Unknown"
     except Exception as e:
         return f"Could not retrieve IP: {str(e)}"
@@ -24,12 +40,12 @@ def get_utc_timestamp():
 # Update gatherCVEListRecord function
 def gatherCVEListRecord(targetCve):
     # Set the API Endpoint target
-    cveOrgJSON = "https://cveawg.mitre.org/api/cve/"
+    cveOrgJSON = config['api']['endpoints']['cve_list']
     # create the simple URL using user input ID and expected URL
     simpleCveRequestUrl = cveOrgJSON + targetCve
     
     try:
-        r = requests.get(simpleCveRequestUrl)
+        r = requests.get(simpleCveRequestUrl, timeout=config['api']['timeouts']['cve_org'])
         r.raise_for_status()  
         cveRecordDict = r.json()
 
@@ -47,7 +63,7 @@ def gatherCVEListRecord(targetCve):
 def gatherNVDCVERecord(apiKey, targetCve):
     print(f"[INFO]  Querying NVD /cves/ API to get NVD Dataset Information...")
    
-    url = "https://services.nvd.nist.gov/rest/json/cves/2.0/?cveId=" + targetCve
+    url = config['api']['endpoints']['nvd_cves'] + "?cveId=" + targetCve
     headers = {
         "Accept": "application/json",
         "User-Agent": f"{TOOLNAME}/{VERSION}"
@@ -57,10 +73,10 @@ def gatherNVDCVERecord(apiKey, targetCve):
     if apiKey:
         headers["apiKey"] = apiKey
    
-    max_retries = 50
+    max_retries = config['api']['retry']['max_attempts_nvd']
     for attempt in range(max_retries):
         try:
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
@@ -73,7 +89,7 @@ def gatherNVDCVERecord(apiKey, targetCve):
                 print(f"[ERROR] NVD API Message: {e.response.headers['message']}")
             
             if attempt < max_retries - 1:
-                wait_time = 6 if not apiKey else 0
+                wait_time = config['api']['retry']['delay_without_key'] if not apiKey else config['api']['retry']['delay_with_key']
                 print(f"Waiting {wait_time} seconds before retry...")
                 sleep(wait_time)
             else:
@@ -85,7 +101,7 @@ def gatherNVDSourceData(apiKey):
     print(f"[INFO]  Querying NVD /source/ API to get source mappings...")
     
     def fetch_nvd_data():
-        url = "https://services.nvd.nist.gov/rest/json/source/2.0/"
+        url = config['api']['endpoints']['nvd_sources']
         headers = {
             "Accept": "application/json",
             "User-Agent": f"{TOOLNAME}/{VERSION}"
@@ -95,13 +111,13 @@ def gatherNVDSourceData(apiKey):
         if apiKey:
             headers["apiKey"] = apiKey
        
-        max_retries = 50
+        max_retries = config['api']['retry']['max_attempts_nvd']
         for attempt in range(max_retries):
             try:
                 response = requests.get(url, headers=headers)
                 response.raise_for_status()
                 return response.json()
-            except requests.exceptions.RequestException as e:
+            except requests.exceptions.RequestException as e:                
                 public_ip = get_public_ip()
                 timestamp = get_utc_timestamp()
                 print(f"[ERROR] {timestamp} - Error fetching source data (Attempt {attempt + 1}/{max_retries}): {e}")
@@ -111,7 +127,7 @@ def gatherNVDSourceData(apiKey):
                     print(f"[ERROR] NVD API Message: {e.response.headers['message']}")
                 
                 if attempt < max_retries - 1:
-                    wait_time = 6 if not apiKey else 0
+                    wait_time = config['api']['retry']['delay_without_key'] if not apiKey else config['api']['retry']['delay_with_key']
                     print(f"Waiting {wait_time} seconds before retry...")
                     sleep(wait_time)
                 else:
@@ -135,14 +151,14 @@ def gatherNVDSourceData(apiKey):
 def gatherNVDCPEData(apiKey, case, query_string):
     match case:
         case 'cpeMatchString':
-            nvd_cpes_url = "https://services.nvd.nist.gov/rest/json/cpes/2.0"
+            nvd_cpes_url = config['api']['endpoints']['nvd_cpes']
             headers = {"user-agent": f"{TOOLNAME}/{VERSION}"}
             
             # Only add API key to headers if one was provided
             if apiKey:
                 headers["apiKey"] = apiKey
            
-            max_retries = 100
+            max_retries = config['api']['retry']['max_attempts_cpe']
             for attempt in range(max_retries):
                 try:
                     # Initial request to get total results
@@ -176,12 +192,11 @@ def gatherNVDCPEData(apiKey, case, query_string):
                     # Collect remaining pages
                     while remaining_results > 0:
                         for page_attempt in range(max_retries):
-                            try:
-                                # Add delay to respect rate limits
+                            try:                                # Add delay to respect rate limits
                                 if not headers.get("apiKey"):
-                                    sleep(6)  # Conservative approach without API key
+                                    sleep(config['api']['retry']['page_delay_without_key'])  # Conservative approach without API key
                                 else:
-                                    sleep(0)  # More aggressive with API key
+                                    sleep(config['api']['retry']['page_delay_with_key'])  # More aggressive with API key
                                
                                 params = {
                                     "cpeMatchString": query_string,
@@ -304,12 +319,9 @@ def gatherAllCVEIDs(apiKey):
         
     Returns:
         List of all CVE IDs
-    """
-    import requests
-    import time
-    from time import sleep
+    """    
     
-    base_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+    base_url = config['api']['endpoints']['nvd_cves']
     headers = {
         "Accept": "application/json",
         "User-Agent": f"{TOOLNAME}/{VERSION}"
@@ -322,14 +334,13 @@ def gatherAllCVEIDs(apiKey):
     params = {
         "startIndex": 0,
     }
-    
     all_cves = []
     total_results = None
     results_per_page = 2000  # Default NVD API page size
     start_index = 0
     
     # Define retry parameters
-    max_retries = 50
+    max_retries = config['api']['retry']['max_attempts_nvd']
     
     while total_results is None or start_index < total_results:
         params["startIndex"] = start_index

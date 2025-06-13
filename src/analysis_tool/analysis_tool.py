@@ -12,10 +12,18 @@ from pathlib import Path
 import re
 import json
 
-
 import gatherData
 import processData
 import generateHTML
+
+# Load configuration
+def load_config():
+    """Load configuration from config.json"""
+    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+    with open(config_path, 'r') as f:
+        return json.load(f)
+
+config = load_config()
 
 def process_test_file(test_file_path, nvd_source_data):
     """Process a test file containing CVE data for testing modular rules."""
@@ -262,18 +270,17 @@ def main():
             sys.exit(1)
         
         return
-    
-    # Debug mode - set default options based on DEFAULT_CVE_MODE
+      # Debug mode - set default options based on config
     if args.debug or not (args.cve or args.file or args.all):
-        if DEFAULT_CVE_MODE.lower() == "all":
+        if config['debug']['default_cve_mode'].lower() == "all":
             print("Debug mode: Processing all CVEs by default")
             args.all = True
         else:
-            print(f"Debug mode: Processing single CVE {DEFAULT_CVE_ID}")
-            args.cve = [DEFAULT_CVE_ID]
+            print(f"Debug mode: Processing single CVE {config['debug']['default_cve_id']}")
+            args.cve = [config['debug']['default_cve_id']]
     
     # Get API key
-    nvd_api_key = args.api_key or input("Enter NVD API Key (optional, but processing will be slower without it): ").strip()
+    nvd_api_key = args.api_key or config['debug']['default_api_key'] or input("Enter NVD API Key (optional, but processing will be slower without it): ").strip()
     
     # Gather NVD Source Data (done once)
     print("Gathering NVD source data...")
@@ -302,7 +309,6 @@ def main():
     generated_files = []
     skipped_cves = []
     skipped_reasons = {}  
-    
     total_cves = len(cves_to_process)
     for index, cve in enumerate(cves_to_process):
         try:
