@@ -1,7 +1,44 @@
-// Global maps to store selections and generated JSONs
-window.tableSelections = window.tableSelections || new Map();
-window.consolidatedJsons = window.consolidatedJsons || new Map();
-window.rowSettings = window.rowSettings || new Map();
+/**
+ * CPE JSON Handler
+ * 
+ * Handles generation of CPE match objects and JSON configurations.
+ * Uses shared utility functions from modular_rules.js for version comparison and ID generation.
+ */
+
+/**
+ * Ensure CPE string has standard format with enough components
+ * @param {string} cpeBase - The CPE string to normalize
+ * @returns {string} Normalized CPE string
+ */
+function normalizeCpeString(cpeBase) {
+    if (!cpeBase) return "cpe:2.3:a:*:*:*:*:*:*:*:*:*";
+    
+    // Split the CPE into its components
+    const parts = cpeBase.split(':');
+    
+    // Check if we have the basic structure (cpe:2.3:part)
+    if (parts.length < 3) {
+        console.error("Invalid CPE string format:", cpeBase);
+        return "cpe:2.3:a:*:*:*:*:*:*:*:*:*";
+    }
+    
+    // Ensure it has part:vendor:product components
+    while (parts.length < 5) {
+        parts.push('*');
+    }
+    
+    // Ensure it has version component so we can replace it later
+    if (parts.length < 6) {
+        parts.push('*');
+    }
+    
+    // For complete format, ensure it has all 13 parts
+    while (parts.length < 13) {
+        parts.push('*');
+    }
+    
+    return parts.join(':');
+}
 
 /**
  * Creates a CPE match object for a given CPE base string
@@ -618,9 +655,16 @@ function onRowSettingsChange(tableId) {
     }
 }
 
-// Export functions and maps to global scope for integrations with other modules
-window.tableSelections = tableSelections;
-window.consolidatedJsons = consolidatedJsons;
+// =============================================================================
+// Global Exports - All window assignments consolidated here
+// =============================================================================
+// Global maps to store selections and generated JSONs
+window.tableSelections = window.tableSelections || new Map();
+window.consolidatedJsons = window.consolidatedJsons || new Map();
+window.rowSettings = window.rowSettings || new Map();
+
+// Export functions for integration with other modules
+window.normalizeCpeString = normalizeCpeString;
 window.createCpeMatchObject = createCpeMatchObject;
 window.processJsonBasedOnSource = processJsonBasedOnSource;
 

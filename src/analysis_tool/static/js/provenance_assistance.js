@@ -681,16 +681,10 @@ function toggleProvenanceDescription(buttonId) {
         } else {
             button.classList.remove('btn-info');
             button.classList.add('btn-success');
-        }
-    } catch(e) {
+        }    } catch(e) {
         console.error(`Error toggling provenance description for ${buttonId}:`, e);
     }
 }
-
-// Make the function available globally
-window.toggleProvenanceDescription = toggleProvenanceDescription;
-
-// Add this to provenance_assistance.js:
 
 /**
  * Update provenance collapse state
@@ -711,9 +705,6 @@ function updateProvenanceState(tableIndex, expand) {
         }
     }
 }
-
-// Make function available globally
-window.updateProvenanceState = updateProvenanceState;
 
 // Combine into a single DOMContentLoaded event listener:
 document.addEventListener('DOMContentLoaded', function() {
@@ -776,14 +767,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!targetId) return;
         
         const target = document.querySelector(targetId);
-        if (!target) return;
-        
+        if (!target) return;        
         // Set initial state using HTML entities
         const isShown = target.classList.contains('show');
         arrow.innerHTML = isShown ? "&darr;" : "&uarr;";
     });
 });
 
-// Make functions available globally
+// =============================================================================
+// Global Exports - All window assignments consolidated here
+// =============================================================================
 window.toggleProvenanceDescription = toggleProvenanceDescription;
 window.updateProvenanceState = updateProvenanceState;
+

@@ -1603,11 +1603,15 @@ function processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affecte
             matchCriteriaId: generateMatchCriteriaId(),
             vulnerable: true,
             versionStartIncluding: previousRange.end
-        });
-    }
+        });    }
 }
 
+// =============================================================================
+// Global Exports - All window assignments consolidated here
+// =============================================================================
 window.ModularRuleEngine = ModularRuleEngine;
 window.JSON_GENERATION_RULES = JSON_GENERATION_RULES;
+window.generateMatchCriteriaId = generateMatchCriteriaId;
+window.compareVersions = compareVersions;
 
 console.debug("Modular Rules System loaded");

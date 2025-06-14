@@ -1,33 +1,8 @@
 /**
  * Completion tracker module for CVE analysis tool
  * 
- * Dependencies:
- * - getSourceData() and getSourceById() from selection_manager.js
+ * This module provides source data management functions and completion tracking.
  */
-
-/**
- * Check for required dependencies
- */
-function checkCompletionTrackerDependencies() {
-    if (typeof window.getSourceData !== 'function') {
-        console.error('Completion tracker requires getSourceData function from selection_manager.js');
-        window.getSourceData = function() { 
-            console.warn('Using fallback empty getSourceData');
-            return []; 
-        };
-    }
-    
-    if (typeof window.getSourceById !== 'function') {
-        console.error('Completion tracker requires getSourceById function from selection_manager.js');
-        window.getSourceById = function(id) { 
-            console.warn(`Using fallback empty getSourceById for ID: ${id}`);
-            return null; 
-        };
-    }
-}
-
-// Call this check when the script loads
-checkCompletionTrackerDependencies();
 
 /**
  * Update the completion tracker with source-specific information
@@ -306,13 +281,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Initial tracker update
                 updateCompletionTracker();
-            }
-        }
+            }        }
     } catch(e) {
         console.error('Error initializing completion tracker:', e);
     }
 });
 
-// Export function to global scope for cross-file access
+// =============================================================================
+// Global Exports - All window assignments consolidated here
+// =============================================================================
+window.getSourceData = getSourceData;
+window.getSourceById = getSourceById;
 window.updateCompletionTracker = updateCompletionTracker;
 window.initializeCompletionTracker = initializeCompletionTracker;

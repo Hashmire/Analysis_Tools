@@ -767,12 +767,10 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
 
 # Add the new file to the list of JS files to include
 def getCPEJsonScript() -> str:
-    
     # Get the current script's directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
     # Define the files with paths relative to the current script
     js_files = [
-        os.path.join(current_dir, "static", "js", "utils.js"),
         os.path.join(current_dir, "static", "js", "modular_rules.js"),
         os.path.join(current_dir, "static", "js", "cpe_json_handler.js"),
         os.path.join(current_dir, "static", "js", "ui_controller.js"),

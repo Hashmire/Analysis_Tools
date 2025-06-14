@@ -18,8 +18,7 @@ function openCity(evt, cityName) {
     evt.currentTarget.classList.add("active");
 }
 
-// Make the function available globally
-window.openCity = openCity;
+
 
 /**
  * Function to toggle row collapse state
@@ -216,8 +215,7 @@ function toggleRowCollapse(tableIndex, action) {
     }
 }
 
-// Make toggleRowCollapse available globally for HTML button onclick handlers
-window.toggleRowCollapse = toggleRowCollapse;
+
 
 /**
  * Maintain JSON display state across row toggle operations
@@ -784,12 +782,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Export helpers needed by completion_tracker.js
-window.getSourceData = getSourceData;
-window.getSourceById = getSourceById;
 
-// Use:
-window.tableSelections = new Map();
 
 /**
  * Initialize JSON settings for a specific table using server-generated HTML
@@ -885,4 +878,11 @@ function initializeRowJsonSettings(tableId) {
 }
 
 
+
+// =============================================================================
+// Global Exports - All window assignments consolidated here
+// =============================================================================
+window.openCity = openCity;
+window.toggleRowCollapse = toggleRowCollapse;
 window.updateConsolidatedJson = updateConsolidatedJson;
+window.tableSelections = new Map();

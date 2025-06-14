@@ -40,9 +40,10 @@
     // Get the stored timestamp
     function getTimestamp() {
         return generatorTimestamp;
-    }
-    
-    // Expose public methods
+    }    
+    // =============================================================================
+    // Global Exports - All window assignments consolidated here
+    // =============================================================================
     window.timestampHandler = {
         init: initTimestampHandler,
         getTimestamp: getTimestamp

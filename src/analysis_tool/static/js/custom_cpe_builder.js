@@ -796,17 +796,10 @@ function addCustomCPERowToTable(tableId, cpeBaseString) {
         const tbody = document.createElement('tbody');
         tbody.appendChild(row);
         table.appendChild(tbody);
-    }
-    
+    }    
     console.log(`Added custom CPE row to table ${tableId}`);
     return row;
 }
-
-// Make functions available globally
-window.initializeCustomCPEBuilder = initializeCustomCPEBuilder;
-window.updateCustomCPEPreview = updateCustomCPEPreview;
-window.formatCPEComponent = formatCPEComponent;
-window.applyCustomCPE = applyCustomCPE;
 
 /**
  * Test CPE encoding function - exposed globally for testing via console
@@ -814,7 +807,7 @@ window.applyCustomCPE = applyCustomCPE;
  * @param {string} product - Product name with special characters
  * @returns {string} Properly encoded CPE string
  */
-window.testCPEEncoding = function(vendor, product) {
+function testCPEEncoding(vendor, product) {
     console.log('Input:', { vendor, product });
     
     const encodedVendor = formatCPEComponent(vendor);
@@ -835,10 +828,9 @@ window.testCPEEncoding = function(vendor, product) {
         vulnerable: true
     };
     
-    console.log('JSON representation:', JSON.stringify(matchObject, null, 2));
-    
+    console.log('JSON representation:', JSON.stringify(matchObject, null, 2));    
     return cpeString;
-};
+}
 
 // Enhanced debug helper
 function debugCustomCpeJson(tableId, cpeBaseString) {
@@ -911,12 +903,18 @@ function getCurrentModularSettings(cpeBase) {
                 };
             }
         }
-    }
-    
+    }    
     // Fallback to default settings
     console.log(`Could not find table for CPE ${cpeBase}, using default settings`);
     return getDefaultModularSettings();
 }
 
-// Make function globally available
+// =============================================================================
+// Global Exports - All window assignments consolidated here
+// =============================================================================
+window.initializeCustomCPEBuilder = initializeCustomCPEBuilder;
+window.updateCustomCPEPreview = updateCustomCPEPreview;
+window.formatCPEComponent = formatCPEComponent;
+window.applyCustomCPE = applyCustomCPE;
+window.testCPEEncoding = testCPEEncoding;
 window.getCurrentModularSettings = getCurrentModularSettings;

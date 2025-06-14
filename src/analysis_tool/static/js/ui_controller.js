@@ -1,4 +1,51 @@
 /**
+ * UI Controller - Handles display updates and UI interactions
+ */
+
+/**
+ * Count total CPE matches in a configuration
+ * @param {Object} config - Configuration object
+ * @returns {number} Count of CPE matches
+ */
+function getTotalCPEMatches(config) {
+    let count = 0;
+    if (config.nodes) {
+        for (const node of config.nodes) {
+            if (node.cpeMatch) {
+                count += node.cpeMatch.length;
+            }
+        }
+    } else if (config.cpeMatch) {
+        count = config.cpeMatch.length;
+    }
+    return count;
+}
+
+/**
+ * Get statistics string from JSON
+ * @param {Object} json - The JSON to extract statistics from
+ * @param {number} selectionCount - Number of selected items as fallback
+ * @returns {string} Formatted statistics string
+ */
+function getStatisticsString(json, selectionCount) {
+    if (!json || !json.configurations || !json.configurations.length || !json.configurations[0]) {
+        return `${selectionCount} selected`;
+    }
+    
+    // Get statistics from generatorData.matchStats
+    if (json.configurations[0].generatorData && json.configurations[0].generatorData.matchStats) {
+        const stats = json.configurations[0].generatorData.matchStats;
+        return `${stats.selectedCriteria} Criteria, ${stats.totalMatches} versions` +
+               ` (${stats.exactMatches} exact, ${stats.rangeMatches} ranges)`;
+    }
+    
+    // Fallback to simple count
+    return `${selectionCount} selected`;
+}
+
+// =============================================================================
+
+/**
  * Update JSON display if it's currently visible
  * @param {string} tableId - ID of the table
  */
@@ -356,3 +403,9 @@ function exportToFile(content) {
         console.error('Error exporting to file:', e);
     }
 }
+
+// =============================================================================
+// Global Exports - All window assignments consolidated here
+// =============================================================================
+window.getTotalCPEMatches = getTotalCPEMatches;
+window.getStatisticsString = getStatisticsString;
