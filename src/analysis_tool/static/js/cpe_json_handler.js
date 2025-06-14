@@ -160,91 +160,6 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData, tableId) {
         return [basicMatch];    }
 }
 
-/**
- * Check if a version range is already covered by explicit affected entries
- * @param {string} startVersion - Start version of range
- * @param {string|null} endVersion - End version of range (null for unlimited)
- * @param {Array} affectedVersions - Array of explicitly affected version info
- * @returns {boolean} True if the range is already covered
- */
-function isRangeCoveredByExplicitEntries(startVersion, endVersion, affectedVersions) {
-    for (const affectedInfo of affectedVersions) {
-        // Determine the bounds of this affected entry
-        let affectedStart = null;
-        let affectedEnd = null;
-        
-        // Get start bound
-        if (affectedInfo.greaterThanOrEqual) {
-            affectedStart = affectedInfo.greaterThanOrEqual;
-        } else if (affectedInfo.greaterThan) {
-            affectedStart = incrementVersion(affectedInfo.greaterThan);
-        } else if (affectedInfo.version) {
-            affectedStart = affectedInfo.version;
-        }
-        
-        // Get end bound
-        if (affectedInfo.lessThan) {
-            affectedEnd = affectedInfo.lessThan;
-        } else if (affectedInfo.lessThanOrEqual) {
-            affectedEnd = incrementVersion(affectedInfo.lessThanOrEqual);
-        }
-        
-        // Check if this affected entry covers the entire range we're looking at
-        if (affectedStart && compareVersions(affectedStart, startVersion) <= 0) {
-            // The affected start is earlier than or equal to our start
-            if (!affectedEnd || !endVersion || compareVersions(affectedEnd, endVersion) >= 0) {
-                // The affected end is later than or equal to our end (or unlimited)
-                return true;
-            }
-        }
-    }
-    
-    return false;
-}
-
-/**
- * Update the previous upper bound based on unaffected range info
- * @param {Object} unaffectedInfo - Unaffected version info object
- * @returns {string|null} The new upper bound for the next affected range
- */
-function calculateNextUpperBound(unaffectedInfo) {
-    if (unaffectedInfo.lessThanOrEqual === "*") {
-        // This covers everything above the version
-        return null; // No more ranges above this
-    } else if (unaffectedInfo.lessThanOrEqual && unaffectedInfo.lessThanOrEqual.includes("*")) {
-        // Handle version wildcards like "5.4.*"
-        return getNextVersionAfterWildcard(unaffectedInfo.lessThanOrEqual);
-    } else if (unaffectedInfo.lessThan) {
-        return unaffectedInfo.lessThan;
-    } else if (unaffectedInfo.lessThanOrEqual) {
-        // Add a tiny increment to make it exclusive
-        return incrementVersion(unaffectedInfo.lessThanOrEqual);
-    } else {
-        // Single version - the upper bound is the next version
-        return incrementVersion(unaffectedInfo.version);
-    }
-}
-
-/**
- * Helper function to sort version info objects
- * @param {Array} versionInfoArray - Array of version info objects
- * @returns {Array} Sorted array
- */
-function sortVersionInfo(versionInfoArray) {
-    return [...versionInfoArray].sort((a, b) => {
-        // First compare by version
-        const verA = a.version || "0";
-        const verB = b.version || "0";
-        
-        // If versionType is semver, use semver-style comparison
-        if ((a.versionType === "semver" || b.versionType === "semver")) {
-            return compareVersions(verA, verB);
-        } else {
-            // Simple string comparison for non-semver
-            return verA.localeCompare(verB);
-        }
-    });
-}
 
 /**
  * Process basic version data into a configuration object
@@ -475,29 +390,6 @@ function extractDataFromTable(tableIndex) {
 }
 
 /**
- * Update the previous upper bound based on unaffected range info
- * @param {Object} unaffectedInfo - Unaffected version info object
- * @returns {string|null} The new upper bound for the next affected range
- */
-function calculateNextUpperBound(unaffectedInfo) {
-    if (unaffectedInfo.lessThanOrEqual === "*") {
-        // This covers everything above the version
-        return null; // No more ranges above this
-    } else if (unaffectedInfo.lessThanOrEqual && unaffectedInfo.lessThanOrEqual.includes("*")) {
-        // Handle version wildcards like "5.4.*"
-        return getNextVersionAfterWildcard(unaffectedInfo.lessThanOrEqual);
-    } else if (unaffectedInfo.lessThan) {
-        return unaffectedInfo.lessThan;
-    } else if (unaffectedInfo.lessThanOrEqual) {
-        // Add a tiny increment to make it exclusive
-        return incrementVersion(unaffectedInfo.lessThanOrEqual);
-    } else {
-        // Single version - the upper bound is the next version
-        return incrementVersion(unaffectedInfo.version);
-    }
-}
-
-/**
  * Create a CPE match object from version info
  * @param {string} cpeBase - Base CPE string
  * @param {Object} versionInfo - Version info object
@@ -564,79 +456,16 @@ function createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable) {
         const hasNonSpecificLessThanOrEqual = versionInfo.lessThanOrEqual && nonSpecificVersions.includes(versionInfo.lessThanOrEqual.toLowerCase());
         
         if (versionInfo.lessThan && !hasNonSpecificLessThan) {
-            cpeMatch.versionEndExcluding = window.formatCPEComponent ? 
-                window.formatCPEComponent(versionInfo.lessThan) : 
+            cpeMatch.versionEndExcluding = window.formatCPEComponent ?                window.formatCPEComponent(versionInfo.lessThan) : 
                 versionInfo.lessThan;
         } else if (versionInfo.lessThanOrEqual && !hasNonSpecificLessThanOrEqual) {
             cpeMatch.versionEndIncluding = window.formatCPEComponent ? 
                 window.formatCPEComponent(versionInfo.lessThanOrEqual) : 
-                versionInfo.lessThanOrEqual;        }
+                versionInfo.lessThanOrEqual;
+        }
         
         return cpeMatch;
     }
-}
-
-/**
- * Check if a version is covered by a cpeMatch range
- * @param {string} version - Version to check
- * @param {Object} cpeMatch - cpeMatch object with range data
- * @returns {boolean} True if the version is covered
- */
-function isVersionCoveredByRange(version, cpeMatch) {
-    // If this is an exact match (not a range)
-    if (cpeMatch.criteria.includes(`:${version}:`)) {
-        return true;
-    }
-    
-    let isGreaterThanLower = true;
-    let isLessThanUpper = true;
-    
-    // Check lower bound
-    if (cpeMatch.versionStartIncluding && compareVersions(version, cpeMatch.versionStartIncluding) < 0) {
-        isGreaterThanLower = false;
-    }
-    if (cpeMatch.versionStartExcluding && compareVersions(version, cpeMatch.versionStartExcluding) <= 0) {
-        isGreaterThanLower = false;
-    }
-    
-    // Check upper bound
-    if (cpeMatch.versionEndIncluding && compareVersions(version, cpeMatch.versionEndIncluding) > 0) {
-        isLessThanUpper = false;
-    }
-    if (cpeMatch.versionEndExcluding && compareVersions(version, cpeMatch.versionEndExcluding) >= 0) {
-        isLessThanUpper = false;
-    }
-    
-    return isGreaterThanLower && isLessThanUpper;
-}
-
-/**
- * Check for special version structure patterns
- * @param {Object} rawPlatformData - Raw platform data
- * @returns {boolean} True if special case handling is needed
- */
-function hasSpecialVersionStructure(rawPlatformData) {
-    if (!rawPlatformData) {
-        return false;
-    }
-    
-    // Check for unaffected default status with explicit affected entries
-    const hasUnaffectedDefault = rawPlatformData.defaultStatus === 'unaffected';
-    
-    // Count affected and unaffected entries
-    let affectedEntries = 0;
-    let unaffectedEntries = 0;
-    
-    if (rawPlatformData.versions && Array.isArray(rawPlatformData.versions)) {
-        rawPlatformData.versions.forEach(v => {
-            if (v && v.status === 'affected') affectedEntries++;
-            if (v && v.status === 'unaffected') unaffectedEntries++;
-        });
-    }
-    
-    // Special case if default is unaffected but there are affected entries
-    // Or if there are multiple unaffected entries
-    return (hasUnaffectedDefault && affectedEntries > 0) || unaffectedEntries > 1;
 }
 
 /**

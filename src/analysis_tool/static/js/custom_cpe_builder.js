@@ -628,41 +628,30 @@ function registerCustomCpeHandler(cpeBaseString, tableId) {
     // Get rawPlatformData for the correct table
     const extractedData = extractDataFromTable(tableIndex);
     const rawPlatformData = extractedData.rawPlatformData;
-    
-    window.customCPEHandlers.set(cpeBaseString, {
+      window.customCPEHandlers.set(cpeBaseString, {
         createMatch: function() {
             // Process all versions like the standard handler does
             if (rawPlatformData && rawPlatformData.versions && rawPlatformData.versions.length > 0) {
                 // Create array to hold all cpeMatches
                 const cpeMatches = [];
                 
-                // Check if we need special handling
-                const needsSpecialHandling = window.originalProcessVersionDataToCpeMatches && 
-                    typeof window.detectSpecialHandlingNeeded === 'function' ? 
-                    window.detectSpecialHandlingNeeded(rawPlatformData) : false;
-                
-                if (needsSpecialHandling && typeof processSpecialVersionStructure === 'function') {
-                    // Use special structure handling
-                    return processSpecialVersionStructure(cpeBaseString, rawPlatformData);
-                } else {
-                    // Use standard processing - process all versions
-                    for (const versionInfo of rawPlatformData.versions) {
-                        if (!versionInfo) continue;
-                        
-                        // Determine if this version is vulnerable based on status
-                        const isVulnerable = versionInfo.status === "affected";
-                        
-                        // Create cpeMatch using the consolidated function
-                        const cpeMatch = createCpeMatchFromVersionInfo(cpeBaseString, versionInfo, isVulnerable);
-                        cpeMatches.push(cpeMatch);
-                    }
+                // Process all versions using standard processing
+                for (const versionInfo of rawPlatformData.versions) {
+                    if (!versionInfo) continue;
                     
-                    if (cpeMatches.length === 0) {
-                        return [createCpeMatchObject(cpeBaseString)];
-                    }
+                    // Determine if this version is vulnerable based on status
+                    const isVulnerable = versionInfo.status === "affected";
                     
-                    return cpeMatches;
+                    // Create cpeMatch using the consolidated function
+                    const cpeMatch = createCpeMatchFromVersionInfo(cpeBaseString, versionInfo, isVulnerable);
+                    cpeMatches.push(cpeMatch);
                 }
+                
+                if (cpeMatches.length === 0) {
+                    return [createCpeMatchObject(cpeBaseString)];
+                }
+                
+                return cpeMatches;
             } else {
                 // Fallback to basic match if no version info
                 return [createCpeMatchObject(cpeBaseString)];
@@ -801,60 +790,9 @@ function addCustomCPERowToTable(tableId, cpeBaseString) {
     return row;
 }
 
-/**
- * Test CPE encoding function - exposed globally for testing via console
- * @param {string} vendor - Vendor name with special characters
- * @param {string} product - Product name with special characters
- * @returns {string} Properly encoded CPE string
- */
-function testCPEEncoding(vendor, product) {
-    console.log('Input:', { vendor, product });
-    
-    const encodedVendor = formatCPEComponent(vendor);
-    const encodedProduct = formatCPEComponent(product);
-    
-    console.log('Encoded components:', { 
-        vendor: encodedVendor, 
-        product: encodedProduct 
-    });
-    
-    const cpeString = `cpe:2.3:a:${encodedVendor}:${encodedProduct}:*:*:*:*:*:*:*:*`;
-    console.log('CPE string:', cpeString);
-    
-    // Demonstrate how it would appear in JSON
-    const matchObject = {
-        criteria: cpeString,
-        matchCriteriaId: "test_example",
-        vulnerable: true
-    };
-    
-    console.log('JSON representation:', JSON.stringify(matchObject, null, 2));    
-    return cpeString;
-}
 
-// Enhanced debug helper
-function debugCustomCpeJson(tableId, cpeBaseString) {
-    const tableIndex = tableId.split('_')[1];
-    const rawDataElement = document.getElementById(`rawPlatformData_${tableIndex}`);
-    const rawPlatformData = rawDataElement ? JSON.parse(rawDataElement.textContent || '{}') : null;
-    
-    console.log(`Debug info for custom CPE in ${tableId}:`, {
-        cpeString: cpeBaseString,
-        handler: window.customCPEHandlers && window.customCPEHandlers.get(cpeBaseString),
-        consolidatedJson: window.consolidatedJsons && window.consolidatedJsons.get(tableId),
-        selections: window.tableSelections && window.tableSelections.get(tableId) ? 
-            Array.from(window.tableSelections.get(tableId)) : [],
-        rawPlatformDataExists: !!rawDataElement,
-        rawPlatformDataEmpty: rawDataElement && (!rawDataElement.textContent || rawDataElement.textContent === '{}'),
-        tableIndex: tableIndex
-    });
-    
-    if (!rawDataElement) {
-        console.error(`CRITICAL ERROR: Missing rawPlatformData_${tableIndex} element. This is required for proper JSON generation.`);
-    } else if (!rawDataElement.textContent || rawDataElement.textContent === '{}') {
-        console.error(`CRITICAL ERROR: rawPlatformData_${tableIndex} exists but is empty. This is required for proper JSON generation.`);
-    }
-}
+
+
 
 // Automatically initialize the Custom CPE Builder when the DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
@@ -916,5 +854,4 @@ window.initializeCustomCPEBuilder = initializeCustomCPEBuilder;
 window.updateCustomCPEPreview = updateCustomCPEPreview;
 window.formatCPEComponent = formatCPEComponent;
 window.applyCustomCPE = applyCustomCPE;
-window.testCPEEncoding = testCPEEncoding;
 window.getCurrentModularSettings = getCurrentModularSettings;

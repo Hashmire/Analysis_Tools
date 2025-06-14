@@ -280,68 +280,6 @@ function updateAllConfigurationsDisplay() {
 }
 
 /**
- * Maintain JSON display state across row toggle operations
- * @param {number} tableIndex - Index of the table
- */
-function preserveJsonDisplayState(tableIndex) {
-    const tableId = `matchesTable_${tableIndex}`;
-    const jsonContainer = document.querySelector(`.consolidated-json-container[data-index="${tableIndex}"]`);
-    const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
-    const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
-    
-    if (!jsonContainer || !display || !showButton) return;
-    
-    // Store current state using class check
-    const isDisplayVisible = !display.classList.contains('collapsed');
-    const selectedRows = tableSelections.get(tableId);
-    const selectionCount = selectedRows ? selectedRows.size : 0;
-    
-    // Get json and detailed statistics
-    const json = consolidatedJsons.get(tableId);
-    let statsStr = `${selectionCount} selected`;
-    
-    // Extract detailed statistics if available
-    if (json && json.configurations && json.configurations.length > 0) {
-        if (json.configurations[0].matchStats) {
-            const stats = json.configurations[0].matchStats;
-            statsStr = `${stats.selectedCriteria || stats.selectedCPEs} Criteria, ${stats.totalMatches} versions (${stats.exactMatches} exact, ${stats.rangeMatches} ranges)`;
-        } else {
-            // Fall back to basic statistics if detailed stats aren't available
-            let versionCount = selectionCount;
-            if (json.configurations[0].versionStats) {
-                versionCount = json.configurations[0].versionStats.totalVersions;
-            } else if (json.configurations[0].cpeMatch) {
-                versionCount = json.configurations[0].cpeMatch.length;
-            } else if (json.configurations[0].nodes) {
-                versionCount = getTotalCPEMatches(json.configurations[0]);
-            }
-            statsStr = `${selectionCount} Criteria, ${versionCount} versions`;
-        }
-    }
-    
-    // Ensure the button text and state matches the display visibility
-    if (isDisplayVisible) {
-        showButton.textContent = `Hide Consolidated JSON (${statsStr})`;
-        showButton.classList.remove('btn-primary');
-        showButton.classList.add('btn-success');
-        
-        // Also ensure the JSON content is updated
-        updateJsonDisplayIfVisible(tableId);
-    } else {
-        showButton.textContent = `Show Consolidated JSON (${statsStr})`;
-        showButton.classList.remove('btn-success');
-        showButton.classList.add('btn-primary');
-    }
-    
-    // Ensure proper container positioning
-    const collapseButton = document.getElementById(`collapseRowButton_${tableIndex}`);
-    if (collapseButton) {
-        const buttonParent = collapseButton.parentNode;
-        buttonParent.parentNode.insertBefore(jsonContainer, buttonParent.nextSibling);
-    }
-}
-
-/**
  * Copy content to clipboard and show feedback
  * @param {string} text - Text to copy
  * @param {string} buttonId - ID of button that was clicked

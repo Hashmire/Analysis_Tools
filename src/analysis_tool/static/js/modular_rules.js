@@ -81,32 +81,43 @@ const JSON_GENERATION_RULES = {
                         }
                     }
                 }
-                
-                // Handle wildcards in lessThanOrEqual
+                  // Handle wildcards in lessThanOrEqual
                 if (!wildcardProcessed && versionInfo.lessThanOrEqual && String(versionInfo.lessThanOrEqual).includes('*')) {
                     hasWildcards = true;
                     const wildcard = versionInfo.lessThanOrEqual;
                     const prefix = wildcard.split('*')[0].replace(/\.$/, '');
                     const parts = prefix.split('.');
                     
-                    if (parts.length >= 2) {
+                    if (parts.length >= 1) {
                         const majorVersion = parseInt(parts[0], 10);
-                        const minorVersion = parseInt(parts[1], 10);
                         
-                        if (!isNaN(majorVersion) && !isNaN(minorVersion)) {
-                            const startVersion = versionInfo.version || `${majorVersion}.${minorVersion}`;
-                            const endVersion = `${majorVersion}.${minorVersion + 1}`;
+                        if (!isNaN(majorVersion)) {
+                            const startVersion = versionInfo.version;
+                            let endVersion;
                             
-                            matches.push({
-                                criteria: cpeBase,
-                                matchCriteriaId: generateMatchCriteriaId(),
-                                vulnerable: isVulnerable,
-                                versionStartIncluding: startVersion,
-                                versionEndExcluding: endVersion
-                            });
+                            if (parts.length === 1) {
+                                // Handle patterns like "5.*" -> next major version "6"
+                                endVersion = `${majorVersion + 1}`;
+                            } else if (parts.length >= 2) {
+                                const minorVersion = parseInt(parts[1], 10);
+                                if (!isNaN(minorVersion)) {
+                                    // Handle patterns like "5.4.*" -> next minor version "5.5"
+                                    endVersion = `${majorVersion}.${minorVersion + 1}`;
+                                }
+                            }
                             
-                            console.debug(`[Wildcard Rule] Created range for ${wildcard}: ${startVersion} to ${endVersion}`);
-                            wildcardProcessed = true;
+                            if (startVersion && endVersion) {
+                                matches.push({
+                                    criteria: cpeBase,
+                                    matchCriteriaId: generateMatchCriteriaId(),
+                                    vulnerable: isVulnerable,
+                                    versionStartIncluding: startVersion,
+                                    versionEndExcluding: endVersion
+                                });
+                                
+                                console.debug(`[Wildcard Rule] Created range for ${wildcard}: ${startVersion} to ${endVersion}`);
+                                wildcardProcessed = true;
+                            }
                         }
                     }
                 }
@@ -116,6 +127,26 @@ const JSON_GENERATION_RULES = {
                     hasWildcards = true;
                     console.debug(`[Wildcard Rule] Processing lessThan wildcard: ${versionInfo.lessThan}`);
                     // TODO: Implement lessThan wildcard processing
+                }
+                
+                // Handle global wildcard "*" in lessThanOrEqual
+                if (!wildcardProcessed && versionInfo.lessThanOrEqual === "*") {
+                    hasWildcards = true;
+                    const startVersion = versionInfo.version;
+                    
+                    if (startVersion) {
+                        // For global wildcard, create an open-ended range starting from the version
+                        matches.push({
+                            criteria: cpeBase,
+                            matchCriteriaId: generateMatchCriteriaId(),
+                            vulnerable: isVulnerable,
+                            versionStartIncluding: startVersion
+                            // No versionEndExcluding - covers everything above this version
+                        });
+                        
+                        console.debug(`[Wildcard Rule] Created open range for global wildcard: ${startVersion}+`);
+                        wildcardProcessed = true;
+                    }
                 }
                 
                 // If no wildcard was processed, keep this version for other rules
@@ -344,7 +375,8 @@ const JSON_GENERATION_RULES = {
                 return { processed: false, matches: [] };
             }
             
-            if (versionInfo.versionType && !['semver', 'string'].includes(versionInfo.versionType)) {                console.debug(`[Special Version Types Rule] Processing ${versionInfo.versionType}: ${versionInfo.version}`);
+            if (versionInfo.versionType && !['semver', 'string'].includes(versionInfo.versionType)) {
+                console.debug(`[Special Version Types Rule] Processing ${versionInfo.versionType}: ${versionInfo.version}`);
                 // Apply special handling based on version type
                 const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable);
                 
@@ -590,12 +622,19 @@ const JSON_GENERATION_RULES = {
 class ModularRuleEngine {
     constructor(settings, versionData) {
         this.settings = settings;
-        this.versionData = versionData;
+        this.versionData = versionData;        
         this.appliedRules = new Set();
+        this.cachedApplicableRules = null;
+        this.conflictAnalysisLogged = false;
     }    /**
      * Get all rules that should be applied based on settings and data
      */
     getApplicableRules() {
+        // Return cached result if available
+        if (this.cachedApplicableRules) {
+            return this.cachedApplicableRules;
+        }
+        
         const applicable = [];
         
         for (const [ruleId, rule] of Object.entries(JSON_GENERATION_RULES)) {
@@ -605,14 +644,22 @@ class ModularRuleEngine {
             }
         }
         
-        // Detect potential rule conflicts
+        // Detect potential rule conflicts (but only log once)
         this.detectRuleConflicts(applicable);
+        
+        // Cache the result
+        this.cachedApplicableRules = applicable;
         
         return applicable;
     }    /**
      * Detect and warn about potential rule conflicts with enhanced analysis
      */
     detectRuleConflicts(applicableRules) {
+        // Only perform conflict analysis once per instance
+        if (this.conflictAnalysisLogged) {
+            return;
+        }
+        
         const ruleNames = applicableRules.map(r => r.id);
         const conflicts = [];
         
@@ -676,12 +723,14 @@ class ModularRuleEngine {
         } else {
             console.warn(`[WARNING] ${conflicts.length} potential rule conflicts detected`);
             console.info('Rule coordination system will handle conflicts using cooperative processing or priority order');
-        }
-        
+        }        
         console.groupEnd();
         
         // Log rule application summary
         this.logRuleApplicationSummary(applicableRules, conflicts);
+        
+        // Mark that conflict analysis has been logged
+        this.conflictAnalysisLogged = true;
     }
 
     /**
@@ -1351,9 +1400,9 @@ function createCpeMatchWithUpdate(cpeBase, version, update, isVulnerable) {
     // Parse the base CPE to extract components
     const cpeComponents = cpeBase.split(':');
     
-    // Ensure we have all 12 components for CPE 2.3 format
+    // Ensure we have all 13 components for CPE 2.3 format
     // cpe:2.3:part:vendor:product:version:update:edition:language:sw_edition:target_sw:target_hw:other
-    while (cpeComponents.length < 12) {
+    while (cpeComponents.length < 13) {
         cpeComponents.push('*');
     }
     
@@ -1364,7 +1413,7 @@ function createCpeMatchWithUpdate(cpeBase, version, update, isVulnerable) {
     const cpeString = cpeComponents.join(':');
     
     console.debug(`[Update Patterns Rule] Created CPE with update field: ${cpeString}`);
-      return {
+    return {
         criteria: cpeString,
         matchCriteriaId: generateMatchCriteriaId(),
         vulnerable: isVulnerable
@@ -1613,5 +1662,6 @@ window.ModularRuleEngine = ModularRuleEngine;
 window.JSON_GENERATION_RULES = JSON_GENERATION_RULES;
 window.generateMatchCriteriaId = generateMatchCriteriaId;
 window.compareVersions = compareVersions;
+window.incrementVersion = incrementVersion;
 
 console.debug("Modular Rules System loaded");

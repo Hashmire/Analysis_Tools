@@ -95,9 +95,9 @@ function toggleRowCollapse(tableIndex, action) {
                     // Add items to menu
                     dropdownMenu.appendChild(completeItem);
                     dropdownMenu.appendChild(skipItem);
-                    
-                    // Add menu to group
-                    btnGroup.appendChild(dropdownMenu);                } else {
+                      // Add menu to group
+                    btnGroup.appendChild(dropdownMenu);
+                } else {
                     // This shouldn't occur in normal operation - log and continue
                     console.warn(`Button group not found for table ${tableIndex}. This indicates a DOM structure issue.`);
                 }
@@ -216,45 +216,6 @@ function toggleRowCollapse(tableIndex, action) {
 }
 
 
-
-/**
- * Maintain JSON display state across row toggle operations
- * @param {number} tableIndex - Index of the table
- */
-function preserveJsonDisplayState(tableIndex) {
-    const tableId = `matchesTable_${tableIndex}`;
-    const jsonContainer = document.querySelector(`.consolidated-json-container[data-index="${tableIndex}"]`);
-    const display = document.getElementById(`consolidatedJsonDisplay_${tableId}`);
-    const showButton = document.getElementById(`showConsolidatedJson_${tableId}`);
-    
-    if (!jsonContainer || !display || !showButton) return;
-    
-    // Store current state
-    const isDisplayVisible = !display.classList.contains('collapsed');
-    const selectedRows = window.tableSelections.get(tableId);
-    const selectionCount = selectedRows ? selectedRows.size : 0;
-    
-    // Get json and statistics
-    const json = consolidatedJsons.get(tableId);
-    const statsStr = getStatisticsString(json, selectionCount);
-    
-    // Ensure the button is disabled if there are no selections
-    showButton.disabled = selectionCount === 0;
-    
-    // Ensure the button text and state matches the display visibility
-    if (isDisplayVisible) {
-        showButton.textContent = `Hide Consolidated JSON (${statsStr})`;
-        showButton.classList.remove('btn-primary');
-        showButton.classList.add('btn-success');
-        
-        // Also ensure the JSON content is updated
-        updateJsonDisplayIfVisible(tableId);
-    } else {
-        showButton.textContent = `Show Consolidated JSON (${statsStr})`;
-        showButton.classList.remove('btn-success');
-        showButton.classList.add('btn-primary');
-    }
-}
 
 /**
  * Toggle consolidated JSON display with improved state handling
@@ -712,14 +673,8 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Apply collapsed state to containers
             if (rowDataTableContainer) rowDataTableContainer.classList.add('collapsed');
-            if (matchesTableContainer) matchesTableContainer.classList.add('collapsed');
-        }
+            if (matchesTableContainer) matchesTableContainer.classList.add('collapsed');        }
     });
-    
-    // Scan for git versionTypes if available
-    if (typeof scanForGitVersionTypes === 'function') {
-        scanForGitVersionTypes();
-    }
     
     // Modify the mutation observer to only handle CPE sections
     const observer = new MutationObserver((mutations) => {
