@@ -25,10 +25,9 @@ const JSON_GENERATION_RULES = {
                             v.lessThan && String(v.lessThan).includes('*') ||
                             v.version && String(v.version).includes('*'))
                    );
-        },
-          // Process the entire dataset to handle wildcard versions and prevent fallback processing
+        },        
+        // Process the entire dataset to handle wildcard versions and prevent fallback processing
         processDataset: (cpeBase, versionData, settings, context) => {
-            console.debug('[Wildcard Expansion Rule] Processing dataset with wildcard versions');
             const matches = [];
             const nonWildcardVersions = [];
             let hasWildcards = false;
@@ -65,8 +64,7 @@ const JSON_GENERATION_RULES = {
                                     endVersion = `${majorVersion}.${minorVersion + 1}`;
                                 }
                             }
-                            
-                            if (startVersion && endVersion) {
+                              if (startVersion && endVersion) {
                                 matches.push({
                                     criteria: cpeBase,
                                     matchCriteriaId: generateMatchCriteriaId(),
@@ -75,7 +73,6 @@ const JSON_GENERATION_RULES = {
                                     versionEndExcluding: endVersion
                                 });
                                 
-                                console.debug(`[Wildcard Rule] Created range for ${wildcard}: ${startVersion} to ${endVersion}`);
                                 wildcardProcessed = true;
                             }
                         }
@@ -105,8 +102,7 @@ const JSON_GENERATION_RULES = {
                                     endVersion = `${majorVersion}.${minorVersion + 1}`;
                                 }
                             }
-                            
-                            if (startVersion && endVersion) {
+                              if (startVersion && endVersion) {
                                 matches.push({
                                     criteria: cpeBase,
                                     matchCriteriaId: generateMatchCriteriaId(),
@@ -115,7 +111,6 @@ const JSON_GENERATION_RULES = {
                                     versionEndExcluding: endVersion
                                 });
                                 
-                                console.debug(`[Wildcard Rule] Created range for ${wildcard}: ${startVersion} to ${endVersion}`);
                                 wildcardProcessed = true;
                             }
                         }
@@ -125,7 +120,6 @@ const JSON_GENERATION_RULES = {
                 // Handle wildcards in lessThan
                 if (!wildcardProcessed && versionInfo.lessThan && String(versionInfo.lessThan).includes('*')) {
                     hasWildcards = true;
-                    console.debug(`[Wildcard Rule] Processing lessThan wildcard: ${versionInfo.lessThan}`);
                     // TODO: Implement lessThan wildcard processing
                 }
                 
@@ -133,8 +127,7 @@ const JSON_GENERATION_RULES = {
                 if (!wildcardProcessed && versionInfo.lessThanOrEqual === "*") {
                     hasWildcards = true;
                     const startVersion = versionInfo.version;
-                    
-                    if (startVersion) {
+                      if (startVersion) {
                         // For global wildcard, create an open-ended range starting from the version
                         matches.push({
                             criteria: cpeBase,
@@ -144,7 +137,6 @@ const JSON_GENERATION_RULES = {
                             // No versionEndExcluding - covers everything above this version
                         });
                         
-                        console.debug(`[Wildcard Rule] Created open range for global wildcard: ${startVersion}+`);
                         wildcardProcessed = true;
                     }
                 }
@@ -154,11 +146,8 @@ const JSON_GENERATION_RULES = {
                     nonWildcardVersions.push(versionInfo);
                 }
             }
-            
-            // If we found wildcards, process remaining non-wildcard versions through other rules
+              // If we found wildcards, process remaining non-wildcard versions through other rules
             if (hasWildcards && nonWildcardVersions.length > 0) {
-                console.debug(`[Wildcard Rule] Processing ${nonWildcardVersions.length} non-wildcard versions through other rules`);
-                
                 // Create a temporary version data with only non-wildcard versions
                 const cleanVersionData = { ...versionData, versions: nonWildcardVersions };
                 
@@ -198,18 +187,16 @@ const JSON_GENERATION_RULES = {
         
         process: (cpeBase, versionInfo, isVulnerable, context) => {
             const matches = [];
-            
-            if (versionInfo.changes && Array.isArray(versionInfo.changes)) {
+              if (versionInfo.changes && Array.isArray(versionInfo.changes)) {
                 for (const change of versionInfo.changes) {
-                    if (change.status === "fixed" && change.at) {                        matches.push({
+                    if (change.status === "fixed" && change.at) {
+                        matches.push({
                             criteria: cpeBase,
                             matchCriteriaId: generateMatchCriteriaId(),
                             vulnerable: true,
                             versionStartIncluding: versionInfo.version,
                             versionEndExcluding: change.at
                         });
-                        
-                        console.debug(`[Version Changes Rule] Added range for fix: ${versionInfo.version} to ${change.at}`);
                     }
                 }
                 
@@ -235,15 +222,12 @@ const JSON_GENERATION_RULES = {
             
             const hasDefaultUnaffected = versionData.defaultStatus === 'unaffected';
             const affectedVersions = versionData.versions.filter(v => v && v.status === 'affected');
-            return hasDefaultUnaffected && affectedVersions.length > 0;
-        },
+            return hasDefaultUnaffected && affectedVersions.length > 0;        },
         
         // This rule processes the entire version dataset, not individual versions
         processDataset: (cpeBase, versionData, settings, context) => {
             const matches = [];
             const affectedVersions = versionData.versions.filter(v => v && v.status === 'affected');
-            
-            console.debug(`[Inverse Status Rule] Processing ${affectedVersions.length} affected versions with default unaffected`);
             
             for (const affectedInfo of affectedVersions) {
                 // Check if other rules should process this version first
@@ -276,13 +260,10 @@ const JSON_GENERATION_RULES = {
             const unaffectedVersions = versionData.versions.filter(v => v && v.status === 'unaffected');
             return affectedVersions.length > 0 && unaffectedVersions.length > 1;
         },
-        
-        processDataset: (cpeBase, versionData, settings, context) => {
+          processDataset: (cpeBase, versionData, settings, context) => {
             const matches = [];
             const affectedVersions = versionData.versions.filter(v => v && v.status === 'affected');
             const unaffectedVersions = versionData.versions.filter(v => v && v.status === 'unaffected');
-            
-            console.debug(`[Mixed Status Rule] Processing ${affectedVersions.length} affected, ${unaffectedVersions.length} unaffected`);
             
             // Process affected versions normally
             for (const affectedInfo of affectedVersions) {
@@ -294,10 +275,8 @@ const JSON_GENERATION_RULES = {
                     matches.push(cpeMatch);
                 }
             }
-            
-            // For mixed status, we might need gap processing between unaffected ranges
+              // For mixed status, we might need gap processing between unaffected ranges
             if (settings.enableGapProcessing) {
-                console.debug(`[Mixed Status Rule] Delegating gap processing between unaffected ranges`);
                 // This would integrate with the gap processing rule
             }
             
@@ -325,29 +304,21 @@ const JSON_GENERATION_RULES = {
             
             return hasDefaultAffected && hasMultipleUnaffected && hasRangeConstraints;
         },
-        
-        processDataset: (cpeBase, versionData, settings, context) => {
-            console.debug(`[Gap Processing Rule] Processing gaps between unaffected ranges`);
-            
+          processDataset: (cpeBase, versionData, settings, context) => {
             const matches = [];
             const unaffectedVersions = versionData.versions.filter(v => v && v.status === 'unaffected');
             const affectedVersions = versionData.versions.filter(v => v && v.status === 'affected');
             
             if (unaffectedVersions.length < 2) {
-                console.debug(`[Gap Processing Rule] Insufficient unaffected ranges (${unaffectedVersions.length}) for gap processing`);
                 return { processed: false, matches };
             }
-            
-            console.debug(`[Gap Processing Rule] Found ${unaffectedVersions.length} unaffected versions and ${affectedVersions.length} affected versions`);
             
             // Use the existing processGapsBetweenUnaffectedRanges implementation
             processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affectedVersions, matches);
             
             if (matches.length > 0) {
-                console.debug(`[Gap Processing Rule] Generated ${matches.length} gap matches for ${cpeBase}`);
                 return { processed: true, matches };
             } else {
-                console.debug(`[Gap Processing Rule] No gaps found between unaffected ranges`);
                 return { processed: false, matches };
             }
         }
@@ -374,9 +345,7 @@ const JSON_GENERATION_RULES = {
                 versionInfo.version && String(versionInfo.version).includes('*')) {
                 return { processed: false, matches: [] };
             }
-            
-            if (versionInfo.versionType && !['semver', 'string'].includes(versionInfo.versionType)) {
-                console.debug(`[Special Version Types Rule] Processing ${versionInfo.versionType}: ${versionInfo.version}`);
+              if (versionInfo.versionType && !['semver', 'string'].includes(versionInfo.versionType)) {
                 // Apply special handling based on version type
                 const cpeMatch = createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable);
                 
@@ -510,11 +479,9 @@ const JSON_GENERATION_RULES = {
                 { pattern: /^(.+?)[\.\-_]*revision[\.\-_]*(\d+)[\.\-_]*$/i, type: 'revision' },
                 { pattern: /^(.+?)[\.\-_]*rev[\.\-_]*(\d+)[\.\-_]*$/i, type: 'revision' }
             ];
-            
-            for (const { pattern, type } of updatePatterns) {
+              for (const { pattern, type } of updatePatterns) {
                 const match = version.match(pattern);
                 if (match) {
-                    console.debug(`[Update Patterns Rule] Detected ${type} pattern: ${version}`);
                       // Extract base version and update component
                     const baseVersion = match[1].trim(); // Trim any trailing spaces
                     let updateNumber = match[2] || '';
@@ -534,10 +501,7 @@ const JSON_GENERATION_RULES = {
                         updateComponent = `${finalType}${cleanNumber}`;
                     } else {
                         // Just use the type name if no number
-                        updateComponent = finalType;
-                    }
-                    
-                    console.debug(`[Update Patterns Rule] Transforming ${version} -> base: ${baseVersion}, update: ${updateComponent}`);
+                        updateComponent = finalType;                    }
                     
                     // Create modified CPE with update component
                     const cpeMatch = createCpeMatchWithUpdate(cpeBase, baseVersion, updateComponent, isVulnerable);
@@ -589,15 +553,10 @@ const JSON_GENERATION_RULES = {
                         }
                         branchMap.get(branch).push(v);
                     }
-                }
-            });
-            
-            console.debug(`[Multiple Branches Rule] Processing ${branchMap.size} version branches`);
+                }            });
             
             // Process each branch separately
             for (const [branch, versions] of branchMap) {
-                console.debug(`[Multiple Branches Rule] Processing branch ${branch} with ${versions.length} versions`);
-                
                 for (const versionInfo of versions) {
                     const isVulnerable = versionInfo.status === "affected";
                     const otherRulesResult = context.applyOtherRules(cpeBase, versionInfo, isVulnerable, ['multipleBranches']);
@@ -626,7 +585,9 @@ class ModularRuleEngine {
         this.appliedRules = new Set();
         this.cachedApplicableRules = null;
         this.conflictAnalysisLogged = false;
-    }    /**
+        this.conflicts = [];
+        this.skippedRules = [];
+    }/**
      * Get all rules that should be applied based on settings and data
      */
     getApplicableRules() {
@@ -636,11 +597,9 @@ class ModularRuleEngine {
         }
         
         const applicable = [];
-        
-        for (const [ruleId, rule] of Object.entries(JSON_GENERATION_RULES)) {
+          for (const [ruleId, rule] of Object.entries(JSON_GENERATION_RULES)) {
             if (rule.shouldApply(this.versionData, this.settings)) {
                 applicable.push({ id: ruleId, rule });
-                console.debug(`[Rule Engine] Rule '${rule.name}' is applicable`);
             }
         }
         
@@ -700,34 +659,15 @@ class ModularRuleEngine {
                 severity: 'LOW',
                 warning: 'Inverse Status and Gap Processing can work together effectively',
                 resolution: 'Will use Inverse Status with Gap Processing cooperative processing'
-            }
-        ];
+            }        ];
         
-        console.group(`[Rule Engine] Conflict Analysis for ${applicableRules.length} applicable rules`);
-        
+        // Store conflicts for focused logging during rule application
         for (const pattern of conflictPatterns) {
             const hasAllRules = pattern.rules.every(rule => ruleNames.includes(rule));
             if (hasAllRules) {
                 conflicts.push(pattern);
-                
-                const severityStyle = pattern.severity === 'HIGH' ? 'error' : 
-                                    pattern.severity === 'MEDIUM' ? 'warn' : 'info';
-                
-                console[severityStyle](`[${pattern.severity}] ${pattern.warning}`);
-                console.info(`  Conflicting rules: ${pattern.rules.join(', ')}`);
-                console.info(`  Resolution strategy: ${pattern.resolution}`);
             }
         }
-          if (conflicts.length === 0) {
-            console.info('[OK] No rule conflicts detected - all rules can work independently');
-        } else {
-            console.warn(`[WARNING] ${conflicts.length} potential rule conflicts detected`);
-            console.info('Rule coordination system will handle conflicts using cooperative processing or priority order');
-        }        
-        console.groupEnd();
-        
-        // Log rule application summary
-        this.logRuleApplicationSummary(applicableRules, conflicts);
         
         // Mark that conflict analysis has been logged
         this.conflictAnalysisLogged = true;
@@ -735,31 +675,7 @@ class ModularRuleEngine {
 
     /**
      * Log a summary of how rules will be applied
-     */
-    logRuleApplicationSummary(applicableRules, conflicts) {
-        console.group('[Rule Engine] Rule Application Summary');
-        
-        const datasetRules = applicableRules.filter(r => r.rule.processDataset);
-        const perVersionRules = applicableRules.filter(r => r.rule.process && !r.rule.processDataset);
-          console.info(`[Dataset] Rules (${datasetRules.length}): ${datasetRules.map(r => r.rule.name).join(', ')}`);
-        console.info(`[Per-Version] Rules (${perVersionRules.length}): ${perVersionRules.map(r => r.rule.name).join(', ')}`);
-        
-        if (conflicts.length > 0) {
-            const cooperativeConflicts = conflicts.filter(c => c.resolution.includes('cooperative'));
-            const priorityConflicts = conflicts.filter(c => c.resolution.includes('priority'));
-            
-            if (cooperativeConflicts.length > 0) {
-                console.info(`[Cooperative] Processing: ${cooperativeConflicts.length} rule combinations`);
-            }
-            if (priorityConflicts.length > 0) {
-                console.info(`[Priority] Order Processing: ${priorityConflicts.length} rule combinations`);
-            }
-        }
-        
-        console.groupEnd();
-    }
-
-    /**
+     */    /**
      * Apply other rules to a version (used by rules that need to delegate)
      */
     applyOtherRules(cpeBase, versionInfo, isVulnerable, excludeRules = []) {
@@ -799,21 +715,16 @@ class ModularRuleEngine {
         if (datasetRules.length === 0) {
             return null;
         }
-        
-        // Detect if we have multiple applicable dataset rules
+          // Detect if we have multiple applicable dataset rules
         const ruleNames = datasetRules.map(r => r.rule.name);
-        console.debug(`[Rule Engine] Found ${datasetRules.length} applicable dataset rules: ${ruleNames.join(', ')}`);
         
         // Define rule coordination strategies
         const cooperativeRules = this.getCooperativeRuleGroups(datasetRules);
         
         if (cooperativeRules.length > 0) {
             // Use cooperative processing for compatible rule combinations
-            console.debug(`[Rule Engine] Using cooperative processing for rule groups`);
-            return this.processCooperativeRules(cpeBase, cooperativeRules);
-        } else {
+            return this.processCooperativeRules(cpeBase, cooperativeRules);        } else {
             // Use single rule processing with enhanced priority
-            console.debug(`[Rule Engine] Using single rule processing with priority order`);
             return this.processSingleDatasetRule(cpeBase, datasetRules);
         }
     }
@@ -846,8 +757,7 @@ class ModularRuleEngine {
                 description: 'Process inverse status first, then fill gaps'
             }
         ];
-        
-        for (const combination of compatibleCombinations) {
+          for (const combination of compatibleCombinations) {
             const hasAllRules = combination.rules.every(rule => ruleIds.includes(rule));
             if (hasAllRules) {
                 const applicableRules = datasetRules.filter(r => combination.rules.includes(r.id));
@@ -855,7 +765,6 @@ class ModularRuleEngine {
                     ...combination,
                     applicableRules
                 });
-                console.debug(`[Rule Engine] Found cooperative group: ${combination.name}`);
             }
         }
         
@@ -864,11 +773,9 @@ class ModularRuleEngine {
 
     /**
      * Process multiple rules cooperatively using defined strategies
-     */
-    processCooperativeRules(cpeBase, cooperativeGroups) {
+     */    processCooperativeRules(cpeBase, cooperativeGroups) {
         // Use the first cooperative group found (could be enhanced to choose best match)
         const group = cooperativeGroups[0];
-        console.debug(`[Rule Engine] Applying cooperative strategy: ${group.name} - ${group.description}`);
         
         switch (group.strategy) {
             case 'branch_then_status':
@@ -914,14 +821,10 @@ class ModularRuleEngine {
             }
         });
         
-        console.debug(`[Rule Engine] Processing ${branchMap.size} branches with mixed status logic`);
-        
         // Apply mixed status processing within each branch
         for (const [branch, versions] of branchMap) {
             const branchAffected = versions.filter(v => v.status === 'affected');
             const branchUnaffected = versions.filter(v => v.status === 'unaffected');
-            
-            console.debug(`[Rule Engine] Branch ${branch}: ${branchAffected.length} affected, ${branchUnaffected.length} unaffected`);
             
             // Process each version in this branch
             for (const versionInfo of versions) {
@@ -959,14 +862,12 @@ class ModularRuleEngine {
         
         if (statusResult.processed) {
             this.appliedRules.add('mixedStatus');
-            console.debug(`[Rule Engine] Mixed status processing generated ${matches.length} matches`);
             
             // Then apply gap processing to fill any gaps
             const gapResult = gapRule.rule.processDataset(cpeBase, this.versionData, this.settings, this);
             if (gapResult.processed && gapResult.matches.length > 0) {
                 matches.push(...gapResult.matches);
                 this.appliedRules.add('gapProcessing');
-                console.debug(`[Rule Engine] Gap processing added ${gapResult.matches.length} additional matches`);
             }
         }
         
@@ -990,14 +891,12 @@ class ModularRuleEngine {
         
         if (inverseResult.processed) {
             this.appliedRules.add('inverseStatus');
-            console.debug(`[Rule Engine] Inverse status processing generated ${matches.length} matches`);
             
             // Then apply gap processing
             const gapResult = gapRule.rule.processDataset(cpeBase, this.versionData, this.settings, this);
             if (gapResult.processed && gapResult.matches.length > 0) {
                 matches.push(...gapResult.matches);
                 this.appliedRules.add('gapProcessing');
-                console.debug(`[Rule Engine] Gap processing added ${gapResult.matches.length} additional matches`);
             }
         }
         
@@ -1024,15 +923,11 @@ class ModularRuleEngine {
             }
         }
         
-        console.debug(`[Rule Engine] Applying single dataset rule in priority order: ${orderedRules.map(r => r.rule.name).join(', ')}`);
-        
         for (const {id, rule} of orderedRules) {
-            console.debug(`[Rule Engine] Trying dataset rule: ${rule.name}`);
             const result = rule.processDataset(cpeBase, this.versionData, this.settings, this);
             
             if (result.processed) {
                 this.appliedRules.add(id);
-                console.debug(`[Rule Engine] Dataset rule '${rule.name}' successfully processed the dataset`);
                 return result.matches;
             }
         }
@@ -1040,35 +935,31 @@ class ModularRuleEngine {
         return null; // No dataset rules applied
     }/**
      * Main processing entry point
-     */
-    generateMatches(cpeBase) {
+     */    generateMatches(cpeBase) {
         const matches = [];
         
         // First, try dataset-level rules
         const datasetMatches = this.processDataset(cpeBase);
         if (datasetMatches) {
             matches.push(...datasetMatches);
-            console.debug(`[Rule Engine] Dataset processing completed with ${datasetMatches.length} matches`);
             
             // Apply additional per-version rules that might modify the results
-            console.debug(`[Rule Engine] Checking for additional per-version rules`);
             const additionalMatches = this.processAdditionalVersionRules(cpeBase, datasetMatches);
             if (additionalMatches.length > 0) {
-                console.debug(`[Rule Engine] Applied additional per-version rules, adding ${additionalMatches.length} more matches`);
                 matches.push(...additionalMatches);
             }
             
             // Deduplicate matches to prevent conflicts
             const deduplicatedMatches = this.deduplicateMatches(matches);
             if (deduplicatedMatches.length !== matches.length) {
-                console.warn(`[Rule Engine] Removed ${matches.length - deduplicatedMatches.length} duplicate matches`);
+                console.warn(`ModularRules: Removed ${matches.length - deduplicatedMatches.length} duplicate matches for ${cpeBase}`);
             }
             
+            // Log conflicts and rule application issues
+            this.logTroubleshootingInfo(cpeBase);
+            
             return deduplicatedMatches;
-        }
-        
-        // Fall back to per-version processing
-        console.debug(`[Rule Engine] Falling back to per-version processing`);
+        }        // Fall back to per-version processing
         for (const versionInfo of this.versionData.versions) {
             if (!versionInfo) continue;
             
@@ -1077,8 +968,33 @@ class ModularRuleEngine {
             matches.push(...versionMatches);
         }
         
-        console.debug(`[Rule Engine] Generated ${matches.length} total matches using rules: ${Array.from(this.appliedRules).join(', ')}`);
-        return this.deduplicateMatches(matches);
+        this.logTroubleshootingInfo(cpeBase);        return this.deduplicateMatches(matches);
+    }
+
+    /**
+     * Log focused troubleshooting information for rule conflicts and precarious scenarios
+     */
+    logTroubleshootingInfo(cpeBase) {
+        // Log rule conflicts with specific information about what was not applied
+        if (this.conflicts.length > 0) {
+            for (const conflict of this.conflicts) {
+                if (conflict.severity === 'HIGH') {
+                    console.warn(`ModularRules: Rule conflict for ${cpeBase} - ${conflict.rules.join(' vs ')} (${conflict.resolution})`);
+                }
+            }
+        }
+        
+        // Log precarious scenarios only
+        if (this.skippedRules.length > 0) {
+            for (const skipped of this.skippedRules) {
+                console.info(`ModularRules: ${skipped.rule} skipped for ${cpeBase} - ${skipped.reason}`);
+            }
+        }
+        
+        // Log if no rules were applied (potential data issue)
+        if (this.appliedRules.size === 0) {
+            console.warn(`ModularRules: No rules applied for ${cpeBase} - check version data format or settings`);
+        }
     }
 
     /**
@@ -1103,7 +1019,6 @@ class ModularRuleEngine {
                 seen.add(key);
                 deduplicated.push(match);
             } else {
-                console.debug(`[Rule Engine] Filtered duplicate match: ${key}`);
             }
         }
         
@@ -1122,17 +1037,12 @@ class ModularRuleEngine {
         );
         
         if (perVersionRules.length === 0) {
-            console.debug(`[Rule Engine] No additional per-version rules to apply`);
             return additionalMatches;
         }
-        
-        console.debug(`[Rule Engine] Found ${perVersionRules.length} additional per-version rules: ${perVersionRules.map(r => r.rule.name).join(', ')}`);
         
         // Enhanced version tracking with more detailed analysis
         const processedVersions = this.analyzeProcessedVersions(existingMatches);
         const versionCoverage = this.calculateVersionCoverage(existingMatches);
-        
-        console.debug(`[Rule Engine] Version coverage analysis: ${JSON.stringify(versionCoverage, null, 2)}`);
         
         // Apply per-version rules with intelligent filtering
         for (const versionInfo of this.versionData.versions) {
@@ -1142,7 +1052,6 @@ class ModularRuleEngine {
             const shouldProcessVersion = this.shouldProcessAdditionalVersion(versionInfo, processedVersions, versionCoverage);
             
             if (!shouldProcessVersion) {
-                console.debug(`[Rule Engine] Skipping version ${versionInfo.version} - adequate coverage exists`);
                 continue;
             }
             
@@ -1156,7 +1065,6 @@ class ModularRuleEngine {
                 
                 const result = rule.process(cpeBase, versionInfo, isVulnerable, this);
                 if (result.processed && result.matches.length > 0) {
-                    console.debug(`[Rule Engine] Applied additional rule '${rule.name}' to version ${versionInfo.version}`);
                     
                     // Filter out matches that would duplicate existing coverage
                     const uniqueMatches = this.filterDuplicateMatches(result.matches, existingMatches, additionalMatches);
@@ -1318,7 +1226,6 @@ class ModularRuleEngine {
             if (!isDuplicate) {
                 uniqueMatches.push(newMatch);
             } else {
-                console.debug(`[Rule Engine] Filtered duplicate match for ${newMatch.criteria}`);
             }
         }
         
@@ -1411,8 +1318,6 @@ function createCpeMatchWithUpdate(cpeBase, version, update, isVulnerable) {
     cpeComponents[6] = update || '*';      // update (patch/hotfix/sp component)
     
     const cpeString = cpeComponents.join(':');
-    
-    console.debug(`[Update Patterns Rule] Created CPE with update field: ${cpeString}`);
     return {
         criteria: cpeString,
         matchCriteriaId: generateMatchCriteriaId(),
@@ -1491,7 +1396,6 @@ function generateMatchCriteriaId() {
  * @param {Array} cpeMatches - Array to add new cpeMatch objects to
  */
 function processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affectedVersions, cpeMatches) {
-    console.debug("Processing gaps between unaffected ranges");
     
     // First, organize the unaffected versions by their starting version and ending version
     const unaffectedRanges = [];
@@ -1530,7 +1434,6 @@ function processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affecte
                 
                 if (!isNaN(majorVersion) && !isNaN(minorVersion)) {
                     endVer = `${majorVersion}.${minorVersion + 1}`;
-                    console.debug(`Processed wildcard ${wildcard} to next version ${endVer}`);
                 } else {
                     endVer = incrementVersion(versionBase);
                 }
@@ -1549,10 +1452,7 @@ function processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affecte
     
     // Sort the ranges by start version
     unaffectedRanges.sort((a, b) => compareVersions(a.start, b.start));
-    
-    console.debug("Sorted unaffected ranges:");
     unaffectedRanges.forEach((range, i) => {
-        console.debug(`Range ${i}: ${range.start} to ${range.end || "unlimited"}`);
     });
     
     // Now find the gaps between unaffected ranges
@@ -1576,7 +1476,6 @@ function processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affecte
         );
         
         if (matchingAffected) {
-            console.debug(`Found patched version ${patchRange.start} for base affected version ${baseVersion}`);
             
             // Create a non-vulnerable range from base to patched version (inclusive)
             cpeMatches.push({
@@ -1587,8 +1486,6 @@ function processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affecte
                 versionEndIncluding: patchRange.start
             });
             
-            console.debug(`Created unaffected range from ${baseVersion} to ${patchRange.start} (inclusive)`);
-            
             // Create a vulnerable range from patched version (exclusive) to the next minor
             if (patchRange.end) {
                 cpeMatches.push({
@@ -1598,8 +1495,6 @@ function processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affecte
                     versionStartExcluding: patchRange.start,
                     versionEndExcluding: patchRange.end
                 });
-                
-                console.debug(`Created affected range from ${patchRange.start} (exclusive) to ${patchRange.end}`);
             }
         }
     }
@@ -1610,7 +1505,6 @@ function processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affecte
         
         // If we have a previous range and there's a gap between
         if (previousRange && previousRange.end && compareVersions(previousRange.end, currentRange.start) < 0) {
-            console.debug(`Found gap between ${previousRange.end} and ${currentRange.start}`);
             
             // Skip creating affected ranges for gaps that overlap with our patch handling above
             let shouldCreateGapRange = true;
@@ -1622,7 +1516,6 @@ function processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affecte
                 
                 // If the start of this gap matches a base version we've already handled
                 if (previousRange.end === baseVersion) {
-                    console.debug(`Skipping gap starting at ${baseVersion} as it's handled by patch special case`);
                     shouldCreateGapRange = false;
                     break;
                 }
@@ -1645,7 +1538,6 @@ function processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affecte
     
     // If the last range doesn't extend to infinity, add a final affected range
     if (previousRange && previousRange.end) {
-        console.debug(`Adding final range from ${previousRange.end} to infinity`);
         
         cpeMatches.push({
             criteria: cpeBase,
@@ -1663,5 +1555,3 @@ window.JSON_GENERATION_RULES = JSON_GENERATION_RULES;
 window.generateMatchCriteriaId = generateMatchCriteriaId;
 window.compareVersions = compareVersions;
 window.incrementVersion = incrementVersion;
-
-console.debug("Modular Rules System loaded");
