@@ -78,10 +78,11 @@ function calculateTotalVersions(selectedRows, rawPlatformData) {
         if (rawPlatformData && rawPlatformData.versions && Array.isArray(rawPlatformData.versions)) {
             return rawPlatformData.versions.length;
         }
-        return selectedRows.size; // Fallback to number of selected rows
+        console.warn("No valid version data found in rawPlatformData, returning 0");
+        return 0; // More accurate than using selectedRows.size
     } catch(e) {
         console.error("Error calculating total versions:", e);
-        return selectedRows.size;
+        return 0; // Consistent with above case
     }
 }
 
@@ -147,13 +148,13 @@ function gatherTableMetadata(tableIndex) {
             sourceId,
             sourceRole,
             rawPlatformData
-        };
-    } catch(e) {
+        };    } catch(e) {
         console.error(`Error gathering metadata for table ${tableIndex}:`, e);
+        console.error('Stack trace:', e.stack);
         return {
-            dataResource: "Error",
-            sourceId: "Error",
-            sourceRole: "Error",
+            dataResource: "Unknown", // More descriptive than "Error"
+            sourceId: "Unknown",
+            sourceRole: "Unknown", 
             rawPlatformData: null
         };
     }

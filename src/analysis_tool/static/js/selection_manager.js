@@ -98,15 +98,9 @@ function toggleRowCollapse(tableIndex, action) {
                     dropdownMenu.appendChild(skipItem);
                     
                     // Add menu to group
-                    btnGroup.appendChild(dropdownMenu);
-                } else {
-                    // Fallback if group not found
-                    collapseButton.innerHTML = 'Collapse Row <span class="caret"></span>';
-                    collapseButton.classList.remove('btn-success', 'btn-warning');
-                    collapseButton.classList.add('btn-secondary', 'dropdown-toggle');
-                    collapseButton.setAttribute('data-bs-toggle', 'dropdown');
-                    collapseButton.setAttribute('aria-haspopup', 'true');
-                    collapseButton.setAttribute('aria-expanded', 'false');
+                    btnGroup.appendChild(dropdownMenu);                } else {
+                    // This shouldn't occur in normal operation - log and continue
+                    console.warn(`Button group not found for table ${tableIndex}. This indicates a DOM structure issue.`);
                 }
                 
                 // Enable collapse functionality for Bootstrap components

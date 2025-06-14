@@ -111,13 +111,15 @@ def process_test_file(test_file_path, nvd_source_data):
         filepath = sub_directory / filename
         
         with filepath.open("w", encoding="utf-8") as fd:
-            fd.write(allConsoleHTML)
-        
+            fd.write(allConsoleHTML)        
         print(f"Generated test file: {filepath}")
         return filepath
         
     except Exception as e:
         print(f"[ERROR] Failed to process test file {test_file_path}: {str(e)}")
+        print(f"[DEBUG] Error type: {type(e).__name__}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def process_cve(cve_id, nvd_api_key, nvd_source_data):

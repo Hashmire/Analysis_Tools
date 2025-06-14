@@ -39,15 +39,18 @@ def gatherVDBCheckerData(targetCve):
             "cvss3x": "<td> - </td>",
             "cwe": "<td> - </td>",
             "notes": "<td> - </td>",
-            "responseCode": "<td> - </td>"
-            }
+            "responseCode": "<td> - </td>"            }
         
         def getJSONDict():
             try: 
                 sourceDataDict = sourceURLData.json()
-                return (sourceDataDict)
-            except:
-                print ("\n[WARNING] Could not make jsonDict for " + source)
+                return sourceDataDict
+            except requests.exceptions.JSONDecodeError as e:
+                print(f"\n[WARNING] Invalid JSON response from {source}: {e}")
+                return {}  # Return empty dict to prevent None checks
+            except Exception as e:
+                print(f"\n[ERROR] Unexpected error parsing JSON from {source}: {e}")
+                return {}
 
         match source:
             case "RedHat Security API":
