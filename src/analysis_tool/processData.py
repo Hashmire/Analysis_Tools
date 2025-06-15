@@ -31,11 +31,11 @@ def getNVDSourceDataByUUID(uuid: str, nvdSourceData: pd.DataFrame) -> dict:
     return {}
 
 def sort_cpes_query_data(rawDataset: pd.DataFrame):
-
     tempDataset = rawDataset.copy()
 
     for index, row in tempDataset.iterrows():
         cpes_query_data = row['rawCPEsQueryData']
+        
         # Convert cpes_query_data to a list of dictionaries for sorting
         cpes_query_data_list = [{key: value} for key, value in cpes_query_data.items()]
         
@@ -45,20 +45,31 @@ def sort_cpes_query_data(rawDataset: pd.DataFrame):
         # Convert the sorted list of dictionaries back to a dictionary
         sorted_cpes_query_data_dict = {list(entry.keys())[0]: list(entry.values())[0] for entry in sorted_cpes_query_data}
         
-        # Update the row with the sorted cpes_query_data
+        # Update the row with the sorted cpesQueryData
         tempDataset.at[index, 'sortedCPEsQueryData'] = sorted_cpes_query_data_dict
     
     return tempDataset
-#
 def sort_broad_entries(data):
     # Sort the list of dictionaries based on 'matches_found' in descending order
-    sorted_data = sorted(data, key=lambda x: list(x.values())[0].get('matches_found', 0), reverse=True)
+    # Error entries should appear first to ensure visibility
+    def sort_key(entry):
+        value = list(entry.values())[0]
+        # Prioritize error entries by giving them a very high "matches_found" value
+        if value.get('status') in ['invalid_cpe', 'error']:
+            return float('inf')  # Errors get highest priority
+        return value.get('matches_found', 0)
+    
+    sorted_data = sorted(data, key=sort_key, reverse=True)
     return sorted_data
-#                    ,
 def sort_base_strings(unique_base_strings: dict) -> dict:
     # Enhanced sorting logic with more granular priority handling
     def sort_key(item):
         base_key, attributes = item
+        
+        # Prioritize error entries - they should appear first
+        if attributes.get('status') in ['invalid_cpe', 'error']:
+            return (-1000, 0, 0, 0, 0, 0)  # High negative priority for errors to appear first
+        
         # Check for the presence of specific tags
         has_affected_cpes_array = any(key.startswith('searchSourcecveAffectedCPEsArray') for key in attributes.keys())
         has_vendor_product = any(key.startswith('searchSourcevendorproduct') for key in attributes.keys())
@@ -115,6 +126,10 @@ def reduceToTop10(workingDataset: pd.DataFrame) -> pd.DataFrame:
     def consolidateBaseStrings(data, unique_base_strings, duplicate_keys):
         for key, value in data.items():
             if isinstance(value, dict):
+                # Skip error entries completely - they should not appear in CPE suggestions
+                if value.get('status') in ['invalid_cpe', 'error']:
+                    continue
+                
                 cpe_breakout = breakoutCPEAttributes(key)  # Updated function name
                 recorded_keys = {k: v for k, v in cpe_breakout.items() if v != '*' and k not in ['cpePrefix', 'cpeVersion']}
                 recorded_keys_str = "".join(recorded_keys.keys())

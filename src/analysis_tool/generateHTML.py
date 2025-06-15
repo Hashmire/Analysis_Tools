@@ -563,6 +563,24 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         # Enhanced badge name to reflect broader scope
         sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{curation_tooltip}">Source to CPE Transformations Applied</span> ')
 
+    # 12. CPE API Error Detection Badge
+    sorted_cpe_query_data = row.get('sortedCPEsQueryData', {})
+    if sorted_cpe_query_data:
+        cpe_error_messages = []
+        invalid_cpe_count = 0
+        
+        for cpe_string, query_data in sorted_cpe_query_data.items():
+            if isinstance(query_data, dict):
+                # Check for error status
+                if query_data.get('status') == 'invalid_cpe' or query_data.get('status') == 'error':
+                    invalid_cpe_count += 1
+                    error_msg = query_data.get('error_message', 'Unknown CPE API error')
+                    cpe_error_messages.append(f"CPE: {cpe_string}&#013;Error: {error_msg}")
+        
+        if invalid_cpe_count > 0:
+            error_tooltip = f"NVD CPE API returned errors for {invalid_cpe_count} CPE strings:&#013;" + "&#013;&#013;".join(cpe_error_messages)
+            warning_badges.append(f'<span class="badge bg-danger" title="{error_tooltip}">CPE API Errors ({invalid_cpe_count})</span> ')
+
     # Add badges in priority order: Danger -> Warning -> Info -> Standard
     html += ''.join(danger_badges)
     html += ''.join(warning_badges)
@@ -656,7 +674,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
 def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
     
     # Create a collapsible card similar to Provenance Assistance
-    html = f"""
+    html_content = f"""
     <div class="card mb-3">
         <div class="card-header d-flex justify-content-between align-items-center" 
              id="cpeHeader_{tableIndex}" 
@@ -681,6 +699,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
                 <tbody>
     """
     
+    # Process all queries
     for base_key, base_value in sortedCPEsQueryData.items():
         total_match_count = (base_value.get('depFalseCount', 0) + base_value.get('depTrueCount', 0))
         dep_true_count = base_value.get('depTrueCount', 0)
@@ -731,12 +750,11 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
         # Create the tooltip content
         search_keys_tooltip_content = "Relevant Match String Searches:&#10;"
         for key, value in sorted_search_keys:
-            search_keys_tooltip_content += f"{key}:  {value}&#10;"
-        
+            search_keys_tooltip_content += f"{key}:  {value}&#10;"        
         # Sanitize base_key for use as ID
         base_key_id = base_key.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
         
-        html += f"""
+        html_content += f"""
         <tr id="row_{base_key_id}" class="cpe-row" data-cpe-base="{base_key}">
             <td class="text-break">{base_key}</td>
             <td>
@@ -754,7 +772,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
         """
 
     # Close the table and container divs
-    html += """
+    html_content += """
     </tbody>
     </table>
     </div>
@@ -763,7 +781,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
     </div>
     """
 
-    return html.replace('\n', '')
+    return html_content.replace('\n', '')
 
 # Add the new file to the list of JS files to include
 def getCPEJsonScript() -> str:
