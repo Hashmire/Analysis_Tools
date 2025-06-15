@@ -1,0 +1,420 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1",
+  "cveMetadata": {
+    "cveId": "CVE-1337-99997",
+    "assignerOrgId": "modular-test-org-12345",
+    "state": "PUBLISHED",
+    "assignerShortName": "ModularTestOrg",
+    "datePublished": "2024-06-15T10:00:00.000Z",
+    "dateUpdated": "2024-06-15T12:30:00.000Z",
+    "dateReserved": "2024-06-10T08:00:00.000Z",
+    "serial": 1
+  },
+  "containers": {
+    "cna": {
+      "providerMetadata": {
+        "orgId": "modular-test-org-12345",
+        "shortName": "ModularTestOrg",
+        "dateUpdated": "2024-06-15T12:30:00.000Z"
+      },
+      "dateAssigned": "2024-06-10T08:00:00.000Z",
+      "datePublic": "2024-06-15T10:00:00.000Z",
+      "title": "Comprehensive Modular Rules Testing - Enhanced Coverage",
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "This is a comprehensive test case designed to validate all modular JSON generation rules with enhanced edge case coverage and rule interaction scenarios."
+        },
+        {
+          "lang": "es", 
+          "value": "Este es un caso de prueba integral diseñado para validar todas las reglas modulares de generación JSON con cobertura mejorada de casos límite."
+        },
+        {
+          "lang": "ja",
+          "value": "これは、拡張されたエッジケースカバレッジとルール相互作用シナリオを備えたすべてのモジュラーJSON生成ルールを検証するために設計された包括的なテストケースです。"
+        }
+      ],
+      "affected": [
+        {
+          "vendor": "wildcard-test-vendor",
+          "product": "simple-wildcard-product",
+          "versions": [
+            {
+              "version": "5.*",
+              "status": "affected"
+            },
+            {
+              "version": "6.2.*",
+              "status": "affected"
+            },
+            {
+              "version": "0.*",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "complex-wildcard-vendor",
+          "product": "multi-level-wildcard",
+          "versions": [
+            {
+              "version": "2.4.*",
+              "status": "affected"
+            },
+            {
+              "version": "3.1.5.*",
+              "status": "affected"
+            },
+            {
+              "version": "10.*.beta",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "version-changes-vendor",
+          "product": "timeline-product",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected",
+              "changes": [
+                {
+                  "at": "1.0.0",
+                  "status": "affected"
+                },
+                {
+                  "at": "1.2.0", 
+                  "status": "unaffected"
+                },
+                {
+                  "at": "1.5.0",
+                  "status": "affected"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "vendor": "complex-changes-vendor",
+          "product": "multi-change-product",
+          "versions": [
+            {
+              "version": "2.0.0",
+              "status": "affected",
+              "changes": [
+                {
+                  "at": "2.0.0",
+                  "status": "affected"
+                },
+                {
+                  "at": "2.1.0",
+                  "status": "unaffected"
+                },
+                {
+                  "at": "2.2.0", 
+                  "status": "affected"
+                },
+                {
+                  "at": "2.3.0",
+                  "status": "unaffected"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "vendor": "inverse-status-vendor",
+          "product": "all-unaffected-product",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "1.1.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "1.2.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "2.0.0",
+              "status": "unaffected"
+            }
+          ]
+        },
+        {
+          "vendor": "mixed-status-vendor", 
+          "product": "mixed-affected-product",
+          "versions": [
+            {
+              "version": "3.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "3.1.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "3.2.0",
+              "status": "affected"
+            },
+            {
+              "version": "3.3.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "3.4.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "gap-processing-vendor",
+          "product": "version-gap-product",
+          "versions": [
+            {
+              "version": "4.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "4.5.0",
+              "status": "affected"
+            },
+            {
+              "version": "5.0.0",
+              "status": "unaffected"
+            },
+            {
+              "version": "6.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "special-versions-vendor",
+          "product": "pre-release-product",
+          "versions": [
+            {
+              "version": "7.0.0-alpha.1",
+              "status": "affected"
+            },
+            {
+              "version": "7.0.0-beta.2",
+              "status": "affected"
+            },
+            {
+              "version": "7.0.0-rc.1",
+              "status": "unaffected"
+            },
+            {
+              "version": "7.0.0-dev.20240615",
+              "status": "affected"
+            },
+            {
+              "version": "7.1.0-nightly",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "update-patterns-vendor",
+          "product": "patch-update-product",
+          "versions": [
+            {
+              "version": "8.0.0",
+              "status": "affected",
+              "changes": [
+                {
+                  "at": "8.0.1",
+                  "status": "unaffected"
+                },
+                {
+                  "at": "8.0.2", 
+                  "status": "unaffected"
+                }
+              ]
+            },
+            {
+              "version": "8.1.0",
+              "status": "affected",
+              "changes": [
+                {
+                  "at": "8.1.5",
+                  "status": "unaffected"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "vendor": "multiple-branches-vendor",
+          "product": "multi-branch-product",
+          "versions": [
+            {
+              "version": "9.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "9.1.0",
+              "status": "affected"
+            },
+            {
+              "version": "10.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "10.1.0", 
+              "status": "unaffected"
+            },
+            {
+              "version": "11.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "unicode-test-vendor-测试",
+          "product": "unicode-product-产品",
+          "versions": [
+            {
+              "version": "1.0.0-测试版",
+              "status": "affected"
+            },
+            {
+              "version": "1.1.0-ベータ版",
+              "status": "affected"
+            },
+            {
+              "version": "1.2.0-тест",
+              "status": "unaffected"
+            }
+          ]
+        },
+        {
+          "vendor": "edge-case-vendor",
+          "product": "malformed-data-product",
+          "versions": [
+            {
+              "version": "",
+              "status": "affected"
+            },
+            {
+              "version": null,
+              "status": "affected"
+            },
+            {
+              "version": "invalid.version.string.too.long.format",
+              "status": "affected"
+            },
+            {
+              "version": "999.999.999",
+              "status": "affected"
+            },
+            {
+              "version": "0.0.0",
+              "status": "unaffected"
+            }
+          ]
+        },
+        {
+          "vendor": "complex-interaction-vendor",
+          "product": "wildcard-plus-changes",
+          "versions": [
+            {
+              "version": "12.*",
+              "status": "affected",
+              "changes": [
+                {
+                  "at": "12.5.0",
+                  "status": "unaffected"
+                },
+                {
+                  "at": "12.8.0",
+                  "status": "affected"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "vendor": "special-chars-vendor",
+          "product": "special-character-product",
+          "versions": [
+            {
+              "version": "1.0.0+build.123",
+              "status": "affected"
+            },
+            {
+              "version": "1.1.0~rc1",
+              "status": "affected"
+            },
+            {
+              "version": "1.2.0_patch",
+              "status": "unaffected"
+            },
+            {
+              "version": "1.3.0#hotfix",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "extreme-scenario-vendor",
+          "product": "stress-test-product",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected",
+              "changes": [
+                {
+                  "at": "1.0.1",
+                  "status": "unaffected"
+                },
+                {
+                  "at": "1.0.2",
+                  "status": "affected"
+                },
+                {
+                  "at": "1.0.3",
+                  "status": "unaffected"
+                },
+                {
+                  "at": "1.0.4",
+                  "status": "affected"
+                },
+                {
+                  "at": "1.0.5",
+                  "status": "unaffected"
+                }
+              ]
+            },
+            {
+              "version": "2.*",
+              "status": "affected"
+            },
+            {
+              "version": "3.0.0-beta.*",
+              "status": "affected"
+            }
+          ]
+        }
+      ],
+      "references": [
+        {
+          "url": "https://example.com/modular-rules-advisory",
+          "name": "Modular Rules Test Advisory",
+          "tags": ["vendor-advisory"]
+        },
+        {
+          "url": "https://example.com/enhanced-test-coverage",
+          "name": "Enhanced Test Coverage Documentation", 
+          "tags": ["technical-description"]
+        }
+      ]
+    }
+  }
+}

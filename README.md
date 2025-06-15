@@ -59,3 +59,10 @@ This tool isn't intended to be run locally, but if desired, the tool can be run 
    ```bash
    python analysis_tool.py --help
    ```
+
+## Testing
+
+Comprehensive automated test suites are available for validating core functionality:
+
+- **[Provenance Assistance Test Suite](documentation/provenance_assistance_test_suite.md)** - Validates multi-platform package repository detection, WordPress integration, and description/reference assistance
+- **[Modular Rules Test Suite](documentation/modular_rules_test_suite.md)** - Validates JSON generation rules, wildcard expansion, version processing, and rule interactions

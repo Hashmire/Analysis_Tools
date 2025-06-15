@@ -1,0 +1,522 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1",
+  "cveMetadata": {
+    "cveId": "CVE-1337-99998",
+    "assignerOrgId": "12345678-1234-1234-1234-123456789012",
+    "state": "PUBLISHED",
+    "assignerShortName": "ProvenanceTestOrg",
+    "datePublished": "2024-01-15T10:00:00.000Z",
+    "dateUpdated": "2024-01-15T12:30:00.000Z",
+    "dateReserved": "2024-01-10T08:00:00.000Z",
+    "serial": 1
+  },  "containers": {
+    "cna": {
+      "providerMetadata": {
+        "orgId": "12345678-1234-1234-1234-123456789012",
+        "shortName": "ProvenanceTestOrg",
+        "dateUpdated": "2024-01-15T12:30:00.000Z"
+      },
+      "dateAssigned": "2024-01-10T08:00:00.000Z",
+      "datePublic": "2024-01-15T10:00:00.000Z",
+      "title": "Comprehensive Provenance Assistance Test Cases",
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "This CVE record is designed to test all provenance assistance scenarios including Maven repositories, non-Maven repositories, WordPress platforms, and edge cases."
+        },
+        {
+          "lang": "es",
+          "value": "Este registro CVE está diseñado para probar todos los escenarios de asistencia de procedencia."
+        },
+        {
+          "lang": "fr",
+          "value": "Cet enregistrement CVE est conçu pour tester tous les scénarios d'assistance de provenance."
+        },
+        {
+          "lang": "de",
+          "value": "Dieser CVE-Datensatz wurde entwickelt, um alle Szenarien der Herkunftsunterstützung zu testen."
+        }
+      ],
+      "affected": [
+        {
+          "vendor": "apache",
+          "product": "commons-collections",
+          "collectionURL": "https://repo1.maven.org/maven2",
+          "packageName": "org.apache.commons:commons-collections4",
+          "repo": "https://github.com/apache/commons-collections",
+          "versions": [
+            {
+              "version": "4.1",
+              "status": "affected",
+              "versionType": "maven"
+            },
+            {
+              "version": "4.2",
+              "status": "unaffected"
+            }
+          ]
+        },
+        {
+          "vendor": "springframework",
+          "product": "spring-core",
+          "collectionURL": "https://repo.maven.apache.org/maven2",
+          "packageName": "org.springframework:spring-core",
+          "repo": "https://github.com/spring-projects/spring-framework",
+          "versions": [
+            {
+              "version": "5.3.21",
+              "status": "affected",
+              "versionType": "maven"
+            },
+            {
+              "version": "5.3.22",
+              "status": "unaffected"
+            }
+          ]
+        },
+        {
+          "vendor": "enterprise-corp",
+          "product": "internal-utils",
+          "collectionURL": "https://nexus.enterprise.com/repository/maven-public",
+          "packageName": "com.enterprise:internal-utils",
+          "repo": "https://gitlab.enterprise.com/internal/utils",
+          "versions": [
+            {
+              "version": "2.1.0",
+              "status": "affected",
+              "versionType": "maven"
+            }
+          ]
+        },
+        {
+          "vendor": "mycompany",
+          "product": "custom-lib",
+          "collectionURL": "https://artifactory.mycompany.com/artifactory/libs-release",
+          "packageName": "com.mycompany:custom-lib",
+          "versions": [
+            {
+              "version": "1.5.3",
+              "status": "affected",
+              "versionType": "maven"
+            }
+          ]
+        },
+        {
+          "vendor": "sonatype-test",
+          "product": "test-artifact",
+          "collectionURL": "https://oss.sonatype.org/content/repositories/releases",
+          "packageName": "org.sonatype.test:test-artifact",
+          "repo": "https://github.com/sonatype/test-artifact",
+          "versions": [
+            {
+              "version": "3.2.1",
+              "status": "affected",
+              "versionType": "maven"
+            }
+          ]
+        },
+        {
+          "vendor": "jitpack-user",
+          "product": "github-project",
+          "collectionURL": "https://jitpack.io",
+          "packageName": "com.github.jitpack-user:github-project",
+          "repo": "https://github.com/jitpack-user/github-project",
+          "versions": [
+            {
+              "version": "v1.2.3",
+              "status": "affected",
+              "versionType": "maven"
+            }
+          ]
+        },
+        {
+          "vendor": "clojure-org",
+          "product": "test-clojure-lib",
+          "collectionURL": "https://clojars.org/repo",
+          "packageName": "org.clojure:test-clojure-lib",
+          "repo": "https://github.com/clojure/test-clojure-lib",
+          "versions": [
+            {
+              "version": "0.8.1",
+              "status": "affected",
+              "versionType": "maven"
+            }
+          ]
+        },
+        {
+          "vendor": "python-org",
+          "product": "vulnerable-package",
+          "collectionURL": "https://pypi.org/simple",
+          "packageName": "vulnerable-package",
+          "repo": "https://github.com/python-org/vulnerable-package",
+          "versions": [
+            {
+              "version": "1.2.3",
+              "status": "affected",
+              "versionType": "python"
+            },
+            {
+              "version": "1.2.4",
+              "status": "unaffected"
+            }
+          ]
+        },
+        {
+          "vendor": "nodejs-org",
+          "product": "test-npm-package",
+          "collectionURL": "https://registry.npmjs.org",
+          "packageName": "test-npm-package",
+          "repo": "https://github.com/nodejs-org/test-npm-package",
+          "versions": [
+            {
+              "version": "2.1.0",
+              "status": "affected",
+              "versionType": "npm"
+            }
+          ]
+        },
+        {
+          "vendor": "ruby-gems-org",
+          "product": "test-gem",
+          "collectionURL": "https://rubygems.org",
+          "packageName": "test-gem",
+          "repo": "https://github.com/ruby-gems-org/test-gem",
+          "versions": [
+            {
+              "version": "0.9.1",
+              "status": "affected",
+              "versionType": "gem"
+            }
+          ]
+        },
+        {
+          "vendor": "nuget-org",
+          "product": "TestNuGetPackage",
+          "collectionURL": "https://api.nuget.org/v3-flatcontainer",
+          "packageName": "TestNuGetPackage",
+          "repo": "https://github.com/nuget-org/TestNuGetPackage",
+          "versions": [
+            {
+              "version": "3.1.2",
+              "status": "affected",
+              "versionType": "nuget"
+            }
+          ]
+        },
+        {
+          "vendor": "wordpress",
+          "product": "vulnerable-plugin",
+          "collectionURL": "https://downloads.wordpress.org/plugin",
+          "packageName": "vulnerable-plugin",
+          "repo": "https://plugins.svn.wordpress.org/vulnerable-plugin",
+          "versions": [
+            {
+              "version": "1.5.0",
+              "status": "affected",
+              "versionType": "wordpress"
+            }
+          ]
+        },
+        {
+          "vendor": "wordpress-dev",
+          "product": "another-wp-plugin",
+          "collectionURL": "https://wordpress.org/plugins",
+          "packageName": "another-wp-plugin",
+          "versions": [
+            {
+              "version": "2.1.3",
+              "status": "affected",
+              "versionType": "wordpress"
+            }
+          ]
+        },
+        {
+          "vendor": "go-modules",
+          "product": "test-go-module",
+          "collectionURL": "https://proxy.golang.org",
+          "packageName": "github.com/go-modules/test-go-module",
+          "repo": "https://github.com/go-modules/test-go-module",
+          "versions": [
+            {
+              "version": "v1.3.2",
+              "status": "affected",
+              "versionType": "go"
+            }
+          ]
+        },
+        {
+          "vendor": "edge-case-vendor",
+          "product": "maven-like-but-not-maven",
+          "collectionURL": "https://custom-repo.example.com/maven-styled",
+          "packageName": "not.actually:maven.format.but.has.maven.in.url",
+          "repo": "https://github.com/edge-case-vendor/maven-like-but-not-maven",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected",
+              "versionType": "custom"
+            }
+          ]
+        },
+        {
+          "vendor": "edge-case-vendor-2",
+          "product": "has-maven-indicators",
+          "collectionURL": "https://internal.nexus.company.com/repository/custom",
+          "packageName": "single-word-package",
+          "repo": "https://github.com/edge-case-vendor-2/has-maven-indicators",
+          "versions": [
+            {
+              "version": "2.0.0",
+              "status": "affected",
+              "versionType": "custom"
+            }
+          ]
+        },
+        {
+          "vendor": "complex-case-vendor",
+          "product": "complex-maven-case",
+          "collectionURL": "https://artifactory.complex.com/artifactory/maven-central",
+          "packageName": "com.complex:artifact:jar:classifier",
+          "repo": "https://github.com/complex-case-vendor/complex-maven-case",
+          "versions": [
+            {
+              "version": "1.2.3",
+              "status": "affected",
+              "versionType": "maven"
+            }
+          ]
+        },
+        {
+          "vendor": "no-collection-vendor",
+          "product": "only-repo-product",
+          "repo": "https://github.com/no-collection-vendor/only-repo-product",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "partial-data-vendor",
+          "product": "only-collection-product",
+          "collectionURL": "https://example-repo.com/packages",
+          "versions": [
+            {
+              "version": "2.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "unicode-test-vendor",
+          "product": "unicode-包名",
+          "collectionURL": "https://repo1.maven.org/maven2",
+          "packageName": "org.unicode:测试包:jar",
+          "repo": "https://github.com/unicode-test-vendor/unicode-包名",
+          "versions": [
+            {
+              "version": "1.0.0-α",
+              "status": "affected",
+              "versionType": "maven"
+            }
+          ]
+        }
+      ],      "references": [
+        {
+          "url": "https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-1337-99998",
+          "tags": ["mailing-list", "vendor-advisory"]
+        },
+        {
+          "url": "https://github.com/apache/commons-collections/security/advisories",
+          "tags": ["vendor-advisory"]
+        },
+        {
+          "url": "https://security.apache.org/CVE-1337-99998.html",
+          "tags": ["vendor-advisory", "patch"]
+        },
+        {
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-1337-99998",
+          "tags": ["third-party-advisory"]
+        },
+        {
+          "url": "https://github.com/apache/commons-collections/commit/abc123def456",
+          "tags": ["patch"],
+          "name": "Fix buffer overflow in input parsing"
+        },
+        {
+          "url": "https://github.com/apache/commons-collections/issues/12345",
+          "tags": ["issue-tracking"],
+          "name": "Issue #12345: Buffer overflow vulnerability"
+        },
+        {
+          "url": "https://security-mitigations.apache.org/commons-collections",
+          "tags": ["mitigation"],
+          "name": "Security mitigations for Apache Commons Collections"
+        },
+        {
+          "url": "https://commons.apache.org/collections/security",
+          "tags": ["product"],
+          "name": "Apache Commons Collections Security Information"
+        }
+      ],
+      "metrics": [
+        {
+          "cvssV3_1": {
+            "version": "3.1",
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+            "attackVector": "NETWORK",
+            "attackComplexity": "LOW",
+            "privilegesRequired": "NONE",
+            "userInteraction": "NONE",
+            "scope": "UNCHANGED",
+            "confidentialityImpact": "HIGH",
+            "integrityImpact": "HIGH",
+            "availabilityImpact": "HIGH",
+            "baseScore": 9.8,
+            "baseSeverity": "CRITICAL"
+          }
+        }
+      ],
+      "problemTypes": [
+        {
+          "descriptions": [
+            {
+              "lang": "en",
+              "description": "CWE-121: Stack-based Buffer Overflow",
+              "cweId": "CWE-121"
+            }
+          ]
+        }
+      ],
+      "impacts": [
+        {
+          "descriptions": [
+            {
+              "lang": "en",
+              "value": "Complete system compromise possible through remote code execution"
+            }
+          ]
+        }
+      ],
+      "workarounds": [
+        {
+          "lang": "en",
+          "value": "Disable network access to the vulnerable component until patched"
+        }
+      ],
+      "solutions": [
+        {
+          "lang": "en",
+          "value": "Upgrade to the latest version of each affected package"
+        }
+      ],
+      "exploits": [
+        {
+          "lang": "en",
+          "value": "No public exploits are currently known"
+        }
+      ],
+      "timeline": [
+        {
+          "lang": "en",
+          "time": "2024-01-01T00:00:00.000Z",
+          "value": "Vulnerability discovered during security audit"
+        },
+        {
+          "lang": "en",
+          "time": "2024-01-10T08:00:00.000Z",
+          "value": "CVE reserved"
+        },
+        {
+          "lang": "en",
+          "time": "2024-01-15T10:00:00.000Z",
+          "value": "CVE published"
+        }
+      ],
+      "credits": [
+        {
+          "lang": "en",
+          "value": "Security Research Team for discovering this vulnerability"
+        }
+      ]
+    },
+    "adp": [
+      {
+        "providerMetadata": {
+          "orgId": "87654321-4321-4321-4321-210987654321",
+          "shortName": "TechSecurityCorp",
+          "dateUpdated": "2024-01-16T09:00:00.000Z"
+        },
+        "descriptions": [
+          {
+            "lang": "en",
+            "value": "Critical buffer overflow vulnerability in multiple Apache and Spring components affecting enterprise Maven repositories and WordPress installations."
+          },
+          {
+            "lang": "ja",
+            "value": "複数のApacheおよびSpringコンポーネントにおける重大なバッファオーバーフロー脆弱性。"
+          }
+        ],
+        "references": [
+          {
+            "url": "https://techsecuritycorp.com/advisories/CVE-1337-99998",
+            "tags": ["third-party-advisory", "patch"],
+            "name": "TechSecurityCorp Advisory - CVE-1337-99998"
+          },
+          {
+            "url": "https://github.com/apache/commons-collections/pull/98765",
+            "tags": ["patch"],
+            "name": "Pull Request #98765: Security fix for buffer overflow"
+          },
+          {
+            "url": "https://bugzilla.redhat.com/show_bug.cgi?id=2024999",
+            "tags": ["issue-tracking"],
+            "name": "Red Hat Bugzilla #2024999"
+          },
+          {
+            "url": "https://maven.apache.org/security/CVE-1337-99998",
+            "tags": ["mitigation", "product"],
+            "name": "Maven Central Security Advisory"
+          },
+          {
+            "url": "https://mitre-attack.github.io/attack-mitigations/CVE-1337-99998",
+            "tags": ["mitigation"],
+            "name": "MITRE ATT&CK Mitigations"
+          }
+        ]
+      },
+      {
+        "providerMetadata": {
+          "orgId": "b15e7b5b-3da4-40ae-a43c-f7aa60e62599",
+          "shortName": "WordFence",
+          "dateUpdated": "2024-01-17T14:30:00.000Z"
+        },
+        "descriptions": [
+          {
+            "lang": "en",
+            "value": "WordPress-specific analysis reveals this vulnerability also affects popular WordPress plugins using vulnerable Maven dependencies."
+          }
+        ],
+        "references": [
+          {
+            "url": "https://www.wordfence.com/threat-intel/vulnerabilities/CVE-1337-99998",
+            "tags": ["third-party-advisory", "product"],
+            "name": "WordFence Threat Intelligence Report"
+          },
+          {
+            "url": "https://wordpress.org/plugins/vulnerable-plugin/#developers",
+            "tags": ["patch", "product"],
+            "name": "WordPress Plugin Repository - Security Update"
+          },
+          {
+            "url": "https://plugins.trac.wordpress.org/changeset/123456/vulnerable-plugin",
+            "tags": ["patch"],
+            "name": "WordPress Plugin Changeset #123456"
+          }
+        ]
+      }
+    ]
+  }
+}

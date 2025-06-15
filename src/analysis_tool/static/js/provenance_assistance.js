@@ -322,6 +322,123 @@ function addWordPressProvenanceLinks(rowIndex, platformData, linksContainer) {
 }
 
 /**
+ * Add Maven-specific provenance links for a row
+ * @param {number} rowIndex - The row index
+ * @param {object} platformData - The raw platform data for the row
+ * @param {Element} linksContainer - The container to add cards to
+ */
+function addMavenProvenanceLinks(rowIndex, platformData, linksContainer) {
+    // Parse the Maven package name (format: groupId:artifactId)
+    const packageParts = platformData.packageName.split(':');
+    if (packageParts.length < 2) {
+        // Fallback to generic handling if not proper Maven format
+        addGenericCollectionLinks(rowIndex, platformData, linksContainer);
+        return;
+    }
+    
+    const groupId = packageParts[0];
+    const artifactId = packageParts[1];
+    
+    // Create a source-card style card for Maven Repository
+    const mavenCard = document.createElement('div');
+    mavenCard.className = 'card source-card me-2 mb-2';
+    
+    // Create the card header
+    const mavenHeader = document.createElement('div');
+    mavenHeader.className = 'card-header py-1';
+    mavenHeader.innerHTML = '<strong>Maven Repository</strong>';
+    mavenCard.appendChild(mavenHeader);
+    
+    // Create the card body
+    const mavenBody = document.createElement('div');
+    mavenBody.className = 'card-body py-2 px-2 d-flex flex-column has-multiple-buttons';
+    
+    // Add Official Search Interface button
+    const searchButton = document.createElement('button');
+    searchButton.className = 'btn btn-sm btn-outline-secondary provenance-button mb-2';
+    searchButton.textContent = 'Official Search Interface';
+    
+    const searchUrl = `https://central.sonatype.com/artifact/${groupId}/${artifactId}`;
+    searchButton.title = searchUrl;
+    searchButton.onclick = function() {
+        window.open(searchUrl, '_blank');
+    };
+    
+    // Add Central Repository button
+    const repoButton = document.createElement('button');
+    repoButton.className = 'btn btn-sm btn-outline-secondary provenance-button';
+    repoButton.textContent = 'Central Repository';
+    
+    // Convert groupId dots to slashes for repository path
+    const groupPath = groupId.replace(/\./g, '/');
+    const repoUrl = `https://repo.maven.apache.org/maven2/${groupPath}/${artifactId}/`;
+    repoButton.title = repoUrl;
+    repoButton.onclick = function() {
+        window.open(repoUrl, '_blank');
+    };
+    
+    // Add buttons to card body
+    mavenBody.appendChild(searchButton);
+    mavenBody.appendChild(repoButton);
+    mavenCard.appendChild(mavenBody);
+    linksContainer.appendChild(mavenCard);
+}
+
+/**
+ * Add generic collection URL links for non-Maven repositories
+ * @param {number} rowIndex - The row index
+ * @param {object} platformData - The raw platform data for the row
+ * @param {Element} linksContainer - The container to add cards to
+ */
+function addGenericCollectionLinks(rowIndex, platformData, linksContainer) {
+    // Create a source-card style card for Collection URL
+    const collectionCard = document.createElement('div');
+    collectionCard.className = 'card source-card me-2 mb-2';
+    
+    // Create the card header
+    const collectionHeader = document.createElement('div');
+    collectionHeader.className = 'card-header py-1';
+    collectionHeader.innerHTML = '<strong>Collection URL</strong>';
+    collectionCard.appendChild(collectionHeader);
+    
+    // Create the card body
+    const collectionBody = document.createElement('div');
+    collectionBody.className = 'card-body py-2 px-2 d-flex flex-column has-multiple-buttons';
+    
+    // Add URL-only button
+    const urlOnlyButton = document.createElement('button');
+    urlOnlyButton.className = 'btn btn-sm btn-outline-secondary provenance-button mb-2';
+    urlOnlyButton.textContent = 'Collection URL Only';
+    urlOnlyButton.title = platformData.collectionURL;
+    urlOnlyButton.onclick = function() {
+        window.open(platformData.collectionURL, '_blank');
+    };
+    
+    // Add combined URL button
+    const combinedButton = document.createElement('button');
+    combinedButton.className = 'btn btn-sm btn-outline-secondary provenance-button';
+    combinedButton.textContent = 'Combined with Package Name';
+    
+    // Combine URL and package name
+    let combinedUrl = platformData.collectionURL;
+    if (!combinedUrl.endsWith('/')) {
+        combinedUrl += '/';
+    }
+    combinedUrl += platformData.packageName;
+    
+    combinedButton.title = combinedUrl;
+    combinedButton.onclick = function() {
+        window.open(combinedUrl, '_blank');
+    };
+    
+    // Add buttons to card body
+    collectionBody.appendChild(urlOnlyButton);
+    collectionBody.appendChild(combinedButton);
+    collectionCard.appendChild(collectionBody);
+    linksContainer.appendChild(collectionCard);
+}
+
+/**
  * Add provenance links cards (repository, collection URL) for a row
  * @param {number} rowIndex - The row index
  */
@@ -377,55 +494,20 @@ function addProvenanceLinks(rowIndex) {
         repoBody.appendChild(repoButton);
         repoCard.appendChild(repoBody);
         linksContainer.appendChild(repoCard);
-    }
+    }    
     
     // Add collection URL if both collectionURL and packageName are available
     if (platformData.collectionURL && platformData.packageName) {
-        // Create a source-card style card for Collection URL
-        const collectionCard = document.createElement('div');
-        collectionCard.className = 'card source-card me-2 mb-2';
+        // Check if this is a Maven repository using comprehensive detection
+        const isMavenRepo = isMavenRepository(platformData.collectionURL, platformData.packageName);
         
-        // Create the card header
-        const collectionHeader = document.createElement('div');
-        collectionHeader.className = 'card-header py-1';
-        collectionHeader.innerHTML = '<strong>Collection URL</strong>';
-        collectionCard.appendChild(collectionHeader);
-        
-        // Create the card body
-        const collectionBody = document.createElement('div');
-        collectionBody.className = 'card-body py-2 px-2 d-flex flex-column has-multiple-buttons';
-        
-        // Add URL-only button
-        const urlOnlyButton = document.createElement('button');
-        urlOnlyButton.className = 'btn btn-sm btn-outline-secondary provenance-button mb-2';
-        urlOnlyButton.textContent = 'Collection URL Only';
-        urlOnlyButton.title = platformData.collectionURL;
-        urlOnlyButton.onclick = function() {
-            window.open(platformData.collectionURL, '_blank');
-        };
-        
-        // Add combined URL button
-        const combinedButton = document.createElement('button');
-        combinedButton.className = 'btn btn-sm btn-outline-secondary provenance-button';
-        combinedButton.textContent = 'Combined with Package Name';
-        
-        // Combine URL and package name
-        let combinedUrl = platformData.collectionURL;
-        if (!combinedUrl.endsWith('/')) {
-            combinedUrl += '/';
+        if (isMavenRepo && platformData.packageName.includes(':')) {
+            // Handle Maven repository with proper URL generation
+            addMavenProvenanceLinks(rowIndex, platformData, linksContainer);
+        } else {
+            // Handle non-Maven repositories with the original logic
+            addGenericCollectionLinks(rowIndex, platformData, linksContainer);
         }
-        combinedUrl += platformData.packageName;
-        
-        combinedButton.title = combinedUrl;
-        combinedButton.onclick = function() {
-            window.open(combinedUrl, '_blank');
-        };
-        
-        // Add buttons to card body
-        collectionBody.appendChild(urlOnlyButton);
-        collectionBody.appendChild(combinedButton);
-        collectionCard.appendChild(collectionBody);
-        linksContainer.appendChild(collectionCard);
     }
 }
 
@@ -774,9 +856,80 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+/**
+ * Comprehensive Maven repository detection
+ * @param {string} collectionURL - The collection URL to check
+ * @param {string} packageName - The package name to verify Maven format
+ * @returns {boolean} - True if this appears to be a Maven repository
+ */
+function isMavenRepository(collectionURL, packageName) {
+    if (!collectionURL || !packageName) {
+        return false;
+    }
+    
+    const url = collectionURL.toLowerCase();
+    
+    // Primary Maven repository patterns
+    const mavenPatterns = [
+        // Official Maven Central
+        'repo1.maven.org',
+        'repo.maven.apache.org', 
+        'central.maven.org',
+        'search.maven.org',
+        
+        // Maven path indicators
+        '/maven2/',
+        '/maven/',
+        '/m2/',
+        
+        // Common enterprise Maven repository patterns
+        '/repository/maven',
+        '/artifactory/',
+        '/nexus/',
+        
+        // Sonatype repositories
+        'oss.sonatype.org',
+        'central.sonatype.com',
+        
+        // Other Maven-compatible repositories
+        'jcenter.bintray.com',
+        'jitpack.io',
+        'clojars.org',
+        
+        // Generic Maven repository indicators
+        '/libs-release',
+        '/libs-snapshot',
+        '/maven-public',
+        '/maven-central'
+    ];
+    
+    // Check if URL matches any Maven patterns
+    const hasKnownMavenPattern = mavenPatterns.some(pattern => url.includes(pattern));
+    
+    // Additional heuristic: Maven packages typically use groupId:artifactId format
+    const hasMavenPackageFormat = packageName.includes(':') && 
+                                  packageName.split(':').length >= 2 &&
+                                  // Basic validation that it looks like a Maven coordinate
+                                  /^[a-zA-Z0-9\-_.]+:[a-zA-Z0-9\-_.]+/.test(packageName);
+    
+    // Strong indicators (if any of these match, it's likely Maven)
+    const strongMavenIndicators = [
+        'maven',
+        'artifactory',
+        'nexus',
+        'sonatype'
+    ];
+    
+    const hasStrongIndicator = strongMavenIndicators.some(indicator => url.includes(indicator));
+      // Return true if:
+    // 1. URL has known Maven patterns, OR
+    // 2. URL has strong indicators AND package format looks like Maven
+    return hasKnownMavenPattern || 
+           (hasStrongIndicator && hasMavenPackageFormat);
+}
+
 // =============================================================================
 // Global Exports - All window assignments consolidated here
 // =============================================================================
 window.toggleProvenanceDescription = toggleProvenanceDescription;
 window.updateProvenanceState = updateProvenanceState;
-
