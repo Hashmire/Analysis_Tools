@@ -6,10 +6,176 @@ from sys import exit
 from typing import List, Dict, Any, Union
 from collections import defaultdict
 import unicodedata
+import os
+import json
 
 # Import Analysis Tool 
 import gatherData
 import generateHTML
+
+# Load configuration
+def load_config():
+    """Load configuration from config.json"""
+    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+    with open(config_path, 'r') as f:
+        return json.load(f)
+
+def load_mapping_file(cna_id: str) -> dict:
+    """Load a mapping file based on CNA ID"""
+    config = load_config()
+    mappings_dir = os.path.join(os.path.dirname(__file__), config['confirmed_mappings']['mappings_directory'])
+    
+    # Search for mapping files that contain this CNA ID
+    for filename in os.listdir(mappings_dir):
+        if filename.endswith('.json'):
+            filepath = os.path.join(mappings_dir, filename)
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    mapping_data = json.load(f)
+                    if mapping_data.get('cnaId') == cna_id:
+                        return mapping_data
+            except (json.JSONDecodeError, FileNotFoundError, KeyError):
+                continue
+    
+    return {}
+
+def normalize_string_for_comparison(s: str) -> str:
+    """Normalize string for case-insensitive comparison"""
+    if not isinstance(s, str):
+        return str(s).lower().strip()
+    return s.lower().strip()
+
+def check_alias_match(alias: dict, raw_platform_data: dict) -> bool:
+    """Check if an alias matches raw platform data"""
+    # Required fields that must match if present in both alias and platform data
+    required_fields = ['vendor', 'product']
+    
+    for field in required_fields:
+        if field in alias:
+            alias_value = normalize_string_for_comparison(alias[field])
+            platform_field_value = raw_platform_data.get(field, '')
+            
+            # Handle pandas Series or other non-string types
+            if hasattr(platform_field_value, 'iloc'):
+                # It's a pandas Series, get the first value
+                platform_value = normalize_string_for_comparison(platform_field_value.iloc[0] if len(platform_field_value) > 0 else '')
+            elif isinstance(platform_field_value, (list, tuple)):
+                # It's a list/tuple, get the first value
+                platform_value = normalize_string_for_comparison(platform_field_value[0] if len(platform_field_value) > 0 else '')
+            else:
+                # It's a regular value
+                platform_value = normalize_string_for_comparison(platform_field_value)
+            
+            if alias_value != platform_value:
+                return False
+    
+    # Special handling for platform field (can be an array in raw_platform_data)
+    if 'platform' in alias:
+        alias_platform = normalize_string_for_comparison(alias['platform'])
+        raw_platforms = raw_platform_data.get('platforms', [])
+        
+        # Handle pandas Series
+        if hasattr(raw_platforms, 'iloc'):
+            raw_platforms = raw_platforms.tolist() if len(raw_platforms) > 0 else []
+        
+        # Handle both string and array cases
+        if isinstance(raw_platforms, list):
+            platform_matches = any(
+                normalize_string_for_comparison(p) == alias_platform 
+                for p in raw_platforms
+            )
+        else:
+            platform_matches = normalize_string_for_comparison(raw_platforms) == alias_platform
+        
+        if not platform_matches:
+            return False
+    
+    return True
+
+def find_confirmed_mappings(raw_platform_data: dict, source_id: str) -> List[str]:
+    """Find confirmed CPE mappings for given raw platform data and source ID"""
+    config = load_config()
+    
+    # Check if confirmed mappings are enabled
+    if not config.get('confirmed_mappings', {}).get('enabled', True):
+        return []
+    
+    # Load the appropriate mapping file based on source ID
+    mapping_data = load_mapping_file(source_id)
+    
+    if not mapping_data or 'confirmedMappings' not in mapping_data:
+        return []
+    
+    confirmed_cpe_bases = []
+    
+    # Check each confirmed mapping
+    for mapping in mapping_data['confirmedMappings']:
+        cpe_base_string = mapping.get('cpebasestring') or mapping.get('cpeBaseString')
+        aliases = mapping.get('aliases', [])
+        
+        if not cpe_base_string or not aliases:
+            continue
+          # Check if any alias matches the raw platform data
+        for alias in aliases:
+            if check_alias_match(alias, raw_platform_data):
+                confirmed_cpe_bases.append(cpe_base_string)
+                break  # Found a match for this CPE base string, move to next mapping
+      # Filter to keep only the most specific CPE base strings
+    filtered_cpe_bases = filter_most_specific_cpes(confirmed_cpe_bases)
+    
+    # Log any culled mappings for troubleshooting
+    culled_mappings = [cpe for cpe in confirmed_cpe_bases if cpe not in filtered_cpe_bases]
+    
+    return filtered_cpe_bases, culled_mappings
+
+def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
+    """Process confirmed mappings for all rows in the dataset"""
+    config = load_config()    
+    # Check if confirmed mappings are enabled
+    if not config.get('confirmed_mappings', {}).get('enabled', True):
+        print("[INFO] Confirmed mappings are disabled in configuration")
+        return rawDataset
+    
+    print("[INFO] Processing confirmed mappings...")
+    tempDataset = rawDataset.copy()
+    
+    for index, row in tempDataset.iterrows():
+        try:            # Get raw platform data and source ID
+            raw_platform_data = row.get('rawPlatformData', {})
+            source_id = row.get('sourceID', '')
+            
+            if not raw_platform_data or not source_id:
+                continue            # Find confirmed mappings
+            result = find_confirmed_mappings(raw_platform_data, source_id)
+            if isinstance(result, tuple) and len(result) == 2:
+                confirmed_mappings, culled_mappings = result
+            else:
+                # Handle edge case where function might return empty or single value
+                confirmed_mappings = result if isinstance(result, list) else []
+                culled_mappings = []
+            
+            # Store metadata if we have any confirmed or culled mappings
+            if confirmed_mappings or culled_mappings:
+                platform_metadata = tempDataset.at[index, 'platformEntryMetadata']
+                if not isinstance(platform_metadata, dict):
+                    platform_metadata = {}
+                
+                if confirmed_mappings:
+                    print(f"[INFO] Found {len(confirmed_mappings)} confirmed mapping(s) for row {index}")
+                    platform_metadata['confirmedMappings'] = confirmed_mappings
+                
+                # Store culled mappings if any exist
+                if culled_mappings:
+                    platform_metadata['culledConfirmedMappings'] = culled_mappings
+                    print(f"[INFO] Culled {len(culled_mappings)} less specific confirmed mapping(s) for row {index}: {culled_mappings}")
+                
+                tempDataset.at[index, 'platformEntryMetadata'] = platform_metadata
+                
+        except Exception as e:
+            print(f"[WARNING] Error processing confirmed mappings for row {index}: {str(e)}")
+            continue
+    
+    return tempDataset
 
 ########################
 ###  Data Processing ###
@@ -1769,3 +1935,80 @@ def trackUnicodeNormalization(original_text, row_index, rawDataset):
     if original_text and isinstance(original_text, str):
         if original_text != normalizeToASCII(original_text):
             rawDataset.at[row_index, 'platformEntryMetadata']['unicodeNormalizationApplied'] = True
+
+def parse_cpe_components(cpe_string: str) -> dict:
+    """Parse a CPE 2.3 string into its components"""
+    if not cpe_string.startswith('cpe:2.3:'):
+        return {}
+    
+    parts = cpe_string.split(':')
+    if len(parts) != 13:
+        return {}
+    
+    return {
+        'part': parts[2],
+        'vendor': parts[3],
+        'product': parts[4],
+        'version': parts[5],
+        'update': parts[6],
+        'edition': parts[7],
+        'language': parts[8],
+        'sw_edition': parts[9],
+        'target_sw': parts[10],
+        'target_hw': parts[11],
+        'other': parts[12]
+    }
+
+def is_more_specific_than(cpe1: str, cpe2: str) -> bool:
+    """Check if cpe1 is more specific than cpe2"""
+    components1 = parse_cpe_components(cpe1)
+    components2 = parse_cpe_components(cpe2)
+    
+    if not components1 or not components2:
+        return False
+    
+    # Count non-wildcard attributes for each CPE
+    specific_count1 = sum(1 for value in components1.values() if value != '*' and value != '')
+    specific_count2 = sum(1 for value in components2.values() if value != '*' and value != '')
+    
+    # If cpe1 has more specific attributes, it's more specific
+    if specific_count1 > specific_count2:
+        return True
+    
+    # If they have the same number of specific attributes, check if cpe1 is a superset
+    if specific_count1 == specific_count2:
+        for key in components1:
+            val1 = components1[key]
+            val2 = components2[key]
+            
+            # If cpe2 has a specific value but cpe1 has wildcard, cpe1 is less specific
+            if val2 != '*' and val2 != '' and (val1 == '*' or val1 == ''):
+                return False
+            
+            # If they both have specific values but different, they're not comparable this way
+            if (val1 != '*' and val1 != '' and val2 != '*' and val2 != '' and val1 != val2):
+                return False
+    
+    return False
+
+def filter_most_specific_cpes(cpe_list: List[str]) -> List[str]:
+    """Filter CPE list to keep only the most specific ones"""
+    if len(cpe_list) <= 1:
+        return cpe_list
+    
+    filtered_cpes = []
+    
+    for cpe in cpe_list:
+        # Check if this CPE is less specific than any other CPE in the list
+        is_less_specific = False
+        
+        for other_cpe in cpe_list:
+            if cpe != other_cpe and is_more_specific_than(other_cpe, cpe):
+                is_less_specific = True
+                break
+        
+        # Only keep this CPE if it's not less specific than others
+        if not is_less_specific:
+            filtered_cpes.append(cpe)
+    
+    return filtered_cpes

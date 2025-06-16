@@ -35,6 +35,21 @@
     background-color: rgba(0, 123, 255, 0.45) !important;  /* Slightly darker blue when hovering selected row */
 }
 
+/* Confirmed mapping row styling */
+.confirmed-mapping-row {
+    background-color: rgba(40, 167, 69, 0.1) !important;
+    border-left: 3px solid #28a745;
+}
+
+.confirmed-mapping-row:hover {
+    background-color: rgba(40, 167, 69, 0.2) !important;
+}
+
+.confirmed-mapping-row.table-active {
+    background-color: rgba(40, 167, 69, 0.3) !important;
+    border-left: 3px solid #1e7e34;
+}
+
 /* Add pointer cursor to rows that can be selected */
 .cpe-row {
     cursor: pointer;
