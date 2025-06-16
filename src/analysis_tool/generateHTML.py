@@ -482,21 +482,23 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         if cpes_array:
             cpe_count = len(cpes_array)
             cpe_tooltip = f"Versions array contains {cpe_count} CPEs from affected entry: " + ", ".join(cpes_array)
-            info_badges.append(f'<span class="badge bg-info" title="{cpe_tooltip}">CVE Affected CPES Data: {cpe_count}</span> ')
-
-    # 7. CPE Base Strings badge
+            info_badges.append(f'<span class="badge bg-info" title="{cpe_tooltip}">CVE Affected CPES Data: {cpe_count}</span> ')    # 7. CPE Base Strings badge
     cpe_base_strings = platform_metadata.get('cpeBaseStrings', [])
     if cpe_base_strings:
         sorted_cpe_base_strings = sort_cpe_strings_for_tooltip(cpe_base_strings)
         base_strings_tooltip = "&#013;".join(sorted_cpe_base_strings)
         standard_badges.append(f'<span class="badge bg-secondary" title="{base_strings_tooltip}">CPE Base String Searches</span> ')
 
-    # 8. Platform Data Concern badge
+    # 8. Culled Confirmed Mappings badge
+    culled_mappings = platform_metadata.get('culledConfirmedMappings', [])
+    if culled_mappings:
+        culled_tooltip = "Confirmed mappings filtered out due to lower specificity:&#013;" + "&#013;".join(culled_mappings)
+        standard_badges.append(f'<span class="badge bg-secondary" title="{culled_tooltip}">Culled Confirmed Mappings: {len(culled_mappings)}</span> ')    # 9. Platform Data Concern badge
     if platform_metadata.get('platformDataConcern', False):
         platform_tooltip = 'Unexpected Platforms data detected in affected entry'
         sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{platform_tooltip}">Platforms Data Concern</span> ')
 
-    # 9. Version concerns badge using consolidated analysis
+    # 10. Version concerns badge using consolidated analysis
     if characteristics['version_concerns']:
         versions_tooltip = 'Versions array contains formatting issues:&#013;' + '&#013;'.join(characteristics['version_concerns'])
         sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{versions_tooltip}">Versions Data Concern</span> ')
@@ -517,7 +519,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
             cpe_tooltip = 'CPEs array contains formatting issues:&#013;' + '&#013;'.join(cpe_concerns)
             sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{cpe_tooltip}">CPEs Array Data Concern</span> ')
 
-    # 10. Add N/A Data Concern badges for problematic vendor/product values
+    # 11. Add N/A Data Concern badges for problematic vendor/product values
     if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str) and raw_platform_data['vendor'].lower() == 'n/a':
         vendor_na_tooltip = 'Vendor field contains "n/a" which prevents proper CPE matching'
         sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{vendor_na_tooltip}">Vendor: N/A</span> ')
@@ -671,7 +673,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         
     return html.replace('\n', '')
 
-def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
+def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data=None) -> str:
     
     # Create a collapsible card similar to Provenance Assistance
     html_content = f"""
@@ -695,12 +697,118 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
                     <th style="width: 65%">CPE Base String</th>
                     <th style="width: 35%">Match Details</th>
                   </tr>
-                </thead>
-                <tbody>
+                </thead>                <tbody>
     """
     
-    # Process all queries
+    # Collect confirmed mappings for duplicate checking
+    confirmed_mappings = []
+    if row_data is not None and 'platformEntryMetadata' in row_data:
+        platform_metadata = row_data.get('platformEntryMetadata', {})
+        if isinstance(platform_metadata, dict):
+            confirmed_mappings = platform_metadata.get('confirmedMappings', [])
+    
+    # First, process confirmed mappings and check for duplicates in API results
+    confirmed_mappings_processed = set()
+    for cpe_base in confirmed_mappings:
+        # Check if this confirmed mapping also exists in the API results
+        if cpe_base in sortedCPEsQueryData:
+            # This is a duplicate - merge the information
+            base_value = sortedCPEsQueryData[cpe_base]
+            total_match_count = (base_value.get('depFalseCount', 0) + base_value.get('depTrueCount', 0))
+            dep_true_count = base_value.get('depTrueCount', 0)
+            dep_false_count = base_value.get('depFalseCount', 0)
+            versions_found = base_value.get('versionsFound', 0)
+            
+            # Calculate search_count correctly by checking for cveAffectedCPEsArray
+            search_count = base_value.get('searchCount', 0)
+            has_cpes_array_source = 'searchSourcecveAffectedCPEsArray' in base_value
+            
+            # If the CPEs array source isn't already counted in searchCount, add it
+            if has_cpes_array_source and not any(k.startswith('searchSource') and 'cveAffectedCPEsArray' in k for k in base_value.keys() if k != 'searchSourcecveAffectedCPEsArray'):
+                search_count += 1
+                
+            versions_found_content = base_value.get('versionsFoundContent', [])
+            
+            # Create Version Matches Identified tooltip content from versionsFoundContent
+            versions_found_tooltip_content = "Versions Matches Identified:  &#10;".join(
+                "&#10;".join(f"{k}: {v}" for k, v in version.items())
+                for version in versions_found_content
+            )
+            
+            # Create Relevant Match String Searches tooltip content
+            search_keys = []
+            for key in base_value.keys():
+                if key.startswith('searchSource'):
+                    search_keys.append((key, base_value[key]))
+
+            # Sort the search keys based on a priority order
+            def sort_search_keys(item):
+                key, _ = item
+                if 'cveAffectedCPEsArray' in key:
+                    return 0  # Highest priority
+                elif 'partvendorproduct' in key:
+                    return 1
+                elif 'vendorproduct' in key:
+                    return 2
+                elif 'product' in key:
+                    return 3
+                elif 'vendor' in key:
+                    return 4
+                else:
+                    return 5
+
+            # Sort the keys
+            sorted_search_keys = sorted(search_keys, key=sort_search_keys)
+
+            # Create the tooltip content
+            search_keys_tooltip_content = "Relevant Match String Searches:&#10;"
+            for key, value in sorted_search_keys:
+                search_keys_tooltip_content += f"{key}:  {value}&#10;"
+            
+            # Sanitize base_key for use as ID
+            base_key_id = cpe_base.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
+            
+            # Create merged row with both confirmed mapping badge and API data
+            html_content += f"""
+            <tr id="row_{base_key_id}" class="cpe-row confirmed-mapping-row" data-cpe-base="{cpe_base}">
+                <td class="text-break">{cpe_base}</td>
+                <td>
+                    <div class="d-flex flex-wrap gap-1 align-items-center">                        <span class="badge rounded-pill bg-success">Confirmed Mapping</span>
+                        <span class="badge rounded-pill bg-secondary" title="{search_keys_tooltip_content}">Relevant Searches: {search_count}</span>
+                        <span class="badge rounded-pill bg-info" title="{versions_found_tooltip_content}">Version Matches: {versions_found}</span>
+                        <div class="badge bg-primary d-inline-flex align-items-center">
+                            Total CPE Names: {total_match_count}
+                            <span class="badge bg-info ms-1">Final: {dep_false_count}</span>
+                            <span class="badge bg-warning ms-1">Deprecated: {dep_true_count}</span>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+            """
+            
+            # Mark this confirmed mapping as processed and track for removal from API results
+            confirmed_mappings_processed.add(cpe_base)
+        else:
+            # This confirmed mapping is not in API results - show as confirmed mapping only
+            base_key_id = cpe_base.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
+            
+            html_content += f"""
+            <tr id="row_{base_key_id}" class="cpe-row confirmed-mapping-row" data-cpe-base="{cpe_base}">
+                <td class="text-break">{cpe_base}</td>
+                <td>
+                    <div class="d-flex flex-wrap gap-1 align-items-center">
+                        <span class="badge rounded-pill bg-success">Confirmed Mapping</span>
+                    </div>
+                </td>
+            </tr>
+            """
+            confirmed_mappings_processed.add(cpe_base)
+      # Process all API queries, excluding those already processed as confirmed mappings
     for base_key, base_value in sortedCPEsQueryData.items():
+        # Skip this API result if it was already processed as a confirmed mapping
+        if base_key in confirmed_mappings_processed:
+            continue
+            
         total_match_count = (base_value.get('depFalseCount', 0) + base_value.get('depTrueCount', 0))
         dep_true_count = base_value.get('depTrueCount', 0)
         dep_false_count = base_value.get('depFalseCount', 0)
@@ -758,9 +866,8 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0) -> str:
         <tr id="row_{base_key_id}" class="cpe-row" data-cpe-base="{base_key}">
             <td class="text-break">{base_key}</td>
             <td>
-                <div class="d-flex flex-wrap gap-1 align-items-center">
-                    <span class="badge rounded-pill bg-secondary" title="{search_keys_tooltip_content}">Relevant Searches: {search_count}</span>
-                    <span class="badge rounded-pill bg-success" title="{versions_found_tooltip_content}">Version Matches: {versions_found}</span>
+                <div class="d-flex flex-wrap gap-1 align-items-center">                        <span class="badge rounded-pill bg-secondary" title="{search_keys_tooltip_content}">Relevant Searches: {search_count}</span>
+                        <span class="badge rounded-pill bg-info" title="{versions_found_tooltip_content}">Version Matches: {versions_found}</span>
                     <div class="badge bg-primary d-inline-flex align-items-center">
                         Total CPE Names: {total_match_count}
                         <span class="badge bg-info ms-1">Final: {dep_false_count}</span>
@@ -962,9 +1069,8 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
             # Add custom CPE Builder section between provenance assistance and CPE suggestions
             customCPEBuilderHTML = create_custom_cpe_builder_div(index, collapsed=has_matches)
             html_content += customCPEBuilderHTML
-            
-            # Add the matches table after the custom CPE Builder div
-            html_content += convertCPEsQueryDataToHTML(sortedCPEsQueryData, index)
+              # Add the matches table after the custom CPE Builder div
+            html_content += convertCPEsQueryDataToHTML(sortedCPEsQueryData, index, row)
             
             html_content += "</div>"  # Close the container div
             result_df.at[index, 'cpeQueryHTML'] = html_content

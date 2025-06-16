@@ -8,6 +8,11 @@
         "default_cve_id": "CVE-2024-20515",
         "enable_browser_open": true,
         "default_api_key": ""
+    },    
+    "confirmed_mappings": {
+        "enabled": true,
+        "skip_api_calls_when_found": false,
+        "mappings_directory": "mappings"
     },
     "api": {
         "timeouts": {

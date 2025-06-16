@@ -57,10 +57,12 @@ def process_test_file(test_file_path, nvd_source_data):
                 }
             }]
         }        
-        
         # Process the vulnerability record data
         primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData, nvd_source_data)             
         primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)      
+        
+        # Process confirmed mappings
+        primaryDataframe = processData.process_confirmed_mappings(primaryDataframe)
         
         # Skip CPE suggestions for test files to avoid API calls
         # primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1)
@@ -155,11 +157,19 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
                 return None
             else:
                 # Re-raise other exceptions
-                raise
-        
+                raise        
         # Process the vulnerability record data
         primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData, nvd_source_data)             
         primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
+
+        # Process confirmed mappings
+        try:
+            primaryDataframe = processData.process_confirmed_mappings(primaryDataframe)
+        except Exception as mapping_error:
+            print(f"[WARNING] {cve_id} encountered an error during confirmed mappings: {str(mapping_error)}")
+            print("          Continuing with available data...")
+            import traceback
+            traceback.print_exc()
 
         # Suggest CPE data based on collected information
         try:
