@@ -1,0 +1,84 @@
+{
+    "cnaId": "286789f9-fbc2-4510-9f9a-43facdede74c",
+    "confirmedMappings": [
+        {
+            "cpeBaseString": "cpe:2.3:o:apple:tvos:*:*:*:*:*:*:*:* ",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "tvOS"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:apple:macos:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "macOS"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:apple:ipados:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "iPadOS"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "iOSandiPadOS"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "iOS and iPadOS"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:apple:iphone_os:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "iOS"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "iOSandiPadOS"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "iOS and iPadOS"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:apple:visionos:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "visionOS"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:apple:watchos:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "watchOS"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:apple:safari:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "Safari"
+                }
+            ]
+        }
+    ]
+}
