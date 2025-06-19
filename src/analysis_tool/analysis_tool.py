@@ -29,6 +29,9 @@ def process_test_file(test_file_path, nvd_source_data):
     """Process a test file containing CVE data for testing modular rules."""
     print(f"Processing test file: {test_file_path}...")
     
+    # Clear global HTML state to prevent accumulation from previous processing
+    generateHTML.clear_global_html_state()
+    
     try:
         # Load test data from JSON file
         with open(test_file_path, 'r', encoding='utf-8') as f:
@@ -127,6 +130,9 @@ def process_test_file(test_file_path, nvd_source_data):
 def process_cve(cve_id, nvd_api_key, nvd_source_data):
     """Process a single CVE using the analysis tool functionality."""
     print(f"Processing {cve_id}...")
+    
+    # Clear global HTML state to prevent accumulation from previous CVEs
+    generateHTML.clear_global_html_state()
     
     # Make sure the string is formatted well
     cve_id = cve_id.strip().upper()

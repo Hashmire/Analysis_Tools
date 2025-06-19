@@ -526,22 +526,40 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
 
     if 'product' in raw_platform_data and isinstance(raw_platform_data['product'], str) and raw_platform_data['product'].lower() == 'n/a':
         product_na_tooltip = 'Product field contains "n/a" which prevents proper CPE matching'
-        sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{product_na_tooltip}">Product: N/A</span> ')
-
-    # 11. Enhanced CPE Curation Badge - includes Unicode normalization
+        sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{product_na_tooltip}">Product: N/A</span> ')    # 11. Enhanced CPE Curation Badge - includes detailed Unicode normalization info
     curation_tracking = platform_metadata.get('cpeCurationTracking', {})
+    unicode_normalization_details = platform_metadata.get('unicodeNormalizationDetails', {})
+    # Keep legacy flag check for backward compatibility
     unicode_normalization_used = platform_metadata.get('unicodeNormalizationApplied', False)
 
-    if curation_tracking or unicode_normalization_used:
+    # Determine if we have any transformations or normalization to report
+    has_curation = bool(curation_tracking)
+    has_unicode_details = bool(unicode_normalization_details.get('transformations') or unicode_normalization_details.get('skipped_fields'))
+    has_legacy_unicode = unicode_normalization_used and not has_unicode_details
+
+    if has_curation or has_unicode_details or has_legacy_unicode:
         # Build enhanced tooltip with both curation and normalization info
         curation_tooltip = 'Source to CPE transformations applied:&#013;'
         
-        # Add Unicode normalization info first if present
-        if unicode_normalization_used:
+        # Add detailed Unicode normalization info if present
+        if has_unicode_details:
+            transformations = unicode_normalization_details.get('transformations', [])
+            skipped_fields = unicode_normalization_details.get('skipped_fields', [])
+            
+            for transform in transformations:
+                field = transform['field'].replace('_', ' ').title()
+                curation_tooltip += f"{field}: '{transform['original']}' → '{transform['normalized']}'&#013;"
+            
+            for skipped in skipped_fields:
+                field = skipped['field'].replace('_', ' ').title()
+                curation_tooltip += f"{field}: '{skipped['original']}' → [SKIPPED - {skipped['reason']}]&#013;"
+        
+        # Add legacy Unicode normalization info if present
+        elif has_legacy_unicode:
             curation_tooltip += 'Unicode characters normalized to ASCII&#013;'
         
         # Add existing curation info
-        if curation_tracking:
+        if has_curation:
             # List vendor modifications
             for mod in curation_tracking.get('vendor', []):
                 curation_tooltip += f"Vendor: {mod['original']} → {mod['curated']}&#013;"
@@ -1572,4 +1590,16 @@ def store_json_settings_html(table_id, raw_platform_data=None):
         INTELLIGENT_SETTINGS = {}
     
     INTELLIGENT_SETTINGS[table_id] = settings
+
+def clear_global_html_state():
+    """Clear global HTML generation state to prevent accumulation between CVE processing runs"""
+    global JSON_SETTINGS_HTML
+    JSON_SETTINGS_HTML.clear()
+    
+    # Clear INTELLIGENT_SETTINGS if it exists
+    if 'INTELLIGENT_SETTINGS' in globals():
+        global INTELLIGENT_SETTINGS
+        INTELLIGENT_SETTINGS.clear()
+    
+    print("[DEBUG] Cleared global HTML state")
 
