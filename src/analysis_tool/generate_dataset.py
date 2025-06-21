@@ -11,6 +11,7 @@ import os
 import datetime
 from time import sleep
 import argparse
+from workflow_logger import WorkflowLogger
 
 # Load configuration
 def load_config():
@@ -22,6 +23,9 @@ def load_config():
 config = load_config()
 VERSION = config['application']['version']
 TOOLNAME = config['application']['toolname']
+
+# Initialize logger
+logger = WorkflowLogger()
 
 def get_utc_timestamp():
     """Get current UTC timestamp in ISO format."""
@@ -41,12 +45,12 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     if target_statuses is None:
         target_statuses = ['Received', 'Awaiting Analysis', 'Undergoing Analysis']
     
-    print(f"[INFO] Starting CVE dataset generation...")
-    print(f"[INFO] Target vulnerability statuses: {', '.join(target_statuses)}")
-    print(f"[INFO] Output file: {output_file}")
-    print(f"[INFO] Using API key: {'Yes' if api_key else 'No'}")
+    logger.info("Starting CVE dataset generation...", group="initialization")
+    logger.info(f"Target vulnerability statuses: {', '.join(target_statuses)}", group="initialization")
+    logger.info(f"Output file: {output_file}", group="initialization")
+    logger.info(f"Using API key: {'Yes' if api_key else 'No'}", group="initialization")
     if test_limit:
-        print(f"[INFO] Test mode enabled - limiting to {test_limit} CVEs")
+        logger.info(f"Test mode enabled - limiting to {test_limit} CVEs", group="initialization")
     
     base_url = config['api']['endpoints']['nvd_cves']
     headers = {
@@ -64,13 +68,13 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     total_results = 0
     matching_cves = []
     
-    print(f"[INFO] {get_utc_timestamp()} - Starting CVE collection...")
+    logger.info(f"{get_utc_timestamp()} - Starting CVE collection...", group="cve_queries")
     
     while True:
         # Construct URL with pagination
         url = f"{base_url}?resultsPerPage={results_per_page}&startIndex={start_index}"
         
-        print(f"[INFO] Querying page starting at index {start_index}...")
+        logger.info(f"Querying page starting at index {start_index}...", group="cve_queries")
         
         max_retries = config['api']['retry']['max_attempts_nvd']
         page_data = None
@@ -85,33 +89,32 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                 
             except requests.exceptions.RequestException as e:
                 timestamp = get_utc_timestamp()
-                print(f"[ERROR] {timestamp} - Error fetching CVE data (Attempt {attempt + 1}/{max_retries}): {e}")
+                logger.error(f"{timestamp} - Error fetching CVE data (Attempt {attempt + 1}/{max_retries}): {e}", group="error_handling")
                 
                 if hasattr(e, 'response') and e.response is not None:
-                    if 'message' in e.response.headers:
-                        print(f"[ERROR] NVD API Message: {e.response.headers['message']}")
-                    print(f"[ERROR] Response status code: {e.response.status_code}")
+                    if 'message' in e.response.headers:                        logger.error(f"NVD API Message: {e.response.headers['message']}", group="error_handling")
+                    logger.error(f"Response status code: {e.response.status_code}", group="error_handling")
                 
                 if attempt < max_retries - 1:
                     wait_time = config['api']['retry']['delay_without_key'] if not api_key else config['api']['retry']['delay_with_key']
-                    print(f"Waiting {wait_time} seconds before retry...")
+                    logger.info(f"Waiting {wait_time} seconds before retry...", group="cve_queries")
                     sleep(wait_time)
                 else:
-                    print("Max retries reached for this page. Stopping.")
+                    logger.error("Max retries reached for this page. Stopping.", group="error_handling")
                     break
         
         if page_data is None:
-            print("[ERROR] Failed to retrieve data for current page. Stopping.")
+            logger.error("Failed to retrieve data for current page. Stopping.", group="error_handling")
             break
         
         # Process CVEs in this page
         vulnerabilities = page_data.get('vulnerabilities', [])
         
         if not vulnerabilities:
-            print("[INFO] No more vulnerabilities found. Collection complete.")
+            logger.info("No more vulnerabilities found. Collection complete.", group="cve_queries")
             break
         
-        print(f"[INFO] Processing {len(vulnerabilities)} CVEs from this page...")
+        logger.info(f"Processing {len(vulnerabilities)} CVEs from this page...", group="cve_queries")
         
         for vuln in vulnerabilities:
             cve_data = vuln.get('cve', {})
@@ -120,11 +123,11 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
             
             if vuln_status in target_statuses:
                 matching_cves.append(cve_id)
-                print(f"[MATCH] {cve_id} - Status: {vuln_status}")
+                logger.info(f"MATCH: {cve_id} - Status: {vuln_status}", group="cve_queries")
                 
                 # Check test limit
                 if test_limit and len(matching_cves) >= test_limit:
-                    print(f"[INFO] Reached test limit of {test_limit} CVEs. Stopping.")
+                    logger.info(f"Reached test limit of {test_limit} CVEs. Stopping.", group="cve_queries")
                     break
         
         # Check if we hit test limit and break outer loop
@@ -134,12 +137,11 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         # Check if we have more pages
         total_results = page_data.get('totalResults', 0)
         current_end = start_index + len(vulnerabilities)
-        
-        print(f"[INFO] Processed {current_end} of {total_results} total CVEs")
-        print(f"[INFO] Found {len(matching_cves)} matching CVEs so far")
+        logger.info(f"Processed {current_end} of {total_results} total CVEs", group="cve_queries")
+        logger.info(f"Found {len(matching_cves)} matching CVEs so far", group="cve_queries")
         
         if current_end >= total_results:
-            print("[INFO] Reached end of available CVEs.")
+            logger.info("Reached end of available CVEs.", group="cve_queries")
             break
         
         # Move to next page
@@ -148,29 +150,29 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         # Rate limiting - wait between pages
         if not api_key:
             wait_time = config['api']['retry']['page_delay_without_key']
-            print(f"[INFO] Waiting {wait_time} seconds before next page (rate limiting)...")
+            logger.info(f"Waiting {wait_time} seconds before next page (rate limiting)...", group="cve_queries")
             sleep(wait_time)
         else:
             wait_time = config['api']['retry']['page_delay_with_key']
             if wait_time > 0:
-                print(f"[INFO] Waiting {wait_time} seconds before next page...")
+                logger.info(f"Waiting {wait_time} seconds before next page...", group="cve_queries")
                 sleep(wait_time)
     
     # Write results to file
-    print(f"\n[INFO] Writing {len(matching_cves)} CVE IDs to {output_file}...")
+    logger.info(f"Writing {len(matching_cves)} CVE IDs to {output_file}...", group="initialization")
     
     try:
         with open(output_file, 'w') as f:
             for cve_id in matching_cves:
                 f.write(f"{cve_id}\n")
         
-        print(f"[SUCCESS] Dataset generated successfully!")
-        print(f"[INFO] Total CVEs found: {len(matching_cves)}")
-        print(f"[INFO] File saved: {output_file}")
-        print(f"[INFO] You can now run: python analysis_tool.py --file {output_file}")
+        logger.info("Dataset generated successfully!", group="initialization")
+        logger.info(f"Total CVEs found: {len(matching_cves)}", group="initialization")
+        logger.info(f"File saved: {output_file}", group="initialization")
+        logger.info(f"You can now run: python analysis_tool.py --file {output_file}", group="initialization")
         
     except Exception as e:
-        print(f"[ERROR] Failed to write output file: {e}")
+        logger.error(f"Failed to write output file: {e}", group="error_handling")
         return False
     
     return True
@@ -184,14 +186,13 @@ def main():
     parser.add_argument('--statuses', nargs='+', 
                        default=['Received', 'Awaiting Analysis', 'Undergoing Analysis'],
                        help='Vulnerability statuses to include (default: Received, Awaiting Analysis, Undergoing Analysis)')
-    parser.add_argument('--test-mode', action='store_true', 
-                       help='Enable test mode to limit to first 100 matching CVEs for testing')
+    parser.add_argument('--test-mode', action='store_true',                       help='Enable test mode to limit to first 100 matching CVEs for testing')
     
     args = parser.parse_args()
     
-    print("="*80)
-    print("NVD CVE Dataset Generator")
-    print("="*80)
+    logger.info("=" * 80, group="initialization")
+    logger.info("NVD CVE Dataset Generator", group="initialization")
+    logger.info("=" * 80, group="initialization")
     
     # Set test limit if in test mode
     test_limit = 100 if args.test_mode else None
@@ -203,10 +204,9 @@ def main():
         test_limit=test_limit
     )
     
-    if success:
-        print("\n[INFO] Dataset generation completed successfully!")
+    if success:        logger.info("Dataset generation completed successfully!", group="initialization")
     else:
-        print("\n[ERROR] Dataset generation failed!")
+        logger.error("Dataset generation failed!", group="error_handling")
         return 1
     
     return 0

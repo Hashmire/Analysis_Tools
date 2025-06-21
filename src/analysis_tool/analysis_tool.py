@@ -16,6 +16,21 @@ import gatherData
 import processData
 import generateHTML
 
+# Import the new logging system
+from workflow_logger import (
+    get_logger, LogGroup, LogLevel,
+    start_initialization, end_initialization,
+    start_cve_queries, end_cve_queries,
+    start_unique_cpe_generation, end_unique_cpe_generation,
+    start_cpe_queries, end_cpe_queries,
+    start_confirmed_mappings, end_confirmed_mappings,
+    start_page_generation, end_page_generation,
+    log_init, log_cve_query, log_data_proc, log_error_handle, log_page_gen
+)
+
+# Get logger instance
+logger = get_logger()
+
 # Load configuration
 def load_config():
     """Load configuration from config.json"""
@@ -27,19 +42,21 @@ config = load_config()
 
 def process_test_file(test_file_path, nvd_source_data):
     """Process a test file containing CVE data for testing modular rules."""
-    print(f"Processing test file: {test_file_path}...")
+    log_init(f"Processing test file: {test_file_path}")
     
     # Clear global HTML state to prevent accumulation from previous processing
     generateHTML.clear_global_html_state()
     
     try:
+        start_initialization("Test file processing")
+        
         # Load test data from JSON file
         with open(test_file_path, 'r', encoding='utf-8') as f:
             test_data = json.load(f)
         
         # Extract CVE ID from test data
         cve_id = test_data.get('cveMetadata', {}).get('cveId', 'TEST-CVE-0000-0000')
-        print(f"Test CVE ID: {cve_id}")
+        log_init(f"Test CVE ID: {cve_id}")
         
         # Make sure the string is formatted well
         cve_id = cve_id.strip().upper()
@@ -60,9 +77,17 @@ def process_test_file(test_file_path, nvd_source_data):
                 }
             }]
         }        
-        # Process the vulnerability record data
+        
+        end_initialization("Test file loaded")
+        
+        start_cve_queries("Processing test CVE data")
+          # Process the vulnerability record data
         primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData, nvd_source_data)             
-        primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)      
+        primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
+        
+        end_cve_queries("Test CVE data processed")
+        
+        start_confirmed_mappings("Processing confirmed mappings")
         
         # Process confirmed mappings
         primaryDataframe = processData.process_confirmed_mappings(primaryDataframe)
@@ -76,7 +101,12 @@ def process_test_file(test_file_path, nvd_source_data):
                 primaryDataframe.at[index, 'sortedCPEsQueryData'] = {}
             if isinstance(primaryDataframe.at[index, 'trimmedCPEsQueryData'], list):
                 primaryDataframe.at[index, 'trimmedCPEsQueryData'] = {}
-          # Generate HTML
+        
+        end_confirmed_mappings("Confirmed mappings processed")
+        
+        start_page_generation("Generating HTML output")
+        
+        # Generate HTML
         primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe, nvd_source_data)
         
         # Clean up dataframe
@@ -117,31 +147,33 @@ def process_test_file(test_file_path, nvd_source_data):
         
         with filepath.open("w", encoding="utf-8") as fd:
             fd.write(allConsoleHTML)        
-        print(f"Generated test file: {filepath}")
+        logger.file_operation("Generated", str(filepath), "test file", group="page_generation")
+        end_page_generation("HTML file created")
         return filepath
         
     except Exception as e:
-        print(f"[ERROR] Failed to process test file {test_file_path}: {str(e)}")
-        print(f"[DEBUG] Error type: {type(e).__name__}")
+        logger.error(f"Failed to process test file {test_file_path}: {str(e)}", group="error_handling")
+        logger.debug(f"Error type: {type(e).__name__}", group="error_handling")
         import traceback
         traceback.print_exc()
         return None
 
 def process_cve(cve_id, nvd_api_key, nvd_source_data):
     """Process a single CVE using the analysis tool functionality."""
-    print(f"Processing {cve_id}...")
     
-    # Clear global HTML state to prevent accumulation from previous CVEs
-    generateHTML.clear_global_html_state()
-    
-    # Make sure the string is formatted well
-    cve_id = cve_id.strip().upper()
-    processData.integrityCheckCVE("cveIdFormat", cve_id)
-    
-    # Create Primary Datasets from external sources
-    primaryDataframe = gatherData.gatherPrimaryDataframe()
-
+    # Clear global HTML state to prevent accumulation from previous CVEs    generateHTML.clear_global_html_state()    
     try:
+        # Make sure the string is formatted well
+        cve_id = cve_id.strip().upper()
+        processData.integrityCheckCVE("cveIdFormat", cve_id)
+        
+        # Create Primary Datasets from external sources
+        primaryDataframe = gatherData.gatherPrimaryDataframe()
+        
+        start_cve_queries(f"Gathering data for {cve_id}")
+        
+        log_init(f"Processing {cve_id}")
+
         # Gather CVE List Record and NVD Dataset Records for the target CVE
         cveRecordData = gatherData.gatherCVEListRecord(cve_id)
         
@@ -149,7 +181,7 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
         if cveRecordData and 'cveMetadata' in cveRecordData:
             state = cveRecordData.get('cveMetadata', {}).get('state')
             if state == 'REJECTED':
-                print(f"[WARNING] {cve_id} is in REJECTED state - skipping processing")
+                logger.warning(f"{cve_id} is in REJECTED state - skipping processing", group="cve_queries")
                 return None
         
         try:
@@ -158,33 +190,45 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
             # Handle specific NVD API errors
             error_str = str(api_error)
             if "Invalid cpeMatchstring parameter" in error_str:
-                print(f"[WARNING] {cve_id} has invalid CPE match string - skipping processing")
-                print(f"          Error: {error_str}")
+                logger.warning(f"{cve_id} has invalid CPE match string - skipping processing", group="error_handling")
+                logger.debug(f"Error: {error_str}", group="error_handling")
                 return None
             else:
                 # Re-raise other exceptions
-                raise        
+                raise
+        
+        end_cve_queries("CVE data retrieved")
+        
+        start_unique_cpe_generation("Processing CVE and NVD data")
+        
         # Process the vulnerability record data
-        primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData, nvd_source_data)             
+        primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData, nvd_source_data)
         primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
+
+        # Suggest CPE data based on collected information (includes internal CPE generation and query stages)
+        try:
+            primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1)
+        except Exception as cpe_error:
+            # Handle CPE suggestion errors
+            logger.warning(f"{cve_id} encountered an error during CPE suggestion: {str(cpe_error)}", group="error_handling")
+            logger.info("Continuing with available data...", group="error_handling")
+        
+        # Note: CPE generation and query stages are now handled internally by suggestCPEData
+        
+        start_confirmed_mappings("Processing confirmed mappings")
 
         # Process confirmed mappings
         try:
             primaryDataframe = processData.process_confirmed_mappings(primaryDataframe)
         except Exception as mapping_error:
-            print(f"[WARNING] {cve_id} encountered an error during confirmed mappings: {str(mapping_error)}")
-            print("          Continuing with available data...")
+            logger.warning(f"{cve_id} encountered an error during confirmed mappings: {str(mapping_error)}", group="error_handling")
+            logger.info("Continuing with available data...", group="error_handling")
             import traceback
             traceback.print_exc()
 
-        # Suggest CPE data based on collected information
-        try:
-            primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1)
-        except Exception as cpe_error:
-            # Handle CPE suggestion errors
-            print(f"[WARNING] {cve_id} encountered an error during CPE suggestion: {str(cpe_error)}")
-            print("          Continuing with available data...")
-            
+        end_confirmed_mappings("Confirmed mappings processed")
+        
+        start_page_generation("Generating HTML output")
         
         # Generate HTML
         primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe, nvd_source_data)
@@ -230,10 +274,12 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
         with filepath.open("w", encoding="utf-8") as fd:
             fd.write(allConsoleHTML)
         
-        print(f"Generated {filepath}")
+        logger.file_operation("Generated", str(filepath), group="page_generation")
+        end_page_generation("HTML file created")
         return filepath
+        
     except Exception as e:
-        print(f"[ERROR] Failed to process {cve_id}: {str(e)}")
+        logger.error(f"Failed to process {cve_id}: {str(e)}", group="error_handling")
         return None
 
 def get_all_cves(nvd_api_key):
@@ -261,47 +307,50 @@ def main():
     
     # Handle test file processing
     if args.test_file:
-        print("Test file mode: Processing local test file instead of querying APIs")
+        logger.info("Test file mode: Processing local test file instead of querying APIs", group="initialization")
         
         # Check if test file exists
         if not os.path.exists(args.test_file):
-            print(f"Error: Test file '{args.test_file}' not found")
+            logger.error(f"Test file '{args.test_file}' not found", group="error_handling")
             sys.exit(1)
         
         # For test files, we still need NVD source data for product mapping
         nvd_api_key = args.api_key or ""  # API key is optional for test files
-        print("Gathering NVD source data...")
+        logger.info("Gathering NVD source data...", group="initialization")
         nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
         
         # Process the test file
         filepath = process_test_file(args.test_file, nvd_source_data)
         
         if filepath:
-            print(f"Test file processed successfully: {filepath}")
+            logger.info(f"Test file processed successfully: {filepath}", group="page_generation")
             
             # Open in browser if requested
             if not args.no_browser:
                 import webbrowser
                 webbrowser.open_new_tab(f"file:///{filepath}")
         else:
-            print("Test file processing failed")
+            logger.error("Test file processing failed", group="error_handling")
             sys.exit(1)
         
         return
-      # Debug mode - set default options based on config
+    
+    # Debug mode - set default options based on config
     if args.debug or not (args.cve or args.file or args.all):
         if config['debug']['default_cve_mode'].lower() == "all":
-            print("Debug mode: Processing all CVEs by default")
+            logger.info("Debug mode: Processing all CVEs by default", group="initialization")
             args.all = True
         else:
-            print(f"Debug mode: Processing single CVE {config['debug']['default_cve_id']}")
-            args.cve = [config['debug']['default_cve_id']]
-    
+            logger.info(f"Debug mode: Processing single CVE {config['debug']['default_cve_id']}", group="initialization")
+            args.cve = [config['debug']['default_cve_id']]    
     # Get API key
     nvd_api_key = args.api_key or config['debug']['default_api_key'] or input("Enter NVD API Key (optional, but processing will be slower without it): ").strip()
     
+    # Start main initialization stage
+    start_initialization("Setting up analysis environment")
+    
     # Gather NVD Source Data (done once)
-    print("Gathering NVD source data...")
+    logger.info("Gathering NVD source data...", group="initialization")
     nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
     
     cves_to_process = []
@@ -313,15 +362,16 @@ def main():
             with open(args.file, 'r') as file:
                 cves_to_process = [line.strip() for line in file if line.strip()]
         except Exception as e:
-            print(f"Error reading file {args.file}: {e}")
+            logger.error(f"Error reading file {args.file}: {e}", group="error_handling")
             sys.exit(1)
     elif args.all:
         cves_to_process = get_all_cves(nvd_api_key)
-    
-    # Reverse the order of CVEs to process newer ones first (typically higher CVE numbers)
+      # Reverse the order of CVEs to process newer ones first (typically higher CVE numbers)
     cves_to_process.sort(reverse=True)
     
-    print(f"Processing {len(cves_to_process)} CVE records (newest first)...")
+    logger.info(f"Processing {len(cves_to_process)} CVE records (newest first)...", group="initialization")
+    
+    end_initialization("Analysis environment ready, CVE list prepared")
     
     # Process all CVEs
     generated_files = []
@@ -330,39 +380,38 @@ def main():
     total_cves = len(cves_to_process)
     for index, cve in enumerate(cves_to_process):
         try:
-            print(f"[{index+1}/{total_cves}] Processing {cve}...")
             filepath = process_cve(cve, nvd_api_key, nvd_source_data)
             if filepath:
                 generated_files.append(filepath)
             else:
                 skipped_cves.append(cve)
                 skipped_reasons[cve] = "CVE processing returned None (possibly REJECTED state)"
-                print(f"[INFO] Skipped {cve} - continuing with next CVE")
+                logger.info(f"Skipped {cve} - continuing with next CVE", group="initialization")
         except Exception as e:
-            print(f"[ERROR] Failed to process {cve}: {e}")
-            print("[INFO] Continuing with next CVE...")
+            logger.error(f"Failed to process {cve}: {e}", group="error_handling")
+            logger.info("Continuing with next CVE...", group="initialization")
             skipped_cves.append(cve)
             skipped_reasons[cve] = str(e)
             # Continue with the next CVE regardless of any errors
             continue
     
-    print(f"\nProcessed {len(generated_files)} CVE records successfully.")
+    logger.info(f"Processed {len(generated_files)} CVE records successfully.", group="initialization")
     
     # Report skipped CVEs
     if skipped_cves:
-        print(f"Skipped {len(skipped_cves)} CVE records:")
+        logger.info(f"Skipped {len(skipped_cves)} CVE records:", group="initialization")
         
         # Show a sample of skipped CVEs if there are many
         display_limit = 20
         if len(skipped_cves) <= display_limit:
             for cve in skipped_cves:
                 reason = skipped_reasons.get(cve, "Unknown reason")
-                print(f"  - {cve}: {reason}")
+                logger.info(f"  - {cve}: {reason}", group="initialization")
         else:
             for cve in skipped_cves[:display_limit]:
                 reason = skipped_reasons.get(cve, "Unknown reason")
-                print(f"  - {cve}: {reason}")
-            print(f"  ...and {len(skipped_cves) - display_limit} more (see skipped CVEs file for complete list)")
+                logger.info(f"  - {cve}: {reason}", group="initialization")
+            logger.info(f"  ...and {len(skipped_cves) - display_limit} more (see skipped CVEs file for complete list)", group="initialization")
         
         # Save skipped CVEs to file if requested
         if args.save_skipped or len(skipped_cves) > display_limit:
@@ -376,11 +425,11 @@ def main():
                         # Escape commas in reason to maintain CSV format
                         reason_escaped = reason.replace(',', '\\,')
                         f.write(f"{cve},{reason_escaped}\n")
-                print(f"Saved list of skipped CVEs to {skipped_file}")
+                logger.info(f"Saved list of skipped CVEs to {skipped_file}", group="initialization")
             except Exception as e:
-                print(f"Error saving skipped CVEs list: {e}")
+                logger.error(f"Error saving skipped CVEs list: {e}", group="error_handling")
     
-    print(f"Output files saved in {Path(f'{os.getcwd()}{os.sep}generated_pages')}")
+    logger.info(f"Output files saved in {Path(f'{os.getcwd()}{os.sep}generated_pages')}", group="initialization")
     
     # Open results in browser if requested
     if not args.no_browser and generated_files:
@@ -388,7 +437,7 @@ def main():
         for filepath in generated_files[:5]:  # Open only first 5 files to avoid browser overload
             webbrowser.open_new_tab(f"file:///{filepath}")
         if len(generated_files) > 5:
-            print(f"Note: Opened only the first 5 of {len(generated_files)} generated files in browser")
+            logger.info(f"Note: Opened only the first 5 of {len(generated_files)} generated files in browser", group="initialization")
 
 if __name__ == "__main__":
     main()

@@ -2,6 +2,7 @@
 import re
 import pandas as pd
 from tqdm import tqdm
+import sys
 from sys import exit
 from typing import List, Dict, Any, Union
 from collections import defaultdict
@@ -12,6 +13,15 @@ import json
 # Import Analysis Tool 
 import gatherData
 import generateHTML
+
+# Import the new logging system
+from workflow_logger import (
+    get_logger, LogGroup,
+    end_unique_cpe_generation, start_cpe_queries, end_cpe_queries
+)
+
+# Get logger instance
+logger = get_logger()
 
 # Load configuration
 def load_config():
@@ -130,13 +140,12 @@ def find_confirmed_mappings(raw_platform_data: dict, source_id: str) -> List[str
 
 def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
     """Process confirmed mappings for all rows in the dataset"""
-    config = load_config()    
-    # Check if confirmed mappings are enabled
+    config = load_config()      # Check if confirmed mappings are enabled
     if not config.get('confirmed_mappings', {}).get('enabled', True):
-        print("[INFO] Confirmed mappings are disabled in configuration")
+        logger.info("Confirmed mappings are disabled in configuration", group="badge_generation")
         return rawDataset
     
-    print("[INFO] Processing confirmed mappings...")
+    logger.info("Processing confirmed mappings...", group="badge_generation")
     tempDataset = rawDataset.copy()
     
     for index, row in tempDataset.iterrows():
@@ -161,18 +170,18 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
                     platform_metadata = {}
                 
                 if confirmed_mappings:
-                    print(f"[INFO] Found {len(confirmed_mappings)} confirmed mapping(s) for row {index}")
+                    logger.info(f"Found {len(confirmed_mappings)} confirmed mapping(s) for row {index}", group="data_processing")
                     platform_metadata['confirmedMappings'] = confirmed_mappings
                 
                 # Store culled mappings if any exist
                 if culled_mappings:
                     platform_metadata['culledConfirmedMappings'] = culled_mappings
-                    print(f"[INFO] Culled {len(culled_mappings)} less specific confirmed mapping(s) for row {index}: {culled_mappings}")
+                    logger.info(f"Culled {len(culled_mappings)} less specific confirmed mapping(s) for row {index}: {culled_mappings}", group="data_processing")
                 
                 tempDataset.at[index, 'platformEntryMetadata'] = platform_metadata
                 
         except Exception as e:
-            print(f"[WARNING] Error processing confirmed mappings for row {index}: {str(e)}")
+            logger.warning(f"Error processing confirmed mappings for row {index}: {str(e)}", group="error_handling")
             continue
     
     return tempDataset
@@ -434,19 +443,19 @@ def deriveCPEMatchStringList(rawDataSet):
     # Iterate through each row in the DataFrame
     for index, row in rawDataSet.iterrows():
         if 'platformEntryMetadata' not in row:
-            print(f"[WARNING] Row {index} missing platformEntryMetadata")
+            logger.warning(f"Row {index} missing platformEntryMetadata", group="data_processing")
             continue
             
         platform_metadata = row['platformEntryMetadata']
         if 'cpeBaseStrings' not in platform_metadata:
-            print(f"[WARNING] Row {index} missing cpeBaseStrings in platformEntryMetadata")
+            logger.warning(f"Row {index} missing cpeBaseStrings in platformEntryMetadata", group="data_processing")
             continue
         
         cpe_base_strings = platform_metadata['cpeBaseStrings']
         
         # Check if cpeBaseStrings is the expected list type
         if not isinstance(cpe_base_strings, list):
-            print(f"[WARNING] Row {index} has cpeBaseStrings that is not a list (type: {type(cpe_base_strings)})")
+            logger.warning(f"Row {index} has cpeBaseStrings that is not a list (type: {type(cpe_base_strings)})", group="data_processing")
             # Try to convert to list if possible
             if isinstance(cpe_base_strings, (tuple, set)):
                 cpe_base_strings = list(cpe_base_strings)
@@ -458,7 +467,7 @@ def deriveCPEMatchStringList(rawDataSet):
         # Process the strings (now guaranteed to be a list)
         for cpe_string in cpe_base_strings:
             if not cpe_string:  # Skip empty strings but log them
-                print(f"[WARNING] Empty CPE string found in row {index}")
+                logger.warning(f"Empty CPE string found in row {index}", group="data_processing")
                 continue
                 
             distinct_values.add(cpe_string)
@@ -714,7 +723,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                             is_maven_package = True
                         
                         if is_maven_package and ':' in package_name:
-                            print(f"[INFO] Processing Maven package: {package_name}")
+                            logger.info(f"Processing Maven package: {package_name}", group="cpe_generation")
                               # Split Maven package name into groupId and artifactId
                             group_id, artifact_id = package_name.split(':', 1)
                             trackUnicodeNormalizationDetails(group_id, 'maven_group_id', index, rawDataset)
@@ -809,7 +818,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                         # Skip vendor+product CPE generation if either contains n/a or becomes empty after normalization
                         if (isinstance(vendor_value, str) and vendor_value.lower() in ["n/a", "n\\/a", "n/a"]) or \
                            (isinstance(product_value, str) and product_value.lower() in ["n/a", "n\\/a", "n/a"]):
-                            print("[INFO] Skipping vendor+product search string generation - 'n/a' placeholder detected")
+                            logger.info("Skipping vendor+product search string generation - 'n/a' placeholder detected", group="cpe_generation")
                         else:
                             # Check if Unicode normalization would result in empty values
                             trackUnicodeNormalizationDetails(platform_data['vendor'], 'vendor', index, rawDataset)
@@ -1012,75 +1021,55 @@ def suggestCPEData(apiKey, rawDataset, case):
             uniqueStringList = deriveCPEMatchStringList(rawDataset)
             
             # Track the total number of unique queries generated
+            issues['total_queries'] = len(uniqueStringList)            # Track the number of unique queries generated
             issues['total_queries'] = len(uniqueStringList)
-              # Track the number of unique queries generated
-            issues['total_queries'] = len(uniqueStringList)
-              # Print summary of CPE search string generation
-            print(f"[INFO] Generating Unique CPE Match Strings...")
-            print(f"       CPE SUMMARY: {issues['total_processed']} processed, {issues['total_queries']} queries generated")
+            
+            # Print summary of CPE search string generation
+            logger.data_summary("CPE Generation Results", group="unique_cpe", 
+                              **{"Affected Array Entries Processed": issues['total_processed'], 
+                                 "Unique Match Strings Identified": issues['total_queries']})
             
             # Report issues if any were found
             total_issues = (len(issues['placeholder_entries']) + 
                           len(issues['unexpected_platforms']) + 
                           len(issues['invalid_cpe_format']) + 
-                          len(issues['missing_data']) +                          len(issues['overly_broad_cpe']) +
-                          len(issues['unicode_normalization_skipped']))
-            
+                          len(issues['missing_data']) +
+                          len(issues['overly_broad_cpe']) +
+                          len(issues['unicode_normalization_skipped']))            
             if total_issues > 0:
-                print(f"       ISSUES FOUND ({total_issues} total):")
-                
+                # Report high-level summary only - detailed information will be shown in badge generation
+                issue_types = []
                 if issues['placeholder_entries']:
-                    print(f"         Placeholder Data ({len(issues['placeholder_entries'])} entries):")
-                    for row, source, vendor, product in issues['placeholder_entries'][:5]:  # Show first 5
-                        print(f"           Row {row} ({source}): vendor='{vendor}', product='{product}'")
-                    if len(issues['placeholder_entries']) > 5:
-                        print(f"           ... and {len(issues['placeholder_entries']) - 5} more")
-                
+                    issue_types.append(f"placeholder data ({len(issues['placeholder_entries'])})")
                 if issues['unexpected_platforms']:
-                    print(f"         Unexpected Platforms ({len(issues['unexpected_platforms'])} entries):")
-                    for row, source, platform in issues['unexpected_platforms'][:5]:  # Show first 5
-                        print(f"           Row {row} ({source}): '{platform}'")
-                    if len(issues['unexpected_platforms']) > 5:
-                        print(f"           ... and {len(issues['unexpected_platforms']) - 5} more")
-                
+                    issue_types.append(f"unexpected platforms ({len(issues['unexpected_platforms'])})")
                 if issues['invalid_cpe_format']:
-                    print(f"         Invalid CPE Format ({len(issues['invalid_cpe_format'])} entries):")
-                    for row, source, issue_desc in issues['invalid_cpe_format'][:3]:  # Show first 3
-                        print(f"           Row {row} ({source}): {issue_desc}")
-                    if len(issues['invalid_cpe_format']) > 3:
-                        print(f"           ... and {len(issues['invalid_cpe_format']) - 3} more")
-                
+                    issue_types.append(f"invalid CPE format ({len(issues['invalid_cpe_format'])})")
                 if issues['missing_data']:
-                    print(f"         Missing Data ({len(issues['missing_data'])} entries):")
-                    for row, source, missing_field in issues['missing_data'][:5]:  # Show first 5
-                        print(f"           Row {row} ({source}): missing '{missing_field}'")
-                    if len(issues['missing_data']) > 5:
-                        print(f"           ... and {len(issues['missing_data']) - 5} more")
-                
+                    issue_types.append(f"missing data ({len(issues['missing_data'])})")
                 if issues['overly_broad_cpe']:
-                    print(f"         Overly Broad CPE ({len(issues['overly_broad_cpe'])} entries):")
-                    for row, source, cpe_string, reason in issues['overly_broad_cpe'][:3]:  # Show first 3
-                        print(f"           Row {row} ({source}): '{cpe_string}' - {reason}")
-                    if len(issues['overly_broad_cpe']) > 3:
-                        print(f"           ... and {len(issues['overly_broad_cpe']) - 3} more")
-                
+                    issue_types.append(f"overly broad CPE ({len(issues['overly_broad_cpe'])})")
                 if issues['unicode_normalization_skipped']:
-                    print(f"         Unicode Normalization Skipped ({len(issues['unicode_normalization_skipped'])} entries):")
-                    for row, source, orig_vendor, orig_product, norm_vendor, norm_product in issues['unicode_normalization_skipped'][:3]:  # Show first 3
-                        print(f"           Row {row} ({source}): vendor '{orig_vendor}' → '{norm_vendor}', product '{orig_product}' → '{norm_product}'")
-                    if len(issues['unicode_normalization_skipped']) > 3:
-                        print(f"           ... and {len(issues['unicode_normalization_skipped']) - 3} more")
+                    issue_types.append(f"unicode normalization ({len(issues['unicode_normalization_skipped'])})")                
+                logger.info(f"Data quality issues detected: {', '.join(issue_types)} - (See badge generation for details)", group="data_processing")
             else:
-                print("       No issues detected - all data processed successfully")
+                logger.info("No issues detected - all data processed successfully", group="data_processing")
+            
+            # End the CPE generation stage now that we have generated the CPE match strings
+            end_unique_cpe_generation("CPE base strings extracted")
+            
+            # Start the CPE queries stage for the actual API calls
+            start_cpe_queries("Querying NVD CPE API")
             
             rawCPEsQueryData = bulkQueryandProcessNVDCPEs(apiKey, rawDataset, uniqueStringList)
            
             ## Map the relevant, raw rawCPEsQueryData back into the rows of the primaryDataframe
-            mappedDataset = populateRawCPEsQueryData(rawDataset, rawCPEsQueryData)
-
-            # Update the query data results so the most relevant cpeBaseStrings are listed first.
+            mappedDataset = populateRawCPEsQueryData(rawDataset, rawCPEsQueryData)            # Update the query data results so the most relevant cpeBaseStrings are listed first.
             sortedDataset = sort_cpes_query_data(mappedDataset)
             trimmedDataset = reduceToTop10(sortedDataset)
+
+            # End the CPE queries stage now that all API calls are complete
+            end_cpe_queries("CPE queries completed")
 
             return trimmedDataset
         # Case 2 covers the CPE Search mode
@@ -1098,7 +1087,7 @@ def suggestCPEData(apiKey, rawDataset, case):
 def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> List[Dict[str, Any]]:
     bulk_results = []
     
-    print(f"[INFO]  Querying NVD /cpes/ API to get CPE Dictionary information...")
+    logger.info("Querying NVD /cpes/ API to get CPE Dictionary information...", group="cpe_queries")
     
     # Track which version checks belong to which row
     row_version_checks = {}
@@ -1119,7 +1108,7 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                         row_query_mapping[cpe_string] = []
                     row_query_mapping[cpe_string].append(index)
     
-    for query_string in tqdm(query_list):
+    for query_string in tqdm(query_list, desc="Querying CPE API", unit="query"):
         # Skip empty queries
         if not query_string:
             continue
@@ -1129,7 +1118,7 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
             
             # Check for invalid_cpe status from our updated gatherNVDCPEData function
             if json_response and json_response.get("status") == "invalid_cpe":
-                print(f"[WARNING] Skipping invalid CPE match string: {query_string}")
+                logger.warning(f"Skipping invalid CPE match string: {query_string}", group="cpe_queries")
                 stats = {
                     "matches_found": 0,
                     "status": "invalid_cpe",
@@ -1174,11 +1163,11 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                 }
         except Exception as e:
             error_message = str(e)
-            print(f"[WARNING] Error querying NVD API for '{query_string}': {error_message}")
+            logger.warning(f"Error querying NVD API for '{query_string}': {error_message}", group="error_handling")
             
             # Don't retry for invalid cpeMatchstring errors
             if "Invalid cpeMatchstring parameter" in error_message:
-                print(f"[WARNING] Invalid CPE match string detected, skipping: {query_string}")
+                logger.warning(f"Invalid CPE match string detected, skipping: {query_string}", group="cpe_queries")
                 stats = {
                     "matches_found": 0,
                     "status": "invalid_cpe",
@@ -1191,9 +1180,9 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                     "status": "error",
                     "error_message": error_message
                 }
-        
-        # Store results for this query
-        bulk_results.append({query_string: stats})
+          # Store results for this query
+        bulk_results.append({query_string: stats})    # Log completion of API queries
+    logger.info(f"Completed querying {len(query_list)} CPE match strings", group="cpe_queries")
     
     return bulk_results
 #
@@ -1629,7 +1618,7 @@ def processNVDRecordData(dataframe, nvdRecordData):
                         # Append to dataframe
                         result_df = pd.concat([result_df, pd.DataFrame([new_row])], ignore_index=True)
     except Exception as e:
-        print(f"[ERROR] Error processing NVD record data: {e}")
+        logger.error(f"Error processing NVD record data: {e}", group="error_handling")
     
     return result_df
 
@@ -1881,7 +1870,7 @@ def constructSearchString(rawBreakout, constructType):
             cpeStringResult = cpeStringResult.rstrip(cpeStringResult[-1])
             return(cpeStringResult)
         case _:
-            print("[WARNING] unexpected constructType:  " + constructType)
+            logger.warning(f"unexpected constructType: {constructType}", group="data_processing")
 #
 # Identify if CPE 2.3/2.2 provided and breakout into attribute based dictionary
 def breakoutCPEAttributes(cpeMatchString):
@@ -1890,7 +1879,7 @@ def breakoutCPEAttributes(cpeMatchString):
     
     # Handle empty or malformed CPE strings
     if len(cpeBreakOut) < 2:
-        print(f"[WARNING] Malformed CPE string: {cpeMatchString}")
+        logger.warning(f"Malformed CPE string: {cpeMatchString}", group="data_processing")
         return {"cpePrefix": "", "cpeVersion": "unknown", "part": "*", "vendor": "*", "product": "*", 
                 "version": "*", "update": "*", "edition": "*", "lang": "*", 
                 "swEdition": "*", "targetSW": "*", "targetHW": "*", "other": "*"}
@@ -1933,7 +1922,7 @@ def breakoutCPEAttributes(cpeMatchString):
                 }
         return cpeDict
     else: 
-        print(f"[WARNING] CPE type check error! {cpeVersion}")
+        logger.warning(f"CPE type check error! {cpeVersion}", group="data_processing")
         return {"cpePrefix": "", "cpeVersion": "unknown", "part": "*", "vendor": "*", "product": "*", 
                 "version": "*", "update": "*", "edition": "*", "lang": "*", 
                 "swEdition": "*", "targetSW": "*", "targetHW": "*", "other": "*"}
@@ -1949,15 +1938,16 @@ def integrityCheckCVE(checkType, checkValue, checkDataSet=False):
         case "cveIdMatch":
             # Confirm that ID returned by the API is the one entered
             if checkValue == checkDataSet["cveMetadata"]["cveId"]:
-                print("[INFO]  Getting " + checkValue +" from CVE Program services...")
+                # CVE ID matches - integrity check passed
+                pass
             else:
-                print("[FAULT]  CVE Services CVE ID check failed! CVE-ID from Services returned as ", checkDataSet["cveMetadata"]["cveId"])
+                logger.error(f"CVE Services CVE ID check failed! CVE-ID from Services returned as {checkDataSet['cveMetadata']['cveId']}", group="error_handling")
                 raise ValueError(f"CVE ID mismatch: expected {checkValue}, got {checkDataSet['cveMetadata']['cveId']}")
         
         case "cveStatusCheck":
             # Confirm the CVE ID is not REJECTED
             if checkDataSet["cveMetadata"]["state"] == checkValue:
-                print("[FAULT]  CVE record is in the " + checkDataSet["cveMetadata"]["state"] + " state!")
+                logger.error(f"CVE record is in the {checkDataSet['cveMetadata']['state']} state!", group="error_handling")
                 raise ValueError(f"CVE {checkDataSet['cveMetadata']['cveId']} is in {checkDataSet['cveMetadata']['state']} state")
             else:
                 checkValue == True
@@ -1968,10 +1958,10 @@ def integrityCheckCVE(checkType, checkValue, checkDataSet=False):
             if re.fullmatch(pattern, checkValue):
                 checkValue == True
             else:
-                print("[FAULT]  CVE ID Format check failed! \"", checkValue, "\"")
+                logger.error(f"CVE ID Format check failed! \"{checkValue}\"", group="error_handling")
                 raise ValueError(f"Invalid CVE ID format: {checkValue}")
         case _:
-            print("[FAULT]  Unexpected Case for Integrity Check!")
+            logger.error("Unexpected Case for Integrity Check!", group="error_handling")
             raise ValueError(f"Unknown integrity check type: {checkType}")
 
 # More sophisticated product_key to handle edge cases

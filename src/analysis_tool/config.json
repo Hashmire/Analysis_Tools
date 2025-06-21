@@ -2,13 +2,70 @@
     "application": {
         "toolname": "Hashmire/Analysis_Tools",
         "version": "0.1.0"
-    },
-    "debug": {
+    },    "debug": {
         "default_cve_mode": "single",
         "default_cve_id": "CVE-2024-20515",
         "enable_browser_open": true,
         "default_api_key": ""
-    },    
+    },    "logging": {
+        "enabled": true,
+        "level": "INFO",
+        "format": "[{timestamp}] [{level}] {message}",
+        "groups": {
+            "INIT": {
+                "name": "Initialization",
+                "description": "System startup, configuration loading, primary dataframe creation",
+                "enabled": true,
+                "color": "blue"
+            },
+            "CVE_QUERY": {
+                "name": "CVE Queries",
+                "description": "CVE record retrieval from MITRE, NVD CVE API, source data gathering",
+                "enabled": true,
+                "color": "green"
+            },
+            "UNIQUE_CPE": {
+                "name": "Unique CPE Generation",
+                "description": "CPE base string extraction, deduplication, validation",
+                "enabled": true,
+                "color": "yellow"
+            },
+            "CPE_QUERY": {
+                "name": "CPE Queries",
+                "description": "NVD CPE API queries, product matching, result processing",
+                "enabled": true,
+                "color": "cyan"
+            },            "BADGE_GEN": {
+                "name": "Confirmed Mappings",
+                "description": "Confirmed mappings processing, data validation, badge preparation",
+                "enabled": true,
+                "color": "magenta"
+            },
+            "PAGE_GEN": {
+                "name": "Page Generation",
+                "description": "HTML generation, template processing, file output",
+                "enabled": true,
+                "color": "white"
+            },
+            "DATA_PROC": {
+                "name": "Data Processing",
+                "description": "Data transformation, validation, cleanup operations",
+                "enabled": true,
+                "color": "red"
+            },            "ERROR_HANDLE": {
+                "name": "Error Handling",
+                "description": "Exception handling, retry logic, error recovery",
+                "enabled": true,
+                "color": "bright_red"
+            },
+            "DEBUG": {
+                "name": "Debug",
+                "description": "Detailed debugging information for development",
+                "enabled": false,
+                "color": "cyan"
+            }
+        }
+    },
     "confirmed_mappings": {
         "enabled": true,
         "skip_api_calls_when_found": false,

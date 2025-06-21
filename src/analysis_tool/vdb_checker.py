@@ -1,6 +1,11 @@
 import requests
 from tqdm import tqdm
+import sys
 import logging
+from workflow_logger import WorkflowLogger
+
+# Initialize logger
+logger = WorkflowLogger()
 
 # Iterate through our list of locations and append the CVE ID, open each item in a new tab
 #### Instead of blindly opening in a new tab, we should try to consolidate the valuable information
@@ -28,9 +33,8 @@ def gatherVDBCheckerData(targetCve):
     dataGatherFailureHTML = ""
     print ("[INFO]  Gathering supported source intelligence...")
     
-    
-    # Each supported source is dumped into a table row for easy visual comparison of tracked datapoints
-    for source in tqdm(supportedSources):
+      # Each supported source is dumped into a table row for easy visual comparison of tracked datapoints
+    for source in tqdm(supportedSources, desc="Processing sources", unit="source"):
         
         allSourceCellHTML = ""
 
@@ -46,10 +50,10 @@ def gatherVDBCheckerData(targetCve):
                 sourceDataDict = sourceURLData.json()
                 return sourceDataDict
             except requests.exceptions.JSONDecodeError as e:
-                print(f"\n[WARNING] Invalid JSON response from {source}: {e}")
+                logger.warning(f"Invalid JSON response from {source}: {e}", group="error_handling")
                 return {}  # Return empty dict to prevent None checks
             except Exception as e:
-                print(f"\n[ERROR] Unexpected error parsing JSON from {source}: {e}")
+                logger.error(f"Unexpected error parsing JSON from {source}: {e}", group="error_handling")
                 return {}
 
         match source:
