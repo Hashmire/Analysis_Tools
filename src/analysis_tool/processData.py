@@ -170,18 +170,18 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
                     platform_metadata = {}
                 
                 if confirmed_mappings:
-                    logger.info(f"Found {len(confirmed_mappings)} confirmed mapping(s) for row {index}", group="data_processing")
+                    logger.info(f"Found {len(confirmed_mappings)} confirmed mappings for platform entry {index}", group="data_processing")
                     platform_metadata['confirmedMappings'] = confirmed_mappings
                 
                 # Store culled mappings if any exist
                 if culled_mappings:
                     platform_metadata['culledConfirmedMappings'] = culled_mappings
-                    logger.info(f"Culled {len(culled_mappings)} less specific confirmed mapping(s) for row {index}: {culled_mappings}", group="data_processing")
+                    logger.debug(f"Culled {len(culled_mappings)} less specific confirmed mapping(s) for row {index}: {culled_mappings}", group="data_processing")
                 
                 tempDataset.at[index, 'platformEntryMetadata'] = platform_metadata
                 
         except Exception as e:
-            logger.warning(f"Error processing confirmed mappings for row {index}: {str(e)}", group="error_handling")
+            logger.warning(f"Confirmed mappings processing failed: Unable to process mapping entries for platform entry {index} - {str(e)}", group="error_handling")
             continue
     
     return tempDataset
@@ -723,7 +723,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                             is_maven_package = True
                         
                         if is_maven_package and ':' in package_name:
-                            logger.info(f"Processing Maven package: {package_name}", group="cpe_generation")
+                            logger.debug(f"Processing Maven package: {package_name}", group="cpe_generation")
                               # Split Maven package name into groupId and artifactId
                             group_id, artifact_id = package_name.split(':', 1)
                             trackUnicodeNormalizationDetails(group_id, 'maven_group_id', index, rawDataset)
@@ -1087,7 +1087,7 @@ def suggestCPEData(apiKey, rawDataset, case):
 def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> List[Dict[str, Any]]:
     bulk_results = []
     
-    logger.info("Querying NVD /cpes/ API to get CPE Dictionary information...", group="cpe_queries")
+    logger.info("Processing CPE queries: Querying NVD /cpes/ API to get CPE Dictionary information...", group="cpe_queries")
     
     # Track which version checks belong to which row
     row_version_checks = {}
@@ -1163,7 +1163,7 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                 }
         except Exception as e:
             error_message = str(e)
-            logger.warning(f"Error querying NVD API for '{query_string}': {error_message}", group="error_handling")
+            logger.warning(f"NVD CPE API query operation failed: Unable to query CPE data for '{query_string}' - {error_message}", group="error_handling")
             
             # Don't retry for invalid cpeMatchstring errors
             if "Invalid cpeMatchstring parameter" in error_message:
@@ -1182,7 +1182,7 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                 }
           # Store results for this query
         bulk_results.append({query_string: stats})    # Log completion of API queries
-    logger.info(f"Completed querying {len(query_list)} CPE match strings", group="cpe_queries")
+    logger.info(f"Processing CPE queries completed: {len(query_list)} CPE match strings processed", group="cpe_queries")
     
     return bulk_results
 #
@@ -1618,7 +1618,7 @@ def processNVDRecordData(dataframe, nvdRecordData):
                         # Append to dataframe
                         result_df = pd.concat([result_df, pd.DataFrame([new_row])], ignore_index=True)
     except Exception as e:
-        logger.error(f"Error processing NVD record data: {e}", group="error_handling")
+        logger.error(f"NVD vulnerability data processing failed: Unable to process vulnerability data - {e}", group="error_handling")
     
     return result_df
 
@@ -1870,7 +1870,7 @@ def constructSearchString(rawBreakout, constructType):
             cpeStringResult = cpeStringResult.rstrip(cpeStringResult[-1])
             return(cpeStringResult)
         case _:
-            logger.warning(f"unexpected constructType: {constructType}", group="data_processing")
+            logger.warning(f"CPE search string construction failed: Unknown constructType '{constructType}' (expected: 'baseQuery' or 'base')", group="data_processing")
 #
 # Identify if CPE 2.3/2.2 provided and breakout into attribute based dictionary
 def breakoutCPEAttributes(cpeMatchString):
@@ -1922,7 +1922,7 @@ def breakoutCPEAttributes(cpeMatchString):
                 }
         return cpeDict
     else: 
-        logger.warning(f"CPE type check error! {cpeVersion}", group="data_processing")
+        logger.warning(f"CPE version validation failed: Unsupported CPE version '{cpeVersion}' (expected: '2.2' or '2.3')", group="data_processing")
         return {"cpePrefix": "", "cpeVersion": "unknown", "part": "*", "vendor": "*", "product": "*", 
                 "version": "*", "update": "*", "edition": "*", "lang": "*", 
                 "swEdition": "*", "targetSW": "*", "targetHW": "*", "other": "*"}
@@ -1941,13 +1941,13 @@ def integrityCheckCVE(checkType, checkValue, checkDataSet=False):
                 # CVE ID matches - integrity check passed
                 pass
             else:
-                logger.error(f"CVE Services CVE ID check failed! CVE-ID from Services returned as {checkDataSet['cveMetadata']['cveId']}", group="error_handling")
+                logger.error(f"CVE Services ID check failed: CVE-ID from Services returned as {checkDataSet['cveMetadata']['cveId']}", group="error_handling")
                 raise ValueError(f"CVE ID mismatch: expected {checkValue}, got {checkDataSet['cveMetadata']['cveId']}")
         
         case "cveStatusCheck":
             # Confirm the CVE ID is not REJECTED
             if checkDataSet["cveMetadata"]["state"] == checkValue:
-                logger.error(f"CVE record is in the {checkDataSet['cveMetadata']['state']} state!", group="error_handling")
+                logger.error(f"CVE status check failed: CVE record is in the {checkDataSet['cveMetadata']['state']} state", group="error_handling")
                 raise ValueError(f"CVE {checkDataSet['cveMetadata']['cveId']} is in {checkDataSet['cveMetadata']['state']} state")
             else:
                 checkValue == True
@@ -1958,10 +1958,10 @@ def integrityCheckCVE(checkType, checkValue, checkDataSet=False):
             if re.fullmatch(pattern, checkValue):
                 checkValue == True
             else:
-                logger.error(f"CVE ID Format check failed! \"{checkValue}\"", group="error_handling")
+                logger.error(f"CVE ID format check failed: Invalid format \"{checkValue}\"", group="error_handling")
                 raise ValueError(f"Invalid CVE ID format: {checkValue}")
         case _:
-            logger.error("Unexpected Case for Integrity Check!", group="error_handling")
+            logger.error(f"Integrity check failed: Unknown check type '{checkType}' (expected: 'cveIdFormat', 'cveServicesRecord', 'nvdCveRecordState')", group="error_handling")
             raise ValueError(f"Unknown integrity check type: {checkType}")
 
 # More sophisticated product_key to handle edge cases

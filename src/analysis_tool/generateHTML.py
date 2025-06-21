@@ -1030,7 +1030,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
         return html_content.replace('\n', '')
         
     except Exception as e:
-        logger.error(f"Error in convertCPEsQueryDataToHTML at tableIndex {tableIndex}: {e}", group="error_handling")
+        logger.error(f"HTML conversion failed: Unable to convert CPE query data to HTML at table index {tableIndex} - {e}", group="error_handling")
         logger.error(f"sortedCPEsQueryData type: {type(sortedCPEsQueryData)}", group="error_handling")
         if hasattr(sortedCPEsQueryData, 'keys'):
             logger.error(f"sortedCPEsQueryData keys: {list(sortedCPEsQueryData.keys())}", group="error_handling")
@@ -1061,7 +1061,7 @@ def getCPEJsonScript() -> str:
             with open(js_file, 'r') as f:
                 js_content += f.read() + "\n\n"
         except Exception as e:
-            logger.error(f"Error reading JavaScript file {js_file}: {e}", group="error_handling")
+            logger.error(f"JavaScript file loading failed: Unable to read JS file '{js_file}' - {e}", group="error_handling")
             # Add placeholder comment if file can't be read
             js_content += f"// Error loading {js_file}\n\n"
     
@@ -1182,7 +1182,7 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
                 # Add a unique ID for the raw platform data for easier access
                 data_attrs.append(f'data-raw-platform-id="raw-platform-{index}"')
             except Exception as e:
-                logger.error(f"Error serializing platform data: {e}", group="error_handling")
+                logger.error(f"Platform data serialization failed: Unable to convert platform data to JSON - {e}", group="error_handling")
         
         # Check if this row has update-related content
         raw_platform_data = row.get('rawPlatformData', {})
@@ -1253,7 +1253,7 @@ def buildHTMLPage(affectedHtml, targetCve, globalCVEMetadata=None, vdbIntelHtml=
         with open(css_file, 'r') as f:
             css_content = f.read()
     except Exception as e:
-        logger.error(f"Error reading CSS file {css_file}: {e}", group="error_handling")
+        logger.error(f"CSS file loading failed: Unable to read CSS file '{css_file}' - {e}", group="error_handling")
         css_content = "/* Error loading CSS file */"
 
     pageStartHTML = f"""

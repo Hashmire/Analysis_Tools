@@ -27,10 +27,6 @@ TOOLNAME = config['application']['toolname']
 # Initialize logger
 logger = WorkflowLogger()
 
-def get_utc_timestamp():
-    """Get current UTC timestamp in ISO format."""
-    return datetime.datetime.utcnow().isoformat() + " UTC"
-
 def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cve_dataset.txt", test_limit=None):
     """
     Query NVD API for CVEs with specific vulnerability statuses
@@ -68,13 +64,13 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     total_results = 0
     matching_cves = []
     
-    logger.info(f"{get_utc_timestamp()} - Starting CVE collection...", group="cve_queries")
+    logger.info("Starting CVE collection...", group="cve_queries")
     
     while True:
         # Construct URL with pagination
         url = f"{base_url}?resultsPerPage={results_per_page}&startIndex={start_index}"
         
-        logger.info(f"Querying page starting at index {start_index}...", group="cve_queries")
+        logger.info(f"Processing CVE dataset queries: Starting at index {start_index}...", group="cve_queries")
         
         max_retries = config['api']['retry']['max_attempts_nvd']
         page_data = None
@@ -88,11 +84,11 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                 break
                 
             except requests.exceptions.RequestException as e:
-                timestamp = get_utc_timestamp()
-                logger.error(f"{timestamp} - Error fetching CVE data (Attempt {attempt + 1}/{max_retries}): {e}", group="error_handling")
+                logger.error(f"NVD CVE data API request failed: Unable to fetch dataset at index {start_index} (Attempt {attempt + 1}/{max_retries}) - {e}", group="error_handling")
                 
                 if hasattr(e, 'response') and e.response is not None:
-                    if 'message' in e.response.headers:                        logger.error(f"NVD API Message: {e.response.headers['message']}", group="error_handling")
+                    if 'message' in e.response.headers:
+                        logger.error(f"NVD API Message: {e.response.headers['message']}", group="error_handling")
                     logger.error(f"Response status code: {e.response.status_code}", group="error_handling")
                 
                 if attempt < max_retries - 1:
@@ -100,11 +96,11 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                     logger.info(f"Waiting {wait_time} seconds before retry...", group="cve_queries")
                     sleep(wait_time)
                 else:
-                    logger.error("Max retries reached for this page. Stopping.", group="error_handling")
+                    logger.error(f"Dataset generation failed: Maximum retry attempts ({max_retries}) reached for current page - stopping data collection", group="error_handling")
                     break
         
         if page_data is None:
-            logger.error("Failed to retrieve data for current page. Stopping.", group="error_handling")
+            logger.error("Dataset generation failed: Unable to retrieve page data after all retry attempts - stopping data collection", group="error_handling")
             break
         
         # Process CVEs in this page
@@ -137,8 +133,8 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         # Check if we have more pages
         total_results = page_data.get('totalResults', 0)
         current_end = start_index + len(vulnerabilities)
-        logger.info(f"Processed {current_end} of {total_results} total CVEs", group="cve_queries")
-        logger.info(f"Found {len(matching_cves)} matching CVEs so far", group="cve_queries")
+        progress_pct = (current_end / total_results * 100) if total_results > 0 else 0
+        logger.info(f"Processing CVE dataset generation: {current_end}/{total_results} ({progress_pct:.1f}%) - {len(matching_cves)} matching CVE records found", group="cve_queries")
         
         if current_end >= total_results:
             logger.info("Reached end of available CVEs.", group="cve_queries")
@@ -167,12 +163,12 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                 f.write(f"{cve_id}\n")
         
         logger.info("Dataset generated successfully!", group="initialization")
-        logger.info(f"Total CVEs found: {len(matching_cves)}", group="initialization")
+        logger.info(f"Collected {len(matching_cves)} CVE records", group="initialization")
         logger.info(f"File saved: {output_file}", group="initialization")
         logger.info(f"You can now run: python analysis_tool.py --file {output_file}", group="initialization")
         
     except Exception as e:
-        logger.error(f"Failed to write output file: {e}", group="error_handling")
+        logger.error(f"Dataset file creation failed: Unable to write dataset output to '{output_file}' - {e}", group="error_handling")
         return False
     
     return True
@@ -201,12 +197,12 @@ def main():
         api_key=args.api_key,
         target_statuses=args.statuses,
         output_file=args.output,
-        test_limit=test_limit
-    )
+        test_limit=test_limit    )
     
-    if success:        logger.info("Dataset generation completed successfully!", group="initialization")
+    if success:
+        logger.info("Dataset generation completed successfully!", group="initialization")
     else:
-        logger.error("Dataset generation failed!", group="error_handling")
+        logger.error("Dataset generation process failed: Unable to complete CVE data collection and processing", group="error_handling")
         return 1
     
     return 0

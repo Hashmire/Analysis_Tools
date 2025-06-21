@@ -53,7 +53,7 @@ def gatherVDBCheckerData(targetCve):
                 logger.warning(f"Invalid JSON response from {source}: {e}", group="error_handling")
                 return {}  # Return empty dict to prevent None checks
             except Exception as e:
-                logger.error(f"Unexpected error parsing JSON from {source}: {e}", group="error_handling")
+                logger.error(f"VDB data parsing failed: Unable to parse JSON response from {source} - {e}", group="error_handling")
                 return {}
 
         match source:

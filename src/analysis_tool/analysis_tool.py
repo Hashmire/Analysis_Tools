@@ -152,7 +152,7 @@ def process_test_file(test_file_path, nvd_source_data):
         return filepath
         
     except Exception as e:
-        logger.error(f"Failed to process test file {test_file_path}: {str(e)}", group="error_handling")
+        logger.error(f"Test file processing failed: Unable to process test file '{test_file_path}' - {str(e)}", group="error_handling")
         logger.debug(f"Error type: {type(e).__name__}", group="error_handling")
         import traceback
         traceback.print_exc()
@@ -210,7 +210,7 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
             primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1)
         except Exception as cpe_error:
             # Handle CPE suggestion errors
-            logger.warning(f"{cve_id} encountered an error during CPE suggestion: {str(cpe_error)}", group="error_handling")
+            logger.warning(f"CPE suggestion failed for {cve_id}: Unable to complete CPE data suggestion - {str(cpe_error)}", group="error_handling")
             logger.info("Continuing with available data...", group="error_handling")
         
         # Note: CPE generation and query stages are now handled internally by suggestCPEData
@@ -221,7 +221,7 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
         try:
             primaryDataframe = processData.process_confirmed_mappings(primaryDataframe)
         except Exception as mapping_error:
-            logger.warning(f"{cve_id} encountered an error during confirmed mappings: {str(mapping_error)}", group="error_handling")
+            logger.warning(f"Confirmed mappings failed for {cve_id}: Unable to process confirmed mappings - {str(mapping_error)}", group="error_handling")
             logger.info("Continuing with available data...", group="error_handling")
             import traceback
             traceback.print_exc()
@@ -279,7 +279,7 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
         return filepath
         
     except Exception as e:
-        logger.error(f"Failed to process {cve_id}: {str(e)}", group="error_handling")
+        logger.error(f"CVE processing failed for {cve_id}: Unable to complete analysis workflow - {str(e)}", group="error_handling")
         return None
 
 def get_all_cves(nvd_api_key):
@@ -316,7 +316,7 @@ def main():
         
         # For test files, we still need NVD source data for product mapping
         nvd_api_key = args.api_key or ""  # API key is optional for test files
-        logger.info("Gathering NVD source data...", group="initialization")
+        logger.info("Gathering NVD source entries...", group="initialization")
         nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
         
         # Process the test file
@@ -330,7 +330,7 @@ def main():
                 import webbrowser
                 webbrowser.open_new_tab(f"file:///{filepath}")
         else:
-            logger.error("Test file processing failed", group="error_handling")
+            logger.error("Test file processing failed: Unable to generate HTML output from test data", group="error_handling")
             sys.exit(1)
         
         return
@@ -350,7 +350,7 @@ def main():
     start_initialization("Setting up analysis environment")
     
     # Gather NVD Source Data (done once)
-    logger.info("Gathering NVD source data...", group="initialization")
+    logger.info("Gathering NVD source entries...", group="initialization")
     nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
     
     cves_to_process = []
@@ -362,7 +362,7 @@ def main():
             with open(args.file, 'r') as file:
                 cves_to_process = [line.strip() for line in file if line.strip()]
         except Exception as e:
-            logger.error(f"Error reading file {args.file}: {e}", group="error_handling")
+            logger.error(f"CVE list file reading failed: Unable to read file '{args.file}' - {e}", group="error_handling")
             sys.exit(1)
     elif args.all:
         cves_to_process = get_all_cves(nvd_api_key)
@@ -388,7 +388,7 @@ def main():
                 skipped_reasons[cve] = "CVE processing returned None (possibly REJECTED state)"
                 logger.info(f"Skipped {cve} - continuing with next CVE", group="initialization")
         except Exception as e:
-            logger.error(f"Failed to process {cve}: {e}", group="error_handling")
+            logger.error(f"CVE processing failed for {cve}: Unable to complete analysis workflow - {e}", group="error_handling")
             logger.info("Continuing with next CVE...", group="initialization")
             skipped_cves.append(cve)
             skipped_reasons[cve] = str(e)
@@ -427,7 +427,7 @@ def main():
                         f.write(f"{cve},{reason_escaped}\n")
                 logger.info(f"Saved list of skipped CVEs to {skipped_file}", group="initialization")
             except Exception as e:
-                logger.error(f"Error saving skipped CVEs list: {e}", group="error_handling")
+                logger.error(f"Skipped CVEs file creation failed: Unable to write skipped CVEs list to '{skipped_file}' - {e}", group="error_handling")
     
     logger.info(f"Output files saved in {Path(f'{os.getcwd()}{os.sep}generated_pages')}", group="initialization")
     
