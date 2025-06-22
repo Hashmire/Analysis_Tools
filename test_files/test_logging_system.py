@@ -17,8 +17,6 @@ This test suite validates:
 import json
 import re
 import sys
-import subprocess
-import os
 import tempfile
 import io
 from pathlib import Path
@@ -27,11 +25,9 @@ from typing import Dict, List, Set, Tuple, Any, Optional
 import unittest
 from unittest.mock import Mock, patch, MagicMock
 
-# Add the src directory to the path for imports
-src_path = Path(__file__).parent.parent / "src" / "analysis_tool"
-sys.path.insert(0, str(src_path))
-
-from workflow_logger import get_logger, LogGroup
+# Direct import of the workflow logger
+sys.path.append(str(Path(__file__).parent.parent / 'src'))
+from analysis_tool.workflow_logger import WorkflowLogger, LogGroup
 
 class LogCapture:
     """Capture log output from the custom WorkflowLogger."""
@@ -49,10 +45,9 @@ class LogCapture:
         self.original_print_method = logger._print_message
         self.original_log_method = logger.log
         self.current_group = None
-        
-        # Set logger to DEBUG level to capture all messages during testing
+          # Set logger to DEBUG level to capture all messages during testing
         self.original_level = logger.level
-        from workflow_logger import LogLevel
+        from analysis_tool.workflow_logger import LogLevel
         logger.level = LogLevel.DEBUG
         
         def capture_log(level, group, message):
@@ -121,7 +116,7 @@ class LoggingSystemTestSuite(unittest.TestCase):
     
     def setUp(self):
         """Set up test environment before each test."""
-        self.logger = get_logger()
+        self.logger = WorkflowLogger()
         self.log_capture = LogCapture()
         self.log_capture.start_capture(self.logger)
         
@@ -958,9 +953,8 @@ class TestGroupEnforcementIntegration(LoggingSystemTestSuite):
     """Test group enforcement during actual component integration."""
     
     def test_logger_component_integration(self):
-        """Test that all components properly integrate with group logging."""
-        # Verify that the logger is accessible from all components
-        logger = get_logger()
+        """Test that all components properly integrate with group logging."""        # Verify that the logger is accessible from all components
+        logger = WorkflowLogger()
         self.assertIsNotNone(logger)
         
         # Test that all required logging methods exist
@@ -1000,9 +994,8 @@ class TestGroupEnforcementIntegration(LoggingSystemTestSuite):
             "data_processing": "DATA_PROC",
             "error_handling": "ERROR_HANDLE"
         }
-        
-        # Create a logger and test group string handling
-        logger = get_logger()
+          # Create a logger and test group string handling
+        logger = WorkflowLogger()
         
         # Test that each group string can be used without error
         for group_string, expected_enum in test_mappings.items():
@@ -1017,25 +1010,21 @@ class TestAuditTrailIntegration(LoggingSystemTestSuite):
     
     def test_workflow_stage_boundary_enforcement(self):
         """Test that workflow stages maintain proper boundaries."""
-        logger = get_logger()
-        
         # Test basic stage boundary functionality
         try:
-            logger.stage_start("Test Integration Stage", group="initialization")
-            logger.info("Test message within stage", group="initialization")
-            logger.stage_end("Test Integration Stage", group="initialization")
+            self.logger.stage_start("Test Integration Stage", group="initialization")
+            self.logger.info("Test message within stage", group="initialization")
+            self.logger.stage_end("Test Integration Stage", group="initialization")
         except Exception as e:
             self.fail(f"Stage boundary test failed: {e}")
             
     def test_error_boundary_containment(self):
         """Test that error events are contained within appropriate group boundaries."""
-        logger = get_logger()
-        
         # Test error containment within different workflow stages
         try:
-            logger.stage_start("Error Test Stage", group="cve_queries")
-            logger.error("Test error message", group="error_handling")
-            logger.stage_end("Error Test Stage", group="cve_queries")
+            self.logger.stage_start("Error Test Stage", group="cve_queries")
+            self.logger.error("Test error message", group="error_handling")
+            self.logger.stage_end("Error Test Stage", group="cve_queries")
         except Exception as e:
             self.fail(f"Error boundary containment test failed: {e}")
 
@@ -1046,15 +1035,13 @@ class TestComponentLoggingIntegration(LoggingSystemTestSuite):
         """Test that components can access the logger."""
         # Test if component can get logger
         try:
-            logger = get_logger()
-            self.assertIsNotNone(logger, "Component cannot access logger")
+            # Use the logger from setUp instead of creating a new one
+            self.assertIsNotNone(self.logger, "Component cannot access logger")
         except Exception as e:
             self.fail(f"Component failed to access logger: {e}")
                 
     def test_component_group_usage(self):
         """Test that components use appropriate groups for their operations."""
-        logger = get_logger()
-        
         # Test that all expected group types can be used
         test_groups = [
             "initialization", "cve_queries", "unique_cpe", "cpe_queries",
@@ -1064,8 +1051,8 @@ class TestComponentLoggingIntegration(LoggingSystemTestSuite):
         for group in test_groups:
             try:
                 # Test basic group usage
-                logger.info(f"Testing {group} group access", group=group)
-                logger.debug(f"Debug message for {group}", group=group)
+                self.logger.info(f"Testing {group} group access", group=group)
+                self.logger.debug(f"Debug message for {group}", group=group)
             except Exception as e:
                 self.fail(f"Group {group} cannot be used: {e}")
 
@@ -1073,9 +1060,8 @@ class TestAuditSystemConfiguration(LoggingSystemTestSuite):
     """Test audit system configuration and validation."""
     
     def test_logging_configuration_validation(self):
-        """Test that logging configuration is valid and complete."""
-        # Test that we can create a logger with default config
-        logger = get_logger()
+        """Test that logging configuration is valid and complete."""        # Test that we can create a logger with default config
+        logger = WorkflowLogger()
         self.assertIsNotNone(logger)
         
         # Test that logger has required configuration attributes
@@ -1084,9 +1070,9 @@ class TestAuditSystemConfiguration(LoggingSystemTestSuite):
             self.assertTrue(hasattr(logger, attr), 
                           f"Logger missing configuration attribute: {attr}")
                           
-    def test_group_configuration_completeness(self):
+    def test_group_configuration_completeness(self):        
         """Test that all groups have proper configuration."""
-        logger = get_logger()
+        logger = WorkflowLogger()
         
         # Verify groups configuration exists
         self.assertIsNotNone(logger.groups, "Groups configuration missing")
