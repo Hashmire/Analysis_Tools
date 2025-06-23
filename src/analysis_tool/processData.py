@@ -13,6 +13,7 @@ import json
 # Import Analysis Tool 
 import gatherData
 import generateHTML
+from cpe_cache import CPECache
 
 # Import the new logging system
 from workflow_logger import (
@@ -1086,102 +1087,128 @@ def suggestCPEData(apiKey, rawDataset, case):
 # Calls for NVD API Query and processes statistics and other useful data based on the results
 def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> List[Dict[str, Any]]:
     bulk_results = []
+    config = load_config()
     
     logger.info("Processing CPE queries: Querying NVD /cpes/ API to get CPE Dictionary information...", group="cpe_queries")
     
-    # Track which version checks belong to which row
-    row_version_checks = {}
-    for index, row in rawDataSet.iterrows():
-        if 'platformEntryMetadata' in row and 'cpeVersionChecks' in row['platformEntryMetadata']:
-            checks = row['platformEntryMetadata']['cpeVersionChecks']
-            if checks:  # Only add non-empty lists
-                row_version_checks[index] = checks
-    
-    # Track which rows are interested in which query strings
-    row_query_mapping = {}
-    for index, row in rawDataSet.iterrows():
-        if 'platformEntryMetadata' in row and 'cpeBaseStrings' in row['platformEntryMetadata']:
-            cpe_strings = row['platformEntryMetadata']['cpeBaseStrings']
-            if isinstance(cpe_strings, list):
-                for cpe_string in cpe_strings:
-                    if cpe_string not in row_query_mapping:
-                        row_query_mapping[cpe_string] = []
-                    row_query_mapping[cpe_string].append(index)
-    
-    for query_string in tqdm(query_list, desc="Querying CPE API", unit="query"):
-        # Skip empty queries
-        if not query_string:
-            continue
+    # Initialize cache
+    with CPECache(config.get('cache', {})) as cache:
+        logger.info("CPE cache initialized", group="cpe_queries")
         
-        try:
-            json_response = gatherData.gatherNVDCPEData(apiKey, "cpeMatchString", query_string)
-            
-            # Check for invalid_cpe status from our updated gatherNVDCPEData function
-            if json_response and json_response.get("status") == "invalid_cpe":
-                logger.warning(f"Skipping invalid CPE match string: {query_string}", group="cpe_queries")
-                stats = {
-                    "matches_found": 0,
-                    "status": "invalid_cpe",
-                    "error_message": json_response.get("error", "Invalid cpeMatchstring parameter")
-                }
-                bulk_results.append({query_string: stats})
+        # Track which version checks belong to which row
+        row_version_checks = {}
+        for index, row in rawDataSet.iterrows():
+            if 'platformEntryMetadata' in row and 'cpeVersionChecks' in row['platformEntryMetadata']:
+                checks = row['platformEntryMetadata']['cpeVersionChecks']
+                if checks:  # Only add non-empty lists
+                    row_version_checks[index] = checks
+        
+        # Track which rows are interested in which query strings
+        row_query_mapping = {}
+        for index, row in rawDataSet.iterrows():
+            if 'platformEntryMetadata' in row and 'cpeBaseStrings' in row['platformEntryMetadata']:
+                cpe_strings = row['platformEntryMetadata']['cpeBaseStrings']
+                if isinstance(cpe_strings, list):
+                    for cpe_string in cpe_strings:
+                        if cpe_string not in row_query_mapping:
+                            row_query_mapping[cpe_string] = []
+                        row_query_mapping[cpe_string].append(index)
+        
+        for query_string in tqdm(query_list, desc="Querying CPE API", unit="query"):
+            # Skip empty queries
+            if not query_string:
                 continue
+            
+            try:
+                # Check cache first
+                json_response = cache.get(query_string)
                 
-            if 'totalResults' in json_response:
-                # General statistics common to all rows
-                base_stats = {
-                    "matches_found": json_response['totalResults'],
-                    "is_truncated": json_response["resultsPerPage"] < json_response["totalResults"],
-                }
+                if json_response is None:
+                    # Cache miss - make API call
+                    json_response = gatherData.gatherNVDCPEData(apiKey, "cpeMatchString", query_string)
+                    
+                    # Cache the response if it's valid
+                    if json_response and json_response.get("status") != "invalid_cpe":
+                        cache.put(query_string, json_response)
                 
-                if "products" in json_response:
-                    # Find which rows care about this query string
-                    relevant_row_indices = row_query_mapping.get(query_string, [])
-                    row_specific_results = {}
-                    
-                    # For each relevant row, perform row-specific version matching
-                    for row_index in relevant_row_indices:
-                        # Get this row's version checks
-                        row_checks = row_version_checks.get(row_index, [])
-                        
-                        # Process with just this row's checks
-                        row_stats = analyzeBaseStrings(row_checks, json_response)
-                        row_specific_results[row_index] = row_stats
-                    
-                    # Store both common stats and row-specific results
+                # Check for invalid_cpe status from our updated gatherNVDCPEData function
+                if json_response and json_response.get("status") == "invalid_cpe":
+                    logger.warning(f"Skipping invalid CPE match string: {query_string}", group="cpe_queries")
                     stats = {
-                        **base_stats,
-                        "row_specific_results": row_specific_results
+                        "matches_found": 0,
+                        "status": "invalid_cpe",
+                        "error_message": json_response.get("error", "Invalid cpeMatchstring parameter")
+                    }
+                    bulk_results.append({query_string: stats})
+                    continue                # Check for invalid_cpe status from our updated gatherNVDCPEData function
+                if json_response and json_response.get("status") == "invalid_cpe":
+                    logger.warning(f"Skipping invalid CPE match string: {query_string}", group="cpe_queries")
+                    stats = {
+                        "matches_found": 0,
+                        "status": "invalid_cpe",
+                        "error_message": json_response.get("error", "Invalid cpeMatchstring parameter")
+                    }
+                    bulk_results.append({query_string: stats})
+                    continue
+                    
+                if 'totalResults' in json_response:
+                    # General statistics common to all rows
+                    base_stats = {
+                        "matches_found": json_response['totalResults'],
+                        "is_truncated": json_response["resultsPerPage"] < json_response["totalResults"],
+                    }
+                    
+                    if "products" in json_response:
+                        # Find which rows care about this query string
+                        relevant_row_indices = row_query_mapping.get(query_string, [])
+                        row_specific_results = {}
+                        
+                        # For each relevant row, perform row-specific version matching
+                        for row_index in relevant_row_indices:
+                            # Get this row's version checks
+                            row_checks = row_version_checks.get(row_index, [])
+                            
+                            # Process with just this row's checks
+                            row_stats = analyzeBaseStrings(row_checks, json_response)
+                            row_specific_results[row_index] = row_stats
+                        
+                        # Store both common stats and row-specific results
+                        stats = {
+                            **base_stats,
+                            "row_specific_results": row_specific_results
+                        }
+                    else:
+                        stats = base_stats
+                else:
+                    stats = {
+                        "matches_found": 0,
+                        "status": "error",
+                        "error_message": str(json_response)
+                    }
+            except Exception as e:
+                error_message = str(e)
+                logger.warning(f"NVD CPE API query operation failed: Unable to query CPE data for '{query_string}' - {error_message}", group="error_handling")
+                
+                # Don't retry for invalid cpeMatchstring errors
+                if "Invalid cpeMatchstring parameter" in error_message:
+                    logger.warning(f"Invalid CPE match string detected, skipping: {query_string}", group="cpe_queries")
+                    stats = {
+                        "matches_found": 0,
+                        "status": "invalid_cpe",
+                        "error_message": error_message
                     }
                 else:
-                    stats = base_stats
-            else:
-                stats = {
-                    "matches_found": 0,
-                    "status": "error",
-                    "error_message": str(json_response)
-                }
-        except Exception as e:
-            error_message = str(e)
-            logger.warning(f"NVD CPE API query operation failed: Unable to query CPE data for '{query_string}' - {error_message}", group="error_handling")
+                    # For other errors, report but continue
+                    stats = {
+                        "matches_found": 0,
+                        "status": "error",
+                        "error_message": error_message
+                    }
             
-            # Don't retry for invalid cpeMatchstring errors
-            if "Invalid cpeMatchstring parameter" in error_message:
-                logger.warning(f"Invalid CPE match string detected, skipping: {query_string}", group="cpe_queries")
-                stats = {
-                    "matches_found": 0,
-                    "status": "invalid_cpe",
-                    "error_message": error_message
-                }
-            else:
-                # For other errors, report but continue
-                stats = {
-                    "matches_found": 0,
-                    "status": "error",
-                    "error_message": error_message
-                }
-          # Store results for this query
-        bulk_results.append({query_string: stats})    # Log completion of API queries
+            # Store results for this query
+            bulk_results.append({query_string: stats})
+    
+    # Log completion of API queries
     logger.info(f"Processing CPE queries completed: {len(query_list)} CPE match strings processed", group="cpe_queries")
     
     return bulk_results

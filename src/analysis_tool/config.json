@@ -65,11 +65,18 @@
                 "color": "cyan"
             }
         }
-    },
-    "confirmed_mappings": {
+    },    "confirmed_mappings": {
         "enabled": true,
         "skip_api_calls_when_found": false,
         "mappings_directory": "mappings"
+    },    "cache": {
+        "enabled": true,
+        "directory": "cache",
+        "max_age_hours": 12,
+        "max_size_mb": 500,
+        "compression": false,
+        "validation_on_startup": true,
+        "auto_cleanup": true
     },
     "api": {
         "timeouts": {
