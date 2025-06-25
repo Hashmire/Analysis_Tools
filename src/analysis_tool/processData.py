@@ -2,6 +2,7 @@
 import re
 import pandas as pd
 from tqdm import tqdm
+import sys
 from sys import exit
 from typing import List, Dict, Any, Union
 from collections import defaultdict
@@ -12,6 +13,29 @@ import json
 # Import Analysis Tool 
 import gatherData
 import generateHTML
+from cpe_cache import CPECache, get_global_cache_manager
+
+# Import the new logging system
+from workflow_logger import (
+    get_logger, LogGroup,
+    end_unique_cpe_generation, start_cpe_queries, end_cpe_queries
+)
+
+# Get logger instance
+logger = get_logger()
+
+# Global statistics for confirmed mappings (accessible to audit functions)
+confirmed_mappings_stats = {
+    'total_processed': 0,
+    'successful_mappings': 0, 
+    'total_mappings_found': 0,
+    'hit_rate': 0.0
+}
+
+def get_confirmed_mappings_stats():
+    """Get confirmed mappings statistics for audit purposes"""
+    global confirmed_mappings_stats
+    return confirmed_mappings_stats.copy()
 
 # Load configuration
 def load_config():
@@ -130,22 +154,30 @@ def find_confirmed_mappings(raw_platform_data: dict, source_id: str) -> List[str
 
 def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
     """Process confirmed mappings for all rows in the dataset"""
-    config = load_config()    
-    # Check if confirmed mappings are enabled
+    config = load_config()      # Check if confirmed mappings are enabled
     if not config.get('confirmed_mappings', {}).get('enabled', True):
-        print("[INFO] Confirmed mappings are disabled in configuration")
+        logger.info("Confirmed mappings are disabled in configuration", group="badge_generation")
         return rawDataset
     
-    print("[INFO] Processing confirmed mappings...")
+    logger.info("Processing confirmed mappings...", group="badge_generation")
     tempDataset = rawDataset.copy()
+      # Track confirmed mappings statistics
+    total_processed = 0
+    successful_mappings = 0
+    total_mappings_found = 0
     
     for index, row in tempDataset.iterrows():
-        try:            # Get raw platform data and source ID
+        try:            
+            # Get raw platform data and source ID
             raw_platform_data = row.get('rawPlatformData', {})
             source_id = row.get('sourceID', '')
             
             if not raw_platform_data or not source_id:
-                continue            # Find confirmed mappings
+                continue            
+            
+            total_processed += 1
+            
+            # Find confirmed mappings
             result = find_confirmed_mappings(raw_platform_data, source_id)
             if isinstance(result, tuple) and len(result) == 2:
                 confirmed_mappings, culled_mappings = result
@@ -156,24 +188,40 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
             
             # Store metadata if we have any confirmed or culled mappings
             if confirmed_mappings or culled_mappings:
+                successful_mappings += 1
+                total_mappings_found += len(confirmed_mappings)
+                
                 platform_metadata = tempDataset.at[index, 'platformEntryMetadata']
                 if not isinstance(platform_metadata, dict):
                     platform_metadata = {}
                 
                 if confirmed_mappings:
-                    print(f"[INFO] Found {len(confirmed_mappings)} confirmed mapping(s) for row {index}")
+                    logger.info(f"Found {len(confirmed_mappings)} confirmed mappings for platform entry {index}", group="data_processing")
                     platform_metadata['confirmedMappings'] = confirmed_mappings
                 
-                # Store culled mappings if any exist
+                # Store culled mappings if any exist                
                 if culled_mappings:
                     platform_metadata['culledConfirmedMappings'] = culled_mappings
-                    print(f"[INFO] Culled {len(culled_mappings)} less specific confirmed mapping(s) for row {index}: {culled_mappings}")
+                    logger.debug(f"Culled {len(culled_mappings)} less specific confirmed mapping(s) for row {index}: {culled_mappings}", group="data_processing")
                 
                 tempDataset.at[index, 'platformEntryMetadata'] = platform_metadata
                 
         except Exception as e:
-            print(f"[WARNING] Error processing confirmed mappings for row {index}: {str(e)}")
+            logger.warning(f"Confirmed mappings processing failed: Unable to process mapping entries for platform entry {index} - {str(e)}", group="badge_generation")
             continue
+    
+    # Log confirmed mappings statistics
+    hit_rate = (successful_mappings / total_processed * 100) if total_processed > 0 else 0
+    logger.info(f"Confirmed mappings statistics: {successful_mappings}/{total_processed} entries ({hit_rate:.1f}% hit rate), {total_mappings_found} total mappings found", group="badge_generation")
+    
+    # Store statistics for audit access
+    global confirmed_mappings_stats
+    confirmed_mappings_stats = {
+        'total_processed': total_processed,
+        'successful_mappings': successful_mappings,
+        'total_mappings_found': total_mappings_found,
+        'hit_rate': hit_rate
+    }
     
     return tempDataset
 
@@ -434,19 +482,19 @@ def deriveCPEMatchStringList(rawDataSet):
     # Iterate through each row in the DataFrame
     for index, row in rawDataSet.iterrows():
         if 'platformEntryMetadata' not in row:
-            print(f"[WARNING] Row {index} missing platformEntryMetadata")
+            logger.warning(f"Row {index} missing platformEntryMetadata", group="data_processing")
             continue
             
         platform_metadata = row['platformEntryMetadata']
         if 'cpeBaseStrings' not in platform_metadata:
-            print(f"[WARNING] Row {index} missing cpeBaseStrings in platformEntryMetadata")
+            logger.warning(f"Row {index} missing cpeBaseStrings in platformEntryMetadata", group="data_processing")
             continue
         
         cpe_base_strings = platform_metadata['cpeBaseStrings']
         
         # Check if cpeBaseStrings is the expected list type
         if not isinstance(cpe_base_strings, list):
-            print(f"[WARNING] Row {index} has cpeBaseStrings that is not a list (type: {type(cpe_base_strings)})")
+            logger.warning(f"Row {index} has cpeBaseStrings that is not a list (type: {type(cpe_base_strings)})", group="data_processing")
             # Try to convert to list if possible
             if isinstance(cpe_base_strings, (tuple, set)):
                 cpe_base_strings = list(cpe_base_strings)
@@ -458,7 +506,7 @@ def deriveCPEMatchStringList(rawDataSet):
         # Process the strings (now guaranteed to be a list)
         for cpe_string in cpe_base_strings:
             if not cpe_string:  # Skip empty strings but log them
-                print(f"[WARNING] Empty CPE string found in row {index}")
+                logger.warning(f"Empty CPE string found in row {index}", group="data_processing")
                 continue
                 
             distinct_values.add(cpe_string)
@@ -472,6 +520,18 @@ def suggestCPEData(apiKey, rawDataset, case):
     match case:
         # Case 1 CVE List
         case 1:
+            # Initialize issue tracking
+            issues = {
+                'placeholder_entries': [],     # (row, source, vendor, product)
+                'unexpected_platforms': [],    # (row, source, platform_value)  
+                'invalid_cpe_format': [],     # (row, source, issue_description)
+                'missing_data': [],           # (row, source, missing_field)
+                'overly_broad_cpe': [],       # (row, source, cpe_string, reason)
+                'unicode_normalization_skipped': [], # (row, source, original_vendor, original_product, normalized_vendor, normalized_product)
+                'total_processed': 0,
+                'total_queries': 0
+            }
+            
             # Iterate through each row in the DataFrame to generate cpeBaseString suggestions
             for index, row in rawDataset.iterrows():
                 # Initialize lists to store the extracted values for the current row
@@ -489,25 +549,36 @@ def suggestCPEData(apiKey, rawDataset, case):
                 # Get platformFormatType from platformEntryMetadata
                 platform_metadata = row.get('platformEntryMetadata', {})
                 platform_format_type = platform_metadata.get('platformFormatType', '')
-
                 # Check if platformFormatType is cveAffectsVersionSingle or cveAffectsVersionRange
                 if platform_format_type in ['cveAffectsVersionSingle', 'cveAffectsVersionRange', 'cveAffectsVersionMix']:
                     
+                    # Get source information for issue tracking
+                    source_role = row.get('sourceRole', 'Unknown')
+                    source_id = row.get('sourceID', 'Unknown')
+                    
                     if 'rawPlatformData' in row:
                         platform_data = row['rawPlatformData']
-                        
-                    # Generate CPE Match Strings based on available content
+                    else:
+                        # Track missing data issue
+                        issues['missing_data'].append((index, source_role, 'rawPlatformData'))
+                        continue
+                    
+                    # Track this entry as processed
+                    issues['total_processed'] += 1
+                          # Generate CPE Match Strings based on available content
                     if 'vendor' in platform_data:
                         # Improved check for n/a values - convert to lowercase and check multiple formats
                         vendor_value = platform_data['vendor']
                         if isinstance(vendor_value, str) and vendor_value.lower() in ["n/a", "n\\/a", "n/a"]:
-                            print("[INFO] Skipping vendor search string generation - 'n/a' placeholder detected")
+                            # Track placeholder data issue
+                            product_value = platform_data.get('product', 'unknown')
+                            issues['placeholder_entries'].append((index, source_role, vendor_value, product_value))
                             # Set a flag in metadata
                             if 'vendorNAConcern' not in rawDataset.at[index, 'platformEntryMetadata']:
                                 rawDataset.at[index, 'platformEntryMetadata']['vendorNAConcern'] = True
                         else:
                             # Only proceed with normal CPE string generation if not n/a
-                            trackUnicodeNormalization(platform_data['vendor'], index, rawDataset)
+                            trackUnicodeNormalizationDetails(platform_data['vendor'], 'vendor', index, rawDataset)
                             cpeValidstring = formatFor23CPE(platform_data['vendor'])
                             original_vendor = cpeValidstring
                             culledString = curateCPEAttributes('vendor', cpeValidstring, True)
@@ -538,17 +609,17 @@ def suggestCPEData(apiKey, rawDataset, case):
                             cpeBaseStrings.append(scratchMatchString)
 
                     # Generate CPE Match Strings based on available content for 'product'
-                    if 'product' in platform_data:
-                        # Improved check for n/a values - convert to lowercase and check multiple formats
+                    if 'product' in platform_data:                        # Improved check for n/a values - convert to lowercase and check multiple formats
                         product_value = platform_data['product']
                         if isinstance(product_value, str) and product_value.lower() in ["n/a", "n\\/a", "n/a"]:
-                            print("[INFO] Skipping product search string generation - 'n/a' placeholder detected")
-                            # Set a flag in metadata
+                            # Track placeholder data issue
+                            vendor_value = platform_data.get('vendor', 'unknown')
+                            issues['placeholder_entries'].append((index, source_role, vendor_value, product_value))                            # Set a flag in metadata
                             if 'productNAConcern' not in rawDataset.at[index, 'platformEntryMetadata']:
                                 rawDataset.at[index, 'platformEntryMetadata']['productNAConcern'] = True
                         else:
                             # Only proceed with normal CPE string generation if not n/a
-                            trackUnicodeNormalization(platform_data['product'], index, rawDataset)
+                            trackUnicodeNormalizationDetails(platform_data['product'], 'product', index, rawDataset)
                             cpeValidstring = formatFor23CPE(platform_data['product'])
                             original_product = cpeValidstring
                             culledString = curateCPEAttributes('product', cpeValidstring, True)
@@ -629,10 +700,13 @@ def suggestCPEData(apiKey, rawDataset, case):
                                 scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                                 scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                                 cpeBaseStrings.append(scratchMatchString)
-                                
                         # At the end of processing platforms, check if we had platforms but couldn't recognize any
                         # This will catch cases like "Unknown" platforms
                         if platform_found_but_not_recognized and not platform_values_searched:
+                            # Track unexpected platform issue
+                            unrecognized_platforms = [p for p in platform_data['platforms'] if p]
+                            for unrecognized_platform in unrecognized_platforms:
+                                issues['unexpected_platforms'].append((index, source_role, unrecognized_platform))
                             if 'platformDataConcern' not in rawDataset.at[index, 'platformEntryMetadata']:
                                 rawDataset.at[index, 'platformEntryMetadata']['platformDataConcern'] = True
 
@@ -665,9 +739,14 @@ def suggestCPEData(apiKey, rawDataset, case):
                                     })
                                 else:
                                     all_platforms_mapped = False
-                        
                         # Set the platformDataConcern flag if any platform couldn't be mapped
                         if platform_data['platforms'] and not all_platforms_mapped:
+                            # Track unmapped platforms as unexpected platform issues
+                            for platform_item in platform_data['platforms']:
+                                if platform_item and isinstance(platform_item, str):
+                                    curated_platform, was_mapped = curateCPEAttributes('platform', platform_item, None)
+                                    if not was_mapped:
+                                        issues['unexpected_platforms'].append((index, source_role, platform_item))
                             rawDataset.at[index, 'platformEntryMetadata']['platformDataConcern'] = True
 
                     # Generate CPE Match Strings based on available content for 'packageName'
@@ -683,14 +762,13 @@ def suggestCPEData(apiKey, rawDataset, case):
                             is_maven_package = True
                         
                         if is_maven_package and ':' in package_name:
-                            print(f"[INFO] Processing Maven package: {package_name}")
-                            
-                            # Split Maven package name into groupId and artifactId
+                            logger.debug(f"Processing Maven package: {package_name}", group="cpe_generation")
+                              # Split Maven package name into groupId and artifactId
                             group_id, artifact_id = package_name.split(':', 1)
-                            trackUnicodeNormalization(group_id, index, rawDataset)  # ← ADD THIS
+                            trackUnicodeNormalizationDetails(group_id, 'maven_group_id', index, rawDataset)
                             cpe_group_id = formatFor23CPE(group_id)
                             
-                            trackUnicodeNormalization(artifact_id, index, rawDataset)  # ← ADD THIS
+                            trackUnicodeNormalizationDetails(artifact_id, 'maven_artifact_id', index, rawDataset)
                             cpe_artifact_id = formatFor23CPE(artifact_id)
 
                             # 1. Create a CPE string with just the groupId as the vendor
@@ -744,8 +822,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                             combined_match_string = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
                             if combined_match_string not in cpeBaseStrings:
                                 cpeBaseStrings.append(combined_match_string)
-                                
-                            # Add metadata to track Maven package processing
+                                  # Add metadata to track Maven package processing
                             if 'packageSourceTypes' not in rawDataset.at[index, 'platformEntryMetadata']:
                                 rawDataset.at[index, 'platformEntryMetadata']['packageSourceTypes'] = []
                             if 'maven' not in rawDataset.at[index, 'platformEntryMetadata']['packageSourceTypes']:
@@ -753,7 +830,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                         
                         else:
                             # Process non-Maven packages with the existing code
-                            trackUnicodeNormalization(platform_data['packageName'], index, rawDataset)  # ← ADD THIS
+                            trackUnicodeNormalizationDetails(platform_data['packageName'], 'package_name', index, rawDataset)
                             cpeValidstring = formatFor23CPE(platform_data['packageName'])
                             culledString = curateCPEAttributes('product', cpeValidstring, True)
                             
@@ -773,24 +850,34 @@ def suggestCPEData(apiKey, rawDataset, case):
                             rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
                             scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                             scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                            cpeBaseStrings.append(scratchMatchString)
-
-                    # Generate CPE Match Strings based on available content for 'vendor' and 'product'
+                            cpeBaseStrings.append(scratchMatchString)                    # Generate CPE Match Strings based on available content for 'vendor' and 'product'
                     if 'vendor' in platform_data and 'product' in platform_data:
                         vendor_value = platform_data['vendor']
                         product_value = platform_data['product']
-                        
-                        # Skip vendor+product CPE generation if either contains n/a
+                        # Skip vendor+product CPE generation if either contains n/a or becomes empty after normalization
                         if (isinstance(vendor_value, str) and vendor_value.lower() in ["n/a", "n\\/a", "n/a"]) or \
                            (isinstance(product_value, str) and product_value.lower() in ["n/a", "n\\/a", "n/a"]):
-                            print("[INFO] Skipping vendor+product search string generation - 'n/a' placeholder detected")
+                            logger.info("Skipping vendor+product search string generation - 'n/a' placeholder detected", group="cpe_generation")
                         else:
-                            # Only proceed with normal CPE string generation if neither is n/a
+                            # Check if Unicode normalization would result in empty values
+                            trackUnicodeNormalizationDetails(platform_data['vendor'], 'vendor', index, rawDataset)
+                            trackUnicodeNormalizationDetails(platform_data['product'], 'product', index, rawDataset)
+                            normalized_vendor = formatFor23CPE(platform_data['vendor'])
+                            normalized_product = formatFor23CPE(platform_data['product'])
+                            # Skip if either vendor or product becomes empty after normalization
+                            if not normalized_vendor.strip() or not normalized_product.strip():
+                                # Track this issue for summary reporting
+                                issues['unicode_normalization_skipped'].append((
+                                    index, source_role, 
+                                    platform_data['vendor'], platform_data['product'],
+                                    normalized_vendor, normalized_product
+                                ))
+                                continue
+                            
+                            # Proceed with CPE string generation using normalized vendor and product values
                             # 1. Create base string with uncurated values first
-                            trackUnicodeNormalization(platform_data['vendor'], index, rawDataset)  # ← ADD THIS
-                            trackUnicodeNormalization(platform_data['product'], index, rawDataset)  # ← ADD THIS
-                            cpeValidstringVendor = formatFor23CPE(platform_data['vendor'])
-                            cpeValidstringProduct = formatFor23CPE(platform_data['product'])
+                            cpeValidstringVendor = normalized_vendor
+                            cpeValidstringProduct = normalized_product
                             original_vendor_product = {
                                 "vendor": cpeValidstringVendor,
                                 "product": cpeValidstringProduct
@@ -881,7 +968,6 @@ def suggestCPEData(apiKey, rawDataset, case):
 
                         vendor_original = platform_data['vendor']
                         packageName_original = platform_data['packageName']
-                        
                         # Track vendor+packageName curation if values were modified
                         if vendor != vendor_original or product != packageName_original:
                             # Add combined vendor+packageName tracking
@@ -898,74 +984,131 @@ def suggestCPEData(apiKey, rawDataset, case):
                         for cpe in platform_data['cpes']:
                             # Only add valid CPE strings
                             if cpe and isinstance(cpe, str) and cpe.startswith('cpe:'):
-                                # Parse CPE to make sure it's properly formatted
-                                cpe_attributes = breakoutCPEAttributes(cpe)
-                                
-                                # For CPEs from the array, create two different versions
-                                # 1. The exact CPE with wildcarded version/update for direct search
-                                exact_cpe_attributes = dict(cpe_attributes)
-                                exact_cpe_attributes['version'] = '*'  # Always set version to wildcard
-                                exact_cpe_attributes['update'] = '*'   # Always set update to wildcard
-                                
-                                # Build the exact CPE string (no added wildcards to product)
-                                exact_cpe_string = ""
-                                for item in exact_cpe_attributes:
-                                    exact_cpe_string += str(exact_cpe_attributes[item]) + ":"
-                                
-                                # Remove the trailing colon
-                                exact_cpe_string = exact_cpe_string.rstrip(":")
-                                
-                                # Add to cpeBaseStrings if not already there
-                                if exact_cpe_string not in cpeBaseStrings:
-                                    cpeBaseStrings.append(exact_cpe_string)
+                                try:
+                                    # Parse CPE to make sure it's properly formatted
+                                    cpe_attributes = breakoutCPEAttributes(cpe)
                                     
-                                    # Track the source of this CPE base string
-                                    if 'cpeSourceTypes' not in rawDataset.at[index, 'platformEntryMetadata']:
-                                        rawDataset.at[index, 'platformEntryMetadata']['cpeSourceTypes'] = []
-                                    if 'cveAffectedCPEsArray' not in rawDataset.at[index, 'platformEntryMetadata']['cpeSourceTypes']:
-                                        rawDataset.at[index, 'platformEntryMetadata']['cpeSourceTypes'].append('cveAffectedCPEsArray')
-                                
-                                # 2. Add a searchSourcepartvendorproduct version that follows the same pattern as other searches
-                                # Only if there is a valid product in the CPE
-                                if cpe_attributes['product'] != '*':
-                                    part = cpe_attributes['part']  # Preserve the part from the CPE
-                                    vendor = cpe_attributes['vendor']  # Preserve the vendor from the CPE
-                                    product = "*" + cpe_attributes['product'] + "*"  # Add wildcards like other searches
-                                    version = "*"
-                                    update = "*"
-                                    edition = "*"
-                                    lang = "*"
-                                    swEdition = "*"
-                                    targetSW = "*"
-                                    targetHW = "*"
-                                    other = "*"
-
-                                    # Build a CPE Search String with wildcarded product
-                                    wildcarded_match_string = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                                    # For CPEs from the array, create two different versions
+                                    # 1. The exact CPE with wildcarded version/update for direct search
+                                    exact_cpe_attributes = dict(cpe_attributes)
+                                    exact_cpe_attributes['version'] = '*'  # Always set version to wildcard
+                                    exact_cpe_attributes['update'] = '*'   # Always set update to wildcard
                                     
-                                    # Add this search string if it's not already in the list
-                                    if wildcarded_match_string not in cpeBaseStrings:
-                                        cpeBaseStrings.append(wildcarded_match_string)
+                                    # Build the exact CPE string (no added wildcards to product)
+                                    exact_cpe_string = ""
+                                    for item in exact_cpe_attributes:
+                                        exact_cpe_string += str(exact_cpe_attributes[item]) + ":"
+                                    
+                                    # Remove the trailing colon
+                                    exact_cpe_string = exact_cpe_string.rstrip(":")
+                                    
+                                    # Add to cpeBaseStrings if not already there
+                                    if exact_cpe_string not in cpeBaseStrings:
+                                        cpeBaseStrings.append(exact_cpe_string)
+                                        
+                                        # Track the source of this CPE base string
+                                        if 'cpeSourceTypes' not in rawDataset.at[index, 'platformEntryMetadata']:
+                                            rawDataset.at[index, 'platformEntryMetadata']['cpeSourceTypes'] = []
+                                        if 'cveAffectedCPEsArray' not in rawDataset.at[index, 'platformEntryMetadata']['cpeSourceTypes']:
+                                            rawDataset.at[index, 'platformEntryMetadata']['cpeSourceTypes'].append('cveAffectedCPEsArray')
+                                    
+                                    # 2. Add a searchSourcepartvendorproduct version that follows the same pattern as other searches
+                                    # Only if there is a valid product in the CPE
+                                    if cpe_attributes['product'] != '*':
+                                        part = cpe_attributes['part']  # Preserve the part from the CPE
+                                        vendor = cpe_attributes['vendor']  # Preserve the vendor from the CPE
+                                        product = "*" + cpe_attributes['product'] + "*"  # Add wildcards like other searches
+                                        version = "*"
+                                        update = "*"
+                                        edition = "*"
+                                        lang = "*"
+                                        swEdition = "*"
+                                        targetSW = "*"
+                                        targetHW = "*"
+                                        other = "*"
 
-                # Update the cpeBaseStrings in platformEntryMetadata instead of as a separate column
-                rawDataset.at[index, 'platformEntryMetadata']['cpeBaseStrings'] = cpeBaseStrings
+                                        # Build a CPE Search String with wildcarded product
+                                        wildcarded_match_string = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                                        
+                                        # Add this search string if it's not already in the list
+                                        if wildcarded_match_string not in cpeBaseStrings:
+                                            cpeBaseStrings.append(wildcarded_match_string)
+                                
+                                except Exception as e:
+                                    # Track invalid CPE format issue
+                                    issues['invalid_cpe_format'].append((index, source_role, f"CPE parsing failed: {str(e)} for '{cpe}'"))
+                            else:
+                                # Track invalid CPE format for non-CPE strings
+                                if cpe:  # Only log if there's actually a value
+                                    issues['invalid_cpe_format'].append((index, source_role, f"Invalid CPE format: '{cpe}'"))                # Validate CPE base strings for specificity before storing
+                validated_cpe_strings = []
+                for cpe_string in cpeBaseStrings:
+                    is_valid, reason = validate_cpe_specificity(cpe_string)
+                    if is_valid:
+                        validated_cpe_strings.append(cpe_string)
+                    else:
+                        # Track overly broad CPE issue (console reporting only)
+                        issues['overly_broad_cpe'].append((index, source_role, cpe_string, reason))
+
+                # Update the cpeBaseStrings in platformEntryMetadata with validated strings
+                rawDataset.at[index, 'platformEntryMetadata']['cpeBaseStrings'] = validated_cpe_strings
 
                 # Store curation tracking in metadata if any changes were found
                 has_curations = any(curation_tracking.values())
                 if has_curations:
-                    rawDataset.at[index, 'platformEntryMetadata']['cpeCurationTracking'] = curation_tracking
-            
-            # Generate unique string list for API queries using the updated deriveCPEMatchStringList
+                    rawDataset.at[index, 'platformEntryMetadata']['cpeCurationTracking'] = curation_tracking            # Generate unique string list for API queries using the updated deriveCPEMatchStringList
             uniqueStringList = deriveCPEMatchStringList(rawDataset)
+            
+            # Track the total number of unique queries generated
+            issues['total_queries'] = len(uniqueStringList)            # Track the number of unique queries generated
+            issues['total_queries'] = len(uniqueStringList)
+            
+            # Print summary of CPE search string generation
+            logger.data_summary("CPE Generation Results", group="unique_cpe", 
+                              **{"Affected Array Entries Processed": issues['total_processed'], 
+                                 "Unique Match Strings Identified": issues['total_queries']})
+            
+            # Report issues if any were found
+            total_issues = (len(issues['placeholder_entries']) + 
+                          len(issues['unexpected_platforms']) + 
+                          len(issues['invalid_cpe_format']) + 
+                          len(issues['missing_data']) +
+                          len(issues['overly_broad_cpe']) +
+                          len(issues['unicode_normalization_skipped']))            
+            if total_issues > 0:
+                # Report high-level summary only - detailed information will be shown in badge generation
+                issue_types = []
+                if issues['placeholder_entries']:
+                    issue_types.append(f"placeholder data ({len(issues['placeholder_entries'])})")
+                if issues['unexpected_platforms']:
+                    issue_types.append(f"unexpected platforms ({len(issues['unexpected_platforms'])})")
+                if issues['invalid_cpe_format']:
+                    issue_types.append(f"invalid CPE format ({len(issues['invalid_cpe_format'])})")
+                if issues['missing_data']:
+                    issue_types.append(f"missing data ({len(issues['missing_data'])})")
+                if issues['overly_broad_cpe']:
+                    issue_types.append(f"overly broad CPE ({len(issues['overly_broad_cpe'])})")
+                if issues['unicode_normalization_skipped']:
+                    issue_types.append(f"unicode normalization ({len(issues['unicode_normalization_skipped'])})")                
+                logger.info(f"Data quality issues detected: {', '.join(issue_types)} - (See badge generation for details)", group="data_processing")
+            else:
+                logger.info("No issues detected - all data processed successfully", group="data_processing")
+            
+            # End the CPE generation stage now that we have generated the CPE match strings
+            end_unique_cpe_generation("CPE base strings extracted")
+            
+            # Start the CPE queries stage for the actual API calls
+            start_cpe_queries("Querying NVD CPE API")
             
             rawCPEsQueryData = bulkQueryandProcessNVDCPEs(apiKey, rawDataset, uniqueStringList)
            
             ## Map the relevant, raw rawCPEsQueryData back into the rows of the primaryDataframe
-            mappedDataset = populateRawCPEsQueryData(rawDataset, rawCPEsQueryData)
-
-            # Update the query data results so the most relevant cpeBaseStrings are listed first.
+            mappedDataset = populateRawCPEsQueryData(rawDataset, rawCPEsQueryData)            # Update the query data results so the most relevant cpeBaseStrings are listed first.
             sortedDataset = sort_cpes_query_data(mappedDataset)
             trimmedDataset = reduceToTop10(sortedDataset)
+
+            # End the CPE queries stage now that all API calls are complete
+            end_cpe_queries("CPE queries completed")
 
             return trimmedDataset
         # Case 2 covers the CPE Search mode
@@ -982,8 +1125,13 @@ def suggestCPEData(apiKey, rawDataset, case):
 # Calls for NVD API Query and processes statistics and other useful data based on the results
 def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> List[Dict[str, Any]]:
     bulk_results = []
-    
-    print(f"[INFO]  Querying NVD /cpes/ API to get CPE Dictionary information...")
+    config = load_config()
+      # Get global cache instance
+    cache_manager = get_global_cache_manager()
+    if not cache_manager.is_initialized():
+        cache_manager.initialize(config.get('cache', {}))
+    cache = cache_manager.get_cache()
+    logger.debug("Using global CPE cache instance", group="cpe_queries")
     
     # Track which version checks belong to which row
     row_version_checks = {}
@@ -1004,81 +1152,102 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                         row_query_mapping[cpe_string] = []
                     row_query_mapping[cpe_string].append(index)
     
-    for query_string in tqdm(query_list):
-        # Skip empty queries
-        if not query_string:
-            continue
-        
-        try:
-            json_response = gatherData.gatherNVDCPEData(apiKey, "cpeMatchString", query_string)
-            
-            # Check for invalid_cpe status from our updated gatherNVDCPEData function
-            if json_response and json_response.get("status") == "invalid_cpe":
-                print(f"[WARNING] Skipping invalid CPE match string: {query_string}")
-                stats = {
-                    "matches_found": 0,
-                    "status": "invalid_cpe",
-                    "error_message": json_response.get("error", "Invalid cpeMatchstring parameter")
-                }
-                bulk_results.append({query_string: stats})
+    for query_string in tqdm(query_list, desc="Querying /cpes/ API (+ local cache)", unit="query"):
+            # Skip empty queries
+            if not query_string:
                 continue
+            
+            try:
+                # Check cache first
+                json_response = cache.get(query_string)
                 
-            if 'totalResults' in json_response:
-                # General statistics common to all rows
-                base_stats = {
-                    "matches_found": json_response['totalResults'],
-                    "is_truncated": json_response["resultsPerPage"] < json_response["totalResults"],
-                }
+                if json_response is None:
+                    # Cache miss - make API call
+                    json_response = gatherData.gatherNVDCPEData(apiKey, "cpeMatchString", query_string)
+                    
+                    # Cache the response if it's valid
+                    if json_response and json_response.get("status") != "invalid_cpe":
+                        cache.put(query_string, json_response)
                 
-                if "products" in json_response:
-                    # Find which rows care about this query string
-                    relevant_row_indices = row_query_mapping.get(query_string, [])
-                    row_specific_results = {}
-                    
-                    # For each relevant row, perform row-specific version matching
-                    for row_index in relevant_row_indices:
-                        # Get this row's version checks
-                        row_checks = row_version_checks.get(row_index, [])
-                        
-                        # Process with just this row's checks
-                        row_stats = analyzeBaseStrings(row_checks, json_response)
-                        row_specific_results[row_index] = row_stats
-                    
-                    # Store both common stats and row-specific results
+                # Check for invalid_cpe status from our updated gatherNVDCPEData function
+                if json_response and json_response.get("status") == "invalid_cpe":
+                    logger.warning(f"Skipping invalid CPE match string: {query_string}", group="cpe_queries")
                     stats = {
-                        **base_stats,
-                        "row_specific_results": row_specific_results
+                        "matches_found": 0,
+                        "status": "invalid_cpe",
+                        "error_message": json_response.get("error", "Invalid cpeMatchstring parameter")
+                    }
+                    bulk_results.append({query_string: stats})
+                    continue                # Check for invalid_cpe status from our updated gatherNVDCPEData function
+                if json_response and json_response.get("status") == "invalid_cpe":
+                    logger.warning(f"Skipping invalid CPE match string: {query_string}", group="cpe_queries")
+                    stats = {
+                        "matches_found": 0,
+                        "status": "invalid_cpe",
+                        "error_message": json_response.get("error", "Invalid cpeMatchstring parameter")
+                    }
+                    bulk_results.append({query_string: stats})
+                    continue
+                    
+                if 'totalResults' in json_response:
+                    # General statistics common to all rows
+                    base_stats = {
+                        "matches_found": json_response['totalResults'],
+                        "is_truncated": json_response["resultsPerPage"] < json_response["totalResults"],
+                    }
+                    
+                    if "products" in json_response:
+                        # Find which rows care about this query string
+                        relevant_row_indices = row_query_mapping.get(query_string, [])
+                        row_specific_results = {}
+                        
+                        # For each relevant row, perform row-specific version matching
+                        for row_index in relevant_row_indices:
+                            # Get this row's version checks
+                            row_checks = row_version_checks.get(row_index, [])
+                            
+                            # Process with just this row's checks
+                            row_stats = analyzeBaseStrings(row_checks, json_response)
+                            row_specific_results[row_index] = row_stats
+                        
+                        # Store both common stats and row-specific results
+                        stats = {
+                            **base_stats,
+                            "row_specific_results": row_specific_results
+                        }
+                    else:
+                        stats = base_stats
+                else:
+                    stats = {
+                        "matches_found": 0,
+                        "status": "error",
+                        "error_message": str(json_response)
+                    }
+            except Exception as e:
+                error_message = str(e)
+                logger.warning(f"NVD CPE API query operation failed: Unable to query CPE data for '{query_string}' - {error_message}", group="cpe_queries")
+                
+                # Don't retry for invalid cpeMatchstring errors
+                if "Invalid cpeMatchstring parameter" in error_message:
+                    logger.warning(f"Invalid CPE match string detected, skipping: {query_string}", group="cpe_queries")
+                    stats = {
+                        "matches_found": 0,
+                        "status": "invalid_cpe",
+                        "error_message": error_message
                     }
                 else:
-                    stats = base_stats
-            else:
-                stats = {
-                    "matches_found": 0,
-                    "status": "error",
-                    "error_message": str(json_response)
-                }
-        except Exception as e:
-            error_message = str(e)
-            print(f"[WARNING] Error querying NVD API for '{query_string}': {error_message}")
+                    # For other errors, report but continue
+                    stats = {
+                        "matches_found": 0,
+                        "status": "error",
+                        "error_message": error_message
+                    }
             
-            # Don't retry for invalid cpeMatchstring errors
-            if "Invalid cpeMatchstring parameter" in error_message:
-                print(f"[WARNING] Invalid CPE match string detected, skipping: {query_string}")
-                stats = {
-                    "matches_found": 0,
-                    "status": "invalid_cpe",
-                    "error_message": error_message
-                }
-            else:
-                # For other errors, report but continue
-                stats = {
-                    "matches_found": 0,
-                    "status": "error",
-                    "error_message": error_message
-                }
-        
-        # Store results for this query
-        bulk_results.append({query_string: stats})
+            # Store results for this query
+            bulk_results.append({query_string: stats})
+    
+    # Log completion of API queries
+    logger.debug(f"Processing CPE queries completed: {len(query_list)} CPE match strings processed", group="cpe_queries")
     
     return bulk_results
 #
@@ -1514,14 +1683,14 @@ def processNVDRecordData(dataframe, nvdRecordData):
                         # Append to dataframe
                         result_df = pd.concat([result_df, pd.DataFrame([new_row])], ignore_index=True)
     except Exception as e:
-        print(f"[ERROR] Error processing NVD record data: {e}")
+        logger.error(f"NVD vulnerability data processing failed: Unable to process vulnerability data - {e}", group="data_processing")
     
     return result_df
 
 def determine_platform_format_type(affected):
     """Determine if versions are single values, ranges, a mixture of both, or not provided"""
     versions = affected.get('versions', [])
-    
+
     # Check if versions array is empty or not provided
     if not versions:
         return 'cveAffectsNoVersions'
@@ -1766,7 +1935,7 @@ def constructSearchString(rawBreakout, constructType):
             cpeStringResult = cpeStringResult.rstrip(cpeStringResult[-1])
             return(cpeStringResult)
         case _:
-            print("[WARNING] unexpected constructType:  " + constructType)
+            logger.warning(f"CPE search string construction failed: Unknown constructType '{constructType}' (expected: 'baseQuery' or 'base')", group="data_processing")
 #
 # Identify if CPE 2.3/2.2 provided and breakout into attribute based dictionary
 def breakoutCPEAttributes(cpeMatchString):
@@ -1775,7 +1944,7 @@ def breakoutCPEAttributes(cpeMatchString):
     
     # Handle empty or malformed CPE strings
     if len(cpeBreakOut) < 2:
-        print(f"[WARNING] Malformed CPE string: {cpeMatchString}")
+        logger.warning(f"Malformed CPE string: {cpeMatchString}", group="data_processing")
         return {"cpePrefix": "", "cpeVersion": "unknown", "part": "*", "vendor": "*", "product": "*", 
                 "version": "*", "update": "*", "edition": "*", "lang": "*", 
                 "swEdition": "*", "targetSW": "*", "targetHW": "*", "other": "*"}
@@ -1818,7 +1987,7 @@ def breakoutCPEAttributes(cpeMatchString):
                 }
         return cpeDict
     else: 
-        print(f"[WARNING] CPE type check error! {cpeVersion}")
+        logger.warning(f"CPE version validation failed: Unsupported CPE version '{cpeVersion}' (expected: '2.2' or '2.3')", group="data_processing")
         return {"cpePrefix": "", "cpeVersion": "unknown", "part": "*", "vendor": "*", "product": "*", 
                 "version": "*", "update": "*", "edition": "*", "lang": "*", 
                 "swEdition": "*", "targetSW": "*", "targetHW": "*", "other": "*"}
@@ -1834,15 +2003,16 @@ def integrityCheckCVE(checkType, checkValue, checkDataSet=False):
         case "cveIdMatch":
             # Confirm that ID returned by the API is the one entered
             if checkValue == checkDataSet["cveMetadata"]["cveId"]:
-                print("[INFO]  Getting " + checkValue +" from CVE Program services...")
+                # CVE ID matches - integrity check passed
+                pass
             else:
-                print("[FAULT]  CVE Services CVE ID check failed! CVE-ID from Services returned as ", checkDataSet["cveMetadata"]["cveId"])
+                logger.error(f"CVE Services ID check failed: CVE-ID from Services returned as {checkDataSet['cveMetadata']['cveId']}", group="data_processing")
                 raise ValueError(f"CVE ID mismatch: expected {checkValue}, got {checkDataSet['cveMetadata']['cveId']}")
         
         case "cveStatusCheck":
             # Confirm the CVE ID is not REJECTED
             if checkDataSet["cveMetadata"]["state"] == checkValue:
-                print("[FAULT]  CVE record is in the " + checkDataSet["cveMetadata"]["state"] + " state!")
+                logger.error(f"CVE status check failed: CVE record is in the {checkDataSet['cveMetadata']['state']} state", group="data_processing")
                 raise ValueError(f"CVE {checkDataSet['cveMetadata']['cveId']} is in {checkDataSet['cveMetadata']['state']} state")
             else:
                 checkValue == True
@@ -1853,10 +2023,10 @@ def integrityCheckCVE(checkType, checkValue, checkDataSet=False):
             if re.fullmatch(pattern, checkValue):
                 checkValue == True
             else:
-                print("[FAULT]  CVE ID Format check failed! \"", checkValue, "\"")
+                logger.error(f"CVE ID format check failed: Invalid format \"{checkValue}\"", group="data_processing")
                 raise ValueError(f"Invalid CVE ID format: {checkValue}")
         case _:
-            print("[FAULT]  Unexpected Case for Integrity Check!")
+            logger.error(f"Integrity check failed: Unknown check type '{checkType}' (expected: 'cveIdFormat', 'cveServicesRecord', 'nvdCveRecordState')", group="data_processing")
             raise ValueError(f"Unknown integrity check type: {checkType}")
 
 # More sophisticated product_key to handle edge cases
@@ -1929,12 +2099,39 @@ def normalizeToASCII(text):
     
     return ascii_text
 
-# Add just this helper function:
-def trackUnicodeNormalization(original_text, row_index, rawDataset):
-    """Track if Unicode normalization would be applied to this text"""
-    if original_text and isinstance(original_text, str):
-        if original_text != normalizeToASCII(original_text):
-            rawDataset.at[row_index, 'platformEntryMetadata']['unicodeNormalizationApplied'] = True
+# Enhanced Unicode normalization tracking
+def trackUnicodeNormalizationDetails(original_text, field_name, row_index, rawDataset):
+    """Track detailed Unicode normalization information including transformations and skips"""
+    if not original_text or not isinstance(original_text, str):
+        return
+    
+    normalized_text = normalizeToASCII(original_text)
+    
+    # Only track if there would be a change
+    if original_text != normalized_text:
+        # Initialize Unicode normalization tracking if not present
+        if 'unicodeNormalizationDetails' not in rawDataset.at[row_index, 'platformEntryMetadata']:
+            rawDataset.at[row_index, 'platformEntryMetadata']['unicodeNormalizationDetails'] = {
+                'transformations': [],
+                'skipped_fields': []
+            }
+        
+        unicode_details = rawDataset.at[row_index, 'platformEntryMetadata']['unicodeNormalizationDetails']
+        
+        # If normalization results in empty string, track as skipped
+        if not normalized_text.strip():
+            unicode_details['skipped_fields'].append({
+                'field': field_name,
+                'original': original_text,
+                'reason': 'Unicode normalization resulted in empty value'
+            })
+        else:
+            # Track successful transformation
+            unicode_details['transformations'].append({
+                'field': field_name,
+                'original': original_text,
+                'normalized': normalized_text
+            })
 
 def parse_cpe_components(cpe_string: str) -> dict:
     """Parse a CPE 2.3 string into its components"""
@@ -2012,3 +2209,40 @@ def filter_most_specific_cpes(cpe_list: List[str]) -> List[str]:
             filtered_cpes.append(cpe)
     
     return filtered_cpes
+
+#
+# Validates that a CPE base string has sufficient specificity to avoid overly broad queries
+def validate_cpe_specificity(cpe_string):
+    """
+    Check if a CPE string has enough specificity (requires at least vendor OR product).
+    Returns (is_valid, reason) tuple.
+    """
+    if not cpe_string or not cpe_string.startswith('cpe:2.3:'):
+        return False, "Invalid CPE format"
+    
+    # Split the CPE string and check components
+    parts = cpe_string.split(':')
+    if len(parts) < 13:  # CPE 2.3 should have 13 parts
+        return False, "Incomplete CPE format"
+    
+    # Check if we have at least vendor OR product specified
+    # Allow CPE strings with at least vendor OR product (handles Unicode normalization cases)
+    vendor_component = parts[3] if len(parts) > 3 else '*'
+    product_component = parts[4] if len(parts) > 4 else '*'
+    
+    has_vendor = vendor_component and vendor_component != '*' and vendor_component.strip() != ''
+    has_product = product_component and product_component != '*' and product_component.strip() != ''
+    
+    if not has_vendor and not has_product:
+        return False, "Both vendor and product are wildcards or empty"
+    
+    # Check for completely wildcard CPE (all components are *)
+    non_wildcard_count = 0
+    for component in parts[2:13]:  # Skip 'cpe' and '2.3'
+        if component and component != '*' and component.strip() != '':
+            non_wildcard_count += 1
+    
+    if non_wildcard_count == 0:
+        return False, "All components are wildcards"
+    
+    return True, "Valid specificity"
