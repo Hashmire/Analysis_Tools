@@ -232,7 +232,7 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
             primaryDataframe = processData.process_confirmed_mappings(primaryDataframe)
         except Exception as mapping_error:
             logger.warning(f"Confirmed mappings failed for {cve_id}: Unable to process confirmed mappings - {str(mapping_error)}", group="data_processing")
-            logger.info("Continuing with available data...", group="error_handhandling")
+            logger.info("Continuing with available data...", group="data_processing")
             import traceback
             traceback.print_exc()
 
@@ -583,7 +583,7 @@ def main():
                               f"Elapsed: {elapsed_str} | ETA: {eta_str} | Remaining: {remaining_str}")
             else:
                 progress_msg = f"Processing CVE {current_cve_num}/{total_cves} ({cve}) | Progress: {(current_cve_num-1)/total_cves*100:.1f}%"            
-            logger.info(progress_msg, group="progress")
+            logger.info(progress_msg, group="cve_queries")
         
         try:
             logger.info(f"Processing {cve}...", group="processing")

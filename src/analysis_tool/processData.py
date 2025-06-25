@@ -199,7 +199,8 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
                     logger.info(f"Found {len(confirmed_mappings)} confirmed mappings for platform entry {index}", group="data_processing")
                     platform_metadata['confirmedMappings'] = confirmed_mappings
                 
-                # Store culled mappings if any exist                if culled_mappings:
+                # Store culled mappings if any exist                
+                if culled_mappings:
                     platform_metadata['culledConfirmedMappings'] = culled_mappings
                     logger.debug(f"Culled {len(culled_mappings)} less specific confirmed mapping(s) for row {index}: {culled_mappings}", group="data_processing")
                 
