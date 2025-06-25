@@ -64,7 +64,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     total_results = 0
     matching_cves = []
     
-    logger.info("Starting CVE collection...", group="cve_queries")
+    logger.info("Starting CVE collection...", group="CVE_QUERY")
     
     while True:
         # Construct URL with pagination
@@ -84,23 +84,22 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                 break
                 
             except requests.exceptions.RequestException as e:
-                logger.error(f"NVD CVE data API request failed: Unable to fetch dataset at index {start_index} (Attempt {attempt + 1}/{max_retries}) - {e}", group="error_handling")
+                logger.error(f"NVD CVE data API request failed: Unable to fetch dataset at index {start_index} (Attempt {attempt + 1}/{max_retries}) - {e}", group="data_processing")
                 
                 if hasattr(e, 'response') and e.response is not None:
-                    if 'message' in e.response.headers:
-                        logger.error(f"NVD API Message: {e.response.headers['message']}", group="error_handling")
-                    logger.error(f"Response status code: {e.response.status_code}", group="error_handling")
+                    if 'message' in e.response.headers:                        logger.error(f"NVD API Message: {e.response.headers['message']}", group="data_processing")
+                    logger.error(f"Response status code: {e.response.status_code}", group="data_processing")
                 
                 if attempt < max_retries - 1:
                     wait_time = config['api']['retry']['delay_without_key'] if not api_key else config['api']['retry']['delay_with_key']
                     logger.info(f"Waiting {wait_time} seconds before retry...", group="cve_queries")
                     sleep(wait_time)
                 else:
-                    logger.error(f"Dataset generation failed: Maximum retry attempts ({max_retries}) reached for current page - stopping data collection", group="error_handling")
+                    logger.error(f"Dataset generation failed: Maximum retry attempts ({max_retries}) reached for current page - stopping data collection", group="data_processing")
                     break
         
         if page_data is None:
-            logger.error("Dataset generation failed: Unable to retrieve page data after all retry attempts - stopping data collection", group="error_handling")
+            logger.error("Dataset generation failed: Unable to retrieve page data after all retry attempts - stopping data collection", group="data_processing")
             break
         
         # Process CVEs in this page
@@ -168,7 +167,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         logger.info(f"You can now run: python analysis_tool.py --file {output_file}", group="initialization")
         
     except Exception as e:
-        logger.error(f"Dataset file creation failed: Unable to write dataset output to '{output_file}' - {e}", group="error_handling")
+        logger.error(f"Dataset file creation failed: Unable to write dataset output to '{output_file}' - {e}", group="data_processing")
         return False
     
     return True
@@ -202,7 +201,7 @@ def main():
     if success:
         logger.info("Dataset generation completed successfully!", group="initialization")
     else:
-        logger.error("Dataset generation process failed: Unable to complete CVE data collection and processing", group="error_handling")
+        logger.error("Dataset generation process failed: Unable to complete CVE data collection and processing", group="data_processing")
         return 1
     
     return 0

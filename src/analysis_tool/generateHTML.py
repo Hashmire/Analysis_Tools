@@ -783,6 +783,22 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
 
 def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data=None) -> str:
     try:
+        # Early exit if there's no data to process
+        if not sortedCPEsQueryData or len(sortedCPEsQueryData) == 0:
+            logger.debug(f"convertCPEsQueryDataToHTML: No CPE query data to process for table {tableIndex}", group="PAGE_GEN")
+            return f"""
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">CPE Suggestions</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">No CPE suggestions available for this entry.</p>
+                </div>
+            </div>
+            """
+        
+        logger.debug(f"convertCPEsQueryDataToHTML: Processing {len(sortedCPEsQueryData)} CPE query results for table {tableIndex}", group="PAGE_GEN")
+        
         # Create a collapsible card similar to Provenance Assistance
         html_content = f"""
         <div class="card mb-3">
@@ -808,26 +824,26 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                     </thead>
                     <tbody>
                     """
-          # Get confirmed mappings from row data if available
+        # Get confirmed mappings from row data if available
         confirmed_mappings = []
         if row_data is not None and hasattr(row_data, 'get') and 'platformEntryMetadata' in row_data:
             platform_metadata = row_data['platformEntryMetadata']
             confirmed_mappings = platform_metadata.get('confirmedMappings', [])
         
-        logger.debug(f"convertCPEsQueryDataToHTML: Processing confirmed mappings: {confirmed_mappings}", group="debug")
+        logger.debug(f"convertCPEsQueryDataToHTML: Processing confirmed mappings: {confirmed_mappings}", group="PAGE_GEN")
         
         # First, process confirmed mappings and check for duplicates in API results
         confirmed_mappings_processed = set()
         for cpe_base in confirmed_mappings:
-            logger.debug(f"convertCPEsQueryDataToHTML: Processing confirmed mapping: {cpe_base}", group="debug")
+            logger.debug(f"convertCPEsQueryDataToHTML: Processing confirmed mapping: {cpe_base}", group="PAGE_GEN")
             
             # Check if this confirmed mapping also exists in the API results
             if cpe_base in sortedCPEsQueryData:
-                logger.debug(f"convertCPEsQueryDataToHTML: Found confirmed mapping in API results: {cpe_base}", group="debug")
+                logger.debug(f"convertCPEsQueryDataToHTML: Found confirmed mapping in API results: {cpe_base}", group="PAGE_GEN")
                 
                 # This is a duplicate - merge the information
                 base_value = sortedCPEsQueryData[cpe_base]
-                logger.debug(f"convertCPEsQueryDataToHTML: base_value type: {type(base_value)}", group="debug")
+                logger.debug(f"convertCPEsQueryDataToHTML: base_value type: {type(base_value)}", group="PAGE_GEN")
                 
                 total_match_count = (base_value.get('depFalseCount', 0) + base_value.get('depTrueCount', 0))
                 dep_true_count = base_value.get('depTrueCount', 0)
@@ -837,18 +853,18 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 # Calculate search_count correctly by checking for cveAffectedCPEsArray
                 search_count = base_value.get('searchCount', 0)
                 has_cpes_array_source = 'searchSourcecveAffectedCPEsArray' in base_value
-                logger.debug(f"convertCPEsQueryDataToHTML: has_cpes_array_source: {has_cpes_array_source}", group="debug")
+                logger.debug(f"convertCPEsQueryDataToHTML: has_cpes_array_source: {has_cpes_array_source}", group="PAGE_GEN")
                 
                 # If the CPEs array source isn't already counted in searchCount, add it
                 base_value_keys = list(base_value.keys()) if hasattr(base_value, 'keys') else []
-                logger.debug(f"convertCPEsQueryDataToHTML: base_value_keys: {base_value_keys}", group="debug")
+                logger.debug(f"convertCPEsQueryDataToHTML: base_value_keys: {base_value_keys}", group="PAGE_GEN")
                 
                 cpe_array_already_counted = any(
                     k.startswith('searchSource') and 'cveAffectedCPEsArray' in k 
                     for k in base_value_keys 
                     if k != 'searchSourcecveAffectedCPEsArray'
                 )
-                logger.debug(f"convertCPEsQueryDataToHTML: cpe_array_already_counted: {cpe_array_already_counted}", group="debug")
+                logger.debug(f"convertCPEsQueryDataToHTML: cpe_array_already_counted: {cpe_array_already_counted}", group="PAGE_GEN")
                 
                 if has_cpes_array_source and not cpe_array_already_counted:
                     search_count += 1
@@ -930,11 +946,11 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 """
                 confirmed_mappings_processed.add(cpe_base)
         
-        logger.debug(f"convertCPEsQueryDataToHTML: Starting API queries processing", group="debug")
+        logger.debug(f"convertCPEsQueryDataToHTML: Starting API query results processing", group="PAGE_GEN")
         
-        # Process all API queries, excluding those already processed as confirmed mappings
+        # Process all API query results, excluding those already processed as confirmed mappings
         for base_key, base_value in sortedCPEsQueryData.items():
-            logger.debug(f"convertCPEsQueryDataToHTML: Processing API query: {base_key}", group="debug")
+            logger.debug(f"convertCPEsQueryDataToHTML: Processing API query result: {base_key}", group="PAGE_GEN")
             
             # Skip this API result if it was already processed as a confirmed mapping
             if base_key in confirmed_mappings_processed:
@@ -1026,14 +1042,12 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
             </div>
         </div>
         """
-
         return html_content.replace('\n', '')
-        
     except Exception as e:
-        logger.error(f"HTML conversion failed: Unable to convert CPE query data to HTML at table index {tableIndex} - {e}", group="error_handling")
-        logger.error(f"sortedCPEsQueryData type: {type(sortedCPEsQueryData)}", group="error_handling")
+        logger.error(f"HTML conversion failed: Unable to convert CPE query data to HTML at table index {tableIndex} - {e}", group="page_generation")
+        logger.error(f"sortedCPEsQueryData type: {type(sortedCPEsQueryData)}", group="page_generation")
         if hasattr(sortedCPEsQueryData, 'keys'):
-            logger.error(f"sortedCPEsQueryData keys: {list(sortedCPEsQueryData.keys())}", group="error_handling")
+            logger.error(f"sortedCPEsQueryData keys: {list(sortedCPEsQueryData.keys())}", group="page_generation")
         raise e
 
 # Add the new file to the list of JS files to include
@@ -1061,23 +1075,24 @@ def getCPEJsonScript() -> str:
             with open(js_file, 'r') as f:
                 js_content += f.read() + "\n\n"
         except Exception as e:
-            logger.error(f"JavaScript file loading failed: Unable to read JS file '{js_file}' - {e}", group="error_handling")
+            logger.error(f"JavaScript file loading failed: Unable to read JS file '{js_file}' - {e}", group="page_generation")
             # Add placeholder comment if file can't be read
             js_content += f"// Error loading {js_file}\n\n"
-    
-    # Add JSON settings HTML injection
+    # Add JSON settings HTML injection with defensive checking
+    safe_json_settings = JSON_SETTINGS_HTML if 'JSON_SETTINGS_HTML' in globals() and JSON_SETTINGS_HTML else {}
     json_settings_injection = f"""
     // JSON Settings HTML generated by Python and injected on page load
-    window.JSON_SETTINGS_HTML = {json.dumps(JSON_SETTINGS_HTML, cls=CustomJSONEncoder)};
+    window.JSON_SETTINGS_HTML = {json.dumps(safe_json_settings, cls=CustomJSONEncoder)};
     console.log('Loaded JSON settings HTML for', Object.keys(window.JSON_SETTINGS_HTML).length, 'tables');
     """
     
-    # Add intelligent settings injection
+    # Add intelligent settings injection with defensive checking
+    safe_intelligent_settings = INTELLIGENT_SETTINGS if 'INTELLIGENT_SETTINGS' in globals() and INTELLIGENT_SETTINGS else {}
     intelligent_settings_js = ""
-    if 'INTELLIGENT_SETTINGS' in globals() and INTELLIGENT_SETTINGS:
+    if safe_intelligent_settings:
         intelligent_settings_js = f"""
         // Intelligent settings computed by Python
-        window.INTELLIGENT_SETTINGS = {json.dumps(INTELLIGENT_SETTINGS, cls=CustomJSONEncoder)};
+        window.INTELLIGENT_SETTINGS = {json.dumps(safe_intelligent_settings, cls=CustomJSONEncoder)};
         console.log('Loaded intelligent settings for', Object.keys(window.INTELLIGENT_SETTINGS).length, 'tables');
         """
     
@@ -1182,7 +1197,7 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
                 # Add a unique ID for the raw platform data for easier access
                 data_attrs.append(f'data-raw-platform-id="raw-platform-{index}"')
             except Exception as e:
-                logger.error(f"Platform data serialization failed: Unable to convert platform data to JSON - {e}", group="error_handling")
+                logger.error(f"Platform data serialization failed: Unable to convert platform data to JSON - {e}", group="page_generation")
         
         # Check if this row has update-related content
         raw_platform_data = row.get('rawPlatformData', {})
@@ -1216,13 +1231,25 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
             if 'sourceRole' in row.index and not pd.isna(row['sourceRole']) and str(row['sourceRole']) != 'NVD':
                 provenance_div = create_provenance_assistance_div(index, collapsed=has_matches)
                 html_content += provenance_div
-            
             # Add custom CPE Builder section between provenance assistance and CPE suggestions
             customCPEBuilderHTML = create_custom_cpe_builder_div(index, collapsed=has_matches)
             html_content += customCPEBuilderHTML
             
-            # Add the matches table after the custom CPE Builder div
-            html_content += convertCPEsQueryDataToHTML(sortedCPEsQueryData, index, row)
+            # Add the matches table after the custom CPE Builder div, but only if there's data to process
+            if has_matches:
+                html_content += convertCPEsQueryDataToHTML(sortedCPEsQueryData, index, row)
+            else:
+                # No CPE query results to process - add a simple message or skip entirely
+                html_content += f"""
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5 class="mb-0">CPE Suggestions</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">No CPE suggestions available for this entry.</p>
+                    </div>
+                </div>
+                """
             
             html_content += "</div>"  # Close the container div
             result_df.at[index, 'cpeQueryHTML'] = html_content
@@ -1253,7 +1280,7 @@ def buildHTMLPage(affectedHtml, targetCve, globalCVEMetadata=None, vdbIntelHtml=
         with open(css_file, 'r') as f:
             css_content = f.read()
     except Exception as e:
-        logger.error(f"CSS file loading failed: Unable to read CSS file '{css_file}' - {e}", group="error_handling")
+        logger.error(f"CSS file loading failed: Unable to read CSS file '{css_file}' - {e}", group="page_generation")
         css_content = "/* Error loading CSS file */"
 
     pageStartHTML = f"""
@@ -1678,6 +1705,16 @@ def create_json_generation_settings_html(table_id, settings=None):
 JSON_SETTINGS_HTML = {}
 INTELLIGENT_SETTINGS = {}
 
+# Ensure clean state on module import
+def _initialize_clean_state():
+    """Initialize clean global state when module is imported"""
+    global JSON_SETTINGS_HTML, INTELLIGENT_SETTINGS
+    JSON_SETTINGS_HTML = {}
+    INTELLIGENT_SETTINGS = {}
+
+# Call initialization immediately
+_initialize_clean_state()
+
 # Update the HTML generation for provenance descriptions:
 def generateProvenanceDetailsHTML(provenance_data, provenance_id):
     html = f"""
@@ -1712,7 +1749,13 @@ def analyze_data_for_smart_defaults(raw_platform_data):
 
 def store_json_settings_html(table_id, raw_platform_data=None):
     """Store the JSON settings HTML for a table with intelligent defaults"""
-    global INTELLIGENT_SETTINGS
+    global JSON_SETTINGS_HTML, INTELLIGENT_SETTINGS
+    
+    # Ensure global dictionaries exist and are initialized
+    if 'JSON_SETTINGS_HTML' not in globals() or JSON_SETTINGS_HTML is None:
+        JSON_SETTINGS_HTML = {}
+    if 'INTELLIGENT_SETTINGS' not in globals() or INTELLIGENT_SETTINGS is None:
+        INTELLIGENT_SETTINGS = {}
     
     # Analyze data to determine which checkboxes should be checked
     settings = analyze_data_for_smart_defaults(raw_platform_data) if raw_platform_data else {}
@@ -1721,20 +1764,16 @@ def store_json_settings_html(table_id, raw_platform_data=None):
     JSON_SETTINGS_HTML[table_id] = create_json_generation_settings_html(table_id, settings)
     
     # Store intelligent settings for JavaScript
-    if 'INTELLIGENT_SETTINGS' not in globals():
-        INTELLIGENT_SETTINGS = {}
     
     INTELLIGENT_SETTINGS[table_id] = settings
 
 def clear_global_html_state():
     """Clear global HTML generation state to prevent accumulation between CVE processing runs"""
-    global JSON_SETTINGS_HTML
-    JSON_SETTINGS_HTML.clear()
+    global JSON_SETTINGS_HTML, INTELLIGENT_SETTINGS
     
-    # Clear INTELLIGENT_SETTINGS if it exists
-    if 'INTELLIGENT_SETTINGS' in globals():
-        global INTELLIGENT_SETTINGS
-        INTELLIGENT_SETTINGS.clear()
+    # Reinitialize to ensure completely fresh state
+    JSON_SETTINGS_HTML = {}
+    INTELLIGENT_SETTINGS = {}
     
-    logger.debug("Cleared global HTML state", group="page_generation")
+    logger.debug("Cleared global HTML state - reinitialized fresh dictionaries", group="page_generation")
 

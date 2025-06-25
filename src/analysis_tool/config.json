@@ -7,9 +7,15 @@
         "default_cve_id": "CVE-2024-20515",
         "enable_browser_open": true,
         "default_api_key": ""
-    },    "logging": {
+    },
+    "progress": {
         "enabled": true,
-        "level": "INFO",
+        "show_eta": true,
+        "show_individual_timing": true,
+        "update_frequency": "per_cve"
+    },"logging": {
+        "enabled": true,
+        "level": "DEBUG",
         "format": "[{timestamp}] [{level}] {message}",
         "groups": {
             "INIT": {
@@ -46,30 +52,20 @@
                 "description": "HTML generation, template processing, file output",
                 "enabled": true,
                 "color": "white"
-            },
-            "DATA_PROC": {
+            },            "DATA_PROC": {
                 "name": "Data Processing",
                 "description": "Data transformation, validation, cleanup operations",
                 "enabled": true,
                 "color": "red"
-            },            "ERROR_HANDLE": {
-                "name": "Error Handling",
-                "description": "Exception handling, retry logic, error recovery",
-                "enabled": true,
-                "color": "bright_red"
-            },
-            "DEBUG": {
-                "name": "Debug",
-                "description": "Detailed debugging information for development",
-                "enabled": false,
-                "color": "cyan"
             }
         }
-    },    "confirmed_mappings": {
+    },
+        "confirmed_mappings": {
         "enabled": true,
         "skip_api_calls_when_found": false,
         "mappings_directory": "mappings"
-    },    "cache": {
+    },
+        "cache": {
         "enabled": true,
         "directory": "cache",
         "max_age_hours": 12,

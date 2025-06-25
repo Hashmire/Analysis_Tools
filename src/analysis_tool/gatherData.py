@@ -56,7 +56,7 @@ def gatherCVEListRecord(targetCve):
         return cveRecordDict
     except requests.exceptions.RequestException as e:
         public_ip = get_public_ip()
-        logger.error(f"MITRE CVE API request failed: Unable to fetch CVE record for {targetCve} - {e}", group="error_handling")
+        logger.error(f"MITRE CVE API request failed: Unable to fetch CVE record for {targetCve} - {e}", group="cve_queries")
         logger.debug(f"Current public IP address: {public_ip}", group="cve_queries")
         return None
 
@@ -82,24 +82,21 @@ def gatherNVDCVERecord(apiKey, targetCve):
             return response.json()
         except requests.exceptions.RequestException as e:
             public_ip = get_public_ip()
-            logger.error(f"NVD CVE API request failed: Unable to fetch CVE record for {targetCve} (Attempt {attempt + 1}/{max_retries}) - {e}", group="error_handling")
-            logger.debug(f"Current public IP address: {public_ip}", group="cve_queries")
-            
+            logger.error(f"NVD CVE API request failed: Unable to fetch CVE record for {targetCve} (Attempt {attempt + 1}/{max_retries}) - {e}", group="cve_queries")
+            logger.debug(f"Current public IP address: {public_ip}", group="cve_queries")            
             if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
-                logger.error(f"NVD API Message: {e.response.headers['message']}", group="error_handling")
+                logger.error(f"NVD API Message: {e.response.headers['message']}", group="cve_queries")
             
             if attempt < max_retries - 1:
                 wait_time = config['api']['retry']['delay_without_key'] if not apiKey else config['api']['retry']['delay_with_key']
                 logger.warning(f"Waiting {wait_time} seconds before retry...", group="cve_queries")
                 sleep(wait_time)
             else:
-                logger.error(f"NVD CVE API request failed: Maximum retry attempts ({max_retries}) reached for CVE {targetCve}", group="error_handling")
+                logger.error(f"NVD CVE API request failed: Maximum retry attempts ({max_retries}) reached for CVE {targetCve}", group="cve_queries")
                 return None
     
 # Query NVD /source/ API for data and return a dataframe of the response content
 def gatherNVDSourceData(apiKey):
-    logger.info("Gathering NVD source entries...", group="cve_queries")
-    
     def fetch_nvd_data():
         url = config['api']['endpoints']['nvd_sources']
         headers = {
@@ -119,17 +116,17 @@ def gatherNVDSourceData(apiKey):
                 return response.json()
             except requests.exceptions.RequestException as e:                
                 public_ip = get_public_ip()
-                logger.error(f"NVD Sources API request failed: Unable to fetch source entries (Attempt {attempt + 1}/{max_retries}) - {e}", group="error_handling")
+                logger.error(f"NVD Sources API request failed: Unable to fetch source entries (Attempt {attempt + 1}/{max_retries}) - {e}", group="cve_queries")
                 logger.debug(f"Current public IP address: {public_ip}", group="cve_queries")
                 
                 if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
-                    logger.error(f"NVD API Message: {e.response.headers['message']}", group="error_handling")                
+                    logger.error(f"NVD API Message: {e.response.headers['message']}", group="cve_queries")                
                 if attempt < max_retries - 1:
                     wait_time = config['api']['retry']['delay_without_key'] if not apiKey else config['api']['retry']['delay_with_key']
                     logger.warning(f"Waiting {wait_time} seconds before retry...", group="cve_queries")
                     sleep(wait_time)
                 else:
-                    logger.error(f"NVD Sources API request failed: Maximum retry attempts ({max_retries}) reached", group="error_handling")
+                    logger.error(f"NVD Sources API request failed: Maximum retry attempts ({max_retries}) reached", group="cve_queries")
                     return None
     
     def create_dataframe():
@@ -216,12 +213,12 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                 break
                             except requests.exceptions.RequestException as e:
                                 public_ip = get_public_ip()
-                                logger.error(f"NVD CPE API paginated request failed: Unable to fetch page data for '{query_string}' (Attempt {page_attempt + 1}/{max_retries}) - {e}", group="error_handling")
+                                logger.error(f"NVD CPE API paginated request failed: Unable to fetch page data for '{query_string}' (Attempt {page_attempt + 1}/{max_retries}) - {e}", group="cve_queries")
                                 logger.debug(f"Current public IP address: {public_ip}", group="cpe_queries")
                                   # Check for message header and display if present - error response
                                 if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
                                     error_message = e.response.headers['message']
-                                    logger.error(f"NVD API Message: {error_message}", group="error_handling")
+                                    logger.error(f"NVD API Message: {error_message}", group="cve_queries")
                                     
                                     # Don't retry for "Invalid cpeMatchstring parameter" errors
                                     if "Invalid cpeMatchstring parameter" in error_message:
@@ -238,7 +235,7 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                     logger.warning(f"Waiting {wait_time} seconds before retry...", group="cpe_queries")
                                     sleep(wait_time)
                                 else:
-                                    logger.error(f"NVD CPE API paginated request failed: Maximum retry attempts ({max_retries}) reached for page data", group="error_handling")
+                                    logger.error(f"NVD CPE API paginated request failed: Maximum retry attempts ({max_retries}) reached for page data", group="cve_queries")
                                     return None
                    
                     # Update final counts
@@ -249,13 +246,13 @@ def gatherNVDCPEData(apiKey, case, query_string):
                    
                 except requests.exceptions.RequestException as e:
                     public_ip = get_public_ip()
-                    logger.error(f"NVD CPE API request failed: Unable to fetch CPE data for '{query_string}' (Attempt {attempt + 1}/{max_retries}) - {e}", group="error_handling")
+                    logger.error(f"NVD CPE API request failed: Unable to fetch CPE data for '{query_string}' (Attempt {attempt + 1}/{max_retries}) - {e}", group="cve_queries")
                     logger.debug(f"Current public IP address: {public_ip}", group="cpe_queries")
                     
                     # Check for message header and display if present - error response
                     if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
                         error_message = e.response.headers['message']
-                        logger.error(f"NVD API Message: {error_message}", group="error_handling")
+                        logger.error(f"NVD API Message: {error_message}", group="cve_queries")
                         
                         # Don't retry for "Invalid cpeMatchstring parameter" errors
                         if "Invalid cpeMatchstring parameter" in error_message:
@@ -274,7 +271,7 @@ def gatherNVDCPEData(apiKey, case, query_string):
                         logger.warning(f"Waiting {wait_time} seconds before retry...", group="cpe_queries")
                         sleep(wait_time)
                     else:
-                        logger.error(f"NVD CPE API request failed: Maximum retry attempts ({max_retries}) reached", group="error_handling")
+                        logger.error(f"NVD CPE API request failed: Maximum retry attempts ({max_retries}) reached", group="cve_queries")
                         return None
         
         case _:
@@ -374,20 +371,20 @@ def gatherAllCVEIDs(apiKey):
                 
             except requests.exceptions.RequestException as e:
                 public_ip = get_public_ip()
-                logger.error(f"NVD CVE list API request failed: Unable to fetch CVE list page {current_page} (Attempt {attempt + 1}/{max_retries}) - {e}", group="error_handling")
+                logger.error(f"NVD CVE list API request failed: Unable to fetch CVE list page {current_page} (Attempt {attempt + 1}/{max_retries}) - {e}", group="cve_queries")
                 logger.debug(f"Current public IP address: {public_ip}", group="cve_queries")
                 
                 # Check for message header and display if present
                 if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
                     error_message = e.response.headers['message']
-                    logger.error(f"NVD API Message: {error_message}", group="error_handling")
+                    logger.error(f"NVD API Message: {error_message}", group="cve_queries")
                 
                 if attempt < max_retries - 1:
                     wait_time = config['api']['retry']['delay_without_key'] if not apiKey else config['api']['retry']['delay_with_key']
                     logger.warning(f"Waiting {wait_time} seconds before retry...", group="cve_queries")
                     sleep(wait_time)
                 else:
-                    logger.warning(f"NVD CVE list API request failed: Maximum retry attempts ({max_retries}) reached for page {current_page} - skipping to next page", group="error_handling")
+                    logger.warning(f"NVD CVE list API request failed: Maximum retry attempts ({max_retries}) reached for page {current_page} - skipping to next page", group="cve_queries")
                     # Move to next page even if failed
                     start_index += results_per_page
     

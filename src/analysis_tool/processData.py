@@ -13,7 +13,7 @@ import json
 # Import Analysis Tool 
 import gatherData
 import generateHTML
-from cpe_cache import CPECache
+from cpe_cache import CPECache, get_global_cache_manager
 
 # Import the new logging system
 from workflow_logger import (
@@ -23,6 +23,19 @@ from workflow_logger import (
 
 # Get logger instance
 logger = get_logger()
+
+# Global statistics for confirmed mappings (accessible to audit functions)
+confirmed_mappings_stats = {
+    'total_processed': 0,
+    'successful_mappings': 0, 
+    'total_mappings_found': 0,
+    'hit_rate': 0.0
+}
+
+def get_confirmed_mappings_stats():
+    """Get confirmed mappings statistics for audit purposes"""
+    global confirmed_mappings_stats
+    return confirmed_mappings_stats.copy()
 
 # Load configuration
 def load_config():
@@ -148,14 +161,23 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
     
     logger.info("Processing confirmed mappings...", group="badge_generation")
     tempDataset = rawDataset.copy()
+      # Track confirmed mappings statistics
+    total_processed = 0
+    successful_mappings = 0
+    total_mappings_found = 0
     
     for index, row in tempDataset.iterrows():
-        try:            # Get raw platform data and source ID
+        try:            
+            # Get raw platform data and source ID
             raw_platform_data = row.get('rawPlatformData', {})
             source_id = row.get('sourceID', '')
             
             if not raw_platform_data or not source_id:
-                continue            # Find confirmed mappings
+                continue            
+            
+            total_processed += 1
+            
+            # Find confirmed mappings
             result = find_confirmed_mappings(raw_platform_data, source_id)
             if isinstance(result, tuple) and len(result) == 2:
                 confirmed_mappings, culled_mappings = result
@@ -166,6 +188,9 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
             
             # Store metadata if we have any confirmed or culled mappings
             if confirmed_mappings or culled_mappings:
+                successful_mappings += 1
+                total_mappings_found += len(confirmed_mappings)
+                
                 platform_metadata = tempDataset.at[index, 'platformEntryMetadata']
                 if not isinstance(platform_metadata, dict):
                     platform_metadata = {}
@@ -174,16 +199,28 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
                     logger.info(f"Found {len(confirmed_mappings)} confirmed mappings for platform entry {index}", group="data_processing")
                     platform_metadata['confirmedMappings'] = confirmed_mappings
                 
-                # Store culled mappings if any exist
-                if culled_mappings:
+                # Store culled mappings if any exist                if culled_mappings:
                     platform_metadata['culledConfirmedMappings'] = culled_mappings
                     logger.debug(f"Culled {len(culled_mappings)} less specific confirmed mapping(s) for row {index}: {culled_mappings}", group="data_processing")
                 
                 tempDataset.at[index, 'platformEntryMetadata'] = platform_metadata
                 
         except Exception as e:
-            logger.warning(f"Confirmed mappings processing failed: Unable to process mapping entries for platform entry {index} - {str(e)}", group="error_handling")
+            logger.warning(f"Confirmed mappings processing failed: Unable to process mapping entries for platform entry {index} - {str(e)}", group="badge_generation")
             continue
+    
+    # Log confirmed mappings statistics
+    hit_rate = (successful_mappings / total_processed * 100) if total_processed > 0 else 0
+    logger.info(f"Confirmed mappings statistics: {successful_mappings}/{total_processed} entries ({hit_rate:.1f}% hit rate), {total_mappings_found} total mappings found", group="badge_generation")
+    
+    # Store statistics for audit access
+    global confirmed_mappings_stats
+    confirmed_mappings_stats = {
+        'total_processed': total_processed,
+        'successful_mappings': successful_mappings,
+        'total_mappings_found': total_mappings_found,
+        'hit_rate': hit_rate
+    }
     
     return tempDataset
 
@@ -1088,33 +1125,33 @@ def suggestCPEData(apiKey, rawDataset, case):
 def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> List[Dict[str, Any]]:
     bulk_results = []
     config = load_config()
+      # Get global cache instance
+    cache_manager = get_global_cache_manager()
+    if not cache_manager.is_initialized():
+        cache_manager.initialize(config.get('cache', {}))
+    cache = cache_manager.get_cache()
+    logger.debug("Using global CPE cache instance", group="cpe_queries")
     
-    logger.info("Processing CPE queries: Querying NVD /cpes/ API to get CPE Dictionary information...", group="cpe_queries")
+    # Track which version checks belong to which row
+    row_version_checks = {}
+    for index, row in rawDataSet.iterrows():
+        if 'platformEntryMetadata' in row and 'cpeVersionChecks' in row['platformEntryMetadata']:
+            checks = row['platformEntryMetadata']['cpeVersionChecks']
+            if checks:  # Only add non-empty lists
+                row_version_checks[index] = checks
     
-    # Initialize cache
-    with CPECache(config.get('cache', {})) as cache:
-        logger.info("CPE cache initialized", group="cpe_queries")
-        
-        # Track which version checks belong to which row
-        row_version_checks = {}
-        for index, row in rawDataSet.iterrows():
-            if 'platformEntryMetadata' in row and 'cpeVersionChecks' in row['platformEntryMetadata']:
-                checks = row['platformEntryMetadata']['cpeVersionChecks']
-                if checks:  # Only add non-empty lists
-                    row_version_checks[index] = checks
-        
-        # Track which rows are interested in which query strings
-        row_query_mapping = {}
-        for index, row in rawDataSet.iterrows():
-            if 'platformEntryMetadata' in row and 'cpeBaseStrings' in row['platformEntryMetadata']:
-                cpe_strings = row['platformEntryMetadata']['cpeBaseStrings']
-                if isinstance(cpe_strings, list):
-                    for cpe_string in cpe_strings:
-                        if cpe_string not in row_query_mapping:
-                            row_query_mapping[cpe_string] = []
-                        row_query_mapping[cpe_string].append(index)
-        
-        for query_string in tqdm(query_list, desc="Querying CPE API", unit="query"):
+    # Track which rows are interested in which query strings
+    row_query_mapping = {}
+    for index, row in rawDataSet.iterrows():
+        if 'platformEntryMetadata' in row and 'cpeBaseStrings' in row['platformEntryMetadata']:
+            cpe_strings = row['platformEntryMetadata']['cpeBaseStrings']
+            if isinstance(cpe_strings, list):
+                for cpe_string in cpe_strings:
+                    if cpe_string not in row_query_mapping:
+                        row_query_mapping[cpe_string] = []
+                    row_query_mapping[cpe_string].append(index)
+    
+    for query_string in tqdm(query_list, desc="Querying /cpes/ API (+ local cache)", unit="query"):
             # Skip empty queries
             if not query_string:
                 continue
@@ -1187,7 +1224,7 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                     }
             except Exception as e:
                 error_message = str(e)
-                logger.warning(f"NVD CPE API query operation failed: Unable to query CPE data for '{query_string}' - {error_message}", group="error_handling")
+                logger.warning(f"NVD CPE API query operation failed: Unable to query CPE data for '{query_string}' - {error_message}", group="cpe_queries")
                 
                 # Don't retry for invalid cpeMatchstring errors
                 if "Invalid cpeMatchstring parameter" in error_message:
@@ -1209,7 +1246,7 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
             bulk_results.append({query_string: stats})
     
     # Log completion of API queries
-    logger.info(f"Processing CPE queries completed: {len(query_list)} CPE match strings processed", group="cpe_queries")
+    logger.debug(f"Processing CPE queries completed: {len(query_list)} CPE match strings processed", group="cpe_queries")
     
     return bulk_results
 #
@@ -1645,7 +1682,7 @@ def processNVDRecordData(dataframe, nvdRecordData):
                         # Append to dataframe
                         result_df = pd.concat([result_df, pd.DataFrame([new_row])], ignore_index=True)
     except Exception as e:
-        logger.error(f"NVD vulnerability data processing failed: Unable to process vulnerability data - {e}", group="error_handling")
+        logger.error(f"NVD vulnerability data processing failed: Unable to process vulnerability data - {e}", group="data_processing")
     
     return result_df
 
@@ -1968,13 +2005,13 @@ def integrityCheckCVE(checkType, checkValue, checkDataSet=False):
                 # CVE ID matches - integrity check passed
                 pass
             else:
-                logger.error(f"CVE Services ID check failed: CVE-ID from Services returned as {checkDataSet['cveMetadata']['cveId']}", group="error_handling")
+                logger.error(f"CVE Services ID check failed: CVE-ID from Services returned as {checkDataSet['cveMetadata']['cveId']}", group="data_processing")
                 raise ValueError(f"CVE ID mismatch: expected {checkValue}, got {checkDataSet['cveMetadata']['cveId']}")
         
         case "cveStatusCheck":
             # Confirm the CVE ID is not REJECTED
             if checkDataSet["cveMetadata"]["state"] == checkValue:
-                logger.error(f"CVE status check failed: CVE record is in the {checkDataSet['cveMetadata']['state']} state", group="error_handling")
+                logger.error(f"CVE status check failed: CVE record is in the {checkDataSet['cveMetadata']['state']} state", group="data_processing")
                 raise ValueError(f"CVE {checkDataSet['cveMetadata']['cveId']} is in {checkDataSet['cveMetadata']['state']} state")
             else:
                 checkValue == True
@@ -1985,10 +2022,10 @@ def integrityCheckCVE(checkType, checkValue, checkDataSet=False):
             if re.fullmatch(pattern, checkValue):
                 checkValue == True
             else:
-                logger.error(f"CVE ID format check failed: Invalid format \"{checkValue}\"", group="error_handling")
+                logger.error(f"CVE ID format check failed: Invalid format \"{checkValue}\"", group="data_processing")
                 raise ValueError(f"Invalid CVE ID format: {checkValue}")
         case _:
-            logger.error(f"Integrity check failed: Unknown check type '{checkType}' (expected: 'cveIdFormat', 'cveServicesRecord', 'nvdCveRecordState')", group="error_handling")
+            logger.error(f"Integrity check failed: Unknown check type '{checkType}' (expected: 'cveIdFormat', 'cveServicesRecord', 'nvdCveRecordState')", group="data_processing")
             raise ValueError(f"Unknown integrity check type: {checkType}")
 
 # More sophisticated product_key to handle edge cases

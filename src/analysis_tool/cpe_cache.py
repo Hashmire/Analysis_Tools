@@ -81,10 +81,9 @@ class CPECache:
                             self.cache_data = json.load(f)
                 
                 load_time = time.time() - start_time
-                performance_type = "orjson" if HAS_ORJSON else "standard json"
-                logger.info(f"Cache loaded ({performance_type}): {len(self.cache_data)} entries in {load_time:.2f}s", group="cpe_queries")
+                logger.info(f"/cpes/ cache loaded: {len(self.cache_data)} entries in {load_time:.2f}s", group="cpe_queries")
             else:
-                logger.info("No existing cache found - starting with empty cache", group="cpe_queries")
+                logger.info("No existing /cpes/ cache found - starting fresh cache", group="cpe_queries")
                 
             # Load metadata
             if self.metadata_file.exists():
@@ -138,11 +137,11 @@ class CPECache:
                 json.dump(self.metadata, f, indent=2)
             
             save_time = time.time() - start_time
-            performance_type = "orjson" if HAS_ORJSON else "standard json"
-            logger.info(f"Cache saved ({performance_type}): {len(self.cache_data)} entries in {save_time:.2f}s", group="cpe_queries")
+            
+            logger.debug(f"/cpes/ cache saved: {len(self.cache_data)} entries in {save_time:.2f}s", group="cpe_queries")
             
         except Exception as e:
-            logger.error(f"Cache save error: {e}", group="error_handling")
+            logger.error(f"/cpes/ cache save error: {e}", group="cpe_queries")
             
     def get(self, cpe_string: str) -> Optional[Dict[str, Any]]:
         """
@@ -290,3 +289,52 @@ class CPECache:
         """Context manager exit - save cache"""
         self.log_session_stats()
         self.flush()
+
+# Global cache manager instance
+_global_cache_instance = None
+
+class GlobalCPECacheManager:
+    """Global CPE cache manager that loads once and persists across all CVE processing runs"""
+    
+    def __init__(self):
+        self._cache_instance = None
+        self._config = None
+    
+    def initialize(self, config: Dict[str, Any]):
+        """Initialize the global cache with configuration"""
+        if self._cache_instance is None:
+            logger.info("Initializing global CPE cache - this will happen once per session", group="cpe_queries")
+            self._config = config
+            self._cache_instance = CPECache(config)
+            # Force load the cache data
+            self._cache_instance.__enter__()  # Initialize the cache
+            logger.info("Global CPE cache initialized and ready for use", group="cpe_queries")
+        return self._cache_instance
+    
+    def get_cache(self):
+        """Get the cached instance"""
+        if self._cache_instance is None:
+            raise RuntimeError("Global CPE cache not initialized. Call initialize() first.")
+        return self._cache_instance
+    
+    def is_initialized(self):
+        """Check if cache is already initialized"""
+        return self._cache_instance is not None
+    
+    def save_and_cleanup(self):
+        """Save cache and cleanup on shutdown"""
+        if self._cache_instance:
+            try:
+                self._cache_instance.__exit__(None, None, None)  # Trigger save
+                logger.info("Global CPE cache saved and cleaned up", group="cpe_queries")
+            except Exception as e:
+                logger.warning(f"Error during cache cleanup: {e}", group="cpe_queries")
+            finally:
+                self._cache_instance = None
+
+def get_global_cache_manager():
+    """Get the global cache manager instance"""
+    global _global_cache_instance
+    if _global_cache_instance is None:
+        _global_cache_instance = GlobalCPECacheManager()
+    return _global_cache_instance

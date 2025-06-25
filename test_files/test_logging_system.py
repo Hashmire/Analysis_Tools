@@ -526,12 +526,11 @@ class TestAdvancedLoggingScenarios(LoggingSystemTestSuite):
             "API rate limiting detected - Applying delay before retry",
             "Retry attempt 2/5 for NVD CVE API request",
             "Exponential backoff applied: waiting 4.0 seconds before retry",
-            "Maximum retry attempts (5) reached - stopping operation"
-        ]
+            "Maximum retry attempts (5) reached - stopping operation"        ]
         
         for msg in retry_messages:
             if "maximum" in msg.lower():
-                self.logger.error(msg, group="error_handling")
+                self.logger.error(msg, group="cve_queries")
             else:
                 self.logger.warning(msg, group="cve_queries")
                 
@@ -610,12 +609,11 @@ class TestErrorHandlingLogging(LoggingSystemTestSuite):
             ("NVD CVE API authentication failed: Invalid API key provided - Check API key configuration", "ERROR"),
             ("MITRE CVE API rate limiting applied - Request delayed by 60 seconds", "WARNING"), 
             ("NVD CPE API request failed: Maximum retry attempts (5) reached - Stopping data collection", "ERROR"),
-            ("API response validation failed: Invalid JSON structure received - Retrying request", "WARNING")
-        ]
+            ("API response validation failed: Invalid JSON structure received - Retrying request", "WARNING")        ]
         
         for error_msg, level in api_errors:
             if level == "ERROR":
-                self.logger.error(error_msg, group="error_handling")
+                self.logger.error(error_msg, group="cve_queries")
             else:
                 self.logger.warning(error_msg, group="cve_queries")
                 
@@ -628,11 +626,10 @@ class TestErrorHandlingLogging(LoggingSystemTestSuite):
             "File validation failed: config.json contains invalid JSON syntax - Using default configuration",
             "HTML generation failed: Unable to create output directory - Permission denied",
             "Template loading failed: HTML template file not found - Using built-in template",
-            "Dataset export failed: Insufficient disk space - Unable to save output file"
-        ]
+            "Dataset export failed: Insufficient disk space - Unable to save output file"        ]
         
         for error_msg in file_errors:
-            self.logger.error(error_msg, group="error_handling")
+            self.logger.error(error_msg, group="page_generation")
             
         # Verify file error logging
         self.assertGreaterEqual(len(self.captured_logs), len(file_errors))
@@ -643,11 +640,10 @@ class TestErrorHandlingLogging(LoggingSystemTestSuite):
             "CVE Services ID check failed: CVE-ID from Services returned as CVE-2024-5678",
             "CPE generation failed: Insufficient platform data - Cannot create base strings",
             "Version validation failed: conflicting lessThan and lessThanOrEqual values",
-            "Source mapping failed: Unable to resolve source organization ID"
-        ]
+            "Source mapping failed: Unable to resolve source organization ID"        ]
         
         for error_msg in integrity_errors:
-            self.logger.error(error_msg, group="error_handling")
+            self.logger.error(error_msg, group="data_processing")
             
         # Verify integrity error logging
         self.assertGreaterEqual(len(self.captured_logs), len(integrity_errors))
@@ -735,13 +731,13 @@ class TestAuditGroupBoundaries(LoggingSystemTestSuite):
             "File operation completed"
         ]
         
-        for msg in test_messages:
-            # All standard logging methods should have a group (default or explicit)
+        for msg in test_messages:            # All standard logging methods should have a group (default or explicit)
             self.logger.info(msg)  # Should use default group "initialization"
             self.logger.debug(msg, group="cve_queries")
-            self.logger.warning(msg, group="error_handling")
-            self.logger.error(msg, group="error_handling")
-              # Verify all captured logs have group assignments
+            self.logger.warning(msg, group="cve_queries")
+            self.logger.error(msg, group="cve_queries")
+            
+        # Verify all captured logs have group assignments
         for log in self.captured_logs:
             # Check if we can trace this back to a group (our custom capture tracks groups)
             self.assertTrue(
@@ -845,7 +841,7 @@ class TestAuditEventClassification(LoggingSystemTestSuite):
             ("Invalid CPE format detected", "cpe_queries"),
             ("HTML template not found", "page_generation"),
             ("Configuration file missing", "initialization"),
-            ("Database connection failed", "error_handling")
+            ("Database connection failed", "initialization")
         ]
         
         for error_msg, expected_group in error_scenarios:
@@ -953,7 +949,8 @@ class TestGroupEnforcementIntegration(LoggingSystemTestSuite):
     """Test group enforcement during actual component integration."""
     
     def test_logger_component_integration(self):
-        """Test that all components properly integrate with group logging."""        # Verify that the logger is accessible from all components
+        """Test that all components properly integrate with group logging."""
+        # Verify that the logger is accessible from all components
         logger = WorkflowLogger()
         self.assertIsNotNone(logger)
         
@@ -972,9 +969,8 @@ class TestGroupEnforcementIntegration(LoggingSystemTestSuite):
         """Test that all required groups are defined in LogGroup enum."""
         required_groups = [
             'INIT', 'CVE_QUERY', 'UNIQUE_CPE', 'CPE_QUERY',
-            'BADGE_GEN', 'PAGE_GEN', 'DATA_PROC', 'ERROR_HANDLE'
+            'BADGE_GEN', 'PAGE_GEN', 'DATA_PROC'
         ]
-        
         available_groups = [group.name for group in LogGroup]
         
         for group in required_groups:
@@ -991,10 +987,10 @@ class TestGroupEnforcementIntegration(LoggingSystemTestSuite):
             "cpe_queries": "CPE_QUERY",
             "badge_generation": "BADGE_GEN",
             "page_generation": "PAGE_GEN",
-            "data_processing": "DATA_PROC",
-            "error_handling": "ERROR_HANDLE"
+            "data_processing": "DATA_PROC"
         }
-          # Create a logger and test group string handling
+        
+        # Create a logger and test group string handling
         logger = WorkflowLogger()
         
         # Test that each group string can be used without error
@@ -1023,7 +1019,7 @@ class TestAuditTrailIntegration(LoggingSystemTestSuite):
         # Test error containment within different workflow stages
         try:
             self.logger.stage_start("Error Test Stage", group="cve_queries")
-            self.logger.error("Test error message", group="error_handling")
+            self.logger.error("Test error message", group="cve_queries")
             self.logger.stage_end("Error Test Stage", group="cve_queries")
         except Exception as e:
             self.fail(f"Error boundary containment test failed: {e}")
@@ -1041,11 +1037,10 @@ class TestComponentLoggingIntegration(LoggingSystemTestSuite):
             self.fail(f"Component failed to access logger: {e}")
                 
     def test_component_group_usage(self):
-        """Test that components use appropriate groups for their operations."""
-        # Test that all expected group types can be used
+        """Test that components use appropriate groups for their operations."""        # Test that all expected group types can be used
         test_groups = [
             "initialization", "cve_queries", "unique_cpe", "cpe_queries",
-            "badge_generation", "page_generation", "data_processing", "error_handling"
+            "badge_generation", "page_generation", "data_processing"
         ]
         
         for group in test_groups:
@@ -1076,10 +1071,9 @@ class TestAuditSystemConfiguration(LoggingSystemTestSuite):
         
         # Verify groups configuration exists
         self.assertIsNotNone(logger.groups, "Groups configuration missing")
-        
-        # Test that we can access group configurations
+          # Test that we can access group configurations
         expected_groups = ['INIT', 'CVE_QUERY', 'UNIQUE_CPE', 'CPE_QUERY', 
-                          'BADGE_GEN', 'PAGE_GEN', 'DATA_PROC', 'ERROR_HANDLE']
+                          'BADGE_GEN', 'PAGE_GEN', 'DATA_PROC']
         
         # Each group should have some form of configuration available
         for group in expected_groups:

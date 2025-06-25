@@ -37,23 +37,24 @@ def gatherVDBCheckerData(targetCve):
     for source in tqdm(supportedSources, desc="Processing sources", unit="source"):
         
         allSourceCellHTML = ""
-
+        
         dataTypeHTMLMap = {
             "nameLink": "<td> - </td>",
             "cvss3x": "<td> - </td>",
             "cwe": "<td> - </td>",
             "notes": "<td> - </td>",
-            "responseCode": "<td> - </td>"            }
+            "responseCode": "<td> - </td>"
+        }
         
         def getJSONDict():
             try: 
                 sourceDataDict = sourceURLData.json()
                 return sourceDataDict
             except requests.exceptions.JSONDecodeError as e:
-                logger.warning(f"Invalid JSON response from {source}: {e}", group="error_handling")
+                logger.warning(f"Invalid JSON response from {source}: {e}", group="cve_queries")
                 return {}  # Return empty dict to prevent None checks
             except Exception as e:
-                logger.error(f"VDB data parsing failed: Unable to parse JSON response from {source} - {e}", group="error_handling")
+                logger.error(f"VDB data parsing failed: Unable to parse JSON response from {source} - {e}", group="cve_queries")
                 return {}
 
         match source:

@@ -163,7 +163,7 @@ logger.info("Dataset generated successfully!", group="initialization")
 ```python
 logger.debug("Current public IP address: 192.168.1.100", group="cve_queries")
 logger.debug("Collected 150 of 500 CPE names...", group="cpe_queries")
-logger.debug("Error type: RequestException", group="error_handling")
+logger.debug("Error type: RequestException", group="cve_queries")
 logger.debug("Platform data serialization completed", group="data_processing")
 ```
 
@@ -179,7 +179,7 @@ logger.debug("Platform data serialization completed", group="data_processing")
 ```python
 logger.warning("Waiting 5 seconds before retry...", group="cve_queries")
 logger.warning("Invalid CPE match string detected, skipping: cpe:*:*", group="cpe_queries")
-logger.warning("Confirmed mappings failed for CVE-2024-1234: Unable to process confirmed mappings", group="error_handling")
+logger.warning("Confirmed mappings failed for CVE-2024-1234: Unable to process confirmed mappings", group="badge_generation")
 ```
 
 ### ERROR Level - Critical Failures & Blocking Issues
@@ -192,9 +192,9 @@ logger.warning("Confirmed mappings failed for CVE-2024-1234: Unable to process c
 
 **Examples:**
 ```python
-logger.error("NVD CVE API request failed: Maximum retry attempts (3) reached for CVE CVE-2024-1234", group="error_handling")
-logger.error("Dataset file creation failed: Unable to write dataset output to 'output.txt' - Permission denied", group="error_handling")
-logger.error("CVE processing failed for CVE-2024-1234: Unable to complete analysis workflow - Critical error", group="error_handling")
+logger.error("NVD CVE API request failed: Maximum retry attempts (3) reached for CVE CVE-2024-1234", group="cve_queries")
+logger.error("Dataset file creation failed: Unable to write dataset output to 'output.txt' - Permission denied", group="initialization")
+logger.error("CVE processing failed for CVE-2024-1234: Unable to complete analysis workflow - Critical error", group="page_generation")
 ```
 
 ## 🏷️ Log Group Organization
@@ -210,7 +210,8 @@ logger.error("CVE processing failed for CVE-2024-1234: Unable to complete analys
 | `data_processing` | Data transformation and validation | Data parsing, validation, transformation operations |
 | `badge_generation` | UI badge and metadata creation | Badge generation, metadata processing, confirmed mappings |
 | `page_generation` | HTML and output file creation | HTML generation, file creation, template processing |
-| `error_handling` | Error conditions and failure scenarios | All error messages, failure notifications, exception handling |
+
+**Note:** All error messages are assigned to the appropriate workflow stage group where the error occurred (e.g., errors during CPE queries use the `cpe_queries` group, initialization errors use the `initialization` group).
 
 ### Group Usage Guidelines
 
@@ -225,11 +226,11 @@ logger.info("Processing CVE queries completed", group="general")
 
 **Context-Appropriate Grouping:**
 ```python
-# ✅ Correct - Matches the actual operation
-logger.error("NVD CPE API request failed: Connection timeout", group="error_handling")
-
-# ❌ Avoid - Wrong group for error
+# ✅ Correct - Error assigned to appropriate workflow group
 logger.error("NVD CPE API request failed: Connection timeout", group="cpe_queries")
+
+# ✅ Correct - Initialization error goes to init group  
+logger.error("Configuration file not found", group="initialization")
 ```
 
 ## 🔧 Specialized Logging Methods
@@ -282,6 +283,74 @@ logger.file_operation("Generated", "/path/to/output.html", group="page_generatio
 logger.file_operation("Loaded", "/path/to/config.json", group="initialization")
 ```
 
+## 📁 File Logging System
+
+### Overview
+
+The logging system includes comprehensive file logging capabilities that automatically save all terminal output to dated log files for audit trails and analysis.
+
+### File Logging Features
+
+- **Automatic log file creation** in `logs/` directory
+- **Date-based file naming** with run parameters (e.g., `2025.06.25_CVE-2024-1234.log`)
+- **Complete output capture** including all console messages
+- **ANSI color code stripping** for clean file output
+- **Header and footer timestamps** for run tracking
+- **Automatic cleanup** on normal and error exit
+
+### File Naming Convention
+
+Log files follow the pattern: `YYYY.MM.DD_<parameter>.log`
+
+**Examples:**
+- Single CVE: `2025.06.25_CVE-2024-1234.log`
+- Test file run: `2025.06.25_testExamples.log`
+- Custom dataset: `2025.06.25_custom_dataset.log`
+
+### Usage
+
+File logging is automatically enabled for all analysis runs:
+
+```python
+# File logging starts automatically in main()
+logger.start_file_logging(run_parameters)
+
+# ... all logging during execution is captured ...
+
+# File logging stops automatically on exit
+logger.stop_file_logging()
+```
+
+### Log File Structure
+
+Each log file contains:
+
+```
+# ==================================================
+# Analysis Tool Log File
+# Started: 2025-06-25 14:29:01
+# Parameters: testExamples
+# ==================================================
+
+[2025-06-25 14:29:01] [INFO] Starting analysis...
+[2025-06-25 14:29:02] [INFO] Processing CVE queries: 1/12 (8.3%)
+...
+[2025-06-25 14:29:03] [INFO] Analysis completed successfully
+
+# ==================================================
+# Completed: 2025-06-25 14:29:03
+# End of log
+```
+
+### Configuration
+
+File logging is controlled by the workflow logger and doesn't require additional configuration. Log files are automatically:
+
+- Created in `src/analysis_tool/logs/` directory
+- Named with date and run parameters
+- Written with UTF-8 encoding
+- Cleaned up on exit (file handles closed properly)
+
 ## 📏 Implementation Guidelines for Developers
 
 ### When Adding New Logging
@@ -304,7 +373,7 @@ logger.file_operation("Loaded", "/path/to/config.json", group="initialization")
 
 4. **Select Correct Group:**
    - Match the group to the actual operation being performed
-   - Use error_handling for all error messages
+   - Use appropriate workflow groups for all error messages
    - Use the most specific applicable group
 
 ### Example Implementation
@@ -338,10 +407,9 @@ def process_cve_data(cve_id):
         # WARNING: Recoverable issue
         logger.warning(f"Invalid CVE ID detected, skipping: {cve_id}", group="cve_queries")
         return None
-        
-    except APIError as e:
-        # ERROR: Critical failure
-        logger.error(f"NVD CVE API request failed: Unable to fetch CVE record for {cve_id} - {str(e)}", group="error_handling")
+          except APIError as e:
+        # ERROR: Critical failure - assign to appropriate workflow group
+        logger.error(f"NVD CVE API request failed: Unable to fetch CVE record for {cve_id} - {str(e)}", group="cve_queries")
         raise
 ```
 
@@ -467,7 +535,8 @@ Processing {operation}: {current}/{total} ({percentage:.1f}%) - {context}
 | `data_processing` | Data transformation, validation |
 | `badge_generation` | UI badges, metadata, mappings |
 | `page_generation` | HTML generation, file creation |
-| `error_handling` | **ALL ERROR MESSAGES** |
+
+**Note:** Error messages should be assigned to the appropriate workflow stage group where the error occurred.
 
 ### 🛡️ Audit Group Boundaries
 
@@ -494,7 +563,7 @@ logger.stage_end("CVE Data Collection", group="cve_queries")
 logger.info("Processing CVE queries: 25/100 (25.0%) - 25 CVE records collected", group="cve_queries")
 
 # ✅ Correct Error Logging  
-logger.error("NVD CVE API request failed: Connection timeout - CVE-2024-1234", group="error_handling")
+logger.error("NVD CVE API request failed: Connection timeout - CVE-2024-1234", group="cve_queries")
 
 # ✅ Correct API Logging
 logger.api_call("NVD CPE API", {"cpe_match": "cpe:2.3:*:apache:*"}, group="cpe_queries")

@@ -31,7 +31,6 @@ class LogGroup(Enum):
     BADGE_GEN = "BADGE_GEN"
     PAGE_GEN = "PAGE_GEN"
     DATA_PROC = "DATA_PROC"
-    ERROR_HANDLE = "ERROR_HANDLE"
 
 
 class WorkflowLogger:
@@ -46,6 +45,9 @@ class WorkflowLogger:
         self.format_string = self.logging_config.get('format', '[{timestamp}] [{level}] {message}')
         self.groups = self.logging_config.get('groups', {})
         
+        # File logging setup
+        self.log_file = None
+        self.log_directory = "logs"
         # Color mapping for console output (if terminal supports colors)
         self.colors = {
             'blue': '\033[94m',
@@ -55,7 +57,7 @@ class WorkflowLogger:
             'magenta': '\033[95m',
             'white': '\033[97m',
             'red': '\033[91m',
-            'bright_red': '\033[91m\033[1m',
+            'bright_red': '\033[91m',
             'reset': '\033[0m'
         }
         
@@ -78,7 +80,6 @@ class WorkflowLogger:
         """Determine if we should log based on level and group settings"""
         if not self.enabled:
             return False
-        
         # Check if group is enabled
         group_key = group.value if hasattr(group, 'value') else group
         group_config = self.groups.get(group_key, {})
@@ -161,14 +162,11 @@ class WorkflowLogger:
                 "page_gen": LogGroup.PAGE_GEN,
                 "page_generation": LogGroup.PAGE_GEN,
                 "data_proc": LogGroup.DATA_PROC,
-                "data_processing": LogGroup.DATA_PROC,
-                "error_handle": LogGroup.ERROR_HANDLE,
-                "error_handling": LogGroup.ERROR_HANDLE
+                "data_processing": LogGroup.DATA_PROC
             }
             group_enum = group_mapping.get(group.lower(), LogGroup.INIT)
         else:
-            group_enum = group
-            
+            group_enum = group            
         if self._should_log(level, group_enum):
             formatted_message = self._format_message(level, group_enum, message)
             self._print_message(formatted_message)
@@ -176,7 +174,7 @@ class WorkflowLogger:
     def debug(self, message: str, group: str = "initialization"):
         """Log a debug message"""
         self.log(LogLevel.DEBUG, group, message)
-      
+    
     def info(self, message: str, group: str = "initialization"):
         """Log an info message"""
         self.log(LogLevel.INFO, group, message)
@@ -185,7 +183,7 @@ class WorkflowLogger:
         """Log a warning message"""
         self.log(LogLevel.WARNING, group, message)
     
-    def error(self, message: str, group: str = "error_handling"):
+    def error(self, message: str, group: str = "data_processing"):
         """Log an error message"""
         self.log(LogLevel.ERROR, group, message)
     
@@ -235,7 +233,74 @@ class WorkflowLogger:
         except (ImportError, AttributeError):
             # Fallback to regular print if tqdm is not available or no active progress bar
             print(message)
+        
+        # Also write to log file if file logging is enabled
+        if self.log_file:
+            try:
+                # Write without colors for file output
+                clean_message = self._strip_ansi_codes(message)
+                self.log_file.write(clean_message + '\n')
+                self.log_file.flush()
+            except Exception as e:
+                # Don't let file logging errors break the main functionality
+                print(f"Warning: Failed to write to log file: {e}")
     
+    def _strip_ansi_codes(self, text: str) -> str:
+        """Remove ANSI color codes from text for clean file output"""
+        import re
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        return ansi_escape.sub('', text)
+    
+    def start_file_logging(self, run_parameters: str):
+        """Start logging to a file with date and parameter-based filename"""
+        if not self.enabled:
+            return
+            
+        try:
+            # Create logs directory if it doesn't exist
+            os.makedirs(self.log_directory, exist_ok=True)
+            
+            # Generate filename with date and parameters
+            date_str = datetime.now().strftime("%Y.%m.%d")
+            
+            # Clean parameter string for filename (remove invalid characters)
+            import re
+            clean_params = re.sub(r'[<>:"/\\|?*]', '_', run_parameters)
+            clean_params = clean_params.replace(' ', '_')
+            
+            filename = f"{date_str}_{clean_params}.log"
+            log_path = os.path.join(self.log_directory, filename)
+            
+            # Open log file for writing
+            self.log_file = open(log_path, 'w', encoding='utf-8')
+            
+            # Write header to log file
+            self.log_file.write(f"# CVE Analysis Tool Log\n")
+            self.log_file.write(f"# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            self.log_file.write(f"# Parameters: {run_parameters}\n")
+            self.log_file.write(f"# Log file: {log_path}\n")
+            self.log_file.write("# " + "="*50 + "\n\n")
+            self.log_file.flush()
+            
+            print(f"[{self._get_timestamp()}] [INFO] Logging to file: {log_path}")
+            
+        except Exception as e:
+            print(f"Warning: Failed to start file logging: {e}")
+            self.log_file = None
+    
+    def stop_file_logging(self):
+        """Stop file logging and close the log file"""
+        if self.log_file:
+            try:
+                # Write footer to log file
+                self.log_file.write(f"\n# " + "="*50 + "\n")
+                self.log_file.write(f"# Completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                self.log_file.write(f"# End of log\n")
+                self.log_file.close()
+                self.log_file = None
+            except Exception as e:
+                print(f"Warning: Failed to close log file properly: {e}")
+
 
 # Global logger instance
 _logger_instance = None
@@ -291,9 +356,9 @@ def log_data_proc(message: str):
     get_logger().info(message, group="data_proc")
 
 
-def log_error_handle(message: str):
-    """Log error handling message"""
-    get_logger().warning(message, group="error_handle")
+def log_system_error(message: str):
+    """Log system error message to initialization group"""
+    get_logger().warning(message, group="initialization")
 
 
 # Stage management convenience functions
@@ -355,6 +420,16 @@ def start_page_generation(details: str = ""):
 def end_page_generation(details: str = ""):
     """Mark the end of page generation stage"""
     get_logger().stage_end("Page Generation", details, group="page_gen")
+
+
+def start_audit(details: str = ""):
+    """Mark the start of CVE record processing audit stage"""
+    get_logger().stage_start("CVE Record Processing Audit", details, group="CVE_QUERY")
+
+
+def end_audit(details: str = ""):
+    """Mark the end of CVE record processing audit stage"""
+    get_logger().stage_end("CVE Record Processing Audit", details, group="CVE_QUERY")
 
 
 if __name__ == "__main__":
