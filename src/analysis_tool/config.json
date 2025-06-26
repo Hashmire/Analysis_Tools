@@ -2,7 +2,8 @@
     "application": {
         "toolname": "Hashmire/Analysis_Tools",
         "version": "0.1.0"
-    },    "debug": {
+    },
+    "debug": {
         "default_cve_mode": "single",
         "default_cve_id": "CVE-2024-20515",
         "enable_browser_open": true,
@@ -68,7 +69,7 @@
         "cache": {
         "enabled": true,
         "directory": "cache",
-        "max_age_hours": 12,
+        "max_age_hours": 36,
         "max_size_mb": 500,
         "compression": false,
         "validation_on_startup": true,

@@ -1,8 +1,9 @@
-
-
-
-# Generated HTML files - ignore all by default
+# Ignore Most Generated files
 **/generated_pages/*.html
+logs/*
+reports/dashboard_data.json
+reports/local_dashboard.html
+cve_dataset.txt
 
 # But track specific CVE IDs from testExamples.txt
 !**/generated_pages/CVE-2024-3371.html
@@ -28,4 +29,3 @@ src/analysis_tool/logs/
 __pycache__/*
 test_files/__pycache__/*
 src/analysis_tool/__pycache__/*
-

@@ -545,6 +545,34 @@ def main():
     cves_to_process.sort(reverse=True)
     
     logger.info(f"Processing {len(cves_to_process)} CVE records (newest first)...", group="initialization")
+    
+    # Generate initial dashboard for real-time monitoring
+    try:
+        import subprocess
+        from pathlib import Path
+        
+        project_root = Path(__file__).parent.parent.parent
+        log_analyzer_path = project_root / "scripts" / "log_analyzer.py"
+        dashboard_output = project_root / "reports" / "dashboard_data.json"
+        
+        if log_analyzer_path.exists():
+            logger.info("Generating initial dashboard for real-time monitoring...", group="initialization")
+            
+            # Run log analyzer to create initial dashboard
+            result = subprocess.run([
+                sys.executable, str(log_analyzer_path),
+                "--output", str(dashboard_output),
+                "--summary"  # Generate both JSON and local HTML dashboard
+            ], capture_output=True, text=True, cwd=str(project_root))
+            
+            if result.returncode == 0:
+                logger.info("Dashboard ready: Open reports/local_dashboard.html to monitor progress", group="initialization")
+            else:
+                logger.debug(f"Dashboard initialization warning: {result.stderr.strip()}", group="initialization")
+    
+    except Exception as e:
+        logger.debug(f"Dashboard initialization error: {e}", group="initialization")
+    
     end_initialization("Analysis environment ready, CVE list prepared")
     
     # Process all CVEs with progress tracking
@@ -607,6 +635,35 @@ def main():
                 
                 audit_global_state()
                 audit_cache_and_mappings_stats()
+                
+                # Generate dashboard update every 10 CVEs
+                try:
+                    import subprocess
+                    from pathlib import Path
+                    
+                    # Get the project root directory (Analysis_Tools)
+                    project_root = Path(__file__).parent.parent.parent
+                    log_analyzer_path = project_root / "scripts" / "log_analyzer.py"
+                    dashboard_output = project_root / "reports" / "dashboard_data.json"
+                    
+                    if log_analyzer_path.exists():
+                        logger.debug(f"Updating dashboard data at checkpoint {current_cve_num}/{total_cves}", group="INIT")
+                        
+                        # Run log analyzer to update dashboard (suppress output to avoid log pollution)
+                        result = subprocess.run([
+                            sys.executable, str(log_analyzer_path),
+                            "--output", str(dashboard_output),
+                            "--no-local-dashboard"  # Skip local dashboard during processing for performance
+                        ], capture_output=True, text=True, cwd=str(project_root))
+                        
+                        if result.returncode == 0:
+                            logger.debug("Dashboard data updated successfully", group="INIT")
+                        else:
+                            logger.debug(f"Dashboard update warning: {result.stderr.strip()}", group="INIT")
+                    
+                except Exception as e:
+                    logger.debug(f"Dashboard update error: {e}", group="INIT")
+                
                 end_audit("Checkpoint audit complete")
             
             # Process the CVE
@@ -657,6 +714,32 @@ def main():
     logger.info(f"Successfully generated: {success_count}", group="completion")
     logger.info(f"Skipped: {len(skipped_cves)}", group="completion")
     logger.info(f"Total time: {str(timedelta(seconds=int(total_time)))}", group="completion")
+    
+    # Final dashboard update
+    try:
+        import subprocess
+        from pathlib import Path
+        
+        project_root = Path(__file__).parent.parent.parent
+        log_analyzer_path = project_root / "scripts" / "log_analyzer.py"
+        dashboard_output = project_root / "reports" / "dashboard_data.json"
+        
+        if log_analyzer_path.exists():
+            logger.info("Updating final dashboard...", group="completion")
+            
+            # Run log analyzer for final update
+            result = subprocess.run([
+                sys.executable, str(log_analyzer_path),
+                "--output", str(dashboard_output)
+            ], capture_output=True, text=True, cwd=str(project_root))
+            
+            if result.returncode == 0:
+                logger.info("Dashboard updated with final results: reports/local_dashboard.html", group="completion")
+            else:
+                logger.debug(f"Final dashboard update warning: {result.stderr.strip()}", group="completion")
+    
+    except Exception as e:
+        logger.debug(f"Final dashboard update error: {e}", group="completion")
     
     if success_count > 0:
         avg_time = total_time / success_count
