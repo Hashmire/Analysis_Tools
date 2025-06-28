@@ -309,14 +309,19 @@ def sort_base_strings(unique_base_strings: dict) -> dict:
         # regardless of secondary priority, but among CPE array entries, vendor+product > product > vendor
         composite_priority = primary_priority + secondary_priority
 
+        # Check if this is a fully deprecated base string (all CPE strings are deprecated)
+        is_fully_deprecated = (attributes.get('depFalseCount', 0) == 0 and 
+                              attributes.get('depTrueCount', 0) > 0)
+        
         # Apply additional sorting criteria after the composite priority
         return (
             composite_priority,                      # Primary: composite source priority
-            attributes.get('depFalseCount', 0) == 0, # Secondary: depFalseCount
-            -attributes.get('searchCount', 0),       # Tertiary: searchCount
-            -attributes.get('versionsFound', 0),     # Quaternary: versionsFound
-            -(attributes.get('depFalseCount', 0) + attributes.get('depTrueCount', 0)), # Quinary: total count
-            -attributes.get('depFalseCount', 0)      # Senary: depFalseCount
+            is_fully_deprecated,                     # Secondary: fully deprecated base strings go to bottom
+            attributes.get('depFalseCount', 0) == 0, # Tertiary: depFalseCount
+            -attributes.get('searchCount', 0),       # Quaternary: searchCount
+            -attributes.get('versionsFound', 0),     # Quinary: versionsFound
+            -(attributes.get('depFalseCount', 0) + attributes.get('depTrueCount', 0)), # Senary: total count
+            -attributes.get('depFalseCount', 0)      # Septenary: depFalseCount
         )
 
     # Sort the dictionary and return as a new dictionary
