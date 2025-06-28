@@ -850,6 +850,12 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 dep_false_count = base_value.get('depFalseCount', 0)
                 versions_found = base_value.get('versionsFound', 0)
                 
+                # Filter out fully deprecated base strings (all CPE strings are deprecated)
+                if dep_false_count == 0 and dep_true_count > 0:
+                    logger.debug(f"convertCPEsQueryDataToHTML: Skipping fully deprecated base string: {cpe_base}", group="PAGE_GEN")
+                    confirmed_mappings_processed.add(cpe_base)
+                    continue
+                
                 # Calculate search_count correctly by checking for cveAffectedCPEsArray
                 search_count = base_value.get('searchCount', 0)
                 has_cpes_array_source = 'searchSourcecveAffectedCPEsArray' in base_value
@@ -960,6 +966,11 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
             dep_true_count = base_value.get('depTrueCount', 0)
             dep_false_count = base_value.get('depFalseCount', 0)
             versions_found = base_value.get('versionsFound', 0)
+            
+            # Filter out fully deprecated base strings (all CPE strings are deprecated)
+            if dep_false_count == 0 and dep_true_count > 0:
+                logger.debug(f"convertCPEsQueryDataToHTML: Skipping fully deprecated base string: {base_key}", group="PAGE_GEN")
+                continue
             
             # Calculate search_count correctly by checking for cveAffectedCPEsArray
             search_count = base_value.get('searchCount', 0)
