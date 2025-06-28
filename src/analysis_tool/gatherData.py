@@ -162,6 +162,9 @@ def gatherNVDCPEData(apiKey, case, query_string):
                         "startIndex": 0
                     }
                    
+                    # Log the API call before making the request
+                    logger.api_call("NVD CPE API", {"cpe_match_string": query_string, "start_index": 0}, group="cpe_queries")
+                   
                     response = requests.get(nvd_cpes_url, params=initial_params, headers=headers)
                     response.raise_for_status()
                     
@@ -170,8 +173,12 @@ def gatherNVDCPEData(apiKey, case, query_string):
                     total_results = initial_data.get("totalResults", 0)
                     results_per_page = initial_data.get("resultsPerPage", 0)
                    
+                    # Log the API response with result count
+                    logger.api_response("NVD CPE API", "Success", count=total_results, group="cpe_queries")
+                   
                     # If we already have all results, return initial response
                     if total_results <= results_per_page:
+                        logger.debug(f"Single page CPE query completed: {total_results} results for {query_string}", group="cpe_queries")
                         return initial_data
                    
                     # Initialize consolidated results with first batch
@@ -183,6 +190,7 @@ def gatherNVDCPEData(apiKey, case, query_string):
                     logger.info(f"Processing CPE collections: Found {total_results} total results - Collecting all pages...", group="cpe_queries")
                    
                     # Collect remaining pages
+                    additional_api_calls = 0
                     while remaining_results > 0:
                         for page_attempt in range(max_retries):
                             try:                                # Add delay to respect rate limits
@@ -196,10 +204,18 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                     "startIndex": current_index
                                 }
                                
+                                # Log the paginated API call
+                                logger.api_call("NVD CPE API", {"cpe_match_string": query_string, "start_index": current_index}, group="cpe_queries")
+                                additional_api_calls += 1
+                               
                                 response = requests.get(nvd_cpes_url, params=params, headers=headers)
                                 response.raise_for_status()
                                 
                                 page_data = response.json()
+                               
+                                # Log the paginated API response
+                                page_results = len(page_data.get("products", []))
+                                logger.api_response("NVD CPE API", "Success", count=page_results, group="cpe_queries")
                                
                                 # Add products from this page to consolidated results
                                 if "products" in page_data:
@@ -215,6 +231,10 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                 public_ip = get_public_ip()
                                 logger.error(f"NVD CPE API paginated request failed: Unable to fetch page data for '{query_string}' (Attempt {page_attempt + 1}/{max_retries}) - {e}", group="cve_queries")
                                 logger.debug(f"Current public IP address: {public_ip}", group="cpe_queries")
+                                
+                                # Log the failed API response
+                                logger.api_response("NVD CPE API", "Failed", group="cpe_queries")
+                                
                                   # Check for message header and display if present - error response
                                 if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
                                     error_message = e.response.headers['message']
@@ -242,12 +262,19 @@ def gatherNVDCPEData(apiKey, case, query_string):
                     consolidated_data["startIndex"] = 0
                     consolidated_data["resultsPerPage"] = len(consolidated_data["products"])
                    
+                    # Log completion summary for multi-page requests
+                    total_api_calls = 1 + additional_api_calls  # Initial call + additional pages
+                    logger.info(f"Multi-page CPE query completed: {total_results} results across {total_api_calls} API calls for {query_string}", group="cpe_queries")
+                   
                     return consolidated_data
                    
                 except requests.exceptions.RequestException as e:
                     public_ip = get_public_ip()
                     logger.error(f"NVD CPE API request failed: Unable to fetch CPE data for '{query_string}' (Attempt {attempt + 1}/{max_retries}) - {e}", group="cve_queries")
                     logger.debug(f"Current public IP address: {public_ip}", group="cpe_queries")
+                    
+                    # Log the failed API response
+                    logger.api_response("NVD CPE API", "Failed", group="cpe_queries")
                     
                     # Check for message header and display if present - error response
                     if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:

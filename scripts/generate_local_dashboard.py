@@ -45,6 +45,7 @@ def load_dashboard_data(json_file):
 def generate_dashboard_html(data, output_file):
     """Generate HTML dashboard with embedded data"""
     
+    
     # Load tool information from config
     TOOL_NAME, TOOL_VERSION = load_config()
     
@@ -81,7 +82,7 @@ def generate_dashboard_html(data, output_file):
         .header {{
             background: linear-gradient(45deg, #2c3e50, #34495e);
             color: white;
-            padding: 30px;
+            padding: 10px;
             text-align: center;
         }}
 
@@ -124,7 +125,7 @@ def generate_dashboard_html(data, output_file):
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 25px;
-            padding: 30px;
+            padding: 15px 30px;
         }}
 
         .metric-card {{
@@ -191,6 +192,11 @@ def generate_dashboard_html(data, output_file):
         }}
         .metric-card.files::before {{ content: '📄'; }}
 
+        .metric-card.cpe {{ 
+            border-left-color: #e67e22; 
+        }}
+        .metric-card.cpe::before {{ content: '🔍'; }}
+
         .metric-title {{
             font-size: 1.1em;
             font-weight: 600;
@@ -213,7 +219,7 @@ def generate_dashboard_html(data, output_file):
 
         .progress-section {{
             background: white;
-            margin: 0 30px 30px;
+            margin: 15px 30px;
             border-radius: 12px;
             padding: 25px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
@@ -471,7 +477,7 @@ def generate_dashboard_html(data, output_file):
         .footer {{
             background: #2c3e50;
             color: white;
-            padding: 20px;
+            padding: 5px;
             text-align: center;
             font-size: 0.9em;
         }}
@@ -492,7 +498,7 @@ def generate_dashboard_html(data, output_file):
 
             .metrics-grid {{
                 grid-template-columns: 1fr;
-                padding: 20px;
+                padding: 15px 30px;
                 gap: 20px;
             }}
 
@@ -592,13 +598,6 @@ def generate_dashboard_html(data, output_file):
                     Currently processing: <strong>{current_cve}</strong></div>
             </div>
 
-            <div class="metric-card performance">
-                <div class="metric-title">Processing Rate</div>
-                <div class="metric-value">{processing_rate}</div>
-                <div class="metric-subtitle">CVEs per minute<br>
-                    Average: <strong>{average_time}s</strong> per CVE</div>
-            </div>
-
             <div class="metric-card api">
                 <div class="metric-title">API Calls</div>
                 <div class="metric-value">{api_calls}</div>
@@ -631,7 +630,14 @@ def generate_dashboard_html(data, output_file):
                 <div class="metric-title">Cache Performance</div>
                 <div class="metric-value">{cache_hit_rate}</div>
                 <div class="metric-subtitle">Hit rate<br>
-                    <strong>{cache_entries}</strong> total entries</div>
+                    <strong>{cache_entries}</strong> total entries | <strong>{cache_file_size}</strong></div>
+            </div>
+
+            <div class="metric-card cpe">
+                <div class="metric-title">Massive CPE Queries</div>
+                <div class="metric-value">{total_cpe_queries}</div>
+                <div class="metric-subtitle">Total queries made<br>
+                    Largest: <strong>{largest_cve_query_cve}</strong> - <strong>{largest_cpe_query}</strong> results</div>
             </div>
         </div>
 
@@ -902,8 +908,6 @@ def generate_dashboard_html(data, output_file):
         total_cves=format_number(processing.get("total_cves")),
         processed_cves=format_number(processing.get("processed_cves")),
         remaining_cves=format_number(processing.get("remaining_cves")),
-        processing_rate=format_number(performance.get("processing_rate"), 1),
-        average_time=format_number(performance.get("average_time"), 2),
         cache_entries=format_number(cache.get("total_entries")),
         cache_hit_rate=format_percentage(cache.get("hit_rate", 0)),
         api_calls=format_number(api.get("total_calls")),
@@ -920,6 +924,10 @@ def generate_dashboard_html(data, output_file):
         slowest_cve_time=format_number(speed_stats.get("slowest_cve_time", 0), 2),
         mapping_percentage=format_percentage(mapping_stats.get("mapping_percentage", 0)),
         total_mappings=format_number(mapping_stats.get("total_mappings_found", 0)),
+        cache_file_size=cache.get("cache_file_size_formatted", "Not found"),
+        total_cpe_queries=format_number(data.get("cpe_query_stats", {}).get("total_cpe_queries", 0)),
+        largest_cpe_query=format_number(data.get("cpe_query_stats", {}).get("largest_query_results", 0)),
+        largest_cve_query_cve=data.get("cpe_query_stats", {}).get("largest_query_cve", "N/A"),
         info_count=format_number(log_stats.get("info_count", 0)),
         debug_count=format_number(log_stats.get("debug_count", 0)),
         warning_count=format_number(log_stats.get("warning_count", 0)),

@@ -159,14 +159,14 @@ class CPECache:
         if cpe_string not in self.cache_data:
             self.session_stats['misses'] += 1
             self.metadata['miss_count'] += 1
-            logger.debug(f"Cache miss for CPE: {cpe_string}", group="cpe_queries")
+            logger.debug(f"Cache miss for CPE: {cpe_string} - NVD CPE API call required", group="cpe_queries")
             return None
             
         entry = self.cache_data[cpe_string]
         
         # Check if entry is expired
         if self._is_expired(entry):
-            logger.debug(f"Cache entry expired for CPE: {cpe_string}", group="cpe_queries")
+            logger.debug(f"Cache entry expired for CPE: {cpe_string} - NVD CPE API call required", group="cpe_queries")
             del self.cache_data[cpe_string]
             self.session_stats['misses'] += 1
             self.metadata['miss_count'] += 1
@@ -176,7 +176,7 @@ class CPECache:
         self.session_stats['hits'] += 1
         self.metadata['hit_count'] += 1
         self.metadata['api_calls_saved'] += 1
-        logger.debug(f"Cache hit for CPE: {cpe_string}", group="cpe_queries")
+        logger.debug(f"Cache hit for CPE: {cpe_string} - NVD CPE API call avoided", group="cpe_queries")
         
         return entry['query_response']
         

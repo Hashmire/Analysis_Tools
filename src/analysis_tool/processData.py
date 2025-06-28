@@ -1163,11 +1163,16 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                 
                 if json_response is None:
                     # Cache miss - make API call
+                    logger.debug(f"Cache miss for CPE: {query_string} - Making API call", group="cpe_queries")
                     json_response = gatherData.gatherNVDCPEData(apiKey, "cpeMatchString", query_string)
                     
                     # Cache the response if it's valid
                     if json_response and json_response.get("status") != "invalid_cpe":
                         cache.put(query_string, json_response)
+                        logger.debug(f"API response cached for CPE: {query_string}", group="cpe_queries")
+                else:
+                    # Cache hit - no API call needed
+                    logger.debug(f"Cache hit for CPE: {query_string} - API call avoided", group="cpe_queries")
                 
                 # Check for invalid_cpe status from our updated gatherNVDCPEData function
                 if json_response and json_response.get("status") == "invalid_cpe":

@@ -66,7 +66,9 @@ class LogAnalyzer:
                 "cache_hits": 0,
                 "cache_misses": 0,
                 "hit_rate": 0,
-                "api_calls_saved": 0
+                "api_calls_saved": 0,
+                "cache_file_size": 0,
+                "cache_file_size_formatted": "0 KB"
             },
             "api": {
                 "total_calls": 0,
@@ -106,6 +108,16 @@ class LogAnalyzer:
                 "mapping_percentage": 0,
                 "largest_mapping_count": 0,
                 "largest_mapping_cve": ""
+            },
+            "cpe_query_stats": {
+                "total_cpe_queries": 0,
+                "largest_query_results": 0,
+                "largest_query_cve": "",
+                "largest_query_time": 0,
+                "total_cpe_results": 0,
+                "average_results_per_query": 0,
+                "total_query_time": 0,
+                "average_query_time": 0
             },
             "recent_activity": [],
             "errors": [],
@@ -309,6 +321,9 @@ class LogAnalyzer:
         
         # Mapping statistics tracking
         mapping_found_match = re.search(r'Found (\d+) confirmed mappings for (CVE-\d{4}-\d+)', message)
+        mapping_platform_match = re.search(r'Found (\d+) confirmed mappings for platform entry (\d+)', message)
+        mapping_stats_match = re.search(r'Confirmed mappings statistics: (\d+)/(\d+) entries \(([\d.]+)% hit rate\), (\d+) total mappings found', message)
+        
         if mapping_found_match:
             mapping_count, cve_id = mapping_found_match.groups()
             mapping_count = int(mapping_count)
@@ -321,6 +336,46 @@ class LogAnalyzer:
                 if mapping_count > self.data["mapping_stats"]["largest_mapping_count"]:
                     self.data["mapping_stats"]["largest_mapping_count"] = mapping_count
                     self.data["mapping_stats"]["largest_mapping_cve"] = cve_id
+        elif mapping_platform_match:
+            # Track platform entry mappings
+            mapping_count = int(mapping_platform_match.group(1))
+            if mapping_count > 0:
+                self.data["mapping_stats"]["total_mappings_found"] += mapping_count
+        elif mapping_stats_match:
+            # Parse the statistics summary - accumulate instead of overwrite
+            entries_with_mappings, total_entries, hit_rate, total_mappings = mapping_stats_match.groups()
+            total_mappings = int(total_mappings)
+            entries_with_mappings = int(entries_with_mappings)
+            
+            # Only count if there are actual mappings
+            if total_mappings > 0:
+                self.data["mapping_stats"]["total_mappings_found"] += total_mappings
+                self.data["mapping_stats"]["cves_with_mappings"] += entries_with_mappings
+        
+        # CPE Query statistics tracking
+        cpe_query_match = re.search(r'Processing CPE collections: Found (\d+) total results', message)
+        cpe_timing_match = re.search(r'CPE query completed in ([\d.]+)s', message)
+        
+        if cpe_query_match:
+            total_results = int(cpe_query_match.group(1))
+            self.data["cpe_query_stats"]["total_cpe_queries"] += 1
+            self.data["cpe_query_stats"]["total_cpe_results"] += total_results
+            
+            # Track largest query
+            if total_results > self.data["cpe_query_stats"]["largest_query_results"]:
+                self.data["cpe_query_stats"]["largest_query_results"] = total_results
+                # Use current CVE context if available
+                if self.current_processing_cve:
+                    self.data["cpe_query_stats"]["largest_query_cve"] = self.current_processing_cve
+        
+        # Track CPE query timing if available
+        if cpe_timing_match:
+            query_time = float(cpe_timing_match.group(1))
+            self.data["cpe_query_stats"]["total_query_time"] += query_time
+            
+            # Track longest query time
+            if query_time > self.data["cpe_query_stats"]["largest_query_time"]:
+                self.data["cpe_query_stats"]["largest_query_time"] = query_time
         
         # File generation tracking
         file_generated_match = re.search(r'File Generated: (.+\.html)$', message)
@@ -421,8 +476,18 @@ class LogAnalyzer:
                 self.data["cache"]["hit_rate"] = (self.data["cache"]["cache_hits"] / total_cache_ops) * 100
                 self.data["cache"]["api_calls_saved"] = self.data["cache"]["cache_hits"]
         
-        # Processing rate and runtime
-        if self.data["processing"]["start_time"]:
+        # Processing rate and runtime - use actual processing times, not wall clock time
+        if self.data["performance"]["processing_times"]:
+            # Use sum of actual processing times for accurate runtime
+            total_processing_time = sum(self.data["performance"]["processing_times"])
+            self.data["performance"]["total_runtime"] = total_processing_time
+            
+            # Calculate processing rate from average time per CVE
+            avg_time = total_processing_time / len(self.data["performance"]["processing_times"])
+            if avg_time > 0:
+                self.data["performance"]["processing_rate"] = 60 / avg_time  # CVEs per minute
+        elif self.data["processing"]["start_time"]:
+            # Fallback to wall clock time if no processing times available
             start_time = datetime.fromisoformat(self.data["processing"]["start_time"])
             current_time = datetime.now()
             runtime_seconds = (current_time - start_time).total_seconds()
@@ -430,24 +495,13 @@ class LogAnalyzer:
             
             if runtime_seconds > 0 and self.data["processing"]["processed_cves"] > 0:
                 self.data["performance"]["processing_rate"] = (self.data["processing"]["processed_cves"] / runtime_seconds) * 60  # CVEs per minute
-        else:
-            # If no explicit start time found, try to estimate from processing times
-            if (self.data["performance"]["processing_times"] and 
-                len(self.data["performance"]["processing_times"]) > 0 and
-                self.data["processing"]["processed_cves"] > 0):
-                
-                total_processing_time = sum(self.data["performance"]["processing_times"])
-                avg_time = total_processing_time / len(self.data["performance"]["processing_times"])
-                
-                # Estimate processing rate from average time per CVE
-                if avg_time > 0:
-                    self.data["performance"]["processing_rate"] = 60 / avg_time  # CVEs per minute
-                
-                # Set estimated total runtime
-                self.data["performance"]["total_runtime"] = total_processing_time
         
         # ETA calculation and formatting
-        if (self.data["performance"]["processing_rate"] > 0 and 
+        if (self.data["processing"]["processed_cves"] >= self.data["processing"]["total_cves"] and 
+            self.data["processing"]["total_cves"] > 0):
+            # Job completed
+            self.data["processing"]["eta_simple"] = "Completed"
+        elif (self.data["performance"]["processing_rate"] > 0 and 
             self.data["processing"]["remaining_cves"] > 0):
             eta_minutes = self.data["processing"]["remaining_cves"] / self.data["performance"]["processing_rate"]
             eta_time = datetime.now() + timedelta(minutes=eta_minutes)
@@ -482,6 +536,50 @@ class LogAnalyzer:
                 self.data["mapping_stats"]["cves_with_mappings"] / 
                 self.data["processing"]["processed_cves"]
             ) * 100
+        
+        # CPE Query statistics calculations
+        if self.data["cpe_query_stats"]["total_cpe_queries"] > 0:
+            self.data["cpe_query_stats"]["average_results_per_query"] = (
+                self.data["cpe_query_stats"]["total_cpe_results"] / 
+                self.data["cpe_query_stats"]["total_cpe_queries"]
+            )
+            
+            if self.data["cpe_query_stats"]["total_query_time"] > 0:
+                self.data["cpe_query_stats"]["average_query_time"] = (
+                    self.data["cpe_query_stats"]["total_query_time"] / 
+                    self.data["cpe_query_stats"]["total_cpe_queries"]
+                )
+        
+        # Cache file size calculation
+        try:
+            # Look for cache file in common locations
+            cache_paths = [
+                "src/analysis_tool/cache/cpe_cache.json",
+                "cache/cpe_cache.json", 
+                "cpe_cache.json"
+            ]
+            
+            for cache_path in cache_paths:
+                if os.path.exists(cache_path):
+                    cache_size = os.path.getsize(cache_path)
+                    self.data["cache"]["cache_file_size"] = cache_size
+                    
+                    # Format file size
+                    if cache_size >= 1024 * 1024 * 1024:  # >= 1GB
+                        size_gb = cache_size / (1024 * 1024 * 1024)
+                        self.data["cache"]["cache_file_size_formatted"] = f"{size_gb:.1f} GB"
+                    elif cache_size >= 1024 * 1024:  # >= 1MB
+                        size_mb = cache_size / (1024 * 1024)
+                        self.data["cache"]["cache_file_size_formatted"] = f"{size_mb:.1f} MB"
+                    else:  # < 1MB
+                        size_kb = cache_size / 1024
+                        self.data["cache"]["cache_file_size_formatted"] = f"{size_kb:.1f} KB"
+                    break
+            else:
+                # No cache file found
+                self.data["cache"]["cache_file_size_formatted"] = "Not found"
+        except Exception as e:
+            self.data["cache"]["cache_file_size_formatted"] = "Error reading"
     
     def save_json(self, output_file="reports/dashboard_data.json"):
         """Save parsed data as JSON"""
