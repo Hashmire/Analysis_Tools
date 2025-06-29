@@ -795,7 +795,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                     <p class="text-muted">No CPE suggestions available for this entry.</p>
                 </div>
             </div>
-            """
+            """.replace('\n', '')
         
         logger.debug(f"convertCPEsQueryDataToHTML: Processing {len(sortedCPEsQueryData)} CPE query results for table {tableIndex}", group="PAGE_GEN")
         
@@ -1249,7 +1249,7 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
                         <p class="text-muted">No CPE suggestions available for this entry.</p>
                     </div>
                 </div>
-                """
+                """.replace('\n', '')
             
             html_content += "</div>"  # Close the container div
             result_df.at[index, 'cpeQueryHTML'] = html_content
