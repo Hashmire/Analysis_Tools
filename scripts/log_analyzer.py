@@ -256,20 +256,44 @@ class LogAnalyzer:
         if cache_size_match:
             self.data["cache"]["total_entries"] = int(cache_size_match.group(1))
         
-        # Cache hits/misses (legacy, less accurate)
-        if "Cache hit for CPE:" in message and cache_session_match is None:
+        # Updated cache patterns for new logging format
+        cache_hit_match = re.search(r'Cache hit for CPE:.*?NVD CPE API call avoided', message)
+        cache_miss_match = re.search(r'Cache miss for CPE:.*?Making API call', message)
+        cache_expired_match = re.search(r'Cache expired for CPE:.*?Making API call', message)
+        
+        # Only count individual cache events if we don't have session summary
+        cache_session_match = re.search(r'Cache session performance: (\d+) hits, (\d+) misses, (\d+) expired, ([\d.]+)% hit rate, (\d+) new entries', message)
+        if cache_session_match:
+            # Use session stats as authoritative cache metrics
+            session_hits = int(cache_session_match.group(1))
+            session_misses = int(cache_session_match.group(2))
+            session_expired = int(cache_session_match.group(3))
+            session_hit_rate = float(cache_session_match.group(4))
+            new_entries = int(cache_session_match.group(5))
+            
+            # Update with authoritative session stats
+            self.data["cache"]["cache_hits"] = session_hits
+            self.data["cache"]["cache_misses"] = session_misses + session_expired
+            self.data["cache"]["hit_rate"] = session_hit_rate
+            self.data["cache"]["new_entries"] = new_entries
+        elif cache_hit_match:
             self.data["cache"]["cache_hits"] += 1
-        elif "Cache miss for CPE:" in message and cache_session_match is None:
+        elif cache_miss_match or cache_expired_match:
             self.data["cache"]["cache_misses"] += 1
         
-        # Parse cache statistics from audit checkpoints
-        cache_stats_match = re.search(r'CPE cache: (\d+)/(\d+) session hits \(([\d.]+)%\)', message)
-        if cache_stats_match:
-            hits, total, percentage = cache_stats_match.groups()
-            self.data["cache"]["cache_hits"] = int(hits)
-            total_attempts = int(total)
-            self.data["cache"]["cache_misses"] = total_attempts - int(hits)
-            self.data["cache"]["hit_rate"] = float(percentage)
+        # Updated CPE completion pattern for new format
+        cpe_completion_match = re.search(r'CPE queries completed: (\d+) total queries \((\d+) cache hits, (\d+) API calls, ([\d.]+)% cache hit rate\)', message)
+        if cpe_completion_match:
+            total_queries = int(cpe_completion_match.group(1))
+            cache_hits_summary = int(cpe_completion_match.group(2))
+            api_calls_summary = int(cpe_completion_match.group(3))
+            hit_rate = float(cpe_completion_match.group(4))
+            
+            # Use this summary to validate and update our CPE query stats
+            self.data["cpe_query_stats"]["total_cpe_queries"] = total_queries
+            # Update cache stats with the authoritative summary
+            self.data["cache"]["cache_hits"] = cache_hits_summary
+            self.data["cache"]["hit_rate"] = hit_rate
         
         # Parse cache lifetime statistics
         cache_lifetime_match = re.search(r'CPE cache lifetime: ([\d.]+)% hit rate, (\d+) API calls saved', message)
@@ -319,38 +343,32 @@ class LogAnalyzer:
                 "cve_id": cve_id
             })
         
-        # Mapping statistics tracking
-        mapping_found_match = re.search(r'Found (\d+) confirmed mappings for (CVE-\d{4}-\d+)', message)
-        mapping_platform_match = re.search(r'Found (\d+) confirmed mappings for platform entry (\d+)', message)
+        # Mapping statistics tracking - use only the final summary to avoid double-counting
         mapping_stats_match = re.search(r'Confirmed mappings statistics: (\d+)/(\d+) entries \(([\d.]+)% hit rate\), (\d+) total mappings found', message)
         
-        if mapping_found_match:
-            mapping_count, cve_id = mapping_found_match.groups()
-            mapping_count = int(mapping_count)
+        if mapping_stats_match:
+            # Parse the final statistics summary - use this as the authoritative source
+            successful_mappings = int(mapping_stats_match.group(1))
+            total_processed = int(mapping_stats_match.group(2)) 
+            hit_rate = float(mapping_stats_match.group(3))
+            total_mappings = int(mapping_stats_match.group(4))
             
-            if mapping_count > 0:
-                self.data["mapping_stats"]["total_mappings_found"] += mapping_count
-                self.data["mapping_stats"]["cves_with_mappings"] += 1
-                
-                # Track largest mapping count
-                if mapping_count > self.data["mapping_stats"]["largest_mapping_count"]:
-                    self.data["mapping_stats"]["largest_mapping_count"] = mapping_count
-                    self.data["mapping_stats"]["largest_mapping_cve"] = cve_id
-        elif mapping_platform_match:
-            # Track platform entry mappings
-            mapping_count = int(mapping_platform_match.group(1))
-            if mapping_count > 0:
-                self.data["mapping_stats"]["total_mappings_found"] += mapping_count
-        elif mapping_stats_match:
-            # Parse the statistics summary - accumulate instead of overwrite
-            entries_with_mappings, total_entries, hit_rate, total_mappings = mapping_stats_match.groups()
-            total_mappings = int(total_mappings)
-            entries_with_mappings = int(entries_with_mappings)
+            # Use the authoritative hit rate from the log message - don't recalculate
+            # This ensures we never exceed 100% due to double-counting
+            self.data["mapping_stats"]["mapping_percentage"] = hit_rate
+            self.data["mapping_stats"]["cves_with_mappings"] = successful_mappings
+            self.data["mapping_stats"]["total_mappings_found"] = total_mappings
             
-            # Only count if there are actual mappings
-            if total_mappings > 0:
-                self.data["mapping_stats"]["total_mappings_found"] += total_mappings
-                self.data["mapping_stats"]["cves_with_mappings"] += entries_with_mappings
+            # Validate the percentage is reasonable (should never exceed 100%)
+            if hit_rate > 100.0:
+                print(f"WARNING: Confirmed mappings percentage exceeds 100%: {hit_rate}% - recalculating")
+                # Recalculate if something went wrong
+                corrected_rate = (successful_mappings / total_processed * 100) if total_processed > 0 else 0
+                self.data["mapping_stats"]["mapping_percentage"] = min(corrected_rate, 100.0)
+        
+        # Remove individual mapping tracking to prevent accumulation issues
+        # mapping_found_match = re.search(r'Found (\d+) confirmed mappings for (CVE-\d{4}-\d+)', message)
+        # mapping_platform_match = re.search(r'Found (\d+) confirmed mappings for platform entry (\d+)', message)
         
         # CPE Query statistics tracking
         cpe_query_match = re.search(r'Processing CPE collections: Found (\d+) total results', message)
@@ -530,8 +548,10 @@ class LogAnalyzer:
                 self.data["file_stats"]["files_generated"]
             )
         
-        # Mapping statistics calculations
-        if self.data["processing"]["processed_cves"] > 0:
+        # Mapping statistics calculations - only calculate if not already set from log parsing
+        if (self.data["processing"]["processed_cves"] > 0 and 
+            self.data["mapping_stats"]["mapping_percentage"] == 0):
+            # Only calculate if we didn't get authoritative percentage from log
             self.data["mapping_stats"]["mapping_percentage"] = (
                 self.data["mapping_stats"]["cves_with_mappings"] / 
                 self.data["processing"]["processed_cves"]

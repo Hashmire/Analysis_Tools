@@ -51,7 +51,9 @@ class CPECache:
         self.session_stats = {
             'hits': 0,
             'misses': 0,
-            'new_entries': 0
+            'expired': 0,
+            'new_entries': 0,
+            'api_calls_saved': 0
         }
         
         # Ensure cache directory exists
@@ -143,7 +145,7 @@ class CPECache:
         except Exception as e:
             logger.error(f"/cpes/ cache save error: {e}", group="cpe_queries")
             
-    def get(self, cpe_string: str) -> Optional[Dict[str, Any]]:
+    def get(self, cpe_string: str) -> Tuple[Optional[Dict[str, Any]], str]:
         """
         Retrieve cached CPE data for a given CPE string
         
@@ -151,34 +153,34 @@ class CPECache:
             cpe_string: The CPE match string to look up
             
         Returns:
-            Cached API response data or None if not found/expired
+            Tuple of (Cached API response data or None if not found/expired, status)
+            Status can be: 'hit', 'miss', 'expired'
         """
         if not self.config.get('enabled', True):
-            return None
+            return None, 'disabled'
             
         if cpe_string not in self.cache_data:
             self.session_stats['misses'] += 1
             self.metadata['miss_count'] += 1
-            logger.debug(f"Cache miss for CPE: {cpe_string} - NVD CPE API call required", group="cpe_queries")
-            return None
+            return None, 'miss'
             
         entry = self.cache_data[cpe_string]
         
         # Check if entry is expired
         if self._is_expired(entry):
-            logger.debug(f"Cache entry expired for CPE: {cpe_string} - NVD CPE API call required", group="cpe_queries")
             del self.cache_data[cpe_string]
-            self.session_stats['misses'] += 1
+            self.session_stats['expired'] += 1
             self.metadata['miss_count'] += 1
-            return None
+            return None, 'expired'
             
         # Cache hit
         self.session_stats['hits'] += 1
+        self.session_stats['api_calls_saved'] += 1
         self.metadata['hit_count'] += 1
         self.metadata['api_calls_saved'] += 1
         logger.debug(f"Cache hit for CPE: {cpe_string} - NVD CPE API call avoided", group="cpe_queries")
         
-        return entry['query_response']
+        return entry['query_response'], 'hit'
         
     def put(self, cpe_string: str, api_response: Dict[str, Any]):
         """
@@ -207,7 +209,6 @@ class CPECache:
             self.session_stats['new_entries'] += 1
             
         self.cache_data[cpe_string] = entry
-        logger.debug(f"Cache updated for CPE: {cpe_string}", group="cpe_queries")
         
     def _is_expired(self, entry: Dict[str, Any]) -> bool:
         """Check if a cache entry has expired (older than 12 hours)"""
@@ -241,11 +242,13 @@ class CPECache:
             'total_entries': len(self.cache_data),
             'session_hits': self.session_stats['hits'],
             'session_misses': self.session_stats['misses'],
+            'session_expired': self.session_stats['expired'],
             'session_new_entries': self.session_stats['new_entries'],
+            'session_api_calls_saved': self.session_stats['api_calls_saved'],
             'lifetime_hits': self.metadata['hit_count'],
             'lifetime_misses': self.metadata['miss_count'],
             'lifetime_hit_rate': round(hit_rate, 1),
-            'api_calls_saved': self.metadata['api_calls_saved'],
+            'lifetime_api_calls_saved': self.metadata['api_calls_saved'],
             'cache_created': self.metadata['created'],
             'last_updated': self.metadata['last_updated']
         }
@@ -253,21 +256,22 @@ class CPECache:
     def log_session_stats(self):
         """Log cache performance for current session"""
         stats = self.get_stats()
-        session_total = stats['session_hits'] + stats['session_misses']
+        session_total = stats['session_hits'] + stats['session_misses'] + stats['session_expired']
         session_hit_rate = (stats['session_hits'] / session_total * 100) if session_total > 0 else 0
         
         logger.info(
             f"Cache session performance: {stats['session_hits']} hits, "
             f"{stats['session_misses']} misses, "
+            f"{stats['session_expired']} expired, "
             f"{round(session_hit_rate, 1)}% hit rate, "
             f"{stats['session_new_entries']} new entries",
             group="cpe_queries"
         )
         
-        if stats['lifetime_hit_rate'] > 0:
+        # Report session-specific API calls saved, not lifetime
+        if stats['session_api_calls_saved'] > 0:
             logger.info(
-                f"Cache lifetime performance: {stats['lifetime_hit_rate']}% hit rate, "
-                f"{stats['api_calls_saved']} API calls saved",
+                f"Cache session saved {stats['session_api_calls_saved']} API calls this run",
                 group="cpe_queries"
             )
         
@@ -278,7 +282,7 @@ class CPECache:
     def clear(self):
         """Clear all cache data"""
         self.cache_data = {}
-        self.session_stats = {'hits': 0, 'misses': 0, 'new_entries': 0}
+        self.session_stats = {'hits': 0, 'misses': 0, 'expired': 0, 'new_entries': 0, 'api_calls_saved': 0}
         logger.info("Cache cleared", group="cpe_queries")
         
     def __enter__(self):

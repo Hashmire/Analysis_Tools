@@ -378,7 +378,7 @@ def audit_cache_and_mappings_stats():
             session_hit_rate = (cache_stats['session_hits'] / session_total * 100) if session_total > 0 else 0
             
             stats_info.append(f"CPE cache: {cache_stats['session_hits']}/{session_total} session hits ({session_hit_rate:.1f}%)")
-            stats_info.append(f"CPE cache lifetime: {cache_stats['lifetime_hit_rate']}% hit rate, {cache_stats['api_calls_saved']} API calls saved")
+            stats_info.append(f"CPE cache lifetime: {cache_stats['lifetime_hit_rate']}% hit rate, {cache_stats['lifetime_api_calls_saved']} API calls saved")
         else:
             stats_info.append("CPE cache: Not initialized")
           # Get confirmed mappings statistics

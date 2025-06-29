@@ -310,13 +310,24 @@ def sort_base_strings(unique_base_strings: dict) -> dict:
         composite_priority = primary_priority + secondary_priority
 
         # Apply additional sorting criteria after the composite priority
+        # Enhanced sorting to prioritize CPE base strings with non-deprecated results
+        dep_false_count = attributes.get('depFalseCount', 0)
+        dep_true_count = attributes.get('depTrueCount', 0)
+        total_results = dep_false_count + dep_true_count
+        
+        # Calculate deprecation metrics for sorting
+        has_non_deprecated = dep_false_count > 0
+        all_deprecated = dep_false_count == 0 and dep_true_count > 0
+        deprecation_ratio = dep_true_count / total_results if total_results > 0 else 1.0
+        
         return (
             composite_priority,                      # Primary: composite source priority
-            attributes.get('depFalseCount', 0) == 0, # Secondary: depFalseCount
-            -attributes.get('searchCount', 0),       # Tertiary: searchCount
-            -attributes.get('versionsFound', 0),     # Quaternary: versionsFound
-            -(attributes.get('depFalseCount', 0) + attributes.get('depTrueCount', 0)), # Quinary: total count
-            -attributes.get('depFalseCount', 0)      # Senary: depFalseCount
+            all_deprecated,                         # Secondary: prioritize non-fully-deprecated entries (False sorts before True)
+            deprecation_ratio,                      # Tertiary: lower deprecation ratio is better
+            -dep_false_count,                       # Quaternary: more non-deprecated results is better
+            -attributes.get('searchCount', 0),       # Quinary: searchCount
+            -attributes.get('versionsFound', 0),     # Senary: versionsFound
+            -total_results                          # Septenary: total results count
         )
 
     # Sort the dictionary and return as a new dictionary
@@ -1133,6 +1144,12 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
     cache = cache_manager.get_cache()
     logger.debug("Using global CPE cache instance", group="cpe_queries")
     
+    # Track cache statistics
+    cache_hits = 0
+    cache_misses = 0
+    cache_expired = 0
+    api_calls = 0
+    
     # Track which version checks belong to which row
     row_version_checks = {}
     for index, row in rawDataSet.iterrows():
@@ -1159,12 +1176,19 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
             
             try:
                 # Check cache first
-                json_response = cache.get(query_string)
+                json_response, cache_status = cache.get(query_string)
                 
                 if json_response is None:
-                    # Cache miss - make API call
-                    logger.debug(f"Cache miss for CPE: {query_string} - Making API call", group="cpe_queries")
+                    # Cache miss or expired - make API call
+                    if cache_status == 'miss':
+                        cache_misses += 1
+                        logger.debug(f"Cache miss for CPE: {query_string} - Making API call", group="cpe_queries")
+                    elif cache_status == 'expired':
+                        cache_expired += 1
+                        logger.debug(f"Cache expired for CPE: {query_string} - Making API call", group="cpe_queries")
+                    
                     json_response = gatherData.gatherNVDCPEData(apiKey, "cpeMatchString", query_string)
+                    api_calls += 1
                     
                     # Cache the response if it's valid
                     if json_response and json_response.get("status") != "invalid_cpe":
@@ -1172,7 +1196,8 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                         logger.debug(f"API response cached for CPE: {query_string}", group="cpe_queries")
                 else:
                     # Cache hit - no API call needed
-                    logger.debug(f"Cache hit for CPE: {query_string} - API call avoided", group="cpe_queries")
+                    cache_hits += 1
+                    # Cache hit logging is already handled in cpe_cache.py
                 
                 # Check for invalid_cpe status from our updated gatherNVDCPEData function
                 if json_response and json_response.get("status") == "invalid_cpe":
@@ -1251,8 +1276,23 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
             # Store results for this query
             bulk_results.append({query_string: stats})
     
-    # Log completion of API queries
-    logger.debug(f"Processing CPE queries completed: {len(query_list)} CPE match strings processed", group="cpe_queries")
+    # Log completion of CPE queries with detailed cache statistics
+    total_queries = len(query_list)
+    cache_hit_rate = (cache_hits / total_queries * 100) if total_queries > 0 else 0
+    
+    # Build the log message with clear distinctions
+    log_parts = []
+    log_parts.append(f"{cache_hits} cache hits")
+    
+    if cache_misses > 0:
+        log_parts.append(f"{cache_misses} cache misses")
+    if cache_expired > 0:
+        log_parts.append(f"{cache_expired} expired entries")
+    
+    log_parts.append(f"{api_calls} API calls")
+    log_parts.append(f"{cache_hit_rate:.1f}% cache hit rate")
+    
+    logger.info(f"CPE queries completed: {total_queries} total queries ({', '.join(log_parts)})", group="cpe_queries")
     
     return bulk_results
 #

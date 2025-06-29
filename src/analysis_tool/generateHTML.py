@@ -785,7 +785,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
     try:
         # Early exit if there's no data to process
         if not sortedCPEsQueryData or len(sortedCPEsQueryData) == 0:
-            logger.debug(f"convertCPEsQueryDataToHTML: No CPE query data to process for table {tableIndex}", group="PAGE_GEN")
+            logger.debug(f"No CPE query data to process for table {tableIndex}", group="PAGE_GEN")
             return f"""
             <div class="card mb-3">
                 <div class="card-header">
@@ -797,7 +797,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
             </div>
             """.replace('\n', '')
         
-        logger.debug(f"convertCPEsQueryDataToHTML: Processing {len(sortedCPEsQueryData)} CPE query results for table {tableIndex}", group="PAGE_GEN")
+        logger.debug(f"Processing {len(sortedCPEsQueryData)} CPE query results for table {tableIndex}", group="PAGE_GEN")
         
         # Create a collapsible card similar to Provenance Assistance
         html_content = f"""
@@ -830,41 +830,40 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
             platform_metadata = row_data['platformEntryMetadata']
             confirmed_mappings = platform_metadata.get('confirmedMappings', [])
         
-        logger.debug(f"convertCPEsQueryDataToHTML: Processing confirmed mappings: {confirmed_mappings}", group="PAGE_GEN")
+        if confirmed_mappings:
+            logger.debug(f"Processing {len(confirmed_mappings)} confirmed mappings", group="PAGE_GEN")
         
         # First, process confirmed mappings and check for duplicates in API results
         confirmed_mappings_processed = set()
         for cpe_base in confirmed_mappings:
-            logger.debug(f"convertCPEsQueryDataToHTML: Processing confirmed mapping: {cpe_base}", group="PAGE_GEN")
-            
             # Check if this confirmed mapping also exists in the API results
             if cpe_base in sortedCPEsQueryData:
-                logger.debug(f"convertCPEsQueryDataToHTML: Found confirmed mapping in API results: {cpe_base}", group="PAGE_GEN")
-                
                 # This is a duplicate - merge the information
                 base_value = sortedCPEsQueryData[cpe_base]
-                logger.debug(f"convertCPEsQueryDataToHTML: base_value type: {type(base_value)}", group="PAGE_GEN")
                 
                 total_match_count = (base_value.get('depFalseCount', 0) + base_value.get('depTrueCount', 0))
                 dep_true_count = base_value.get('depTrueCount', 0)
                 dep_false_count = base_value.get('depFalseCount', 0)
+                
+                # Skip confirmed mappings where all API results are deprecated (no viable CPE names)
+                if total_match_count > 0 and dep_true_count == total_match_count:
+                    logger.debug(f"Skipping confirmed mapping {cpe_base} - all {total_match_count} results deprecated", group="PAGE_GEN")
+                    confirmed_mappings_processed.add(cpe_base)
+                    continue
+                
                 versions_found = base_value.get('versionsFound', 0)
                 
                 # Calculate search_count correctly by checking for cveAffectedCPEsArray
                 search_count = base_value.get('searchCount', 0)
                 has_cpes_array_source = 'searchSourcecveAffectedCPEsArray' in base_value
-                logger.debug(f"convertCPEsQueryDataToHTML: has_cpes_array_source: {has_cpes_array_source}", group="PAGE_GEN")
                 
                 # If the CPEs array source isn't already counted in searchCount, add it
                 base_value_keys = list(base_value.keys()) if hasattr(base_value, 'keys') else []
-                logger.debug(f"convertCPEsQueryDataToHTML: base_value_keys: {base_value_keys}", group="PAGE_GEN")
-                
                 cpe_array_already_counted = any(
                     k.startswith('searchSource') and 'cveAffectedCPEsArray' in k 
                     for k in base_value_keys 
                     if k != 'searchSourcecveAffectedCPEsArray'
                 )
-                logger.debug(f"convertCPEsQueryDataToHTML: cpe_array_already_counted: {cpe_array_already_counted}", group="PAGE_GEN")
                 
                 if has_cpes_array_source and not cpe_array_already_counted:
                     search_count += 1
@@ -946,12 +945,8 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 """
                 confirmed_mappings_processed.add(cpe_base)
         
-        logger.debug(f"convertCPEsQueryDataToHTML: Starting API query results processing", group="PAGE_GEN")
-        
         # Process all API query results, excluding those already processed as confirmed mappings
         for base_key, base_value in sortedCPEsQueryData.items():
-            logger.debug(f"convertCPEsQueryDataToHTML: Processing API query result: {base_key}", group="PAGE_GEN")
-            
             # Skip this API result if it was already processed as a confirmed mapping
             if base_key in confirmed_mappings_processed:
                 continue
@@ -960,6 +955,11 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
             dep_true_count = base_value.get('depTrueCount', 0)
             dep_false_count = base_value.get('depFalseCount', 0)
             versions_found = base_value.get('versionsFound', 0)
+            
+            # Skip CPE base strings where all results are deprecated (no viable CPE names)
+            if total_match_count > 0 and dep_true_count == total_match_count:
+                logger.debug(f"Skipping {base_key} - all {total_match_count} results deprecated", group="PAGE_GEN")
+                continue
             
             # Calculate search_count correctly by checking for cveAffectedCPEsArray
             search_count = base_value.get('searchCount', 0)
