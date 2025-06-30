@@ -143,6 +143,35 @@ def generate_dashboard_html(data, output_file):
             box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
         }}
 
+        .metric-card.clickable {{
+            cursor: pointer;
+        }}
+
+        .metric-card.clickable:hover {{
+            transform: translateY(-7px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }}
+
+        .metric-card.clickable::after {{
+            content: '👆 Click for details';
+            position: absolute;
+            bottom: 8px;
+            right: 12px;
+            font-size: 0.7em;
+            color: #3498db;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 2px 6px;
+            border-radius: 3px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }}
+
+        .metric-card.clickable:hover::after {{
+            opacity: 1;
+        }}
+
         .metric-card::before {{
             content: '';
             position: absolute;
@@ -540,6 +569,23 @@ def generate_dashboard_html(data, output_file):
             // Hide the "Show All" button
             button.style.display = 'none';
         }}
+        
+        function scrollToSection(sectionId) {{
+            const element = document.getElementById(sectionId);
+            if (element) {{
+                element.scrollIntoView({{
+                    behavior: 'smooth',
+                    block: 'start'
+                }});
+                
+                // Add a brief highlight effect
+                element.style.transition = 'background-color 0.5s ease';
+                element.style.backgroundColor = 'rgba(52, 152, 219, 0.1)';
+                setTimeout(() => {{
+                    element.style.backgroundColor = '';
+                }}, 1000);
+            }}
+        }}
     </script>
 </head>
 <body>
@@ -591,14 +637,14 @@ def generate_dashboard_html(data, output_file):
 
         <!-- Key metrics only -->
         <div class="metrics-grid">
-            <div class="metric-card system">
+            <div class="metric-card system clickable" onclick="scrollToSection('workflow-performance')">
                 <div class="metric-title">Runtime</div>
                 <div class="metric-value">{runtime}</div>
                 <div class="metric-subtitle">Total execution time<br>
                     Currently processing: <strong>{current_cve}</strong></div>
             </div>
 
-            <div class="metric-card api">
+            <div class="metric-card api clickable" onclick="scrollToSection('api-performance')">
                 <div class="metric-title">API Calls</div>
                 <div class="metric-value">{api_calls}</div>
                 <div class="metric-subtitle">Total API requests made<br>
@@ -619,7 +665,7 @@ def generate_dashboard_html(data, output_file):
                     Largest: <strong>{largest_file}</strong> | Smallest: <strong>{smallest_file}</strong></div>
             </div>
 
-            <div class="metric-card speed">
+            <div class="metric-card speed clickable" onclick="scrollToSection('workflow-performance')">
                 <div class="metric-title">Processing Speed</div>
                 <div class="metric-value">{average_speed}s</div>
                 <div class="metric-subtitle">Average per CVE<br>
@@ -633,16 +679,37 @@ def generate_dashboard_html(data, output_file):
                     <strong>{cache_entries}</strong> total entries | <strong>{cache_file_size}</strong></div>
             </div>
 
-            <div class="metric-card cpe">
-                <div class="metric-title">Massive CPE Queries</div>
+            <div class="metric-card cpe clickable" onclick="scrollToSection('cpe-breakdown')">
+                <div class="metric-title">CPE Base String Queries</div>
                 <div class="metric-value">{total_cpe_queries}</div>
-                <div class="metric-subtitle">Total queries made<br>
-                    Largest: <strong>{largest_cve_query_cve}</strong> - <strong>{largest_cpe_query}</strong> results</div>
+                <div class="metric-subtitle">
+                    Most CPE Base String searched: <strong>{largest_cpe_query}</strong> <br>
+                    Most CPE Name results: <strong>{top_result_count}</strong> </div>
             </div>
+            
+            {resource_warnings_card}
+        </div>
+
+        <!-- Workflow Performance Analysis -->
+        <div id="workflow-performance" class="progress-section">
+            <h3>⚡ Workflow Performance Analysis</h3>
+            {stages_progress}
+        </div>
+
+        <!-- API Performance Breakdown -->
+        <div id="api-performance" class="progress-section">
+            <h3>🌐 API Performance Breakdown</h3>
+            {api_breakdown}
+        </div>
+
+        <!-- CPE Query Breakdown -->
+        <div id="cpe-breakdown" class="progress-section">
+            <h3>🔍 Top CPE Base String Query Breakdown</h3>
+            {cpe_breakdown}
         </div>
 
         <!-- Log Activity Summary -->
-        <div class="progress-section">
+        <div id="log-activity" class="progress-section">
             <h3>📝 Log Activity Summary</h3>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0;">
                 <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
@@ -737,25 +804,349 @@ def generate_dashboard_html(data, output_file):
             size_bytes /= 1024.0
         return f"{size_bytes:.1f}GB"
 
-    # Generate stages HTML
+    # Extract resource warnings
+    resource_warnings = data.get("resource_warnings", {})
+    
+    # Generate enhanced stages performance HTML
     stages_html = ""
+    stage_analysis = data.get("stage_analysis", {})
+    
     if stages:
-        stages_html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">'
+        # Performance summary header
+        total_workflow_time = stage_analysis.get("total_workflow_time", 0)
+        completed_stages = stage_analysis.get("completed_stages", 0)
+        total_stages = stage_analysis.get("total_stages", 0)
+        longest_stage = stage_analysis.get("longest_stage", {})
+        
+        stages_html += f'''
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center;">
+                <div>
+                    <div style="font-size: 1.2em; font-weight: bold; color: #2c3e50;">{total_workflow_time}s</div>
+                    <div style="color: #6c757d; font-size: 0.9em;">Total Time</div>
+                </div>
+                <div>
+                    <div style="font-size: 1.2em; font-weight: bold; color: #2c3e50;">{completed_stages}/{total_stages}</div>
+                    <div style="color: #6c757d; font-size: 0.9em;">Completed</div>
+                </div>
+                <div>
+                    <div style="font-size: 1.2em; font-weight: bold; color: #e74c3c;">{longest_stage.get("name", "N/A").replace("_", " ").title()}</div>
+                    <div style="color: #6c757d; font-size: 0.9em;">Bottleneck ({longest_stage.get("duration", 0)}s)</div>
+                </div>
+            </div>
+        </div>
+        '''
+        
+        # Individual stage details
+        stages_html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">'
         for stage_name, stage_data in stages.items():
-            started = stage_data.get("started", False)
-            completed = stage_data.get("completed", False)
-            status = "Completed" if completed else ("In Progress" if started else "Pending")
-            status_class = "completed" if completed else ("progress" if started else "pending")
+            status = stage_data.get("status", "not_started")
+            duration = stage_data.get("duration", 0)
+            started = stage_data.get("started")
+            completed = stage_data.get("completed")
+            
+            # Status styling
+            if status == "completed":
+                status_color = "#27ae60"
+                status_text = f"✅ Completed ({duration}s)"
+            elif status == "in_progress":
+                status_color = "#f39c12" 
+                status_text = "🔄 In Progress"
+            elif status == "incomplete":
+                status_color = "#e74c3c"
+                status_text = "❌ Incomplete"
+            else:
+                status_color = "#6c757d"
+                status_text = "⏸️ Not Started"
+            
+            # Performance indicator
+            perf_indicator = ""
+            if status == "completed" and duration > 0:
+                if duration == longest_stage.get("duration", 0):
+                    perf_indicator = ' <span style="color: #e74c3c; font-size: 0.8em;">🐌 BOTTLENECK</span>'
+                elif duration < stage_analysis.get("average_stage_time", 0):
+                    perf_indicator = ' <span style="color: #27ae60; font-size: 0.8em;">⚡ FAST</span>'
+            
             stages_html += f'''
-                <div class="stat-item">
-                    <div class="stat-label">{stage_name.replace("_", " ").title()}</div>
-                    <div class="stat-value" style="font-size: 1em; color: {'#27ae60' if completed else '#f39c12' if started else '#6c757d'};">{status}</div>
+                <div class="stat-item" style="border-left: 4px solid {status_color};">
+                    <div class="stat-label">{stage_name.replace("_", " ").title()}{perf_indicator}</div>
+                    <div class="stat-value" style="font-size: 0.9em; color: {status_color};">{status_text}</div>
+                    {f'<div style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">Started: {started}</div>' if started else ''}
+                    {f'<div style="font-size: 0.8em; color: #6c757d;">Completed: {completed}</div>' if completed else ''}
                 </div>
             '''
         stages_html += '</div>'
     else:
         stages_html = '<p style="color: #6c757d; text-align: center;">No stage data available</p>'
 
+    # Generate API breakdown HTML
+    api = data.get("api", {})
+    api_breakdown_html = ""
+    
+    if api:
+        total_calls = api.get("total_calls", 0)
+        successful_calls = api.get("successful_calls", 0)
+        failed_calls = api.get("failed_calls", 0)
+        success_rate = (successful_calls / total_calls * 100) if total_calls > 0 else 0
+        
+        # API call breakdown by type
+        nvd_cve_calls = api.get("nvd_cve_calls", 0)
+        mitre_cve_calls = api.get("mitre_cve_calls", 0)
+        nvd_cpe_calls = api.get("nvd_cpe_calls", 0)
+        
+        api_breakdown_html = f'''
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center;">
+                <div>
+                    <div style="font-size: 1.2em; font-weight: bold; color: #2c3e50;">{total_calls}</div>
+                    <div style="color: #6c757d; font-size: 0.9em;">Total Calls</div>
+                </div>
+                <div>
+                    <div style="font-size: 1.2em; font-weight: bold; color: #27ae60;">{success_rate:.1f}%</div>
+                    <div style="color: #6c757d; font-size: 0.9em;">Success Rate</div>
+                </div>
+                <div>
+                    <div style="font-size: 1.2em; font-weight: bold; color: #e74c3c;">{failed_calls}</div>
+                    <div style="color: #6c757d; font-size: 0.9em;">Failed Calls</div>
+                </div>
+            </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+            <div class="stat-item" style="border-left: 4px solid #3498db;">
+                <div class="stat-label">NVD CVE API</div>
+                <div class="stat-value" style="font-size: 0.9em; color: #3498db;">🔍 {nvd_cve_calls} calls</div>
+                <div style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">CVE vulnerability data</div>
+            </div>
+            
+            <div class="stat-item" style="border-left: 4px solid #9b59b6;">
+                <div class="stat-label">MITRE CVE API</div>
+                <div class="stat-value" style="font-size: 0.9em; color: #9b59b6;">🛡️ {mitre_cve_calls} calls</div>
+                <div style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">CVE metadata and references</div>
+            </div>
+            
+            <div class="stat-item" style="border-left: 4px solid #e67e22;">
+                <div class="stat-label">NVD CPE API</div>
+                <div class="stat-value" style="font-size: 0.9em; color: #e67e22;">⚙️ {nvd_cpe_calls} calls</div>
+                <div style="font-size: 0.8em; color: #6c757d; margin-top: 5px;">Common Platform Enumeration</div>
+            </div>
+        </div>
+        '''
+    else:
+        api_breakdown_html = '<p style="color: #6c757d; text-align: center;">No API data available</p>'
+
+    # Generate CPE query breakdown HTML
+    cpe_stats = data.get("cpe_query_stats", {})
+    cpe_breakdown_html = ""
+    
+    if cpe_stats and (cpe_stats.get("top_queries") or cpe_stats.get("top_result_queries")):
+        top_queries = cpe_stats.get("top_queries", [])[:10]  # Ensure max 10
+        top_result_queries = cpe_stats.get("top_result_queries", [])[:10]  # Ensure max 10
+        total_queries = cpe_stats.get("total_cpe_queries", 0)
+        
+        # Get top result count for summary
+        top_result_count = top_result_queries[0]["result_count"] if top_result_queries else 0
+        top_result_query_string = top_result_queries[0]["query_string"] if top_result_queries else "N/A"
+        
+        # Summary stats
+        cpe_breakdown_html = f'''
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center;">
+                <div>
+                    <div style="font-size: 1.2em; font-weight: bold; color: #2c3e50;">{total_queries}</div>
+                    <div style="color: #6c757d; font-size: 0.9em;">Unique Search Strings</div>
+                </div>
+                <div>
+                    <div style="font-size: 1.2em; font-weight: bold; color: #34495e;">{top_queries[0]["unique_strings"] if top_queries else 0}</div>
+                    <div style="color: #6c757d; font-size: 0.9em;">Largest Query</div>
+                </div>
+                <div>
+                    <div style="font-size: 1.2em; font-weight: bold; color: #9b59b6;">{top_result_count}</div>
+                    <div style="color: #6c757d; font-size: 0.9em;">Most Results</div>
+                </div>
+            </div>
+        </div>
+        
+        <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">📊 Top CVE Records by Number of Search Strings</h4>
+        <div style="overflow-x: auto; margin-bottom: 30px;">
+            <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <thead style="background: #34495e; color: white;">
+                    <tr>
+                        <th style="padding: 12px; text-align: left;">Rank</th>
+                        <th style="padding: 12px; text-align: left;">CVE ID</th>
+                        <th style="padding: 12px; text-align: center;">Unique Strings</th>
+                        <th style="padding: 12px; text-align: center;">Affected Entries</th>
+                        <th style="padding: 12px; text-align: center;">Strings/Entry</th>
+                        <th style="padding: 12px; text-align: left;">Processed</th>
+                    </tr>
+                </thead>
+                <tbody>
+        '''
+        
+        for i, query in enumerate(top_queries, 1):
+            # Determine row color based on query size
+            if query["unique_strings"] >= 50:
+                row_color = "#fff5f5"  # Light red for very large queries
+                icon = "🔥"
+            elif query["unique_strings"] >= 20:
+                row_color = "#fffaf0"  # Light orange for large queries  
+                icon = "⚡"
+            elif query["unique_strings"] >= 10:
+                row_color = "#f0fff4"  # Light green for medium queries
+                icon = "📊"
+            else:
+                row_color = "#f8f9fa"  # Light gray for small queries
+                icon = "📋"
+                
+            cpe_breakdown_html += f'''
+                    <tr style="background: {row_color}; border-bottom: 1px solid #dee2e6;">
+                        <td style="padding: 12px; font-weight: bold; color: #2c3e50;">{icon} #{i}</td>
+                        <td style="padding: 12px;">
+                            <code style="background: rgba(52, 73, 94, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.9em;">{query["cve_id"]}</code>
+                        </td>
+                        <td style="padding: 12px; text-align: center; font-weight: bold; color: #e67e22;">{query["unique_strings"]}</td>
+                        <td style="padding: 12px; text-align: center;">{query["affected_entries"]}</td>
+                        <td style="padding: 12px; text-align: center;">{query["strings_per_entry"]}</td>
+                        <td style="padding: 12px; font-size: 0.9em; color: #6c757d;">{query["timestamp"]}</td>
+                    </tr>
+            '''
+        
+        cpe_breakdown_html += '''
+                </tbody>
+            </table>
+        </div>
+        '''
+        
+        # Add top result queries table
+        if top_result_queries:
+            cpe_breakdown_html += '''
+        <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">🔍 Top Queries by Result Count</h4>
+        <div style="overflow-x: auto; margin-bottom: 20px;">
+            <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <thead style="background: #8e44ad; color: white;">
+                    <tr>
+                        <th style="padding: 12px; text-align: left;">Rank</th>
+                        <th style="padding: 12px; text-align: left;">Query String</th>
+                        <th style="padding: 12px; text-align: center;">Results</th>
+                        <th style="padding: 12px; text-align: left;">CVE IDs</th>
+                        <th style="padding: 12px; text-align: center;">Queries</th>
+                        <th style="padding: 12px; text-align: center;">Source</th>
+                    </tr>
+                </thead>
+                <tbody>
+            '''
+            
+            for i, result_query in enumerate(top_result_queries, 1):
+                # Determine row color based on result count
+                result_count = result_query["result_count"]
+                if result_count >= 1000:
+                    row_color = "#fff0f5"  # Light pink for very large results
+                    icon = "🚀"
+                elif result_count >= 500:
+                    row_color = "#f0f8ff"  # Light blue for large results
+                    icon = "📈"
+                elif result_count >= 100:
+                    row_color = "#f0fff0"  # Light green for medium results
+                    icon = "📊"
+                else:
+                    row_color = "#f8f9fa"  # Light gray for small results
+                    icon = "📋"
+                
+                # Format CVE IDs with truncation if > 5
+                cve_ids = result_query["cve_ids"]
+                if len(cve_ids) > 5:
+                    cve_display = ", ".join(cve_ids[:5]) + f", +{len(cve_ids)-5} more"
+                else:
+                    cve_display = ", ".join(cve_ids)
+                
+                # Format query string with truncation if too long
+                query_string = result_query["query_string"]
+                if len(query_string) > 40:
+                    query_display = query_string[:37] + "..."
+                else:
+                    query_display = query_string
+                
+                # Format source with appropriate styling
+                source = result_query.get("source", "unknown")
+                source_display = ""
+                source_color = ""
+                if source == "api":
+                    source_display = "🌐 API"
+                    source_color = "#3498db"
+                elif source == "cache":
+                    source_display = "💾 Cache"
+                    source_color = "#9b59b6"
+                elif source == "both":
+                    source_display = "🔄 Both"
+                    source_color = "#e67e22"
+                else:
+                    source_display = "❓ Unknown"
+                    source_color = "#95a5a6"
+                
+                cpe_breakdown_html += f'''
+                        <tr style="background: {row_color}; border-bottom: 1px solid #dee2e6;">
+                            <td style="padding: 12px; font-weight: bold; color: #2c3e50;">{icon} #{i}</td>
+                            <td style="padding: 12px;">
+                                <code style="background: rgba(142, 68, 173, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.85em;" title="{query_string}">{query_display}</code>
+                            </td>
+                            <td style="padding: 12px; text-align: center; font-weight: bold; color: #8e44ad;">{result_count:,}</td>
+                            <td style="padding: 12px; font-size: 0.85em; color: #2c3e50;">{cve_display}</td>
+                            <td style="padding: 12px; text-align: center;">{result_query["total_queries"]}</td>
+                            <td style="padding: 12px; text-align: center; font-weight: bold; color: {source_color};">{source_display}</td>
+                        </tr>
+                '''
+            
+            cpe_breakdown_html += '''
+                    </tbody>
+                </table>
+            </div>
+            '''
+        else:
+            cpe_breakdown_html += '''
+        <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">🔍 Top Queries by Result Count</h4>
+        <div style="padding: 20px; text-align: center; background: #f8f9fa; border-radius: 8px; color: #6c757d;">
+            No result data available - this data is only captured when actual API calls are made (not cache hits)
+        </div>
+        '''
+        
+        cpe_breakdown_html += '''
+        <div style="margin-top: 15px; padding: 10px; background: #e8f4fd; border-left: 4px solid #3498db; border-radius: 4px;">
+            <p style="margin: 0; font-size: 0.9em; color: #2c3e50;">
+                <strong>💡 Interpretation:</strong> CVEs with more unique strings typically have more complex platform data (multiple vendors, products, or architectures) 
+                requiring comprehensive CPE search coverage. The "Strings/Entry" ratio shows search strategy efficiency.
+                <br><strong>Note:</strong> These metrics track the number of unique search strings queried against the /cpes/ API, not the number of results returned per query.
+            </p>
+        </div>
+        '''
+    else:
+        cpe_breakdown_html = '<p style="color: #6c757d; text-align: center;">No CPE query data available</p>'
+
+    # Generate resource warnings HTML
+    resource_warnings_html = ""
+    total_warnings = sum(resource_warnings.values()) if resource_warnings else 0
+    
+    if total_warnings > 0:
+        resource_warnings_html = f'''
+            <div class="metric-card warning" style="border-left-color: #e67e22;">
+                <div class="metric-title">Resource Warnings</div>
+                <div class="metric-value" style="color: #e67e22;">{total_warnings}</div>
+                <div class="metric-subtitle">
+                    Cache Bloat: {resource_warnings.get("cache_bloat_warnings", 0)}<br>
+                    Memory: {resource_warnings.get("memory_warnings", 0)}<br>
+                    Large Files: {resource_warnings.get("large_file_warnings", 0)}<br>
+                    Global State: {resource_warnings.get("global_state_warnings", 0)}
+                </div>
+            </div>
+        '''
+    else:
+        resource_warnings_html = f'''
+            <div class="metric-card success" style="border-left-color: #27ae60;">
+                <div class="metric-title">Resource Health</div>
+                <div class="metric-value" style="color: #27ae60;">Good</div>
+                <div class="metric-subtitle">No resource warnings detected</div>
+            </div>
+        '''
+    
     # Generate recent activity HTML
     recent_activity_html = ""
     if recent_activity:
@@ -928,13 +1319,19 @@ def generate_dashboard_html(data, output_file):
         total_cpe_queries=format_number(data.get("cpe_query_stats", {}).get("total_cpe_queries", 0)),
         largest_cpe_query=format_number(data.get("cpe_query_stats", {}).get("largest_query_results", 0)),
         largest_cve_query_cve=data.get("cpe_query_stats", {}).get("largest_query_cve", "N/A"),
+        top_result_count=format_number(data.get("cpe_query_stats", {}).get("top_result_queries", [{}])[0].get("result_count", 0) if data.get("cpe_query_stats", {}).get("top_result_queries", []) else 0),
+        top_result_query=(data.get("cpe_query_stats", {}).get("top_result_queries", [{}])[0].get("query_string", "N/A")[:30] + ("..." if len(data.get("cpe_query_stats", {}).get("top_result_queries", [{}])[0].get("query_string", "")) > 30 else "")) if data.get("cpe_query_stats", {}).get("top_result_queries", []) else "N/A",
         info_count=format_number(log_stats.get("info_count", 0)),
         debug_count=format_number(log_stats.get("debug_count", 0)),
         warning_count=format_number(log_stats.get("warning_count", 0)),
         error_count=format_number(log_stats.get("error_count", 0)),
         total_lines=format_number(log_stats.get("total_lines", 0)),
         warning_details=warning_details,
-        error_details=error_details
+        error_details=error_details,
+        resource_warnings_card=resource_warnings_html,
+        stages_progress=stages_html,
+        api_breakdown=api_breakdown_html,
+        cpe_breakdown=cpe_breakdown_html
     )
 
     # Write HTML file

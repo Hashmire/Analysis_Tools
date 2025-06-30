@@ -29,3 +29,5 @@ src/analysis_tool/logs/
 __pycache__/*
 test_files/__pycache__/*
 src/analysis_tool/__pycache__/*
+scripts/__pycache__/generate_local_dashboard.cpython-312.pyc
+scripts/__pycache__/log_analyzer.cpython-312.pyc

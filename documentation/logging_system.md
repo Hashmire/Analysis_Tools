@@ -7,6 +7,7 @@ The CVE Analysis Tool implements a comprehensive, standardized logging and repor
 ## 🎯 Core Design Principles
 
 ### 1. **Terminology Consistency**
+
 All logging messages use standardized terminology to ensure clarity and professional presentation:
 
 - **CVE Data**: "CVE records" (not entries, items, or data)
@@ -15,15 +16,19 @@ All logging messages use standardized terminology to ensure clarity and professi
 - **API References**: Full API names ("NVD CVE API", "MITRE CVE API", "NVD CPE API")
 
 ### 2. **Format Standardization**
+
 All message types follow consistent formatting patterns for easy parsing and professional appearance.
 
 ### 3. **Appropriate Severity Assignment**
+
 Log levels are assigned based on clear criteria to ensure consistent importance classification.
 
 ### 4. **Organized Grouping**
+
 Messages are organized into logical groups for better filtering and analysis.
 
 ### 5. **Comprehensive Coverage**
+
 The system covers all possible operational scenarios including normal operations, error conditions, edge cases, and performance scenarios.
 
 ## 📋 Terminology Standards
@@ -61,18 +66,21 @@ The system covers all possible operational scenarios including normal operations
 ### Progress Reporting Format
 
 **Standard Pattern:**
-```
+
+```text
 Processing {operation}: {current}/{total} ({percentage:.1f}%) - {context_info}
 ```
 
 **Examples:**
-```
+
+```text
 Processing CVE queries: 25/100 (25.0%) - 25 CVE records collected so far
 Processing CPE dataset generation: 150/500 (30.0%) - Collecting page data  
 Processing CVE collection completed: 1000/1000 (100.0%) - All records processed
 ```
 
 **Key Requirements:**
+
 - Operation name starts with "Processing"
 - Current/total format with forward slash
 - Percentage with exactly 1 decimal place in parentheses
@@ -82,18 +90,21 @@ Processing CVE collection completed: 1000/1000 (100.0%) - All records processed
 ### Error Message Format
 
 **Standard Pattern:**
-```
+
+```text
 {Component} {operation} failed: {specific_reason} - {context}
 ```
 
 **Examples:**
-```
+
+```text
 NVD CVE API request failed: Unable to fetch CVE record for CVE-2024-1234 - Connection timeout
 Dataset generation failed: Maximum retry attempts (5) reached for current page - stopping data collection
 HTML conversion failed: Unable to convert CPE query data to HTML at table index 2 - Invalid data format
 ```
 
 **Key Requirements:**
+
 - Component name identifies the failing system/API
 - Operation describes what was being attempted
 - Always includes ": " after "failed"
@@ -103,17 +114,20 @@ HTML conversion failed: Unable to convert CPE query data to HTML at table index 
 ### API Interaction Format
 
 **API Call Pattern:**
-```
+
+```text
 {API_NAME} call: {operation_description}
 ```
 
 **API Response Pattern:**
-```
+
+```text
 {API_NAME} response: {status} [- {additional_info}]
 ```
 
 **Examples:**
-```
+
+```text
 NVD CVE API call: Requesting CVE record for CVE-2024-1234
 MITRE CVE API response: Success - CVE record retrieved
 NVD CPE API response: Error - Invalid CPE match string parameter
@@ -122,13 +136,22 @@ NVD CPE API response: Error - Invalid CPE match string parameter
 ### File Operation Format
 
 **Standard Pattern:**
-```
+
+```text
 {Operation} {file_type}: {file_path}
 ```
 
-**Examples:**
+**Enhanced Pattern (with size information):**
+
+```text
+File Generated: {file_name} (Size: {size} {unit})
 ```
+
+**Examples:**
+
+```text
 Generated HTML file: /path/to/output/CVE-2024-1234.html
+File Generated: CVE-2024-1234.html (Size: 42.5 KB)
 Created dataset file: /path/to/datasets/cve_list.txt
 Loaded configuration file: /path/to/config/config.json
 ```
@@ -138,12 +161,14 @@ Loaded configuration file: /path/to/config/config.json
 ### INFO Level - Workflow Progress & Business Logic
 
 **Use For:**
+
 - Workflow milestones and progress updates
 - Successful completion of operations
 - Business logic flow and decision points
 - User-facing status information
 
 **Examples:**
+
 ```python
 logger.info("Processing 100 CVE records (newest first)...", group="initialization")
 logger.info("CVE data retrieved successfully", group="cve_queries")
@@ -154,12 +179,14 @@ logger.info("Dataset generated successfully!", group="initialization")
 ### DEBUG Level - Technical Details & Diagnostics
 
 **Use For:**
+
 - Technical implementation details
 - Diagnostic information for troubleshooting
 - Internal state information
 - Development and debugging data
 
 **Examples:**
+
 ```python
 logger.debug("Current public IP address: 192.168.1.100", group="cve_queries")
 logger.debug("Collected 150 of 500 CPE names...", group="cpe_queries")
@@ -170,27 +197,31 @@ logger.debug("Platform data serialization completed", group="data_processing")
 ### WARNING Level - Recoverable Issues & Retries
 
 **Use For:**
+
 - Recoverable errors and retry attempts
 - Invalid data that can be skipped
 - Performance or rate limiting notifications
 - Non-critical issues that don't stop execution
 
 **Examples:**
+
 ```python
 logger.warning("Waiting 5 seconds before retry...", group="cve_queries")
 logger.warning("Invalid CPE match string detected, skipping: cpe:*:*", group="cpe_queries")
-logger.warning("Confirmed mappings failed for CVE-2024-1234: Unable to process confirmed mappings", group="badge_generation")
+logger.warning("Confirmed mappings failed for CVE-2024-1234: Unable to process confirmed mappings", group="badge_gen")
 ```
 
 ### ERROR Level - Critical Failures & Blocking Issues
 
 **Use For:**
+
 - Critical failures that prevent operation completion
 - Maximum retry limits reached
 - Data corruption or integrity issues
 - System errors that require intervention
 
 **Examples:**
+
 ```python
 logger.error("NVD CVE API request failed: Maximum retry attempts (3) reached for CVE CVE-2024-1234", group="cve_queries")
 logger.error("Dataset file creation failed: Unable to write dataset output to 'output.txt' - Permission denied", group="initialization")
@@ -208,7 +239,7 @@ logger.error("CVE processing failed for CVE-2024-1234: Unable to complete analys
 | `cpe_queries` | CPE data collection and API calls | CPE API requests/responses, dictionary queries, CPE processing |
 | `unique_cpe` | CPE generation and base string creation | CPE base string generation, uniqueness processing |
 | `data_processing` | Data transformation and validation | Data parsing, validation, transformation operations |
-| `badge_generation` | UI badge and metadata creation | Badge generation, metadata processing, confirmed mappings |
+| `badge_gen` | UI badge and metadata creation | Badge generation, metadata processing, confirmed mappings |
 | `page_generation` | HTML and output file creation | HTML generation, file creation, template processing |
 
 **Note:** All error messages are assigned to the appropriate workflow stage group where the error occurred (e.g., errors during CPE queries use the `cpe_queries` group, initialization errors use the `initialization` group).
@@ -216,6 +247,7 @@ logger.error("CVE processing failed for CVE-2024-1234: Unable to complete analys
 ### Group Usage Guidelines
 
 **Single Group Per Message:**
+
 ```python
 # ✅ Correct - One specific group
 logger.info("Processing CVE queries completed", group="cve_queries")
@@ -225,6 +257,7 @@ logger.info("Processing CVE queries completed", group="general")
 ```
 
 **Context-Appropriate Grouping:**
+
 ```python
 # ✅ Correct - Error assigned to appropriate workflow group
 logger.error("NVD CPE API request failed: Connection timeout", group="cpe_queries")
@@ -242,6 +275,7 @@ logger.error("Configuration file not found", group="initialization")
 **Purpose:** Log structured data summaries with key-value pairs
 
 **Usage:**
+
 ```python
 logger.data_summary("CPE Generation Results", group="unique_cpe", 
                    **{"Affected Array Entries Processed": 25, 
@@ -255,6 +289,7 @@ logger.data_summary("CPE Generation Results", group="unique_cpe",
 **Purpose:** Log outgoing API requests with parameters
 
 **Usage:**
+
 ```python
 logger.api_call("NVD CVE API", {"cve_id": "CVE-2024-1234"}, group="cve_queries")
 ```
@@ -266,6 +301,7 @@ logger.api_call("NVD CVE API", {"cve_id": "CVE-2024-1234"}, group="cve_queries")
 **Purpose:** Log API response status and results
 
 **Usage:**
+
 ```python
 logger.api_response("MITRE CVE API", "Success", group="cve_queries")
 logger.api_response("NVD CPE API", "Error - Invalid parameter", group="cpe_queries")
@@ -278,14 +314,13 @@ logger.api_response("NVD CPE API", "Error - Invalid parameter", group="cpe_queri
 **Purpose:** Log file system operations
 
 **Usage:**
+
 ```python
 logger.file_operation("Generated", "/path/to/output.html", group="page_generation")
 logger.file_operation("Loaded", "/path/to/config.json", group="initialization")
 ```
 
 ## 📁 File Logging System
-
-### Overview
 
 The logging system includes comprehensive file logging capabilities that automatically save all terminal output to dated log files for audit trails and analysis.
 
@@ -303,6 +338,7 @@ The logging system includes comprehensive file logging capabilities that automat
 Log files follow the pattern: `YYYY.MM.DD_<parameter>.log`
 
 **Examples:**
+
 - Single CVE: `2025.06.25_CVE-2024-1234.log`
 - Test file run: `2025.06.25_testExamples.log`
 - Custom dataset: `2025.06.25_custom_dataset.log`
@@ -325,7 +361,7 @@ logger.stop_file_logging()
 
 Each log file contains:
 
-```
+```text
 # ==================================================
 # Analysis Tool Log File
 # Started: 2025-06-25 14:29:01
@@ -421,25 +457,29 @@ The logging system includes extensive automated testing that validates every asp
 
 #### Test Categories
 
-**1. Terminology Standardization Tests (4 tests)**
+**1. Terminology Standardization Tests (4 tests)**  
+
 - CPE terminology validation (CPE names, match strings, base strings)
 - CVE terminology validation (CVE records, collection terminology)
 - Collection and discovery terminology consistency
 - API reference terminology standardization
 
-**2. Format Compliance Tests (4 tests)**
+**2. Format Compliance Tests (4 tests)**  
+
 - Progress message format validation (Processing X: current/total %)
 - Completion message format verification (X completed: Y in Z seconds)
 - Error message format compliance (X failed: reason - context)
 - Warning message format structure validation
 
-**3. Log Level Appropriateness Tests (4 tests)**
+**3. Log Level Appropriateness Tests (4 tests)**  
+
 - INFO level usage for workflow progress and status updates
 - DEBUG level usage for diagnostic and troubleshooting information
 - WARNING level usage for recoverable issues and non-critical problems
 - ERROR level usage for critical failures and unrecoverable errors
 
-**4. Log Group Organization Tests (17 tests)**
+**4. Log Group Organization Tests (17 tests)**  
+
 - CVE queries group usage and message classification
 - CPE queries group usage and API operation logging
 - Unique CPE group usage for base string generation
@@ -451,7 +491,8 @@ The logging system includes extensive automated testing that validates every asp
 - Performance and timing logging patterns
 - Batch processing and specialized edge cases
 
-**5. Audit Boundary Enforcement Tests (24 tests)**
+**5. Audit Boundary Enforcement Tests (24 tests)**  
+
 - Group boundary containment verification
 - Event classification and proper group assignment
 - Audit trail traceability and event correlation
@@ -463,6 +504,7 @@ The logging system includes extensive automated testing that validates every asp
 ### Test Execution
 
 #### Comprehensive Test Suite
+
 ```bash
 # Run complete consolidated test suite (53 test cases)
 python test_files/test_logging_system.py
@@ -476,6 +518,7 @@ python test_files/test_logging_system.py
 ```
 
 #### Master Test Runner
+
 ```bash
 # Run all logging tests via master runner
 python test_files/run_all_logging_tests.py
@@ -500,17 +543,20 @@ python test_files/run_all_logging_tests.py
 ### Message Format Patterns
 
 **Progress Messages:**
-```
+
+```text
 Processing {operation}: {current}/{total} ({percentage:.1f}%) - {context}
 ```
 
 **Error Messages:**
-```
+
+```text
 {Component} {operation} failed: {specific_reason} - {context}
 ```
 
 **API Calls:**
-```
+
+```text
 {API_NAME} call: {operation_description}
 {API_NAME} response: {status}
 ```
@@ -533,7 +579,7 @@ Processing {operation}: {current}/{total} ({percentage:.1f}%) - {context}
 | `cpe_queries` | CPE API calls, dictionary queries |
 | `unique_cpe` | CPE generation, base strings |
 | `data_processing` | Data transformation, validation |
-| `badge_generation` | UI badges, metadata, mappings |
+| `badge_gen` | UI badges, metadata, mappings |
 | `page_generation` | HTML generation, file creation |
 
 **Note:** Error messages should be assigned to the appropriate workflow stage group where the error occurred.
@@ -548,6 +594,7 @@ The system enforces strict audit boundaries:
 - ✅ **Event isolation** - Groups maintain proper separation
 
 **Proper Workflow Boundaries:**
+
 ```python
 # ✅ Contained within stage boundaries
 logger.stage_start("CVE Data Collection", group="cve_queries")
@@ -578,7 +625,6 @@ logger.file_operation("Generated", "/path/to/CVE-2024-1234.html", group="page_ge
 The test suite validates:
 
 - ✅ **60+ test cases** covering all logging scenarios
-- ✅ **100% terminology compliance** 
 - ✅ **Format standardization** across all message types
 - ✅ **Appropriate severity assignment** for all conditions
 - ✅ **Correct group organization** for all operations

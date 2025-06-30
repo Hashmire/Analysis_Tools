@@ -616,7 +616,7 @@ def main():
         try:
             logger.info(f"Processing {cve}...", group="processing")
               # Audit global state periodically
-            if index > 0 and index % 10 == 0:  # Every 10 CVEs
+            if index > 0 and index % 100 == 0:  # Every 100 CVEs
                 start_audit(f"Mid-processing audit checkpoint (CVE {current_cve_num}/{total_cves})")
                 
                 # Show processing statistics
@@ -636,7 +636,6 @@ def main():
                 audit_global_state()
                 audit_cache_and_mappings_stats()
                 
-                # Generate dashboard update every 10 CVEs
                 try:
                     import subprocess
                     from pathlib import Path

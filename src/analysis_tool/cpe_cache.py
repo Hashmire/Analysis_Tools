@@ -178,7 +178,10 @@ class CPECache:
         self.session_stats['api_calls_saved'] += 1
         self.metadata['hit_count'] += 1
         self.metadata['api_calls_saved'] += 1
-        logger.debug(f"Cache hit for CPE: {cpe_string} - NVD CPE API call avoided", group="cpe_queries")
+        
+        # Log cache hit with result count for dashboard tracking
+        result_count = entry['query_response'].get('totalResults', 0)
+        logger.debug(f"Cache hit for CPE: {cpe_string} - NVD CPE API call avoided ({result_count} results)", group="cpe_queries")
         
         return entry['query_response'], 'hit'
         

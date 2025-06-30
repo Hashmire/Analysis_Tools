@@ -17,6 +17,8 @@ class LogAnalyzer:
         self.log_directory = log_directory
         self.data = {}
         self.current_processing_cve = None  # Track current CVE being processed
+        self.all_log_messages = []  # Store all log messages for additional analysis
+        self.current_cpe_query_string = None  # Track current CPE query string for result association
         
     def find_latest_log(self):
         """Find the most recent log file"""
@@ -76,7 +78,8 @@ class LogAnalyzer:
                 "mitre_cve_calls": 0,
                 "nvd_cpe_calls": 0,
                 "successful_calls": 0,
-                "failed_calls": 0
+                "failed_calls": 0,
+                "call_breakdown": {}  # Added for detailed API call categorization
             },
             "log_stats": {
                 "total_lines": len(lines),
@@ -104,31 +107,39 @@ class LogAnalyzer:
             },
             "mapping_stats": {
                 "total_mappings_found": 0,
-                "cves_with_mappings": 0,
+                "platform_entries_with_mappings": 0,
                 "mapping_percentage": 0,
                 "largest_mapping_count": 0,
                 "largest_mapping_cve": ""
             },
             "cpe_query_stats": {
-                "total_cpe_queries": 0,
-                "largest_query_results": 0,
-                "largest_query_cve": "",
+                "total_cpe_queries": 0,        # Cumulative count of CPE queries across all CVEs processed
+                "largest_query_results": 0,    # Highest number of unique CPE strings generated for a single CVE
+                "largest_query_cve": "",       # CVE ID that had the largest number of unique CPE strings
                 "largest_query_time": 0,
                 "total_cpe_results": 0,
                 "average_results_per_query": 0,
                 "total_query_time": 0,
-                "average_query_time": 0
+                "average_query_time": 0,
+                "top_queries": [],             # List of top 10 largest queries with detailed stats (by unique strings)
+                "top_result_queries": []       # List of top 10 individual queries by result count (NEW)
             },
             "recent_activity": [],
             "errors": [],
             "warnings": [],
             "stages": {
-                "initialization": {"started": False, "completed": False},
-                "cve_queries": {"started": False, "completed": False},
-                "unique_cpe": {"started": False, "completed": False},
-                "cpe_queries": {"started": False, "completed": False},
-                "confirmed_mappings": {"started": False, "completed": False},
-                "page_generation": {"started": False, "completed": False}
+                "initialization": {"started": None, "completed": None, "duration": 0, "status": "not_started"},
+                "cve_queries": {"started": None, "completed": None, "duration": 0, "status": "not_started"},
+                "unique_cpe": {"started": None, "completed": None, "duration": 0, "status": "not_started"},
+                "cpe_queries": {"started": None, "completed": None, "duration": 0, "status": "not_started"},
+                "confirmed_mappings": {"started": None, "completed": None, "duration": 0, "status": "not_started"},
+                "page_generation": {"started": None, "completed": None, "duration": 0, "status": "not_started"}
+            },
+            "resource_warnings": {
+                "cache_bloat_warnings": 0,
+                "memory_warnings": 0,
+                "large_file_warnings": 0,
+                "global_state_warnings": 0
             }
         }
         
@@ -139,17 +150,64 @@ class LogAnalyzer:
     
     def _parse_lines(self, lines):
         """Parse individual log lines"""
+        # Clear previous log messages
+        self.all_log_messages = []
+        
+        # Track actual log start and end times from headers
+        log_start_time = None
+        log_end_time = None
+        
         for line_num, line in enumerate(lines, 1):
             line = line.strip()
+            
+            # Parse log header information
+            if line.startswith('# Started:'):
+                start_match = re.search(r'# Started: (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
+                if start_match:
+                    try:
+                        log_start_time = datetime.strptime(start_match.group(1), '%Y-%m-%d %H:%M:%S')
+                        self.data["processing"]["log_start_time"] = log_start_time.isoformat()
+                    except ValueError:
+                        pass
+                continue
+            
+            # Parse log completion information  
+            if line.startswith('# Completed:'):
+                end_match = re.search(r'# Completed: (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', line)
+                if end_match:
+                    try:
+                        log_end_time = datetime.strptime(end_match.group(1), '%Y-%m-%d %H:%M:%S')
+                        self.data["processing"]["log_end_time"] = log_end_time.isoformat()
+                    except ValueError:
+                        pass
+                continue
+            
             if not line or line.startswith('#'):
                 continue
                 
-            # Extract timestamp and log level
+            # Check for banner lines first (workflow stages)
+            banner_match = re.match(r'\[([^\]]+)\]\s*===\s*(Starting|Completed)\s+([^-]+)\s*-\s*(.*)\s*===', line)
+            if banner_match:
+                timestamp_str, action, stage_name, description = banner_match.groups()
+                try:
+                    timestamp = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    continue
+                
+                # Parse workflow stage performance using existing logic
+                full_message = f"{action} {stage_name.strip()}"
+                self._parse_stage_performance(action, stage_name.strip(), timestamp_str, timestamp)
+                continue
+                
+            # Extract timestamp and log level for regular lines
             timestamp_match = re.match(r'\[([^\]]+)\]\s*\[([^\]]+)\]\s*(.*)', line)
             if not timestamp_match:
                 continue
                 
             timestamp_str, level, message = timestamp_match.groups()
+            
+            # Store all log messages for additional analysis
+            self.all_log_messages.append(message)
             
             try:
                 timestamp = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
@@ -178,6 +236,12 @@ class LogAnalyzer:
             # Parse specific message types
             self._parse_message(timestamp, level, message)
     
+    def _extract_timestamp(self, message):
+        """Extract timestamp from a log message"""
+        # This will extract from the message context, but we might already have it
+        # For now, return None as we'll get timestamp from the calling context
+        return None
+    
     def _parse_message(self, timestamp, level, message):
         """Parse specific message types for metrics"""
         
@@ -203,7 +267,7 @@ class LogAnalyzer:
             self.data["processing"]["remaining_cves"] = int(total_num) - int(current_num)
         
         # Processing time for individual CVEs
-        time_match = re.search(r'Successfully processed ([^)]+) in ([\d.]+)s', message)
+        time_match = re.search(r'Successfully processed ([^\s]+) in ([\d.]+)s', message)
         if time_match:
             cve_id, time_str = time_match.groups()
             processing_time = float(time_str)
@@ -237,10 +301,12 @@ class LogAnalyzer:
         cache_session_match = re.search(r'CPE cache: (\d+)/(\d+) session hits \(([\d.]+)%\)', message)
         if cache_session_match:
             hits, total, hit_rate = cache_session_match.groups()
-            self.data["cache"]["cache_hits"] = int(hits)
-            self.data["cache"]["cache_misses"] = int(total) - int(hits)
-            self.data["cache"]["hit_rate"] = float(hit_rate)
-            self.data["cache"]["api_calls_saved"] = int(hits)
+            # Only use session stats if there was actual cache activity
+            if int(hits) > 0 or int(total) > 0:
+                self.data["cache"]["cache_hits"] = int(hits)
+                self.data["cache"]["cache_misses"] = int(total) - int(hits)
+                self.data["cache"]["hit_rate"] = float(hit_rate)
+                self.data["cache"]["api_calls_saved"] = int(hits)
         
         # Cache lifetime statistics  
         cache_lifetime_match = re.search(r'CPE cache lifetime: ([\d.]+)% hit rate, (\d+) API calls saved', message)
@@ -271,17 +337,20 @@ class LogAnalyzer:
             session_hit_rate = float(cache_session_match.group(4))
             new_entries = int(cache_session_match.group(5))
             
-            # Update with authoritative session stats
-            self.data["cache"]["cache_hits"] = session_hits
-            self.data["cache"]["cache_misses"] = session_misses + session_expired
-            self.data["cache"]["hit_rate"] = session_hit_rate
-            self.data["cache"]["new_entries"] = new_entries
+            # Only update with session stats if there was actual activity
+            if session_hits > 0 or session_misses > 0 or session_expired > 0:
+                # Update with authoritative session stats
+                self.data["cache"]["cache_hits"] = session_hits
+                self.data["cache"]["cache_misses"] = session_misses + session_expired
+                self.data["cache"]["hit_rate"] = session_hit_rate
+                self.data["cache"]["new_entries"] = new_entries
         elif cache_hit_match:
             self.data["cache"]["cache_hits"] += 1
         elif cache_miss_match or cache_expired_match:
             self.data["cache"]["cache_misses"] += 1
         
         # Updated CPE completion pattern for new format
+        # This captures the summary line for each CVE's CPE query processing
         cpe_completion_match = re.search(r'CPE queries completed: (\d+) total queries \((\d+) cache hits, (\d+) API calls, ([\d.]+)% cache hit rate\)', message)
         if cpe_completion_match:
             total_queries = int(cpe_completion_match.group(1))
@@ -289,10 +358,11 @@ class LogAnalyzer:
             api_calls_summary = int(cpe_completion_match.group(3))
             hit_rate = float(cpe_completion_match.group(4))
             
-            # Use this summary to validate and update our CPE query stats
-            self.data["cpe_query_stats"]["total_cpe_queries"] = total_queries
-            # Update cache stats with the authoritative summary
-            self.data["cache"]["cache_hits"] = cache_hits_summary
+            # Accumulate CPE query stats instead of overwriting (each CVE has its own completion message)
+            self.data["cpe_query_stats"]["total_cpe_queries"] += total_queries
+            # Accumulate cache stats as well
+            self.data["cache"]["cache_hits"] += cache_hits_summary
+            # Keep the most recent hit rate (or we could calculate a weighted average)
             self.data["cache"]["hit_rate"] = hit_rate
         
         # Parse cache lifetime statistics
@@ -302,14 +372,28 @@ class LogAnalyzer:
             self.data["cache"]["hit_rate"] = float(hit_rate)
             self.data["cache"]["api_calls_saved"] = int(calls_saved)
         
-        # API calls
-        if "API Call:" in message:
+        # API calls - Updated to match real log patterns
+        if "API Call:" in message or "API call:" in message:
             self.data["api"]["total_calls"] += 1
-            if "NVD CVE API" in message:
+            # Don't assume success here - wait for actual response
+            if "NVD CVE API" in message or "NVD CVE lookup" in message:
                 self.data["api"]["nvd_cve_calls"] += 1
             elif "MITRE CVE API" in message:
                 self.data["api"]["mitre_cve_calls"] += 1
-            elif "NVD CPE API" in message:
+            elif ("NVD CPE API" in message or "NVD CPE search" in message or 
+                  "NVD CPE validation" in message):
+                self.data["api"]["nvd_cpe_calls"] += 1
+        
+        # Failed API calls
+        if "API call failed:" in message or "API Call failed:" in message:
+            self.data["api"]["total_calls"] += 1
+            self.data["api"]["failed_calls"] += 1
+            if "NVD CVE API" in message or "NVD CVE lookup" in message:
+                self.data["api"]["nvd_cve_calls"] += 1
+            elif "MITRE CVE API" in message:
+                self.data["api"]["mitre_cve_calls"] += 1
+            elif ("NVD CPE API" in message or "NVD CPE search" in message or 
+                  "NVD CPE validation" in message):
                 self.data["api"]["nvd_cpe_calls"] += 1
         
         # API responses
@@ -344,7 +428,7 @@ class LogAnalyzer:
             })
         
         # Mapping statistics tracking - use only the final summary to avoid double-counting
-        mapping_stats_match = re.search(r'Confirmed mappings statistics: (\d+)/(\d+) entries \(([\d.]+)% hit rate\), (\d+) total mappings found', message)
+        mapping_stats_match = re.search(r'Confirmed mappings statistics: (\d+)/(\d+) platform entries \(([\d.]+)% hit rate\), (\d+) total mappings found', message)
         
         if mapping_stats_match:
             # Parse the final statistics summary - use this as the authoritative source
@@ -356,7 +440,7 @@ class LogAnalyzer:
             # Use the authoritative hit rate from the log message - don't recalculate
             # This ensures we never exceed 100% due to double-counting
             self.data["mapping_stats"]["mapping_percentage"] = hit_rate
-            self.data["mapping_stats"]["cves_with_mappings"] = successful_mappings
+            self.data["mapping_stats"]["platform_entries_with_mappings"] = successful_mappings
             self.data["mapping_stats"]["total_mappings_found"] = total_mappings
             
             # Validate the percentage is reasonable (should never exceed 100%)
@@ -369,6 +453,34 @@ class LogAnalyzer:
         # Remove individual mapping tracking to prevent accumulation issues
         # mapping_found_match = re.search(r'Found (\d+) confirmed mappings for (CVE-\d{4}-\d+)', message)
         # mapping_platform_match = re.search(r'Found (\d+) confirmed mappings for platform entry (\d+)', message)
+        
+        # CPE Generation Results pattern - extracts unique CPE strings identified
+        cpe_generation_match = re.search(r'\[CPE Generation Results\]: Affected Array Entries Processed=(\d+), Unique Match Strings Identified=(\d+)', message)
+        if cpe_generation_match:
+            affected_entries = int(cpe_generation_match.group(1))
+            unique_strings = int(cpe_generation_match.group(2))
+            
+            # Track detailed query information for this CVE
+            if self.current_processing_cve:
+                query_info = {
+                    "cve_id": self.current_processing_cve,
+                    "unique_strings": unique_strings,
+                    "affected_entries": affected_entries,
+                    "strings_per_entry": round(unique_strings / affected_entries, 2) if affected_entries > 0 else 0,
+                    "timestamp": timestamp.strftime('%Y-%m-%d %H:%M:%S') if timestamp else "Unknown"
+                }
+                
+                # Add to top queries list and maintain top 10
+                self.data["cpe_query_stats"]["top_queries"].append(query_info)
+                # Sort by unique_strings descending and keep top 10
+                self.data["cpe_query_stats"]["top_queries"].sort(key=lambda x: x["unique_strings"], reverse=True)
+                self.data["cpe_query_stats"]["top_queries"] = self.data["cpe_query_stats"]["top_queries"][:10]
+            
+            # Track the unique strings identified for this CVE
+            if unique_strings > self.data["cpe_query_stats"]["largest_query_results"]:
+                self.data["cpe_query_stats"]["largest_query_results"] = unique_strings
+                if self.current_processing_cve:
+                    self.data["cpe_query_stats"]["largest_query_cve"] = self.current_processing_cve
         
         # CPE Query statistics tracking
         cpe_query_match = re.search(r'Processing CPE collections: Found (\d+) total results', message)
@@ -395,37 +507,110 @@ class LogAnalyzer:
             if query_time > self.data["cpe_query_stats"]["largest_query_time"]:
                 self.data["cpe_query_stats"]["largest_query_time"] = query_time
         
+        # NEW: Track individual CPE API query results
+        # First, check for CPE API calls to capture the query string
+        cpe_api_call_match = re.search(r"API Call: NVD CPE API with params: \{'cpe_match_string': '([^']+)'", message)
+        if cpe_api_call_match:
+            self.current_cpe_query_string = cpe_api_call_match.group(1)
+        
+        # Also capture query strings from cache hit messages
+        cache_hit_match = re.search(r'Cache hit for CPE: ([^-]+) - NVD CPE API call avoided', message)
+        if cache_hit_match:
+            self.current_cpe_query_string = cache_hit_match.group(1).strip()
+        
+        # Track CPE query results from multiple sources:
+        # 1. API Response pattern: "API Response: NVD CPE API - Success (X results)"
+        cpe_api_result_match = re.search(r'API Response: NVD CPE API - Success \((\d+) results\)', message)
+        
+        # 2. Cache hit with result count: "Cache hit for CPE: [query] - NVD CPE API call avoided (X results)"
+        cache_hit_result_match = re.search(r'Cache hit for CPE: ([^-]+) - NVD CPE API call avoided \((\d+) results\)', message)
+        
+        # 3. Processing results pattern: "Processing X CPE query results for table Y"
+        # 4. Skipping deprecated pattern: "Skipping cpe:2.3:... - all X results deprecated"
+        cpe_processing_match = re.search(r'Processing (\d+) CPE query results for table \d+', message)
+        cpe_deprecated_match = re.search(r'Skipping ([^-]+) - all (\d+) results deprecated', message)
+        
+        result_count = None
+        query_string = None
+        
+        if cpe_api_result_match:
+            result_count = int(cpe_api_result_match.group(1))
+            query_string = self.current_cpe_query_string
+        elif cache_hit_result_match:
+            result_count = int(cache_hit_result_match.group(2))
+            query_string = cache_hit_result_match.group(1).strip()
+        elif cpe_processing_match:
+            result_count = int(cpe_processing_match.group(1))
+            query_string = self.current_cpe_query_string
+        elif cpe_deprecated_match:
+            result_count = int(cpe_deprecated_match.group(2))
+            query_string = cpe_deprecated_match.group(1).strip()
+        
+        if result_count is not None:
+            # Determine the source of this result
+            source = "unknown"
+            if cpe_api_result_match:
+                source = "api"
+            elif cache_hit_result_match:
+                source = "cache"
+            elif cpe_processing_match or cpe_deprecated_match:
+                source = "cache"  # Processing results come from cached data
+            
+            # Store individual query result information
+            result_info = {
+                "result_count": result_count,
+                "query_string": query_string or "Unknown",
+                "cve_id": self.current_processing_cve or "Unknown",
+                "source": source,
+                "timestamp": timestamp.strftime('%Y-%m-%d %H:%M:%S') if timestamp else "Unknown"
+            }
+            
+            # Add to top result queries list and maintain top 10
+            self.data["cpe_query_stats"]["top_result_queries"].append(result_info)
+            # Sort by result_count descending and keep top 10
+            self.data["cpe_query_stats"]["top_result_queries"].sort(key=lambda x: x["result_count"], reverse=True)
+            self.data["cpe_query_stats"]["top_result_queries"] = self.data["cpe_query_stats"]["top_result_queries"][:10]
+        
         # File generation tracking
-        file_generated_match = re.search(r'File Generated: (.+\.html)$', message)
+        file_generated_match = re.search(r'File Generated: (.+\.html)', message)
+        file_size_audit_match = re.search(r'File size normal: ([^(]+) \(([\d.]+)(KB|MB|GB)\)', message)
+        
+        # File generation tracking
+        file_generated_match = re.search(r'File Generated: (.+\.html)(?:\s*\(Size:\s*([\d.]+)\s*(KB|MB|GB)\))?', message)
         file_size_audit_match = re.search(r'File size normal: ([^(]+) \(([\d.]+)(KB|MB|GB)\)', message)
         
         if file_generated_match:
-            file_path = file_generated_match.group(1)
-            file_name = os.path.basename(file_path)
-            
             # Count the file generation
             self.data["file_stats"]["files_generated"] += 1
             
-            # Try to get file size if the file exists
-            try:
-                file_size = os.path.getsize(file_path)
+            # If size is provided in the message, use it
+            if file_generated_match.group(2):  # Size value exists
+                size_str = file_generated_match.group(2)
+                unit = file_generated_match.group(3)
+                
+                # Convert size to bytes
+                size_value = float(size_str)
+                if unit == 'KB':
+                    file_size = int(size_value * 1024)
+                elif unit == 'MB':
+                    file_size = int(size_value * 1024 * 1024)
+                elif unit == 'GB':
+                    file_size = int(size_value * 1024 * 1024 * 1024)
+                else:
+                    file_size = int(size_value)  # Assume bytes
+                
+                # Update file size statistics
                 self.data["file_stats"]["total_file_size"] += file_size
                 
-                # Track largest file
+                if self.data["file_stats"]["smallest_file_size"] is None or file_size < self.data["file_stats"]["smallest_file_size"]:
+                    self.data["file_stats"]["smallest_file_size"] = file_size
+                    self.data["file_stats"]["smallest_file_name"] = file_generated_match.group(1)
+                
                 if file_size > self.data["file_stats"]["largest_file_size"]:
                     self.data["file_stats"]["largest_file_size"] = file_size
-                    self.data["file_stats"]["largest_file_name"] = file_name
-                
-                # Track smallest file
-                if (self.data["file_stats"]["smallest_file_size"] is None or 
-                    file_size < self.data["file_stats"]["smallest_file_size"]):
-                    self.data["file_stats"]["smallest_file_size"] = file_size
-                    self.data["file_stats"]["smallest_file_name"] = file_name
-            except (OSError, FileNotFoundError):
-                # File doesn't exist yet, skip size tracking for now
-                pass
+                    self.data["file_stats"]["largest_file_name"] = file_generated_match.group(1)
         elif file_size_audit_match:
-            # Parse file size audit messages - only update size info, don't count files again
+            # Parse file size audit messages - this is our authoritative source for file sizes
             file_name, size_str, unit = file_size_audit_match.groups()
             file_name = file_name.strip()
             
@@ -440,17 +625,8 @@ class LogAnalyzer:
             else:
                 file_size = int(size_value)  # Assume bytes if no unit
             
-            # Only update size information, don't count files again
-            # Track largest file
-            if file_size > self.data["file_stats"]["largest_file_size"]:
-                self.data["file_stats"]["largest_file_size"] = file_size
-                self.data["file_stats"]["largest_file_name"] = file_name
-            
-            # Track smallest file
-            if (self.data["file_stats"]["smallest_file_size"] is None or 
-                file_size < self.data["file_stats"]["smallest_file_size"]):
-                self.data["file_stats"]["smallest_file_size"] = file_size
-                self.data["file_stats"]["smallest_file_name"] = file_name
+            # Add to total file size
+            self.data["file_stats"]["total_file_size"] += file_size
             
             # Track largest file
             if file_size > self.data["file_stats"]["largest_file_size"]:
@@ -463,22 +639,157 @@ class LogAnalyzer:
                 self.data["file_stats"]["smallest_file_size"] = file_size
                 self.data["file_stats"]["smallest_file_name"] = file_name
         
-        # Stage tracking
-        stage_patterns = {
-            "initialization": r"Starting Initialization|Completed Initialization",
-            "cve_queries": r"Starting CVE Queries|Completed CVE Queries",
-            "unique_cpe": r"Starting Unique CPE Generation|Completed Unique CPE Generation", 
-            "cpe_queries": r"Starting CPE Queries|Completed CPE Queries",
-            "confirmed_mappings": r"Starting Confirmed Mappings|Completed Confirmed Mappings",
-            "page_generation": r"Starting Page Generation|Completed Page Generation"
+        # Resource warning tracking
+        resource_warning_patterns = {
+            "cache_bloat": r"Global state bloat detected.*Large CPE cache",
+            "memory_warning": r"Memory warning|Low memory|Memory usage high", 
+            "large_file": r"File size (warning|large|excessive)",
+            "global_state": r"Global state bloat|Global state warning"
         }
         
-        for stage, pattern in stage_patterns.items():
-            if re.search(pattern, message):
-                if "Starting" in message:
-                    self.data["stages"][stage]["started"] = True
-                elif "Completed" in message:
-                    self.data["stages"][stage]["completed"] = True
+        for warning_type, pattern in resource_warning_patterns.items():
+            if re.search(pattern, message, re.IGNORECASE):
+                if warning_type == "cache_bloat":
+                    self.data["resource_warnings"]["cache_bloat_warnings"] += 1
+                elif warning_type == "memory_warning":
+                    self.data["resource_warnings"]["memory_warnings"] += 1
+                elif warning_type == "large_file":
+                    self.data["resource_warnings"]["large_file_warnings"] += 1
+                elif warning_type == "global_state":
+                    self.data["resource_warnings"]["global_state_warnings"] += 1
+    
+    def _parse_stage_performance(self, action, stage_name, timestamp_str, timestamp_obj):
+        """Parse workflow stage performance information"""
+        # Map stage names to our data structure keys
+        stage_map = {
+            "Initialization": "initialization",
+            "CVE Queries": "cve_queries",
+            "Unique CPE Generation": "unique_cpe",
+            "CPE Queries": "cpe_queries", 
+            "Confirmed Mappings": "confirmed_mappings",
+            "Page Generation": "page_generation"
+        }
+        
+        stage_key = stage_map.get(stage_name)
+        if not stage_key:
+            return
+            
+        stage_data = self.data["stages"][stage_key]
+        
+        if action == "Starting":
+            stage_data["started"] = timestamp_str
+            stage_data["status"] = "in_progress"
+        elif action == "Completed":
+            stage_data["completed"] = timestamp_str
+            stage_data["status"] = "completed"
+            
+            # Calculate duration if we have both start and end times
+            if stage_data["started"]:
+                try:
+                    start_time = datetime.strptime(stage_data["started"], '%Y-%m-%d %H:%M:%S')
+                    duration = (timestamp_obj - start_time).total_seconds()
+                    stage_data["duration"] = round(duration, 2)
+                except ValueError:
+                    pass
+    
+    def _analyze_stage_performance(self):
+        """Analyze stage performance and identify bottlenecks"""
+        stages = self.data["stages"]
+        
+        # Calculate total workflow time and identify bottlenecks
+        completed_durations = []
+        longest_stage = {"name": "", "duration": 0}
+        incomplete_stages = []
+        
+        for stage_name, stage_data in stages.items():
+            if stage_data["status"] == "completed":
+                completed_durations.append(stage_data["duration"])
+                if stage_data["duration"] > longest_stage["duration"]:
+                    longest_stage = {"name": stage_name, "duration": stage_data["duration"]}
+            elif stage_data["status"] == "in_progress":
+                incomplete_stages.append(stage_name)
+        
+        # Add performance summary to data
+        if not hasattr(self.data, "stage_analysis"):
+            self.data["stage_analysis"] = {}
+            
+        self.data["stage_analysis"] = {
+            "total_stages": len(stages),
+            "completed_stages": len(completed_durations),
+            "incomplete_stages": len(incomplete_stages),
+            "total_workflow_time": round(sum(completed_durations), 2),
+            "average_stage_time": round(sum(completed_durations) / len(completed_durations), 2) if completed_durations else 0,
+            "longest_stage": longest_stage,
+            "incomplete_stage_list": incomplete_stages,
+            "stage_efficiency": round((len(completed_durations) / len(stages)) * 100, 1) if stages else 0
+        }
+        
+        # Set status for stages that started but never completed 
+        for stage_name, stage_data in stages.items():
+            if stage_data["started"] and not stage_data["completed"]:
+                stage_data["status"] = "incomplete"
+    
+    def _calculate_dashboard_metrics(self):
+        """Calculate additional metrics needed for dashboard validation"""
+        
+        # Mapping success rate calculation
+        if self.data["processing"]["processed_cves"] > 0:
+            # Try to extract mapping success rate from confirmed mappings log messages
+            # Look for patterns like "Found X confirmed mappings" vs total processed
+            mapping_entries = 0
+            entries_with_mappings = 0
+            
+            # Count confirmed mapping statistics from logs if available
+            for message in self.all_log_messages:
+                if "confirmed mappings statistics:" in message.lower():
+                    # Extract hit rate from pattern like "5/10 platform entries (50.0% hit rate)"
+                    import re
+                    match = re.search(r'(\d+)/(\d+) platform entries \((\d+\.?\d*)% hit rate\)', message)
+                    if match:
+                        entries_with_mappings = int(match.group(1))
+                        total_entries = int(match.group(2))
+                        hit_rate = float(match.group(3))
+                        # Store in processing data
+                        self.data["processing"]["mapping_success_rate"] = hit_rate
+                        break
+            
+            # If no mapping statistics found in logs, set default
+            if "mapping_success_rate" not in self.data["processing"]:
+                self.data["processing"]["mapping_success_rate"] = 0
+        
+        # Average processing speed (CVEs per hour)
+        if (self.data["performance"]["total_runtime"] > 0 and 
+            self.data["processing"]["processed_cves"] > 0):
+            runtime_hours = self.data["performance"]["total_runtime"] / 3600
+            self.data["processing"]["avg_processing_speed"] = self.data["processing"]["processed_cves"] / runtime_hours
+        else:
+            self.data["processing"]["avg_processing_speed"] = 0
+        
+        # API call breakdown - categorize API calls by type
+        call_breakdown = {}
+        for message in self.all_log_messages:
+            if "API call:" in message:
+                # Extract API call type
+                if "NVD CPE search" in message:
+                    call_breakdown["nvd_cpe_search"] = call_breakdown.get("nvd_cpe_search", 0) + 1
+                elif "NVD CVE lookup" in message:
+                    call_breakdown["nvd_cve_lookup"] = call_breakdown.get("nvd_cve_lookup", 0) + 1
+                elif "NVD CPE validation" in message:
+                    call_breakdown["nvd_cpe_validation"] = call_breakdown.get("nvd_cpe_validation", 0) + 1
+                elif "NVD source data" in message:
+                    call_breakdown["nvd_source_data"] = call_breakdown.get("nvd_source_data", 0) + 1
+                elif "NVD rate limit" in message:
+                    call_breakdown["nvd_rate_limit"] = call_breakdown.get("nvd_rate_limit", 0) + 1
+                else:
+                    call_breakdown["other"] = call_breakdown.get("other", 0) + 1
+        
+        self.data["api"]["call_breakdown"] = call_breakdown
+        
+        # Ensure all required metrics exist with defaults
+        if "mapping_success_rate" not in self.data["processing"]:
+            self.data["processing"]["mapping_success_rate"] = 0
+        if "avg_processing_speed" not in self.data["processing"]:
+            self.data["processing"]["avg_processing_speed"] = 0
     
     def _calculate_derived_metrics(self):
         """Calculate derived metrics from parsed data"""
@@ -494,18 +805,52 @@ class LogAnalyzer:
                 self.data["cache"]["hit_rate"] = (self.data["cache"]["cache_hits"] / total_cache_ops) * 100
                 self.data["cache"]["api_calls_saved"] = self.data["cache"]["cache_hits"]
         
-        # Processing rate and runtime - use actual processing times, not wall clock time
-        if self.data["performance"]["processing_times"]:
-            # Use sum of actual processing times for accurate runtime
+        # Add total_requests field for dashboard validation
+        self.data["cache"]["total_requests"] = self.data["cache"]["cache_hits"] + self.data["cache"]["cache_misses"]
+        
+        # Add files_generated to processing section for dashboard validation
+        self.data["processing"]["files_generated"] = self.data["file_stats"]["files_generated"]
+        
+        # Processing rate and runtime - use actual wall clock time when available
+        actual_wall_clock_time = None
+        
+        # Calculate actual wall clock time from log start/end if available
+        if (self.data["processing"].get("log_start_time") and 
+            self.data["processing"].get("log_end_time")):
+            try:
+                start_time = datetime.fromisoformat(self.data["processing"]["log_start_time"])
+                end_time = datetime.fromisoformat(self.data["processing"]["log_end_time"])
+                actual_wall_clock_time = (end_time - start_time).total_seconds()
+                self.data["performance"]["total_runtime"] = actual_wall_clock_time
+                self.data["performance"]["wall_clock_time"] = actual_wall_clock_time
+            except (ValueError, TypeError):
+                pass
+        
+        # If we have processing times but no wall clock time, use sum of processing times as fallback
+        if (actual_wall_clock_time is None and 
+            self.data["performance"]["processing_times"]):
+            # Use sum of actual processing times as fallback
             total_processing_time = sum(self.data["performance"]["processing_times"])
             self.data["performance"]["total_runtime"] = total_processing_time
+            self.data["performance"]["active_processing_time"] = total_processing_time
             
             # Calculate processing rate from average time per CVE
             avg_time = total_processing_time / len(self.data["performance"]["processing_times"])
             if avg_time > 0:
                 self.data["performance"]["processing_rate"] = 60 / avg_time  # CVEs per minute
+        elif actual_wall_clock_time and self.data["processing"]["processed_cves"] > 0:
+            # Calculate processing rate from wall clock time
+            self.data["performance"]["processing_rate"] = (self.data["processing"]["processed_cves"] / actual_wall_clock_time) * 60  # CVEs per minute
+            
+            # Also track active processing time for comparison
+            if self.data["performance"]["processing_times"]:
+                active_time = sum(self.data["performance"]["processing_times"])
+                self.data["performance"]["active_processing_time"] = active_time
+                overhead_time = actual_wall_clock_time - active_time
+                self.data["performance"]["overhead_time"] = overhead_time
+                self.data["performance"]["overhead_percentage"] = (overhead_time / actual_wall_clock_time) * 100 if actual_wall_clock_time > 0 else 0
         elif self.data["processing"]["start_time"]:
-            # Fallback to wall clock time if no processing times available
+            # Fallback to estimated wall clock time if no log headers available
             start_time = datetime.fromisoformat(self.data["processing"]["start_time"])
             current_time = datetime.now()
             runtime_seconds = (current_time - start_time).total_seconds()
@@ -553,7 +898,7 @@ class LogAnalyzer:
             self.data["mapping_stats"]["mapping_percentage"] == 0):
             # Only calculate if we didn't get authoritative percentage from log
             self.data["mapping_stats"]["mapping_percentage"] = (
-                self.data["mapping_stats"]["cves_with_mappings"] / 
+                self.data["mapping_stats"]["platform_entries_with_mappings"] / 
                 self.data["processing"]["processed_cves"]
             ) * 100
         
@@ -569,6 +914,15 @@ class LogAnalyzer:
                     self.data["cpe_query_stats"]["total_query_time"] / 
                     self.data["cpe_query_stats"]["total_cpe_queries"]
                 )
+        
+        # Post-process top result queries to group CVEs by query string
+        self._process_top_result_queries()
+        
+        # Stage performance analysis
+        self._analyze_stage_performance()
+        
+        # Calculate additional dashboard metrics
+        self._calculate_dashboard_metrics()
         
         # Cache file size calculation
         try:
@@ -649,6 +1003,75 @@ class LogAnalyzer:
             print(f"\n✅ No errors detected")
         
         print("="*60)
+    
+    def _process_top_result_queries(self):
+        """Process top result queries to group CVEs by query string and track sources"""
+        if not self.data["cpe_query_stats"]["top_result_queries"]:
+            return
+        
+        # Group queries by query_string and aggregate CVEs and sources
+        query_groups = {}
+        for query_result in self.data["cpe_query_stats"]["top_result_queries"]:
+            query_string = query_result["query_string"]
+            cve_id = query_result["cve_id"]
+            result_count = query_result["result_count"]
+            source = query_result.get("source", "unknown")
+            
+            if query_string not in query_groups:
+                query_groups[query_string] = {
+                    "query_string": query_string,
+                    "max_result_count": result_count,
+                    "cve_ids": [],
+                    "total_queries": 0,
+                    "sources": set(),  # Track unique sources
+                    "timestamps": []
+                }
+            
+            # Update max result count for this query string
+            if result_count > query_groups[query_string]["max_result_count"]:
+                query_groups[query_string]["max_result_count"] = result_count
+            
+            # Add CVE ID if not already present and limit to 5
+            if cve_id not in query_groups[query_string]["cve_ids"] and len(query_groups[query_string]["cve_ids"]) < 5:
+                query_groups[query_string]["cve_ids"].append(cve_id)
+            
+            # Track sources
+            query_groups[query_string]["sources"].add(source)
+            
+            query_groups[query_string]["total_queries"] += 1
+            query_groups[query_string]["timestamps"].append(query_result["timestamp"])
+        
+        # Convert to list and sort by max result count
+        processed_queries = []
+        for query_string, group_data in query_groups.items():
+            # Determine combined source
+            sources = list(group_data["sources"])
+            if len(sources) > 1:
+                combined_source = "both"
+            elif "api" in sources:
+                combined_source = "api"
+            elif "cache" in sources:
+                combined_source = "cache"
+            else:
+                combined_source = "unknown"
+            
+            # Get the most recent timestamp for this query group
+            latest_timestamp = max(group_data["timestamps"]) if group_data["timestamps"] else "Unknown"
+            
+            processed_queries.append({
+                "query_string": query_string,
+                "result_count": group_data["max_result_count"],
+                "cve_ids": group_data["cve_ids"],
+                "cve_count": len(group_data["cve_ids"]),
+                "total_queries": group_data["total_queries"],
+                "source": combined_source,
+                "sources_detail": sources,  # Keep individual sources for reference
+                "timestamp": latest_timestamp
+            })
+        
+        # Sort by result count and keep top 10
+        processed_queries.sort(key=lambda x: x["result_count"], reverse=True)
+        self.data["cpe_query_stats"]["top_result_queries"] = processed_queries[:10]
 
 def main():
     parser = argparse.ArgumentParser(description='Analyze CVE Analysis Tool logs and generate dashboard data')

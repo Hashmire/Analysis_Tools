@@ -23,14 +23,14 @@ cd src/analysis_tool
 python analysis_tool.py [your normal CVE analysis arguments]
 
 # 📊 Open reports/local_dashboard.html to watch real-time progress
-# 🔄 Data refreshes automatically every 10 CVEs during processing
+# 🔄 Data refreshes automatically every 100 CVEs during processing
 # ✅ Final update occurs at completion
 ```
 
 **Real-time Monitoring:**
 
 1. **Start**: Dashboard created with initial data
-2. **During Processing**: JSON updates every 10 CVEs (dashboard auto-refreshes)
+2. **During Processing**: JSON updates every 100 CVEs (dashboard auto-refreshes)
 3. **Completion**: Final data update with complete results
 
 ### Method 2: Manual Dashboard Generation
@@ -74,7 +74,7 @@ python scripts/log_analyzer.py --summary --no-local-dashboard
 
 ## 📁 File Structure
 
-```
+```text
 Analysis_Tools/
 ├── scripts/
 │   ├── log_analyzer.py          # Main log parsing script
@@ -131,12 +131,49 @@ The `dashboard_data.json` file contains structured data including:
 - Recent activity (latest log entries)
 - All warning/error events with CVE links
 
+### Enhanced Dashboard Features
+
+The dashboard now includes several advanced analysis sections:
+
+**🔍 Interactive Elements:**
+
+- **Clickable metric cards** that smoothly scroll to detailed sections
+- **Visual indicators** for performance bottlenecks and fast operations
+- **Hover tooltips** providing additional context
+
+**⚡ Workflow Performance Analysis:**
+
+- **Stage timing breakdown** with duration tracking for each workflow stage
+- **Bottleneck detection** automatically identifies the slowest stages
+- **Efficiency metrics** showing completion rates and progress
+- **Performance indicators** (BOTTLENECK, FAST markers) for quick assessment
+
+**🌐 API Performance Breakdown:**
+
+- **Detailed API call analysis** by type (NVD CVE, MITRE CVE, NVD CPE)
+- **Success rate tracking** with failed call monitoring
+- **Call volume analysis** showing API usage patterns
+
+**🔍 CPE Query Analysis:**
+
+- **Top CVE records by complexity** ranked by number of unique search strings
+- **Top queries by result count** showing which queries return the most data
+- **Source tracking** (API vs Cache) for performance optimization
+- **Query efficiency metrics** for search strategy analysis
+
+**⚠️ Resource Monitoring:**
+
+- **Resource warnings detection** for cache bloat and memory issues
+- **System health indicators** tracking performance warnings
+- **File size monitoring** for large output detection
+- **Global state tracking** for system stability
+
 ## 🔄 Automated Updates
 
 The dashboard is **automatically integrated** into the main CVE analysis workflow:
 
 - **At startup**: Dashboard created immediately with initial/existing data  
-- **Every 10 CVEs**: Dashboard JSON data is updated silently in the background
+- **Every 100 CVEs**: Dashboard JSON data is updated silently in the background
 - **Real-time monitoring**: Open the HTML dashboard to watch progress live
 - **At completion**: Final dashboard update with complete results
 - **Zero configuration**: Works out of the box with existing CVE analysis runs
@@ -150,18 +187,20 @@ The dashboard is **automatically integrated** into the main CVE analysis workflo
 
 ## 🎯 Use Cases
 
-- Monitor processing performance in real-time
-- Track cache efficiency and API usage
-- Identify bottlenecks and errors quickly
-- View detailed log activity as it happens
-- Track long-running CVE analysis jobs
-- Get accurate ETAs for completion
-- Generate performance reports from historical data
-- Export metrics for further analysis
+- **Real-time Performance Monitoring**: Monitor processing performance with live workflow stage analysis
+- **Bottleneck Identification**: Automatically identify performance bottlenecks with stage timing analysis
+- **Resource Health Monitoring**: Track resource warnings and system health indicators
+- **API Usage Analysis**: Detailed breakdown of API calls by type with success rate tracking
+- **Cache Efficiency Optimization**: Monitor cache performance and identify optimization opportunities
+- **Query Performance Analysis**: Analyze CPE query complexity and result patterns
+- **Error Detection and Troubleshooting**: View detailed log activity and error tracking as it happens
+- **Long-running Job Tracking**: Track progress of extensive CVE analysis runs with accurate ETAs
+- **Historical Performance Reporting**: Generate comprehensive performance reports from log data
+- **Interactive Data Exploration**: Click through dashboard sections for detailed analysis
 
 ## 📝 Notes
 
-- Dashboard updates automatically every 10 CVEs during processing
+- Dashboard updates automatically every 100 CVEs during processing
 - Log analyzer processes the most recent log file by default
 - All timestamps are displayed in local time zone
 - Progress calculations are based on the "Processing CVE X/Y" log entries

@@ -156,10 +156,10 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
     """Process confirmed mappings for all rows in the dataset"""
     config = load_config()      # Check if confirmed mappings are enabled
     if not config.get('confirmed_mappings', {}).get('enabled', True):
-        logger.info("Confirmed mappings are disabled in configuration", group="badge_generation")
+        logger.info("Confirmed mappings are disabled in configuration", group="badge_gen")
         return rawDataset
     
-    logger.info("Processing confirmed mappings...", group="badge_generation")
+    logger.info("Processing confirmed mappings...", group="badge_gen")
     tempDataset = rawDataset.copy()
       # Track confirmed mappings statistics
     total_processed = 0
@@ -168,12 +168,17 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
     
     for index, row in tempDataset.iterrows():
         try:            
-            # Get raw platform data and source ID
+            # Get raw platform data, source ID, and source role
             raw_platform_data = row.get('rawPlatformData', {})
             source_id = row.get('sourceID', '')
+            source_role = row.get('sourceRole', '')
             
             if not raw_platform_data or not source_id:
-                continue            
+                continue
+            
+            # Skip NVD entries since they use different data structure and won't have confirmed mappings
+            if source_role == 'NVD':
+                continue
             
             total_processed += 1
             
@@ -207,12 +212,12 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
                 tempDataset.at[index, 'platformEntryMetadata'] = platform_metadata
                 
         except Exception as e:
-            logger.warning(f"Confirmed mappings processing failed: Unable to process mapping entries for platform entry {index} - {str(e)}", group="badge_generation")
+            logger.warning(f"Confirmed mappings processing failed: Unable to process mapping entries for platform entry {index} - {str(e)}", group="badge_gen")
             continue
     
     # Log confirmed mappings statistics
     hit_rate = (successful_mappings / total_processed * 100) if total_processed > 0 else 0
-    logger.info(f"Confirmed mappings statistics: {successful_mappings}/{total_processed} entries ({hit_rate:.1f}% hit rate), {total_mappings_found} total mappings found", group="badge_generation")
+    logger.info(f"Confirmed mappings statistics: {successful_mappings}/{total_processed} platform entries ({hit_rate:.1f}% hit rate), {total_mappings_found} total mappings found", group="badge_gen")
     
     # Store statistics for audit access
     global confirmed_mappings_stats
@@ -773,7 +778,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                             is_maven_package = True
                         
                         if is_maven_package and ':' in package_name:
-                            logger.debug(f"Processing Maven package: {package_name}", group="cpe_generation")
+                            logger.debug(f"Processing Maven package: {package_name}", group="unique_cpe")
                               # Split Maven package name into groupId and artifactId
                             group_id, artifact_id = package_name.split(':', 1)
                             trackUnicodeNormalizationDetails(group_id, 'maven_group_id', index, rawDataset)
@@ -868,7 +873,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                         # Skip vendor+product CPE generation if either contains n/a or becomes empty after normalization
                         if (isinstance(vendor_value, str) and vendor_value.lower() in ["n/a", "n\\/a", "n/a"]) or \
                            (isinstance(product_value, str) and product_value.lower() in ["n/a", "n\\/a", "n/a"]):
-                            logger.info("Skipping vendor+product search string generation - 'n/a' placeholder detected", group="cpe_generation")
+                            logger.info("Skipping vendor+product search string generation - 'n/a' placeholder detected", group="unique_cpe")
                         else:
                             # Check if Unicode normalization would result in empty values
                             trackUnicodeNormalizationDetails(platform_data['vendor'], 'vendor', index, rawDataset)

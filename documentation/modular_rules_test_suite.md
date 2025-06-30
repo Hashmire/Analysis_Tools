@@ -1,17 +1,20 @@
 # Modular Rules Test Suite Documentation
 
 ## Overview
+
 The modular rules test suite provides comprehensive validation for the modular JSON generation rules system in the Analysis Tool. This test suite covers all 8 modular rules, edge cases, complex interactions, and ensures the JavaScript-based rule system functions correctly before and after any refactoring efforts.
 
 ## Test Suite Components
 
 ### Core Files
+
 - **`testModularRulesEnhanced.json`** - Comprehensive test data with 120 data rows covering all rule scenarios
 - **`test_modular_rules.py`** - Automated test script with 14 validation categories (self-contained)
 - **`modular_rules_test_suite.md`** - This documentation file
 - **Generated Output**: `../src/analysis_tool/generated_pages/CVE-1337-99997.html` (auto-generated)
 
 ### Key Features
+
 - **Self-Contained**: Test script automatically generates HTML from test data
 - **Comprehensive**: 14 test categories covering all 8 modular rules plus edge cases
 - **Migration-Ready**: Perfect baseline for JavaScript → Python conversion
@@ -22,9 +25,11 @@ The modular rules test suite provides comprehensive validation for the modular J
 The test suite validates **14 comprehensive categories** with 100% pass rate:
 
 ### 1. HTML Structure Validation (`HTML_STRUCTURE`)
+
 **Purpose**: Validates that generated HTML contains all required elements and proper structure.
 
-**Validation Points**:
+**Validation Points**:  
+
 - Main header presence and formatting
 - CVE title element with correct ID
 - Platform data table with proper structure
@@ -35,9 +40,11 @@ The test suite validates **14 comprehensive categories** with 100% pass rate:
 ---
 
 ### 2. Rule Application Detection (`RULE_APPLICATION`)
+
 **Purpose**: Confirms all 8 modular rules are properly defined in the JavaScript code.
 
-**Rules Tested**:
+**Rules Tested**:  
+
 - `wildcardExpansion` - Converts wildcard patterns to version ranges
 - `versionChanges` - Processes version timeline changes
 - `inverseStatus` - Handles unaffected-to-affected logic inversion
@@ -52,9 +59,11 @@ The test suite validates **14 comprehensive categories** with 100% pass rate:
 ---
 
 ### 3. Wildcard Expansion Rule (`WILDCARD_EXPANSION`)
+
 **Purpose**: Tests wildcard pattern processing (e.g., `5.*` → version ranges).
 
-**Test Scenarios**:
+**Test Scenarios**:  
+
 ```json
 {
   "simple_wildcard": {"version": "5.*", "expected": "major_range"},
@@ -70,9 +79,11 @@ The test suite validates **14 comprehensive categories** with 100% pass rate:
 ---
 
 ### 4. Version Changes Rule (`VERSION_CHANGES`)
+
 **Purpose**: Tests version timeline processing with status changes.
 
-**Test Scenarios**:
+**Test Scenarios**:  
+
 ```json
 {
   "simple_timeline": {
@@ -97,9 +108,11 @@ The test suite validates **14 comprehensive categories** with 100% pass rate:
 ---
 
 ### 5. JSON Output Validation (`JSON_OUTPUT`)
+
 **Purpose**: Validates JavaScript contains proper JSON generation logic.
 
-**Validation Points**:
+**Validation Points**:  
+
 - `JSON_GENERATION_RULES` object presence
 - `processDataset` method availability
 - `shouldApply` logic for each rule
@@ -110,9 +123,11 @@ The test suite validates **14 comprehensive categories** with 100% pass rate:
 ---
 
 ### 6. Unicode Handling (`UNICODE_HANDLING`)
+
 **Purpose**: Tests international character support in generated content.
 
-**Test Data Includes**:
+**Test Data Includes**:  
+
 - Spanish descriptions: "vulnerabilidad de desbordamiento"
 - Japanese descriptions: "包括的なテストケース"
 - Unicode vendor names: "unicode-test-vendor-测试"
@@ -123,9 +138,11 @@ The test suite validates **14 comprehensive categories** with 100% pass rate:
 ---
 
 ### 7. Rule Interactions (`RULE_INTERACTIONS`)
+
 **Purpose**: Tests complex scenarios where multiple rules work together.
 
-**Complex Scenarios**:
+**Complex Scenarios**:  
+
 - Wildcard + Version Changes + Special Versions
 - Mixed Status + Gap Processing combinations
 - Multiple rule triggers on single version entry
@@ -135,9 +152,11 @@ The test suite validates **14 comprehensive categories** with 100% pass rate:
 ---
 
 ### 8. Edge Case Handling (`EDGE_CASE_HANDLING`)
+
 **Purpose**: Tests system behavior with malformed or invalid data.
 
-**Edge Cases Tested**:
+**Edge Cases Tested**:  
+
 ```json
 {
   "malformed_data": [
@@ -157,9 +176,11 @@ The test suite validates **14 comprehensive categories** with 100% pass rate:
 ---
 
 ### 9. Special Character Handling (`SPECIAL_CHARACTERS`)
+
 **Purpose**: Tests handling of special characters in version strings.
 
-**Special Characters Tested**:
+**Special Characters Tested**:  
+
 - `+` (build metadata): `1.0.0+build.123`
 - `~` (tilde versions): `1.1.0~rc1`
 - `_` (underscore): `1.2.0_patch`
@@ -171,9 +192,11 @@ The test suite validates **14 comprehensive categories** with 100% pass rate:
 ---
 
 ### 10. Multi-Language Support (`MULTI_LANGUAGE`)
+
 **Purpose**: Tests comprehensive international content support.
 
-**Multi-Language Elements**:
+**Multi-Language Elements**:  
+
 - **Descriptions**: English, Spanish, Japanese
 - **Vendor Names**: ASCII and Unicode mixed
 - **Product Names**: International character sets
@@ -184,9 +207,11 @@ The test suite validates **14 comprehensive categories** with 100% pass rate:
 ---
 
 ### 11. JSON Schema Compliance (`JSON_SCHEMA`)
+
 **Purpose**: Tests adherence to expected JSON schema patterns.
 
-**Schema Patterns Validated**:
+**Schema Patterns Validated**:  
+
 - Version range fields: `versionStartIncluding`, `versionEndExcluding`
 - Status fields: `vulnerable`, `cpe_name`
 - Structure fields: `configurations`, `nodes`, `operator`, `cpe_match`
@@ -196,9 +221,11 @@ The test suite validates **14 comprehensive categories** with 100% pass rate:
 ---
 
 ### 12. Rule Priority Ordering (`RULE_PRIORITY`)
+
 **Purpose**: Tests that rules are applied in correct priority order.
 
-**Priority Logic Tested**:
+**Priority Logic Tested**:  
+
 - Rule exclusion mechanisms (`excludeRules`)
 - Rule application order (`applyOtherRules`)
 - Priority-based processing sequences
@@ -209,9 +236,11 @@ The test suite validates **14 comprehensive categories** with 100% pass rate:
 ---
 
 ### 13. Complex Rule Interactions (`COMPLEX_INTERACTIONS`)
+
 **Purpose**: Tests advanced scenarios with multiple overlapping rules.
 
-**Complex Interaction Scenarios**:
+**Complex Interaction Scenarios**:  
+
 ```json
 {
   "wildcard_plus_changes": {
@@ -236,28 +265,32 @@ The test suite validates **14 comprehensive categories** with 100% pass rate:
 ## Enhanced Test Data Structure
 
 ### File Organization
+
 The enhanced test data (`testModularRulesEnhanced.json`) contains **15 affected vendors**, each testing specific rule scenarios:
 
 #### Rule-Specific Vendors
-1. **`wildcard-test-vendor`** - Simple wildcard patterns
-2. **`complex-wildcard-vendor`** - Multi-level wildcard scenarios
-3. **`version-changes-vendor`** - Basic timeline processing
-4. **`complex-changes-vendor`** - Advanced timeline scenarios
-5. **`inverse-status-vendor`** - All-unaffected scenarios
-6. **`mixed-status-vendor`** - Mixed affected/unaffected patterns
-7. **`gap-processing-vendor`** - Version gap scenarios
-8. **`special-versions-vendor`** - Pre-release version types
-9. **`update-patterns-vendor`** - Patch/update scenarios
-10. **`multiple-branches-vendor`** - Branch management scenarios
+
+1 **`wildcard-test-vendor`** - Simple wildcard patterns
+2 **`complex-wildcard-vendor`** - Multi-level wildcard scenarios
+3 **`version-changes-vendor`** - Basic timeline processing
+4 **`complex-changes-vendor`** - Advanced timeline scenarios
+5 **`inverse-status-vendor`** - All-unaffected scenarios
+6 **`mixed-status-vendor`** - Mixed affected/unaffected patterns
+7 **`gap-processing-vendor`** - Version gap scenarios
+8 **`special-versions-vendor`** - Pre-release version types
+9 **`update-patterns-vendor`** - Patch/update scenarios
+10 **`multiple-branches-vendor`** - Branch management scenarios
 
 #### Advanced Testing Vendors
-11. **`unicode-test-vendor-测试`** - International character testing
-12. **`edge-case-vendor`** - Malformed data scenarios
-13. **`complex-interaction-vendor`** - Multi-rule interactions
-14. **`special-chars-vendor`** - Special character handling
-15. **`extreme-scenario-vendor`** - Stress testing scenarios
+
+11 **`unicode-test-vendor-测试`** - International character testing
+12 **`edge-case-vendor`** - Malformed data scenarios
+13 **`complex-interaction-vendor`** - Multi-rule interactions
+14 **`special-chars-vendor`** - Special character handling
+15 **`extreme-scenario-vendor`** - Stress testing scenarios
 
 ### Data Volume
+
 - **120 data rows** generated for comprehensive testing
 - **9 wildcard patterns** for expansion rule testing
 - **17 version changes** for timeline processing
@@ -278,6 +311,7 @@ python test_modular_rules.py testModularRulesEnhanced.json
 ```
 
 This command will:
+
 1. **Generate HTML**: Automatically create `CVE-1337-99997.html` from the test data
 2. **Run Tests**: Execute all 14 automated validation tests  
 3. **Report Results**: Display comprehensive test results with 100% pass rate expected
@@ -292,7 +326,8 @@ python analysis_tool.py --test-file "../../test_files/testModularRulesEnhanced.j
 ```
 
 ### Expected Output
-```
+
+```text
 Starting Modular Rules Automated Test Suite
 ============================================================
 🔄 Generating HTML from test data...
@@ -371,6 +406,7 @@ test_methods = [
 ## Edge Case Guidelines
 
 ### Version String Edge Cases
+
 - **Empty strings**: `""`
 - **Null values**: `null`
 - **Invalid formats**: `"invalid.version.format"`
@@ -378,12 +414,14 @@ test_methods = [
 - **Special characters**: `+`, `~`, `_`, `#`, `-`
 
 ### Unicode Considerations
+
 - **Vendor names**: Include non-ASCII characters
 - **Product names**: Test international character sets
 - **Version identifiers**: Unicode in version strings
 - **Description text**: Multi-language content
 
 ### Complex Interaction Scenarios
+
 - **Multiple rule triggers**: Single version triggering 2+ rules
 - **Rule conflicts**: Overlapping rule applications
 - **Priority handling**: Rule execution order testing
@@ -394,18 +432,21 @@ test_methods = [
 ## Maintenance and Migration Guide
 
 ### Pre-Migration Checklist
+
 1. **✅ Run full test suite** - Ensure 13/13 tests pass
 2. **✅ Document current behavior** - Capture all test results
 3. **✅ Archive baseline** - Save current JavaScript implementation
 4. **✅ Plan migration approach** - Decide on incremental vs. full migration
 
 ### During Migration
+
 1. **Run tests frequently** - After each rule migration
 2. **Compare outputs** - Ensure JavaScript/Python parity
 3. **Document changes** - Note any intentional behavior changes
 4. **Update tests** - Modify expectations if behavior changes
 
 ### Post-Migration Validation
+
 1. **Full test suite execution** - Verify 13/13 pass rate maintained
 2. **Performance comparison** - Benchmark old vs. new implementation
 3. **Regression testing** - Ensure no functionality lost
@@ -417,27 +458,32 @@ test_methods = [
 
 ### Common Test Failures
 
-**HTML_STRUCTURE Failures**:
+**HTML_STRUCTURE Failures**:  
+
 - Verify HTML file was generated correctly
 - Check CVE ID matches between test data and HTML
 - Ensure table structure is present
 
-**Rule Detection Failures**:
+**Rule Detection Failures**:  
+
 - Confirm JavaScript rules are embedded in HTML
 - Check for rule name changes or updates
 - Verify script tags contain rule definitions
 
-**Unicode/Multi-Language Failures**:
+**Unicode/Multi-Language Failures**:  
+
 - Ensure files are saved with UTF-8 encoding
 - Check browser/system Unicode support
 - Verify test data contains actual Unicode characters
 
-**Edge Case Failures**:
+**Edge Case Failures**:  
+
 - Review defensive programming patterns
 - Check null/undefined handling in JavaScript
 - Ensure graceful degradation for invalid data
 
 ### Debugging Steps
+
 1. **Regenerate HTML** - Ensure fresh output from test data
 2. **Check file paths** - Verify all paths are correct
 3. **Inspect generated HTML** - Look for expected content manually
@@ -449,6 +495,7 @@ test_methods = [
 ## Integration with Development Workflow
 
 ### Git Workflow
+
 ```bash
 # Before making changes
 git checkout -b feature/modular-rules-enhancement
@@ -467,6 +514,7 @@ git commit -m "Enhance modular rules testing: [description]"
 ```
 
 ### Continuous Integration
+
 ```yaml
 # Example GitHub Actions workflow
 - name: Run Modular Rules Tests
@@ -475,7 +523,8 @@ git commit -m "Enhance modular rules testing: [description]"
     python test_modular_rules.py testModularRulesEnhanced.json
 ```
 
-**Benefits of Self-Contained Tests:**
+**Benefits of Self-Contained Tests:**  
+
 - Simplified CI/CD pipelines (single command)
 - No file dependency management required
 - Automatic HTML generation ensures tests always run against fresh output

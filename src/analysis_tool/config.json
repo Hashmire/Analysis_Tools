@@ -42,7 +42,8 @@
                 "description": "NVD CPE API queries, product matching, result processing",
                 "enabled": true,
                 "color": "cyan"
-            },            "BADGE_GEN": {
+            },            
+            "BADGE_GEN": {
                 "name": "Confirmed Mappings",
                 "description": "Confirmed mappings processing, data validation, badge preparation",
                 "enabled": true,
