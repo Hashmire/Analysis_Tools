@@ -19,6 +19,22 @@ class LogAnalyzer:
         self.current_processing_cve = None  # Track current CVE being processed
         self.all_log_messages = []  # Store all log messages for additional analysis
         self.current_cpe_query_string = None  # Track current CPE query string for result association
+        self.processed_files = set()  # Track files to prevent double-counting
+        self.cve_processing_data = {}  # Track detailed processing data for each CVE
+    
+    def format_file_size(self, size_bytes):
+        """Format file size in human-readable format (B, KB, MB, GB)"""
+        if size_bytes is None:
+            return "0 B"
+        
+        if size_bytes >= 1024**3:  # GB
+            return f"{size_bytes / (1024**3):.1f} GB"
+        elif size_bytes >= 1024**2:  # MB
+            return f"{size_bytes / (1024**2):.1f} MB"
+        elif size_bytes >= 1024:  # KB
+            return f"{size_bytes / 1024:.1f} KB"
+        else:  # Bytes
+            return f"{size_bytes} B"
         
     def find_latest_log(self):
         """Find the most recent log file"""
@@ -95,7 +111,8 @@ class LogAnalyzer:
                 "largest_file_name": "",
                 "smallest_file_name": "",
                 "total_file_size": 0,
-                "average_file_size": 0
+                "average_file_size": 0,
+                "detailed_files": []  # List of detailed file info for top files table
             },
             "speed_stats": {
                 "fastest_cve_time": None,
@@ -265,6 +282,17 @@ class LogAnalyzer:
             self.current_processing_cve = cve_id  # Track current CVE for context
             self.data["processing"]["progress_percentage"] = (int(current_num) / int(total_num)) * 100
             self.data["processing"]["remaining_cves"] = int(total_num) - int(current_num)
+            
+            # Initialize tracking data for this CVE
+            if cve_id not in self.cve_processing_data:
+                self.cve_processing_data[cve_id] = {
+                    "start_time": timestamp,
+                    "end_time": None,
+                    "processing_time": 0,
+                    "file_size": 0,
+                    "file_name": "",
+                    "dataframe_rows": 0
+                }
         
         # Processing time for individual CVEs
         time_match = re.search(r'Successfully processed ([^\s]+) in ([\d.]+)s', message)
@@ -276,6 +304,11 @@ class LogAnalyzer:
             # Track speed statistics
             self.data["speed_stats"]["total_processing_time"] += processing_time
             self.data["speed_stats"]["cves_with_timing"] += 1
+            
+            # Update CVE processing data
+            if cve_id in self.cve_processing_data:
+                self.cve_processing_data[cve_id]["end_time"] = timestamp
+                self.cve_processing_data[cve_id]["processing_time"] = processing_time
             
             # Track fastest CVE
             if (self.data["speed_stats"]["fastest_cve_time"] is None or 
@@ -427,28 +460,37 @@ class LogAnalyzer:
                 "cve_id": cve_id
             })
         
-        # Mapping statistics tracking - use only the final summary to avoid double-counting
+        # Mapping statistics tracking - accumulate data from all CVE processing events
         mapping_stats_match = re.search(r'Confirmed mappings statistics: (\d+)/(\d+) platform entries \(([\d.]+)% hit rate\), (\d+) total mappings found', message)
         
         if mapping_stats_match:
-            # Parse the final statistics summary - use this as the authoritative source
+            # Parse individual CVE mapping statistics and accumulate them
             successful_mappings = int(mapping_stats_match.group(1))
             total_processed = int(mapping_stats_match.group(2)) 
             hit_rate = float(mapping_stats_match.group(3))
             total_mappings = int(mapping_stats_match.group(4))
             
-            # Use the authoritative hit rate from the log message - don't recalculate
-            # This ensures we never exceed 100% due to double-counting
-            self.data["mapping_stats"]["mapping_percentage"] = hit_rate
-            self.data["mapping_stats"]["platform_entries_with_mappings"] = successful_mappings
-            self.data["mapping_stats"]["total_mappings_found"] = total_mappings
+            # Track platform entries for current CVE
+            if self.current_processing_cve and self.current_processing_cve in self.cve_processing_data:
+                self.cve_processing_data[self.current_processing_cve]["dataframe_rows"] = total_processed
             
-            # Validate the percentage is reasonable (should never exceed 100%)
-            if hit_rate > 100.0:
-                print(f"WARNING: Confirmed mappings percentage exceeds 100%: {hit_rate}% - recalculating")
-                # Recalculate if something went wrong
-                corrected_rate = (successful_mappings / total_processed * 100) if total_processed > 0 else 0
-                self.data["mapping_stats"]["mapping_percentage"] = min(corrected_rate, 100.0)
+            # Accumulate the statistics across all CVEs (like we do for CPE queries)
+            self.data["mapping_stats"]["platform_entries_with_mappings"] += successful_mappings
+            self.data["mapping_stats"]["total_mappings_found"] += total_mappings
+            
+            # Track total platform entries processed for percentage calculation
+            if "total_platform_entries_processed" not in self.data["mapping_stats"]:
+                self.data["mapping_stats"]["total_platform_entries_processed"] = 0
+            self.data["mapping_stats"]["total_platform_entries_processed"] += total_processed
+            
+            # Recalculate the overall percentage based on accumulated data
+            total_processed_overall = self.data["mapping_stats"]["total_platform_entries_processed"]
+            total_with_mappings = self.data["mapping_stats"]["platform_entries_with_mappings"]
+            
+            if total_processed_overall > 0:
+                self.data["mapping_stats"]["mapping_percentage"] = (total_with_mappings / total_processed_overall) * 100
+            else:
+                self.data["mapping_stats"]["mapping_percentage"] = 0.0
         
         # Remove individual mapping tracking to prevent accumulation issues
         # mapping_found_match = re.search(r'Found (\d+) confirmed mappings for (CVE-\d{4}-\d+)', message)
@@ -579,9 +621,22 @@ class LogAnalyzer:
         file_generated_match = re.search(r'File Generated: (.+\.html)(?:\s*\(Size:\s*([\d.]+)\s*(KB|MB|GB)\))?', message)
         file_size_audit_match = re.search(r'File size normal: ([^(]+) \(([\d.]+)(KB|MB|GB)\)', message)
         
+        # Large file detection patterns
+        large_file_match = re.search(r'Large output file detected: ([^(]+) \(([\d.]+)(KB|MB|GB) > [\d.]+KB\)', message)
+        extremely_large_file_match = re.search(r'Extremely large file: ([^(]+) \(([\d.]+)(KB|MB|GB)\)', message)
+        
         if file_generated_match:
-            # Count the file generation
-            self.data["file_stats"]["files_generated"] += 1
+            file_path = file_generated_match.group(1).strip()
+            file_name = os.path.basename(file_path)  # Extract just the filename for deduplication
+            
+            # Extract CVE ID from filename (e.g., CVE-2024-1234.html -> CVE-2024-1234)
+            cve_match = re.search(r'(CVE-\d{4}-\d+)', file_name)
+            cve_id = cve_match.group(1) if cve_match else self.current_processing_cve
+            
+            # Only count if we haven't processed this file before
+            if file_name not in self.processed_files:
+                self.data["file_stats"]["files_generated"] += 1
+                self.processed_files.add(file_name)
             
             # If size is provided in the message, use it
             if file_generated_match.group(2):  # Size value exists
@@ -599,20 +654,22 @@ class LogAnalyzer:
                 else:
                     file_size = int(size_value)  # Assume bytes
                 
+                # Update CVE processing data with file info
+                if cve_id and cve_id in self.cve_processing_data:
+                    self.cve_processing_data[cve_id]["file_size"] = file_size
+                    self.cve_processing_data[cve_id]["file_name"] = file_name
+                
                 # Update file size statistics
-                self.data["file_stats"]["total_file_size"] += file_size
-                
-                if self.data["file_stats"]["smallest_file_size"] is None or file_size < self.data["file_stats"]["smallest_file_size"]:
-                    self.data["file_stats"]["smallest_file_size"] = file_size
-                    self.data["file_stats"]["smallest_file_name"] = file_generated_match.group(1)
-                
-                if file_size > self.data["file_stats"]["largest_file_size"]:
-                    self.data["file_stats"]["largest_file_size"] = file_size
-                    self.data["file_stats"]["largest_file_name"] = file_generated_match.group(1)
+                self._update_file_size_stats(file_name, file_size)
         elif file_size_audit_match:
             # Parse file size audit messages - this is our authoritative source for file sizes
             file_name, size_str, unit = file_size_audit_match.groups()
             file_name = file_name.strip()
+            
+            # Only count if we haven't processed this file before
+            if file_name not in self.processed_files:
+                self.data["file_stats"]["files_generated"] += 1
+                self.processed_files.add(file_name)
             
             # Convert size to bytes
             size_value = float(size_str)
@@ -625,19 +682,43 @@ class LogAnalyzer:
             else:
                 file_size = int(size_value)  # Assume bytes if no unit
             
-            # Add to total file size
-            self.data["file_stats"]["total_file_size"] += file_size
+            # Update file size statistics
+            self._update_file_size_stats(file_name, file_size)
+        
+        # Handle large file detection patterns
+        elif large_file_match or extremely_large_file_match:
+            # Use the appropriate match
+            match = large_file_match or extremely_large_file_match
+            file_name, size_str, unit = match.groups()
+            file_name = file_name.strip()
             
-            # Track largest file
-            if file_size > self.data["file_stats"]["largest_file_size"]:
-                self.data["file_stats"]["largest_file_size"] = file_size
-                self.data["file_stats"]["largest_file_name"] = file_name
+            # Extract CVE ID from filename
+            cve_match = re.search(r'(CVE-\d{4}-\d+)', file_name)
+            cve_id = cve_match.group(1) if cve_match else self.current_processing_cve
             
-            # Track smallest file
-            if (self.data["file_stats"]["smallest_file_size"] is None or 
-                file_size < self.data["file_stats"]["smallest_file_size"]):
-                self.data["file_stats"]["smallest_file_size"] = file_size
-                self.data["file_stats"]["smallest_file_name"] = file_name
+            # Only count if we haven't processed this file before
+            if file_name not in self.processed_files:
+                self.data["file_stats"]["files_generated"] += 1
+                self.processed_files.add(file_name)
+            
+            # Convert size to bytes
+            size_value = float(size_str)
+            if unit == 'KB':
+                file_size = int(size_value * 1024)
+            elif unit == 'MB':
+                file_size = int(size_value * 1024 * 1024)
+            elif unit == 'GB':
+                file_size = int(size_value * 1024 * 1024 * 1024)
+            else:
+                file_size = int(size_value)  # Assume bytes if no unit
+            
+            # Update CVE processing data with file info (this might be the most accurate size)
+            if cve_id and cve_id in self.cve_processing_data:
+                self.cve_processing_data[cve_id]["file_size"] = file_size
+                self.cve_processing_data[cve_id]["file_name"] = file_name
+            
+            # Update size statistics (this might be the most accurate size info we have)
+            self._update_file_size_stats(file_name, file_size)
         
         # Resource warning tracking
         resource_warning_patterns = {
@@ -794,9 +875,35 @@ class LogAnalyzer:
     def _calculate_derived_metrics(self):
         """Calculate derived metrics from parsed data"""
         
-        # Average processing time
+        # Calculate processing time statistics and replace raw data with summary
         if self.data["performance"]["processing_times"]:
-            self.data["performance"]["average_time"] = sum(self.data["performance"]["processing_times"]) / len(self.data["performance"]["processing_times"])
+            processing_times = self.data["performance"]["processing_times"]
+            
+            # Calculate summary statistics
+            total_time = sum(processing_times)
+            count = len(processing_times)
+            avg_time = total_time / count
+            min_time = min(processing_times)
+            max_time = max(processing_times)
+            
+            # Calculate median
+            sorted_times = sorted(processing_times)
+            if count % 2 == 0:
+                median_time = (sorted_times[count//2 - 1] + sorted_times[count//2]) / 2
+            else:
+                median_time = sorted_times[count//2]
+            
+            # Replace the massive array with summary statistics
+            self.data["performance"] = {
+                "average_time": avg_time,
+                "total_time": total_time,
+                "count": count,
+                "min_time": min_time,
+                "max_time": max_time,
+                "median_time": median_time,
+                "processing_rate": 0,  # Will be calculated below
+                "total_runtime": 0     # Will be calculated below
+            }
         
         # Cache hit rate (only calculate if not already set from log parsing)
         if self.data["cache"]["hit_rate"] == 0:
@@ -828,14 +935,14 @@ class LogAnalyzer:
         
         # If we have processing times but no wall clock time, use sum of processing times as fallback
         if (actual_wall_clock_time is None and 
-            self.data["performance"]["processing_times"]):
+            self.data["performance"].get("total_time")):
             # Use sum of actual processing times as fallback
-            total_processing_time = sum(self.data["performance"]["processing_times"])
+            total_processing_time = self.data["performance"]["total_time"]
             self.data["performance"]["total_runtime"] = total_processing_time
             self.data["performance"]["active_processing_time"] = total_processing_time
             
             # Calculate processing rate from average time per CVE
-            avg_time = total_processing_time / len(self.data["performance"]["processing_times"])
+            avg_time = self.data["performance"]["average_time"]
             if avg_time > 0:
                 self.data["performance"]["processing_rate"] = 60 / avg_time  # CVEs per minute
         elif actual_wall_clock_time and self.data["processing"]["processed_cves"] > 0:
@@ -843,8 +950,8 @@ class LogAnalyzer:
             self.data["performance"]["processing_rate"] = (self.data["processing"]["processed_cves"] / actual_wall_clock_time) * 60  # CVEs per minute
             
             # Also track active processing time for comparison
-            if self.data["performance"]["processing_times"]:
-                active_time = sum(self.data["performance"]["processing_times"])
+            if self.data["performance"].get("total_time"):
+                active_time = self.data["performance"]["total_time"]
                 self.data["performance"]["active_processing_time"] = active_time
                 overhead_time = actual_wall_clock_time - active_time
                 self.data["performance"]["overhead_time"] = overhead_time
@@ -892,6 +999,24 @@ class LogAnalyzer:
                 self.data["file_stats"]["total_file_size"] / 
                 self.data["file_stats"]["files_generated"]
             )
+        
+        # Create detailed files list for dashboard table
+        detailed_files = []
+        for cve_id, cve_data in self.cve_processing_data.items():
+            if cve_data["file_name"] and cve_data["file_size"] > 0:
+                detailed_files.append({
+                    "cve_id": cve_id,
+                    "file_name": cve_data["file_name"],
+                    "file_size": cve_data["file_size"],
+                    "file_size_formatted": self.format_file_size(cve_data["file_size"]),
+                    "dataframe_rows": cve_data["dataframe_rows"],
+                    "processing_time": cve_data["processing_time"],
+                    "processing_time_formatted": f"{cve_data['processing_time']:.2f}s"
+                })
+        
+        # Sort by file size descending and keep top 20
+        detailed_files.sort(key=lambda x: x["file_size"], reverse=True)
+        self.data["file_stats"]["detailed_files"] = detailed_files[:20]
         
         # Mapping statistics calculations - only calculate if not already set from log parsing
         if (self.data["processing"]["processed_cves"] > 0 and 
@@ -997,6 +1122,26 @@ class LogAnalyzer:
         print(f"   Successful: {api['successful_calls']:,}")
         print(f"   Failed: {api['failed_calls']:,}")
         
+        print(f"\n📁 File Generation:")
+        file_stats = self.data["file_stats"]
+        print(f"   Files Generated: {file_stats['files_generated']:,}")
+        if file_stats['files_generated'] > 0:
+            print(f"   Average File Size: {self.format_file_size(file_stats['average_file_size'])}")
+            if file_stats['largest_file_size'] > 0:
+                print(f"   Largest File: {file_stats['largest_file_name']} ({self.format_file_size(file_stats['largest_file_size'])})")
+            if file_stats['smallest_file_size'] is not None:
+                print(f"   Smallest File: {file_stats['smallest_file_name']} ({self.format_file_size(file_stats['smallest_file_size'])})")
+        
+        print(f"\n🔗 Mapping Statistics:")
+        mapping_stats = self.data["mapping_stats"]
+        if "total_platform_entries_processed" in mapping_stats and mapping_stats["total_platform_entries_processed"] > 0:
+            print(f"   Platform Entries: {mapping_stats['total_platform_entries_processed']:,}")
+            print(f"   With Mappings: {mapping_stats['platform_entries_with_mappings']:,}")
+            print(f"   Success Rate: {mapping_stats['mapping_percentage']:.2f}%")
+            print(f"   Total Mappings: {mapping_stats['total_mappings_found']:,}")
+        else:
+            print(f"   No mapping data available")
+        
         if self.data["errors"]:
             print(f"\n❌ Errors: {len(self.data['errors'])} found")
         else:
@@ -1072,6 +1217,22 @@ class LogAnalyzer:
         # Sort by result count and keep top 10
         processed_queries.sort(key=lambda x: x["result_count"], reverse=True)
         self.data["cpe_query_stats"]["top_result_queries"] = processed_queries[:10]
+
+    def _update_file_size_stats(self, file_name, file_size):
+        """Update file size statistics for a given file"""
+        # Add to total file size
+        self.data["file_stats"]["total_file_size"] += file_size
+        
+        # Track largest file
+        if file_size > self.data["file_stats"]["largest_file_size"]:
+            self.data["file_stats"]["largest_file_size"] = file_size
+            self.data["file_stats"]["largest_file_name"] = file_name
+        
+        # Track smallest file
+        if (self.data["file_stats"]["smallest_file_size"] is None or 
+            file_size < self.data["file_stats"]["smallest_file_size"]):
+            self.data["file_stats"]["smallest_file_size"] = file_size
+            self.data["file_stats"]["smallest_file_name"] = file_name
 
 def main():
     parser = argparse.ArgumentParser(description='Analyze CVE Analysis Tool logs and generate dashboard data')

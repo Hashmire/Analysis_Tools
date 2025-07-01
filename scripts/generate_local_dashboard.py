@@ -658,7 +658,7 @@ def generate_dashboard_html(data, output_file):
                     <strong>{total_mappings}</strong> total mappings found</div>
             </div>
 
-            <div class="metric-card files">
+            <div class="metric-card files clickable" onclick="scrollToSection('file-analysis')">
                 <div class="metric-title">Generated Files</div>
                 <div class="metric-value">{files_generated}</div>
                 <div class="metric-subtitle">HTML pages created<br>
@@ -706,6 +706,12 @@ def generate_dashboard_html(data, output_file):
         <div id="cpe-breakdown" class="progress-section">
             <h3>🔍 Top CPE Base String Query Breakdown</h3>
             {cpe_breakdown}
+        </div>
+
+        <!-- Detailed Files Analysis -->
+        <div id="file-analysis" class="progress-section">
+            <h3>📁 Generated Files Analysis</h3>
+            {detailed_files}
         </div>
 
         <!-- Log Activity Summary -->
@@ -1121,6 +1127,75 @@ def generate_dashboard_html(data, output_file):
     else:
         cpe_breakdown_html = '<p style="color: #6c757d; text-align: center;">No CPE query data available</p>'
 
+    # Generate detailed files HTML  
+    file_stats = data.get("file_stats", {})
+    detailed_files_html = ""
+    
+    detailed_files = file_stats.get("detailed_files", [])
+    if detailed_files:
+        detailed_files_html = f'''
+        <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">📁 Top Generated Files by Size</h4>
+        <div style="overflow-x: auto; margin-bottom: 30px;">
+            <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <thead style="background: #16a085; color: white;">
+                    <tr>
+                        <th style="padding: 12px; text-align: left;">Rank</th>
+                        <th style="padding: 12px; text-align: left;">CVE ID</th>
+                        <th style="padding: 12px; text-align: center;">File Size</th>
+                        <th style="padding: 12px; text-align: center;">Platform Entries</th>
+                        <th style="padding: 12px; text-align: center;">Processing Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+        '''
+        
+        for i, file_info in enumerate(detailed_files, 1):
+            # Determine row color based on file size
+            file_size_bytes = file_info["file_size"]
+            if file_size_bytes >= 10 * 1024 * 1024:  # 10MB+
+                row_color = "#fff5f5"  # Light red for extremely large files
+                rank_icon = "🔥"
+            elif file_size_bytes >= 5 * 1024 * 1024:  # 5MB+
+                row_color = "#fffaf0"  # Light orange for very large files
+                rank_icon = "⚡"
+            elif file_size_bytes >= 1 * 1024 * 1024:  # 1MB+
+                row_color = "#f0fff4"  # Light green for large files
+                rank_icon = "📊"
+            else:
+                row_color = "#f8f9fa"  # Light gray for normal files
+                rank_icon = "📋"
+                
+            detailed_files_html += f'''
+                    <tr style="background: {row_color}; border-bottom: 1px solid #dee2e6;">
+                        <td style="padding: 12px; font-weight: bold; color: #2c3e50;">{rank_icon} #{i}</td>
+                        <td style="padding: 12px;">
+                            <code style="background: rgba(22, 160, 133, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.9em;">{file_info["cve_id"]}</code>
+                        </td>
+                        <td style="padding: 12px; text-align: center; font-weight: bold; color: #16a085;">{file_info["file_size_formatted"]}</td>
+                        <td style="padding: 12px; text-align: center;">{file_info["dataframe_rows"]}</td>
+                        <td style="padding: 12px; text-align: center; color: #e67e22;">{file_info["processing_time_formatted"]}</td>
+                    </tr>
+            '''
+        
+        detailed_files_html += '''
+                </tbody>
+            </table>
+        </div>
+        
+        <div style="margin-top: 15px; padding: 10px; background: #eafaf1; border-left: 4px solid #16a085; border-radius: 4px;">
+            <p style="margin: 0; font-size: 0.9em; color: #2c3e50;">
+                <strong>💡 File Analysis:</strong> Larger files typically indicate CVEs with more complex platform data, vendor variations, or extensive version ranges. 
+                Platform entries show the complexity of affected systems, while processing time reflects both data complexity and system performance.
+                <br><strong>Note:</strong> File sizes include HTML formatting, styling, and complete vulnerability analysis data.
+            </p>
+        </div>
+        '''
+    else:
+        detailed_files_html = '''
+        <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">📁 Top Generated Files by Size</h4>
+        <p style="color: #6c757d; text-align: center;">No detailed file data available</p>
+        '''
+
     # Generate resource warnings HTML
     resource_warnings_html = ""
     total_warnings = sum(resource_warnings.values()) if resource_warnings else 0
@@ -1331,7 +1406,8 @@ def generate_dashboard_html(data, output_file):
         resource_warnings_card=resource_warnings_html,
         stages_progress=stages_html,
         api_breakdown=api_breakdown_html,
-        cpe_breakdown=cpe_breakdown_html
+        cpe_breakdown=cpe_breakdown_html,
+        detailed_files=detailed_files_html
     )
 
     # Write HTML file
