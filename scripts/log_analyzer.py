@@ -738,6 +738,25 @@ class LogAnalyzer:
                     self.data["resource_warnings"]["large_file_warnings"] += 1
                 elif warning_type == "global_state":
                     self.data["resource_warnings"]["global_state_warnings"] += 1
+        
+        # CPE validation warning tracking
+        overly_broad_cpe_match = re.search(r'Overly broad CPE detected, skipping: (.+?) - (.+)', message)
+        if overly_broad_cpe_match:
+            cpe_string = overly_broad_cpe_match.group(1)
+            reason = overly_broad_cpe_match.group(2)
+            # Track this in resource warnings for dashboard visibility
+            if "overly_broad_cpe_warnings" not in self.data["resource_warnings"]:
+                self.data["resource_warnings"]["overly_broad_cpe_warnings"] = 0
+            self.data["resource_warnings"]["overly_broad_cpe_warnings"] += 1
+        
+        # Invalid CPE string warning tracking (for API-level rejections)
+        invalid_cpe_match = re.search(r'Skipping invalid CPE match string: (.+)', message)
+        if invalid_cpe_match:
+            cpe_string = invalid_cpe_match.group(1)
+            # Track this in resource warnings for dashboard visibility
+            if "invalid_cpe_warnings" not in self.data["resource_warnings"]:
+                self.data["resource_warnings"]["invalid_cpe_warnings"] = 0
+            self.data["resource_warnings"]["invalid_cpe_warnings"] += 1
     
     def _parse_stage_performance(self, action, stage_name, timestamp_str, timestamp_obj):
         """Parse workflow stage performance information"""

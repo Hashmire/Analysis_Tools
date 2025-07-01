@@ -1065,6 +1065,8 @@ def suggestCPEData(apiKey, rawDataset, case):
                     else:
                         # Track overly broad CPE issue (console reporting only)
                         issues['overly_broad_cpe'].append((index, source_role, cpe_string, reason))
+                        # Also log the validation failure for log analyzer to capture
+                        logger.warning(f"Overly broad CPE detected, skipping: {cpe_string} - {reason}", group="cpe_validation")
 
                 # Update the cpeBaseStrings in platformEntryMetadata with validated strings
                 rawDataset.at[index, 'platformEntryMetadata']['cpeBaseStrings'] = validated_cpe_strings
@@ -2265,6 +2267,7 @@ def filter_most_specific_cpes(cpe_list: List[str]) -> List[str]:
 def validate_cpe_specificity(cpe_string):
     """
     Check if a CPE string has enough specificity (requires at least vendor OR product).
+    Also validates against single-character attributes when only one attribute is populated.
     Returns (is_valid, reason) tuple.
     """
     if not cpe_string or not cpe_string.startswith('cpe:2.3:'):
@@ -2288,11 +2291,25 @@ def validate_cpe_specificity(cpe_string):
     
     # Check for completely wildcard CPE (all components are *)
     non_wildcard_count = 0
-    for component in parts[2:13]:  # Skip 'cpe' and '2.3'
+    populated_attributes = []
+    
+    for i, component in enumerate(parts[2:13]):  # Skip 'cpe' and '2.3'
         if component and component != '*' and component.strip() != '':
             non_wildcard_count += 1
+            # Store the attribute name and cleaned value for single-character validation
+            attribute_names = ['part', 'vendor', 'product', 'version', 'update', 'edition', 'language', 'sw_edition', 'target_sw', 'target_hw', 'other']
+            if i < len(attribute_names):
+                # Clean the component by removing asterisks and extracting the core content
+                cleaned_component = component.strip('*')
+                populated_attributes.append((attribute_names[i], cleaned_component))
     
     if non_wildcard_count == 0:
         return False, "All components are wildcards"
+    
+    # New validation: Check for single-character attributes when only one attribute is populated
+    if len(populated_attributes) == 1:
+        attribute_name, attribute_value = populated_attributes[0]
+        if len(attribute_value) == 1:
+            return False, f"Single character '{attribute_value}' in only populated attribute '{attribute_name}' - too broad"
     
     return True, "Valid specificity"
