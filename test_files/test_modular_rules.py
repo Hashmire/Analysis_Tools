@@ -30,38 +30,44 @@ class ModularRulesTestSuite:
         """Generate HTML file from test data using the analysis tool."""
         print("🔄 Generating HTML from test data...")
         
-        # Get the analysis tool path
+        # Get the project root path
         current_dir = Path.cwd()
-        analysis_tool_path = current_dir.parent / "src" / "analysis_tool"
+        project_root = current_dir if (current_dir / "run_tools.py").exists() else current_dir.parent
+        run_analysis_path = project_root / "run_tools.py"
         
-        if not analysis_tool_path.exists():
-            self.add_result("HTML_GENERATION", False, f"Analysis tool not found at {analysis_tool_path}")
+        if not run_analysis_path.exists():
+            self.add_result("HTML_GENERATION", False, f"Analysis tool entry point not found at {run_analysis_path}")
             return False
         
         try:
-            # Run the analysis tool to generate HTML
+            # Run the analysis tool to generate HTML using the entry point script
+            # Disable cache for faster testing unless specifically testing cache functionality
             cmd = [
                 sys.executable, 
-                "analysis_tool.py", 
+                str(run_analysis_path), 
                 "--test-file", 
-                str(self.test_file_path.resolve())
+                str(self.test_file_path.resolve()),
+                "--no-cache"
             ]
             
             result = subprocess.run(
                 cmd,
-                cwd=analysis_tool_path,
+                cwd=project_root,
                 capture_output=True,
                 text=True,
                 timeout=60
             )
             
             if result.returncode != 0:
+                print(f"❌ Analysis tool failed with return code {result.returncode}")
+                print(f"STDOUT: {result.stdout}")
+                print(f"STDERR: {result.stderr}")
                 self.add_result("HTML_GENERATION", False, f"Analysis tool failed: {result.stderr}")
                 return False
             
-            # Determine the expected HTML file path
+            # Determine the expected HTML file path - test files go to test_output
             cve_id = self.test_data.get('cveMetadata', {}).get('cveId', 'CVE-UNKNOWN')
-            self.html_file_path = analysis_tool_path / "generated_pages" / f"{cve_id}.html"
+            self.html_file_path = project_root / "test_output" / f"{cve_id}.html"
             
             if not self.html_file_path.exists():
                 self.add_result("HTML_GENERATION", False, f"Generated HTML file not found: {self.html_file_path}")

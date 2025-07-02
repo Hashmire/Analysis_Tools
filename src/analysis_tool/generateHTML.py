@@ -7,7 +7,7 @@ import datetime
 import re 
 
 # Import the new logging system
-from workflow_logger import get_logger, LogGroup
+from .workflow_logger import get_logger, LogGroup
 
 # Get logger instance
 logger = get_logger()
@@ -40,7 +40,7 @@ VERSION = config['application']['version']
 TOOLNAME = config['application']['toolname']
 
 # Import Analysis Tool
-import processData
+from . import processData
 
 # Define version text patterns at module level for reuse
 VERSION_TEXT_PATTERNS = [

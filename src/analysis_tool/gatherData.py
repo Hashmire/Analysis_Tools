@@ -6,10 +6,10 @@ import json
 from time import sleep
 
 # Import Analysis Tool 
-import processData
+from . import processData
 
 # Import the new logging system
-from workflow_logger import get_logger, LogGroup
+from .workflow_logger import get_logger, LogGroup
 
 # Get logger instance
 logger = get_logger()

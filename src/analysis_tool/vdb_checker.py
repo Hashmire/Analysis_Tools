@@ -2,7 +2,7 @@ import requests
 from tqdm import tqdm
 import sys
 import logging
-from workflow_logger import WorkflowLogger
+from .workflow_logger import WorkflowLogger
 
 # Initialize logger
 logger = WorkflowLogger()

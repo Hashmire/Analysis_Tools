@@ -42,7 +42,7 @@ The cache uses an **aggressive 12-hour refresh strategy** to ensure data freshne
 1. **Cache Check**: Before making an NVD API call, the system checks if the CPE string already exists in the local cache
 2. **Cache Hit**: If found and not expired, the cached response is used immediately
 3. **Cache Miss**: If not found, the API call is made and the response is cached for future use
-4. **Cache Storage**: Cache data is stored in `src/analysis_tool/cache/` directory
+4. **Cache Storage**: Cache data is stored in `cache/` directory in the project root
 
 ## Cache Files
 

@@ -56,11 +56,13 @@ This tool isn't intended to be run locally, but if desired, the tool can be run 
    pip install -r requirements.txt
    ```
 
-3. Run the tool:
+3. Run the tool from the project root:
 
    ```bash
-   python analysis_tool.py --help
+   python run_tools.py --help
    ```
+
+   **Note:** Do not run `analysis_tool.py` directly. Always use the `run_tools.py` entry point script from the project root directory to ensure proper package imports and path resolution.
 
 ## Testing
 

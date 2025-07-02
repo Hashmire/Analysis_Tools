@@ -6,9 +6,9 @@ A refreshable, real-time dashboard that provides insights and statistics from CV
 
 The dashboard system consists of several components that work together to provide real-time monitoring of the CVE analysis tool:
 
-- **Log Analyzer** (`scripts/log_analyzer.py`) - Parses log files and extracts metrics
+- **Log Analyzer** (`src/analysis_tool/utilities/log_analyzer.py`) - Parses log files and extracts metrics
 - **Local Dashboard** (`reports/local_dashboard.html`) - Self-contained HTML with embedded data (works with local files)
-- **Dashboard Generator** (`scripts/generate_local_dashboard.py`) - Creates local dashboard with embedded data
+- **Dashboard Generator** (`src/analysis_tool/utilities/generate_local_dashboard.py`) - Creates local dashboard with embedded data
 - **Update Scripts** - Automated scripts to keep the dashboard current
 
 ## 🚀 Quick Start
@@ -37,7 +37,7 @@ python analysis_tool.py [your normal CVE analysis arguments]
 
 ```bash
 # Generate dashboard from existing log data
-python scripts/log_analyzer.py --summary
+python src/analysis_tool/utilities/log_analyzer.py --summary
 
 # The local dashboard (reports/local_dashboard.html) is automatically updated
 # Open reports/local_dashboard.html directly in your browser
@@ -47,7 +47,7 @@ python scripts/log_analyzer.py --summary
 
 ```bash
 # Generate only JSON data without local dashboard
-python scripts/log_analyzer.py --summary --no-local-dashboard
+python src/analysis_tool/utilities/log_analyzer.py --summary --no-local-dashboard
 ```
 
 ## 📊 Dashboard Features
@@ -76,14 +76,19 @@ python scripts/log_analyzer.py --summary --no-local-dashboard
 
 ```text
 Analysis_Tools/
-├── scripts/
+├── src/analysis_tool/utilities/
 │   ├── log_analyzer.py          # Main log parsing script
 │   ├── generate_local_dashboard.py # Dashboard HTML generator
+├── generated_pages/             # Main HTML vulnerability reports
+├── test_output/                 # Test-generated HTML files
 ├── reports/
 │   ├── local_dashboard.html     # Self-contained local dashboard
 │   ├── dashboard_data.json      # Generated data file
-└── logs/
-    └── *.log                    # CVE analysis tool log files
+├── logs/
+│   └── *.log                    # CVE analysis tool log files
+├── cache/                       # CPE cache files
+├── datasets/                    # Generated CVE datasets
+└── temp/                        # Temporary files
 ```
 
 ## 🔧 Configuration
@@ -93,7 +98,7 @@ Analysis_Tools/
 The local dashboard generator creates a self-contained HTML file with embedded data, perfect for local file access without CORS issues:
 
 ```bash
-python scripts/generate_local_dashboard.py --help
+python src/analysis_tool/utilities/generate_local_dashboard.py --help
 
 Options:
   --input FILE, -i FILE    Input JSON data file (default: reports/dashboard_data.json)
@@ -110,7 +115,7 @@ Options:
 ### Log Analyzer Options
 
 ```bash
-python scripts/log_analyzer.py --help
+python src/analysis_tool/utilities/log_analyzer.py --help
 
 Options:
   --log-dir DIRECTORY     Directory containing log files (default: logs)

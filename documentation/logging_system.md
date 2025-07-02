@@ -382,7 +382,7 @@ Each log file contains:
 
 File logging is controlled by the workflow logger and doesn't require additional configuration. Log files are automatically:
 
-- Created in `src/analysis_tool/logs/` directory
+- Created in `logs/` directory (project root)
 - Named with date and run parameters
 - Written with UTF-8 encoding
 - Cleaned up on exit (file handles closed properly)

@@ -18,7 +18,7 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
-from workflow_logger import get_logger
+from .workflow_logger import get_logger
 
 # Try to use orjson for much better performance, fall back to standard json
 try:
@@ -35,7 +35,12 @@ class CPECache:
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.cache_dir = Path(os.path.dirname(__file__)) / config.get('directory', 'cache')
+        self.disabled = config.get('disabled', False)  # Add disable flag
+        
+        # Use project root cache directory instead of local cache
+        current_file = Path(__file__).resolve()
+        project_root = current_file.parent.parent.parent  # Go up from src/analysis_tool/ to Analysis_Tools/
+        self.cache_dir = project_root / "cache"
         self.cache_file = self.cache_dir / 'cpe_cache.json'
         self.metadata_file = self.cache_dir / 'cache_metadata.json'
         self.cache_data = {}
@@ -59,8 +64,11 @@ class CPECache:
         # Ensure cache directory exists
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         
-        # Load existing cache
-        self._load_cache()
+        # Load existing cache only if enabled
+        if self.config.get('enabled', True):
+            self._load_cache()
+        else:
+            logger.info("CPE cache disabled - skipping cache file loading", group="cpe_queries")
         
     def _load_cache(self):
         """Load existing cache data from disk with optimized performance"""
@@ -109,6 +117,10 @@ class CPECache:
             
     def _save_cache(self):
         """Save cache data to disk with optimized performance using orjson"""
+        if not self.config.get('enabled', True):
+            logger.debug("Cache disabled - skipping save operation", group="cpe_queries")
+            return
+            
         start_time = time.time()
         try:
             # Update metadata

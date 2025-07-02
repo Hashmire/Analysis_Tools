@@ -11,7 +11,7 @@ The modular rules test suite provides comprehensive validation for the modular J
 - **`testModularRulesEnhanced.json`** - Comprehensive test data with 120 data rows covering all rule scenarios
 - **`test_modular_rules.py`** - Automated test script with 14 validation categories (self-contained)
 - **`modular_rules_test_suite.md`** - This documentation file
-- **Generated Output**: `../src/analysis_tool/generated_pages/CVE-1337-99997.html` (auto-generated)
+- **Generated Output**: `../test_output/CVE-1337-99997.html` (auto-generated)
 
 ### Key Features
 

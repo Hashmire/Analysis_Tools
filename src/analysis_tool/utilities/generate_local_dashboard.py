@@ -10,6 +10,29 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
+def get_analysis_tools_root():
+    """Get the absolute path to the Analysis_Tools project root"""
+    current_file = Path(__file__).resolve()
+    # Navigate up from src/analysis_tool/utilities/generate_local_dashboard.py to Analysis_Tools/
+    # generate_local_dashboard.py -> utilities/ -> analysis_tool/ -> src/ -> Analysis_Tools/
+    return current_file.parent.parent.parent.parent
+
+def resolve_input_path(input_file):
+    """Resolve input file path - if relative, check reports directory"""
+    if os.path.isabs(input_file):
+        return input_file
+    else:
+        return str(get_analysis_tools_root() / "reports" / input_file)
+
+def resolve_output_path(output_file):
+    """Resolve output file path - if relative, put in reports directory"""
+    if os.path.isabs(output_file):
+        return output_file
+    else:
+        reports_dir = get_analysis_tools_root() / "reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        return str(reports_dir / output_file)
+
 def load_config():
     """Load tool name and version from config.json"""
     try:
@@ -1422,25 +1445,29 @@ def generate_dashboard_html(data, output_file):
 def main():
     parser = argparse.ArgumentParser(description='Generate local CVE analysis dashboard')
     parser.add_argument('--input', '-i', 
-                       default='reports/dashboard_data.json',
-                       help='Input JSON data file (default: reports/dashboard_data.json)')
+                       default='dashboard_data.json',
+                       help='Input JSON data file (default: dashboard_data.json from reports/)')
     parser.add_argument('--output', '-o', 
-                       default='reports/local_dashboard.html',
-                       help='Output HTML file (default: reports/local_dashboard.html)')
+                       default='local_dashboard.html',
+                       help='Output HTML file (default: local_dashboard.html in reports/)')
     
     args = parser.parse_args()
     
     print("Generating local dashboard...")
     
+    # Resolve paths
+    input_path = resolve_input_path(args.input)
+    output_path = resolve_output_path(args.output)
+    
     # Load data
-    data = load_dashboard_data(args.input)
+    data = load_dashboard_data(input_path)
     if data is None:
         print("❌ Failed to load dashboard data")
         return 1
     
     # Generate HTML
-    if generate_dashboard_html(data, args.output):
-        print(f"Local dashboard generated: {args.output}")
+    if generate_dashboard_html(data, output_path):
+        print(f"Local dashboard generated: {output_path}")
         print(f"Open the file directly in your browser to view the dashboard")
         return 0
     else:

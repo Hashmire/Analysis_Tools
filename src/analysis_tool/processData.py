@@ -11,12 +11,12 @@ import os
 import json
 
 # Import Analysis Tool 
-import gatherData
-import generateHTML
-from cpe_cache import CPECache, get_global_cache_manager
+from . import gatherData
+from . import generateHTML
+from .cpe_cache import CPECache, get_global_cache_manager
 
 # Import the new logging system
-from workflow_logger import (
+from .workflow_logger import (
     get_logger, LogGroup,
     end_unique_cpe_generation, start_cpe_queries, end_cpe_queries
 )

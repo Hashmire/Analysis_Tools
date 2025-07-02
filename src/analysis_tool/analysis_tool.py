@@ -12,14 +12,16 @@ from pathlib import Path
 import re
 import json
 import time
+import subprocess
+import threading
 from datetime import datetime, timedelta
 
-import gatherData
-import processData
-import generateHTML
+from . import gatherData
+from . import processData
+from . import generateHTML
 
 # Import the new logging system
-from workflow_logger import (
+from .workflow_logger import (
     get_logger, LogGroup, LogLevel,
     start_initialization, end_initialization,
     start_cve_queries, end_cve_queries,
@@ -33,6 +35,25 @@ from workflow_logger import (
 
 # Get logger instance
 logger = get_logger()
+
+# Centralized path resolution functions
+def get_analysis_tools_root():
+    """Get the absolute path to the Analysis_Tools project root"""
+    current_file = Path(__file__).resolve()
+    
+    # Navigate up from src/analysis_tool/analysis_tool.py to Analysis_Tools/
+    # analysis_tool.py -> analysis_tool/ -> src/ -> Analysis_Tools/
+    return current_file.parent.parent.parent
+
+def get_project_path(relative_path=""):
+    """Get absolute path within Analysis_Tools directory"""
+    return get_analysis_tools_root() / relative_path
+
+def ensure_project_directory(relative_path):
+    """Ensure a directory exists within the Analysis_Tools project and return its path"""
+    dir_path = get_project_path(relative_path)
+    dir_path.mkdir(parents=True, exist_ok=True)
+    return dir_path
 
 # Load configuration
 def load_config():
@@ -143,9 +164,8 @@ def process_test_file(test_file_path, nvd_source_data):
         # Generate page and save HTML
         allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, cve_id, globalCVEMetadata)
 
-        # Save output
-        sub_directory = Path(f"{os.getcwd()}{os.sep}generated_pages")
-        sub_directory.mkdir(parents=True, exist_ok=True)
+        # Save output to test_output directory for test files
+        sub_directory = ensure_project_directory("test_output")
         filename = f"{cve_id}.html"
         filepath = sub_directory / filename
         
@@ -275,9 +295,8 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
         # Generate page and save HTML
         allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, cve_id, globalCVEMetadata)
 
-        # Save output
-        sub_directory = Path(f"{os.getcwd()}{os.sep}generated_pages")
-        sub_directory.mkdir(parents=True, exist_ok=True)
+        # Save output to generated_pages directory for main CVE processing
+        sub_directory = ensure_project_directory("generated_pages")
         filename = f"{cve_id}.html"
         filepath = sub_directory / filename
         
@@ -305,8 +324,8 @@ def get_all_cves(nvd_api_key):
 def audit_global_state():
     """Audit global state for potential bloat accumulation"""
     try:
-        from cpe_cache import get_global_cache_manager
-        import generateHTML
+        from .cpe_cache import get_global_cache_manager
+        from . import generateHTML
         
         issues = []
           # Check CPE cache size
@@ -364,8 +383,8 @@ def audit_file_size(filepath, expected_max_kb=1000):
 def audit_cache_and_mappings_stats():
     """Audit cache hit rates and confirmed mappings statistics"""
     try:
-        from cpe_cache import get_global_cache_manager
-        import processData
+        from .cpe_cache import get_global_cache_manager
+        from . import processData
         
         stats_info = []
         
@@ -419,6 +438,64 @@ def audit_global_state_cleared():
     else:
         logger.debug("Global state properly cleared before CVE processing", group="data_processing")
 
+# Global tracking for background dashboard updates
+_dashboard_update_threads = []
+
+def update_dashboard_async(current_cve_num, total_cves):
+    """Update dashboard in parallel without blocking main CVE processing"""
+    def _update_dashboard():
+        output_args = ["--no-local-dashboard"]  # Skip local dashboard during processing for performance
+        description = f"Dashboard update at checkpoint {current_cve_num}/{total_cves} (background)"
+        update_dashboard_sync(output_args, description)
+    
+    # Start background thread
+    thread = threading.Thread(target=_update_dashboard, daemon=True)
+    thread.start()
+    
+    # Clean up completed threads
+    global _dashboard_update_threads
+    _dashboard_update_threads = [t for t in _dashboard_update_threads if t.is_alive()]
+    _dashboard_update_threads.append(thread)
+
+def wait_for_dashboard_updates():
+    """Wait for all background dashboard updates to complete"""
+    global _dashboard_update_threads
+    for thread in _dashboard_update_threads:
+        if thread.is_alive():
+            logger.debug("Waiting for background dashboard update to complete...", group="completion")
+            thread.join(timeout=30)  # Wait up to 30 seconds
+    _dashboard_update_threads.clear()
+
+def update_dashboard_sync(output_args=None, description="Dashboard update"):
+    """Update dashboard synchronously with optional arguments"""
+    try:
+        project_root = get_analysis_tools_root()
+        log_analyzer_path = project_root / "src" / "analysis_tool" / "utilities" / "log_analyzer.py"
+        dashboard_output = project_root / "reports" / "dashboard_data.json"
+        
+        if log_analyzer_path.exists():
+            # Build command arguments
+            cmd_args = [sys.executable, str(log_analyzer_path), "--output", str(dashboard_output)]
+            if output_args:
+                cmd_args.extend(output_args)
+            
+            # Run log analyzer
+            result = subprocess.run(cmd_args, capture_output=True, text=True, cwd=str(project_root))
+            
+            if result.returncode == 0:
+                logger.debug(f"{description} completed successfully", group="INIT")
+                return True
+            else:
+                logger.debug(f"{description} warning: {result.stderr.strip()}", group="INIT")
+                return False
+        else:
+            logger.debug(f"{description} skipped: log_analyzer.py not found", group="INIT")
+            return False
+    
+    except Exception as e:
+        logger.debug(f"{description} error: {e}", group="INIT")
+        return False
+
 def main():
     """Main function to process CVEs based on command line arguments."""
     parser = argparse.ArgumentParser(description="Process CVE records with analysis_tool.py")
@@ -429,6 +506,7 @@ def main():
     group.add_argument("--all", action="store_true", help="Process all CVE records")
     parser.add_argument("--api-key", help="NVD API Key (optional but recommended)")
     parser.add_argument("--no-browser", action="store_true", help="Don't open results in browser")
+    parser.add_argument("--no-cache", action="store_true", help="Disable CPE cache for faster testing")
     parser.add_argument("--debug", action="store_true", help="Debug mode - uses DEFAULT_CVE_MODE setting")
     parser.add_argument("--save-skipped", help="Save list of skipped CVEs to specified file")
     
@@ -470,10 +548,20 @@ def main():
     
     # Gather NVD Source Data (done once, shared by both paths)
     logger.info("Gathering NVD source entries...", group="initialization")
-    nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)    # Initialize global CPE cache (done once per session, shared by both paths)
-    from cpe_cache import get_global_cache_manager
+    nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
+    
+    # Initialize global CPE cache (done once per session, shared by both paths)
+    from .cpe_cache import get_global_cache_manager
     cache_manager = get_global_cache_manager()
-    cache_manager.initialize(config.get('cache', {}))
+    
+    if args.no_cache:
+        logger.info("Cache disabled for testing mode", group="initialization")
+        # Initialize with disabled cache configuration
+        cache_config = config.get('cache', {}).copy()
+        cache_config['enabled'] = False
+        cache_manager.initialize(cache_config)
+    else:
+        cache_manager.initialize(config.get('cache', {}))
 
     # Handle test file processing
     if args.test_file:
@@ -547,31 +635,12 @@ def main():
     logger.info(f"Processing {len(cves_to_process)} CVE records (newest first)...", group="initialization")
     
     # Generate initial dashboard for real-time monitoring
-    try:
-        import subprocess
-        from pathlib import Path
-        
-        project_root = Path(__file__).parent.parent.parent
-        log_analyzer_path = project_root / "scripts" / "log_analyzer.py"
-        dashboard_output = project_root / "reports" / "dashboard_data.json"
-        
-        if log_analyzer_path.exists():
-            logger.info("Generating initial dashboard for real-time monitoring...", group="initialization")
-            
-            # Run log analyzer to create initial dashboard
-            result = subprocess.run([
-                sys.executable, str(log_analyzer_path),
-                "--output", str(dashboard_output),
-                "--summary"  # Generate both JSON and local HTML dashboard
-            ], capture_output=True, text=True, cwd=str(project_root))
-            
-            if result.returncode == 0:
-                logger.info("Dashboard ready: Open reports/local_dashboard.html to monitor progress", group="initialization")
-            else:
-                logger.debug(f"Dashboard initialization warning: {result.stderr.strip()}", group="initialization")
-    
-    except Exception as e:
-        logger.debug(f"Dashboard initialization error: {e}", group="initialization")
+    logger.info("Generating initial dashboard for real-time monitoring...", group="initialization")
+    output_args = ["--summary"]  # Generate both JSON and local HTML dashboard
+    if update_dashboard_sync(output_args, "Initial dashboard generation"):
+        logger.info("Dashboard ready: Open reports/local_dashboard.html to monitor progress", group="initialization")
+    else:
+        logger.debug("Dashboard initialization completed with warnings", group="initialization")
     
     end_initialization("Analysis environment ready, CVE list prepared")
     
@@ -636,32 +705,9 @@ def main():
                 audit_global_state()
                 audit_cache_and_mappings_stats()
                 
-                try:
-                    import subprocess
-                    from pathlib import Path
-                    
-                    # Get the project root directory (Analysis_Tools)
-                    project_root = Path(__file__).parent.parent.parent
-                    log_analyzer_path = project_root / "scripts" / "log_analyzer.py"
-                    dashboard_output = project_root / "reports" / "dashboard_data.json"
-                    
-                    if log_analyzer_path.exists():
-                        logger.debug(f"Updating dashboard data at checkpoint {current_cve_num}/{total_cves}", group="INIT")
-                        
-                        # Run log analyzer to update dashboard (suppress output to avoid log pollution)
-                        result = subprocess.run([
-                            sys.executable, str(log_analyzer_path),
-                            "--output", str(dashboard_output),
-                            "--no-local-dashboard"  # Skip local dashboard during processing for performance
-                        ], capture_output=True, text=True, cwd=str(project_root))
-                        
-                        if result.returncode == 0:
-                            logger.debug("Dashboard data updated successfully", group="INIT")
-                        else:
-                            logger.debug(f"Dashboard update warning: {result.stderr.strip()}", group="INIT")
-                    
-                except Exception as e:
-                    logger.debug(f"Dashboard update error: {e}", group="INIT")
+                # Start dashboard update in parallel (non-blocking)
+                update_dashboard_async(current_cve_num, total_cves)
+                logger.debug("Background dashboard update started", group="INIT")
                 
                 end_audit("Checkpoint audit complete")
             
@@ -714,31 +760,14 @@ def main():
     logger.info(f"Skipped: {len(skipped_cves)}", group="completion")
     logger.info(f"Total time: {str(timedelta(seconds=int(total_time)))}", group="completion")
     
-    # Final dashboard update
-    try:
-        import subprocess
-        from pathlib import Path
-        
-        project_root = Path(__file__).parent.parent.parent
-        log_analyzer_path = project_root / "scripts" / "log_analyzer.py"
-        dashboard_output = project_root / "reports" / "dashboard_data.json"
-        
-        if log_analyzer_path.exists():
-            logger.info("Updating final dashboard...", group="completion")
-            
-            # Run log analyzer for final update
-            result = subprocess.run([
-                sys.executable, str(log_analyzer_path),
-                "--output", str(dashboard_output)
-            ], capture_output=True, text=True, cwd=str(project_root))
-            
-            if result.returncode == 0:
-                logger.info("Dashboard updated with final results: reports/local_dashboard.html", group="completion")
-            else:
-                logger.debug(f"Final dashboard update warning: {result.stderr.strip()}", group="completion")
+    # Wait for any pending background dashboard updates and perform final update
+    wait_for_dashboard_updates()
     
-    except Exception as e:
-        logger.debug(f"Final dashboard update error: {e}", group="completion")
+    logger.info("Updating final dashboard...", group="completion")
+    if update_dashboard_sync(None, "Final dashboard update"):
+        logger.info("Dashboard updated with final results: reports/local_dashboard.html", group="completion")
+    else:
+        logger.debug("Final dashboard update completed with warnings", group="completion")
     
     if success_count > 0:
         avg_time = total_time / success_count
@@ -747,11 +776,18 @@ def main():
     # Save skipped CVEs if requested
     if args.save_skipped and skipped_cves:
         try:
-            with open(args.save_skipped, 'w') as f:
+            # If user provided a relative path, save to logs directory, otherwise use their absolute path
+            if os.path.isabs(args.save_skipped):
+                save_path = args.save_skipped
+            else:
+                logs_dir = ensure_project_directory("logs")
+                save_path = logs_dir / args.save_skipped
+            
+            with open(save_path, 'w') as f:
                 for cve in skipped_cves:
                     reason = skipped_reasons.get(cve, "Unknown reason")
                     f.write(f"{cve}\t{reason}\n")
-            logger.info(f"Skipped CVEs saved to {args.save_skipped}", group="completion")
+            logger.info(f"Skipped CVEs saved to {save_path}", group="completion")
         except Exception as e:
             logger.error(f"Failed to save skipped CVEs: {e}", group="data_processing")
     

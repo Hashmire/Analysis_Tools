@@ -12,6 +12,7 @@ import sys
 from datetime import datetime
 from enum import Enum
 from typing import Optional, Dict, Any
+from pathlib import Path
 
 
 class LogLevel(Enum):
@@ -47,7 +48,7 @@ class WorkflowLogger:
         
         # File logging setup
         self.log_file = None
-        self.log_directory = "logs"
+        self.log_directory = self._get_logs_directory()
         # Color mapping for console output (if terminal supports colors)
         self.colors = {
             'blue': '\033[94m',
@@ -75,6 +76,13 @@ class WorkflowLogger:
         except (FileNotFoundError, json.JSONDecodeError) as e:
             print(f"Warning: Could not load config file {config_path}: {e}")
             return {}
+    
+    def _get_logs_directory(self):
+        """Get the absolute path to the logs directory in the Analysis_Tools project root"""
+        current_file = Path(__file__).resolve()
+        # Navigate up from src/analysis_tool/workflow_logger.py to Analysis_Tools/
+        project_root = current_file.parent.parent.parent
+        return str(project_root / "logs")
     
     def _should_log(self, level: LogLevel, group: LogGroup) -> bool:
         """Determine if we should log based on level and group settings"""
@@ -230,9 +238,24 @@ class WorkflowLogger:
             from tqdm import tqdm
             # Use tqdm.write which automatically handles progress bar interference
             tqdm.write(message)
+        except UnicodeEncodeError:
+            # Handle Unicode encoding errors by replacing problematic characters
+            try:
+                from tqdm import tqdm
+                safe_message = message.encode('utf-8', errors='replace').decode('utf-8')
+                tqdm.write(safe_message)
+            except:
+                # Final fallback - just skip problematic characters
+                safe_message = message.encode('ascii', errors='replace').decode('ascii')
+                print(safe_message)
         except (ImportError, AttributeError):
             # Fallback to regular print if tqdm is not available or no active progress bar
-            print(message)
+            try:
+                print(message)
+            except UnicodeEncodeError:
+                # Handle Unicode encoding errors in regular print as well
+                safe_message = message.encode('ascii', errors='replace').decode('ascii')
+                print(safe_message)
         
         # Also write to log file if file logging is enabled
         if self.log_file:

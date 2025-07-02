@@ -11,7 +11,27 @@ import os
 import datetime
 from time import sleep
 import argparse
-from workflow_logger import WorkflowLogger
+from pathlib import Path
+from .workflow_logger import WorkflowLogger
+
+def get_analysis_tools_root():
+    """Get the absolute path to the Analysis_Tools project root"""
+    current_file = Path(__file__).resolve()
+    # Navigate up from src/analysis_tool/generate_dataset.py to Analysis_Tools/
+    return current_file.parent.parent.parent
+
+def ensure_datasets_directory():
+    """Ensure the datasets directory exists and return its path"""
+    datasets_dir = get_analysis_tools_root() / "datasets"
+    datasets_dir.mkdir(parents=True, exist_ok=True)
+    return datasets_dir
+
+def resolve_output_path(output_file):
+    """Resolve output file path - if relative, put in datasets directory"""
+    if os.path.isabs(output_file):
+        return Path(output_file)
+    else:
+        return ensure_datasets_directory() / output_file
 
 # Load configuration
 def load_config():
@@ -154,20 +174,22 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                 sleep(wait_time)
     
     # Write results to file
-    logger.info(f"Writing {len(matching_cves)} CVE IDs to {output_file}...", group="initialization")
+    output_file_resolved = resolve_output_path(output_file)
+    
+    logger.info(f"Writing {len(matching_cves)} CVE IDs to {output_file_resolved}...", group="initialization")
     
     try:
-        with open(output_file, 'w') as f:
+        with open(output_file_resolved, 'w') as f:
             for cve_id in matching_cves:
                 f.write(f"{cve_id}\n")
         
         logger.info("Dataset generated successfully!", group="initialization")
         logger.info(f"Collected {len(matching_cves)} CVE records", group="initialization")
-        logger.info(f"File saved: {output_file}", group="initialization")
-        logger.info(f"You can now run: python analysis_tool.py --file {output_file}", group="initialization")
+        logger.info(f"File saved: {output_file_resolved}", group="initialization")
+        logger.info(f"You can now run: python analysis_tool.py --file {output_file_resolved}", group="initialization")
         
     except Exception as e:
-        logger.error(f"Dataset file creation failed: Unable to write dataset output to '{output_file}' - {e}", group="data_processing")
+        logger.error(f"Dataset file creation failed: Unable to write dataset output to '{output_file_resolved}' - {e}", group="data_processing")
         return False
     
     return True

@@ -22,12 +22,10 @@ cve_dataset.txt
 # Always track CVE-1337-*.html files (test suite files)
 !**/generated_pages/CVE-1337-*.html
 
-# Log files - ignore all logs
-src/analysis_tool/logs/
-
 # Keep pycaches but ignore their contents
 __pycache__/*
 test_files/__pycache__/*
 src/analysis_tool/__pycache__/*
-scripts/__pycache__/generate_local_dashboard.cpython-312.pyc
-scripts/__pycache__/log_analyzer.cpython-312.pyc
+src/analysis_tool/utilities/__pycache__/*
+test_output/*
+src/__pycache__/*

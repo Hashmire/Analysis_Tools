@@ -23,21 +23,23 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Add the scripts directory to the Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scripts'))
+# Add the src directory to the Python path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from log_analyzer import LogAnalyzer
-from generate_local_dashboard import generate_dashboard_html
+from analysis_tool.utilities.log_analyzer import LogAnalyzer
+from analysis_tool.utilities.generate_local_dashboard import generate_dashboard_html
 
 class DashboardTestScenarios:
     """Test class for generating various dashboard scenarios"""
     
     def __init__(self):
         self.test_dir = Path(__file__).parent
-        self.logs_dir = self.test_dir.parent / "logs"
-        self.reports_dir = self.test_dir.parent / "reports"
+        self.test_output_dir = self.test_dir.parent / "test_output"
+        self.logs_dir = self.test_output_dir / "logs"
+        self.reports_dir = self.test_output_dir / "reports"
         
         # Ensure directories exist
+        self.test_output_dir.mkdir(exist_ok=True)
         self.logs_dir.mkdir(exist_ok=True)
         self.reports_dir.mkdir(exist_ok=True)
         

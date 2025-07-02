@@ -11,7 +11,7 @@ The `testProvenanceAssistance.json` file contains comprehensive test cases desig
 - **`testProvenanceAssistance.json`** - Comprehensive test data with 20 platform entries
 - **`test_provenance_assistance.py`** - Automated test script with 10 validation categories (self-contained)
 - **`provenance_assistance_test_suite.md`** - This documentation file
-- **Generated Output**: `../src/analysis_tool/generated_pages/CVE-1337-99998.html` (auto-generated)
+- **Generated Output**: `../test_output/CVE-1337-99998.html` (auto-generated)
 
 **Key Features:**  
 
@@ -461,7 +461,7 @@ python analysis_tool.py --test-file "../../test_files/testProvenanceAssistance.j
 The generated HTML file will be located at:
 
 ```text
-E:\Git\Analysis_Tools\src\analysis_tool\generated_pages\CVE-1337-99998.html
+E:\Git\Analysis_Tools\test_output\CVE-1337-99998.html
 ```
 
 ### Expected Test Output
@@ -496,7 +496,7 @@ To manually verify that all provenance assistance features are working correctly
 
 ```bash
 # Navigate to the generated file
-E:\Git\Analysis_Tools\src\analysis_tool\generated_pages\CVE-1337-99998.html
+E:\Git\Analysis_Tools\test_output\CVE-1337-99998.html
 ```
 
 ### Step 2: Verify Description Assistance
@@ -683,11 +683,12 @@ The provenance assistance test suite consists of several key files:
 - `testProvenanceAssistance.json` - The main test data file containing all test cases
 - `test_provenance_assistance.py` - Automated test script that validates functionality  
 - `testProvenanceAssistance_Documentation.md` - This documentation file
-- `../src/analysis_tool/generated_pages/CVE-1337-99998.html` - Generated HTML output for testing
+- `../test_output/CVE-1337-99998.html` - Generated HTML output for testing
 
 **Generated Output:**  
 
-- HTML files are generated in `../src/analysis_tool/generated_pages/` when running the analysis tool
+- HTML files for tests are generated in `../test_output/` when running test scripts
+- HTML files for production are generated in `../generated_pages/` when running the analysis tool
 - The test suite specifically looks for `CVE-1337-99998.html` as the test output
 
 ### Adding New Test Cases
@@ -822,7 +823,7 @@ cd "e:\Git\Analysis_Tools\src\analysis_tool"
 python analysis_tool.py "../../test_files/testProvenanceAssistance.json"
 ```
 
-This generates fresh HTML in `generated_pages/CVE-1337-99998.html`.
+This generates fresh HTML in `test_output/CVE-1337-99998.html`.
 
 #### 2. Run Automated Test Suite
 

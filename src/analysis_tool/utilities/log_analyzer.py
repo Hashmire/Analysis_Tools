@@ -12,9 +12,32 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import argparse
 
+def get_analysis_tools_root():
+    """Get the absolute path to the Analysis_Tools project root"""
+    current_file = Path(__file__).resolve()
+    # Navigate up from src/analysis_tool/utilities/log_analyzer.py to Analysis_Tools/
+    # log_analyzer.py -> utilities/ -> analysis_tool/ -> src/ -> Analysis_Tools/
+    return current_file.parent.parent.parent.parent
+
+def resolve_log_directory(log_dir_param):
+    """Resolve log directory - if relative, use project root"""
+    if os.path.isabs(log_dir_param):
+        return log_dir_param
+    else:
+        return str(get_analysis_tools_root() / log_dir_param)
+
+def resolve_output_path(output_file):
+    """Resolve output file path - if relative, put in reports directory"""
+    if os.path.isabs(output_file):
+        return output_file
+    else:
+        reports_dir = get_analysis_tools_root() / "reports"
+        reports_dir.mkdir(parents=True, exist_ok=True)
+        return str(reports_dir / output_file)
+
 class LogAnalyzer:
     def __init__(self, log_directory="logs"):
-        self.log_directory = log_directory
+        self.log_directory = resolve_log_directory(log_directory)
         self.data = {}
         self.current_processing_cve = None  # Track current CVE being processed
         self.all_log_messages = []  # Store all log messages for additional analysis
@@ -1072,7 +1095,6 @@ class LogAnalyzer:
         try:
             # Look for cache file in common locations
             cache_paths = [
-                "src/analysis_tool/cache/cpe_cache.json",
                 "cache/cpe_cache.json", 
                 "cpe_cache.json"
             ]
@@ -1101,13 +1123,13 @@ class LogAnalyzer:
     
     def save_json(self, output_file="reports/dashboard_data.json"):
         """Save parsed data as JSON"""
-        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        output_path = resolve_output_path(output_file)
         
-        with open(output_file, 'w', encoding='utf-8') as f:
+        with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(self.data, f, indent=2, default=str)
         
-        print(f"Dashboard data saved to: {output_file}")
-        return output_file
+        print(f"Dashboard data saved to: {output_path}")
+        return output_path
     
     def print_summary(self):
         """Print a summary of the analysis"""
@@ -1293,7 +1315,7 @@ def main():
                 
                 print(f"Auto-generating local dashboard: {local_dashboard}")
                 result = subprocess.run([
-                    'python', 'scripts/generate_local_dashboard.py',
+                    'python', 'src/analysis_tool/utilities/generate_local_dashboard.py',
                     '--input', args.output,
                     '--output', str(local_dashboard)
                 ], capture_output=True, text=True)
