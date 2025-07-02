@@ -12,13 +12,13 @@ import datetime
 from time import sleep
 import argparse
 from pathlib import Path
-from .workflow_logger import WorkflowLogger
+from ..workflow_logger import WorkflowLogger
 
 def get_analysis_tools_root():
     """Get the absolute path to the Analysis_Tools project root"""
     current_file = Path(__file__).resolve()
-    # Navigate up from src/analysis_tool/generate_dataset.py to Analysis_Tools/
-    return current_file.parent.parent.parent
+    # Navigate up from src/analysis_tool/utilities/generate_dataset.py to Analysis_Tools/
+    return current_file.parent.parent.parent.parent
 
 def ensure_datasets_directory():
     """Ensure the datasets directory exists and return its path"""
@@ -36,7 +36,7 @@ def resolve_output_path(output_file):
 # Load configuration
 def load_config():
     """Load configuration from config.json"""
-    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+    config_path = os.path.join(os.path.dirname(__file__), '..', 'config.json')
     with open(config_path, 'r') as f:
         return json.load(f)
 
@@ -186,7 +186,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         logger.info("Dataset generated successfully!", group="initialization")
         logger.info(f"Collected {len(matching_cves)} CVE records", group="initialization")
         logger.info(f"File saved: {output_file_resolved}", group="initialization")
-        logger.info(f"You can now run: python analysis_tool.py --file {output_file_resolved}", group="initialization")
+        logger.info(f"You can now run: python run_tools.py --file {output_file_resolved}", group="initialization")
         
     except Exception as e:
         logger.error(f"Dataset file creation failed: Unable to write dataset output to '{output_file_resolved}' - {e}", group="data_processing")

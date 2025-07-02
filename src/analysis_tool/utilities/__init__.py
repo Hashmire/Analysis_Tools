@@ -5,6 +5,7 @@ Analysis Tool Utilities
 This module contains utility scripts for the CVE Analysis Tool:
 - log_analyzer.py: Parses log files and generates dashboard data
 - generate_local_dashboard.py: Creates self-contained HTML dashboards
+- generate_dataset.py: Generates CVE datasets from NVD API for analysis
 """
 
 import json
