@@ -33,9 +33,12 @@ Analysis_Tools/
 │   ├── analysis_tool.py         # Main analysis engine
 │   ├── config.json             # Configuration
 │   ├── requirements.txt        # Dependencies
-│   ├── utilities/              # Dashboard and log utilities
+│   ├── utilities/              # Dataset and dashboard utilities
+│   │   ├── generate_dataset.py            # Enhanced dataset generation
+│   │   └── generate_local_dashboard.py    # Dashboard generation
 │   ├── static/js/              # Frontend modules
 │   └── mappings/               # Vendor-specific mappings
+├── datasets/                   # CVE dataset files and tracking
 ├── generated_pages/            # Production HTML reports
 ├── test_output/                # Test-generated files
 ├── test_files/                 # Test suites and data
@@ -45,8 +48,33 @@ Analysis_Tools/
 └── reports/                    # Dashboard data
 ```
 
+### Generate Dataset Usage Examples
+
+```bash
+# Traditional status-based generation (existing functionality)
+python -m src.analysis_tool.utilities.generate_dataset --statuses "Received" "Awaiting Analysis"
+
+# Generate dataset for CVEs modified in the last 30 days
+python -m src.analysis_tool.utilities.generate_dataset --last-days 30
+
+# Generate dataset for specific date range
+python -m src.analysis_tool.utilities.generate_dataset --start-date 2024-01-01 --end-date 2024-01-31
+
+# Generate differential dataset since last run
+python -m src.analysis_tool.utilities.generate_dataset --since-last-run
+
+# Generate dataset and immediately run analysis
+python -m src.analysis_tool.utilities.generate_dataset --last-days 7 --run-analysis
+
+# Show when the last dataset generation occurred
+python -m src.analysis_tool.utilities.generate_dataset --show-last-run
+```
+
+All generated datasets are automatically tracked in `datasets/dataset_tracker.json` for future differential updates.
+
 ## Documentation
 
+- [Enhanced Dataset Generation](documentation/enhanced_dataset_generation.md) - Dataset management features
 - [Dashboard Usage](documentation/dashboard_usage.md) - Dashboard setup and usage
 - [CPE Caching System](documentation/cpes_api_caching_system.md) - Cache configuration
 - [Logging System](documentation/logging_system.md) - Logging configuration
@@ -119,21 +147,20 @@ python run_tools.py --cve CVE-2024-20515 --no-cache
 
 ### Dataset Generation
 
-Generate CVE datasets from NVD API for bulk analysis:
+Generate CVE datasets for analysis with enhanced capabilities:
 
 ```bash
-# Generate dataset with specific vulnerability statuses
-python -m src.analysis_tool.utilities.generate_dataset --output my_dataset.txt
+# Traditional status-based generation
+python -m src.analysis_tool.utilities.generate_dataset --statuses "Received" "Awaiting Analysis"
 
-# With API key for higher rate limits
-python -m src.analysis_tool.utilities.generate_dataset --api-key YOUR_API_KEY --output my_dataset.txt
+# Generate dataset for recent CVEs and analyze them
+python -m src.analysis_tool.utilities.generate_dataset --last-days 30 --run-analysis
 
-# Test mode (limit to 100 CVEs)
-python -m src.analysis_tool.utilities.generate_dataset --test-mode --output test_dataset.txt
-
-# Then analyze the generated dataset
-python run_tools.py --file my_dataset.txt
+# Generate differential dataset since last run
+python -m src.analysis_tool.utilities.generate_dataset --since-last-run --run-analysis
 ```
+
+See [Enhanced Dataset Generation](documentation/enhanced_dataset_generation.md) for complete details.
 
 ### Dashboard
 
