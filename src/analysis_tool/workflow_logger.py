@@ -298,7 +298,7 @@ class WorkflowLogger:
             self.log_file = open(log_path, 'w', encoding='utf-8')
             
             # Write header to log file
-            self.log_file.write(f"# CVE Analysis Tool Log\n")
+            self.log_file.write(f"# Hashmire/Analysis_Tools Log\n")
             self.log_file.write(f"# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             self.log_file.write(f"# Parameters: {run_parameters}\n")
             self.log_file.write(f"# Log file: {log_path}\n")

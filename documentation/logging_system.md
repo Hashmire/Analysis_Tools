@@ -2,7 +2,7 @@
 
 ## Overview
 
-The CVE Analysis Tool implements a comprehensive, standardized logging and reporting system designed to provide consistent terminology, formatting, and severity assignments across all components. This system has been thoroughly tested with a comprehensive 53-test suite that validates all aspects of logging functionality and ensures reliable, professional-grade logging for all tool operations.
+The Hashmire/Analysis_Tools implements a comprehensive, standardized logging and reporting system designed to provide consistent terminology, formatting, and severity assignments across all components. This system has been thoroughly tested with a comprehensive 53-test suite that validates all aspects of logging functionality and ensures reliable, professional-grade logging for all tool operations.
 
 ## 🎯 Core Design Principles
 

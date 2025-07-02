@@ -31,9 +31,18 @@ def extract_badge_names(badge_html_list):
 # Load configuration
 def load_config():
     """Load configuration from config.json"""
-    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
-    with open(config_path, 'r') as f:
-        return json.load(f)
+    try:
+        config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        # Return a default config to prevent crashes
+        return {
+            'application': {
+                'toolname': 'Hashmire/Analysis_Tools',
+                'version': '0.1.0'
+            }
+        }
 
 config = load_config()
 VERSION = config['application']['version']
@@ -1315,7 +1324,7 @@ def buildHTMLPage(affectedHtml, targetCve, globalCVEMetadata=None, vdbIntelHtml=
     pageBodyHeaderHTML = f"""
     <!-- Tool Info Header -->
     <div class="header" style="margin-left: 10px;">
-        <h1>CVE Analysis Tools</h1><h2><small>{TOOLNAME} version: {VERSION}</small>
+        <h1>{TOOLNAME}<small> - version: {VERSION}</small></h1>
     </div>
     {globalCVEMetadataHTML}
     """

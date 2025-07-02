@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CVE Analysis Tool Dashboard Data Generator
+Hashmire/Analysis_Tools Dashboard Data Generator
 Parses log files and generates JSON data for the dashboard
 """
 
@@ -1134,7 +1134,7 @@ class LogAnalyzer:
     def print_summary(self):
         """Print a summary of the analysis"""
         print("\n" + "="*60)
-        print("CVE ANALYSIS TOOL - LOG ANALYSIS SUMMARY")
+        print("{HASHMIRE/ANALYSIS_TOOLS} - LOG ANALYSIS SUMMARY")
         print("="*60)
         
         processing = self.data["processing"]
@@ -1276,7 +1276,7 @@ class LogAnalyzer:
             self.data["file_stats"]["smallest_file_name"] = file_name
 
 def main():
-    parser = argparse.ArgumentParser(description='Analyze CVE Analysis Tool logs and generate dashboard data')
+    parser = argparse.ArgumentParser(description='Analyze Hashmire/Analysis_Tools logs and generate dashboard data')
     parser.add_argument('--log-dir', default='logs', help='Directory containing log files')
     parser.add_argument('--log-file', help='Specific log file to analyze')
     parser.add_argument('--output', default='reports/dashboard_data.json', help='Output JSON file')

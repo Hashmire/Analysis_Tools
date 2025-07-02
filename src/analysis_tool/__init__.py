@@ -2,7 +2,7 @@
 """
 Analysis Tool Package
 
-This package contains the CVE Analysis Tool and related utilities.
+This package contains the Hashmire/Analysis_Tools and related utilities.
 """
 
 import json

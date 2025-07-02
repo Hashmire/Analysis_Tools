@@ -2,7 +2,7 @@
 """
 Analysis Tools Entry Point
 
-This script provides a convenient way to run the CVE Analysis Tool from the project root.
+This script provides a convenient way to run the Hashmire/Analysis_Tools from the project root.
 It properly sets up the Python path and imports to work with the package structure.
 """
 

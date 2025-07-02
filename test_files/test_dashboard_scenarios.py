@@ -89,7 +89,7 @@ class DashboardTestScenarios:
     
     def _generate_log_header(self, cve_list, start_time):
         """Generate standard log header"""
-        return f"""# CVE Analysis Tool Log
+        return f"""# Hashmire/Analysis_Tools Log
 # Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}
 # Parameters: {', '.join(cve_list)}
 # Log file: Generated for testing

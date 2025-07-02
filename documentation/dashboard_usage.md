@@ -1,10 +1,10 @@
-# CVE Analysis Tool Dashboard
+# Hashmire/Analysis_Tools Dashboard
 
-A refreshable, real-time dashboard that provides insights and statistics from CVE analysis tool log files.
+A refreshable, real-time dashboard that provides insights and statistics from Hashmire/Analysis_Tools log files.
 
 ## 📋 Overview
 
-The dashboard system consists of several components that work together to provide real-time monitoring of the CVE analysis tool:
+The dashboard system consists of several components that work together to provide real-time monitoring of the Hashmire/Analysis_Tools:
 
 - **Log Analyzer** (`src/analysis_tool/utilities/log_analyzer.py`) - Parses log files and extracts metrics
 - **Local Dashboard** (`reports/local_dashboard.html`) - Self-contained HTML with embedded data (works with local files)
@@ -15,10 +15,10 @@ The dashboard system consists of several components that work together to provid
 
 ### Method 1: Automatic Integration (Recommended)
 
-The dashboard is **automatically integrated** into the CVE analysis tool workflow:
+The dashboard is **automatically integrated** into the Hashmire/Analysis_Tools workflow:
 
 ```bash
-# Run the CVE analysis tool normally - dashboard updates automatically!
+# Run the Hashmire/Analysis_Tools normally - dashboard updates automatically!
 cd src/analysis_tool
 python analysis_tool.py [your normal CVE analysis arguments]
 
@@ -85,7 +85,7 @@ Analysis_Tools/
 │   ├── local_dashboard.html     # Self-contained local dashboard
 │   ├── dashboard_data.json      # Generated data file
 ├── logs/
-│   └── *.log                    # CVE analysis tool log files
+│   └── *.log                    # Hashmire/Analysis_Tools log files
 ├── cache/                       # CPE cache files
 ├── datasets/                    # Generated CVE datasets
 └── temp/                        # Temporary files
@@ -215,4 +215,4 @@ The dashboard is **automatically integrated** into the main CVE analysis workflo
 
 ---
 
-For more information about the CVE Analysis Tool itself, see the main project documentation.
+For more information about the Hashmire/Analysis_Tools itself, see the main project documentation.

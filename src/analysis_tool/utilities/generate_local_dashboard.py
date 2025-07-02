@@ -36,7 +36,8 @@ def resolve_output_path(output_file):
 def load_config():
     """Load tool name and version from config.json"""
     try:
-        config_path = Path(__file__).parent.parent / "src" / "analysis_tool" / "config.json"
+        # Navigate from utilities/ -> analysis_tool/ -> config.json
+        config_path = Path(__file__).parent.parent / "config.json"
         with open(config_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
         
@@ -614,7 +615,7 @@ def generate_dashboard_html(data, output_file):
 <body>
     <div class="container">
         <div class="header">
-            <h1>{tool_name} {tool_version} Dataset Processing Dashboard</h1>
+            <h1>{tool_name} {tool_version} Dashboard</h1>
             <p>Real-time monitoring and analytics</p>
         </div>
 
