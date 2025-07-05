@@ -397,8 +397,15 @@ function extractDataFromTable(tableIndex) {
  * @returns {Object} CPE match object
  */
 function createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable) {
-    // Check for "n/a" and similar values that should be treated like wildcards
-    const nonSpecificVersions = ["n/a", "not available", "not applicable", "unavailable", "na", "nil", "none", "*"];
+    // Get non-specific version values from the injected Python list (single source of truth)
+    // Fall back to hardcoded list if injection failed
+    const nonSpecificVersions = (window.NON_SPECIFIC_VERSION_VALUES || [
+        "unspecified", "unknown", "none", "undefined", "various",
+        "n/a", "not available", "not applicable", "unavailable",
+        "na", "nil", "tbd", "to be determined", "pending",
+        "not specified", "not determined", "not known", "not listed",
+        "not provided", "missing", "empty", "null"
+    ]).concat(["*"]); // Always include "*" as a wildcard
     
     // Handle single version with no range indicators
     if (versionInfo.version && !versionInfo.lessThan && !versionInfo.lessThanOrEqual && 

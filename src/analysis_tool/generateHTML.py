@@ -51,6 +51,16 @@ TOOLNAME = config['application']['toolname']
 # Import Analysis Tool
 from . import processData
 
+# Define non-specific version values that should be treated as placeholders
+# This list is used for both version data concern checks and JavaScript JSON generation
+NON_SPECIFIC_VERSION_VALUES = [
+    'unspecified', 'unknown', 'none', 'undefined', 'various',
+    'n/a', 'not available', 'not applicable', 'unavailable',
+    'na', 'nil', 'tbd', 'to be determined', 'pending',
+    'not specified', 'not determined', 'not known', 'not listed',
+    'not provided', 'missing', 'empty', 'null'
+]
+
 # Define version text patterns at module level for reuse
 VERSION_TEXT_PATTERNS = [
     # Range indicators
@@ -76,12 +86,8 @@ VERSION_TEXT_PATTERNS = [
     # Reference directives
     'see references', 'see advisory', 'refer to', 'check', 'as noted',
     
-    # Missing/Unknown values
-    'unspecified', 'unknown', 'none', 'undefined', 'various',
-    'n/a', 'not available', 'not applicable', 'unavailable',
-    'na', 'nil', 'tbd', 'to be determined', 'pending',
-    'not specified', 'not determined', 'not known', 'not listed',
-    'not provided', 'missing', 'empty', 'null',
+    # Missing/Unknown values (use the shared constant)
+    *NON_SPECIFIC_VERSION_VALUES,
     
     # Descriptive statements
     'supported', 'unstable', 'development', 'beta', 'release candidate', 'nightly',
@@ -1158,7 +1164,15 @@ def getCPEJsonScript() -> str:
         console.log('Loaded intelligent settings for', Object.keys(window.INTELLIGENT_SETTINGS).length, 'tables');
         """
     
-    js_content += json_settings_injection + intelligent_settings_js
+    # Inject NON_SPECIFIC_VERSION_VALUES as a global JavaScript variable
+    # This ensures the JavaScript uses the same list as Python (single source of truth)
+    non_specific_versions_js = f"""
+    // Non-specific version values injected from Python (single source of truth)
+    window.NON_SPECIFIC_VERSION_VALUES = {json.dumps(NON_SPECIFIC_VERSION_VALUES)};
+    console.log('Loaded', window.NON_SPECIFIC_VERSION_VALUES.length, 'non-specific version values from Python');
+    """
+    
+    js_content += json_settings_injection + intelligent_settings_js + non_specific_versions_js
     
     # Return the JavaScript wrapped in a script tag
     return f"<script>\n{js_content}\n</script>"
