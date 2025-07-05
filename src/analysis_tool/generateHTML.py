@@ -360,6 +360,59 @@ def analyze_version_characteristics(raw_platform_data):
         branch_ranges = ", ".join(wildcard_branches)
         processed_concerns.add(f"Multiple overlapping branch ranges with wildcard starts: {branch_ranges}")
     
+    # === INCONSISTENT VERSION GRANULARITY CHECK ===
+    version_granularities = {}  # Track different version granularity patterns
+    base_versions = set()  # Track base versions (e.g., "3.3" from "3.3.0" or "3.3 Patch 1")
+    version_examples = {}  # Track examples for each base version and granularity
+    
+    for v in versions:
+        if isinstance(v, dict) and 'version' in v and isinstance(v['version'], str):
+            version_str = v['version'].strip()
+            if not version_str or version_str == '*':
+                continue
+                
+            # Extract base version number (before any patches/updates)
+            # Handle cases like "3.0.0 p1", "3.3 Patch 1", "3.1.0", etc.
+            base_match = re.match(r'^(\d+\.\d+)(?:\.(\d+))?', version_str)
+            if base_match:
+                major_minor = base_match.group(1)  # e.g., "3.0", "3.3"
+                patch_part = base_match.group(2)   # e.g., "0" from "3.0.0", None from "3.3"
+                
+                # Determine granularity: 2-part (3.3) vs 3-part (3.3.0)
+                if patch_part is not None:
+                    granularity = "3-part"
+                else:
+                    granularity = "2-part"
+                
+                # Track this base version and its granularity
+                base_versions.add(major_minor)
+                if major_minor not in version_granularities:
+                    version_granularities[major_minor] = set()
+                    version_examples[major_minor] = {}
+                version_granularities[major_minor].add(granularity)
+                
+                # Store examples for this granularity
+                if granularity not in version_examples[major_minor]:
+                    version_examples[major_minor][granularity] = []
+                if len(version_examples[major_minor][granularity]) < 2:  # Limit to 2 examples
+                    version_examples[major_minor][granularity].append(version_str)
+    
+    # Check for inconsistent granularity within the same base version
+    inconsistent_bases = []
+    for base_version, granularities in version_granularities.items():
+        if len(granularities) > 1:
+            granularity_descriptions = []
+            for granularity in sorted(list(granularities)):
+                examples = version_examples[base_version][granularity]
+                examples_str = ", ".join(examples)
+                granularity_descriptions.append(f"{granularity} ({examples_str})")
+            
+            inconsistent_bases.append(f"{base_version}: {', '.join(granularity_descriptions)}")
+    
+    if inconsistent_bases:
+        concern = f"Inconsistent version granularity: {', '.join(inconsistent_bases)}"
+        processed_concerns.add(concern)
+    
     # FINALIZE VERSION CONCERNS (AFTER ALL VERSIONS PROCESSED)
     characteristics['version_concerns'] = list(processed_concerns)[:20]  # Limit to 20 concerns max
     if len(processed_concerns) > 20:

@@ -955,10 +955,13 @@ class ModularRuleEngine {
                 console.warn(`ModularRules: Removed ${matches.length - deduplicatedMatches.length} duplicate matches for ${cpeBase}`);
             }
             
+            // Process overlapping CPE Match Strings (fix wildcard update attributes)
+            const processedMatches = this.processOverlappingCpeMatches(deduplicatedMatches);
+            
             // Log conflicts and rule application issues
             this.logTroubleshootingInfo(cpeBase);
             
-            return deduplicatedMatches;
+            return processedMatches;
         }        // Fall back to per-version processing
         for (const versionInfo of this.versionData.versions) {
             if (!versionInfo) continue;
@@ -968,7 +971,11 @@ class ModularRuleEngine {
             matches.push(...versionMatches);
         }
         
-        this.logTroubleshootingInfo(cpeBase);        return this.deduplicateMatches(matches);
+        this.logTroubleshootingInfo(cpeBase);        
+        
+        // Process overlapping CPE Match Strings for per-version processing as well
+        const processedMatches = this.processOverlappingCpeMatches(this.deduplicateMatches(matches));
+        return processedMatches;
     }
 
     /**
@@ -1293,6 +1300,94 @@ class ModularRuleEngine {
             versionEndExcluding: match.versionEndExcluding
         };
     }
+
+    /**
+     * Process overlapping CPE Match Strings to fix wildcard update attributes
+     * When we have both a wildcard (*) and specific update values for the same base CPE,
+     * change the wildcard to "-" to indicate "no update" and avoid overlap
+     */
+    processOverlappingCpeMatches(matches) {
+        if (matches.length <= 1) {
+            return matches;
+        }
+        
+        // Group matches by their base CPE components (excluding update field)
+        const cpeGroups = new Map();
+        
+        for (const match of matches) {
+            if (!match.criteria) continue;
+            
+            const cpeComponents = match.criteria.split(':');
+            if (cpeComponents.length < 13) continue; // Ensure valid CPE 2.3 format
+            
+            // Create a base key excluding the update field (position 6)
+            const baseKey = [
+                ...cpeComponents.slice(0, 6),    // up to version field
+                ...cpeComponents.slice(7)        // skip update field, include rest
+            ].join(':');
+            
+            if (!cpeGroups.has(baseKey)) {
+                cpeGroups.set(baseKey, []);
+            }
+            
+            cpeGroups.get(baseKey).push({
+                match,
+                updateValue: cpeComponents[6] || '*',
+                cpeComponents
+            });
+        }
+        
+        // Process each group to fix overlapping matches
+        const processedMatches = [];
+        let totalWildcardUpdates = 0;
+        let totalSpecificUpdates = 0;
+        
+        for (const [baseKey, groupedMatches] of cpeGroups) {
+            if (groupedMatches.length === 1) {
+                // Single match, no overlap possible
+                processedMatches.push(groupedMatches[0].match);
+                continue;
+            }
+            
+            // Check if we have both wildcard (*) and specific update values
+            const wildcardMatches = groupedMatches.filter(gm => gm.updateValue === '*');
+            const specificMatches = groupedMatches.filter(gm => gm.updateValue !== '*');
+            
+            if (wildcardMatches.length > 0 && specificMatches.length > 0) {
+                // We have overlapping matches - convert wildcards to "-"
+                for (const wildcardMatch of wildcardMatches) {
+                    const updatedComponents = [...wildcardMatch.cpeComponents];
+                    updatedComponents[6] = '-'; // Change update field from '*' to '-'
+                    
+                    const updatedMatch = {
+                        ...wildcardMatch.match,
+                        criteria: updatedComponents.join(':')
+                    };
+                    
+                    processedMatches.push(updatedMatch);
+                    totalWildcardUpdates++;
+                }
+                
+                // Add all specific matches unchanged
+                for (const specificMatch of specificMatches) {
+                    processedMatches.push(specificMatch.match);
+                    totalSpecificUpdates++;
+                }
+            } else {
+                // No overlap, add all matches unchanged
+                for (const groupedMatch of groupedMatches) {
+                    processedMatches.push(groupedMatch.match);
+                }
+            }
+        }
+        
+        // Log the processing results
+        if (totalWildcardUpdates > 0) {
+            console.info(`ModularRules: Processed ${totalWildcardUpdates} overlapping wildcard update attributes (changed '*' to '-' to avoid conflicts with ${totalSpecificUpdates} specific updates)`);
+        }
+        
+        return processedMatches;
+    }
 }
 
 /**
@@ -1545,7 +1640,7 @@ function processGapsBetweenUnaffectedRanges(cpeBase, unaffectedVersions, affecte
             vulnerable: true,
             versionStartIncluding: previousRange.end
         });    }
-}
+    }
 
 // =============================================================================
 // Global Exports - All window assignments consolidated here
