@@ -922,6 +922,9 @@ def suggestCPEData(apiKey, rawDataset, case):
                             culledStringVendor = curateCPEAttributes('vendor', cpeValidstringVendor, True)
                             culledStringProduct = curateCPEAttributes('vendorProduct', culledStringVendor, cpeValidstringProduct)
 
+                            # Check if vendorProduct curation successfully removed vendor prefix (like "lunary-ai/lunary" → "lunary")
+                            vendor_with_escaped_slash = culledStringVendor + "\\/"
+                            product_only_curation_applied = cpeValidstringProduct.startswith(vendor_with_escaped_slash)
                             
                             part = "*"
                             vendor = culledStringVendor
@@ -942,6 +945,15 @@ def suggestCPEData(apiKey, rawDataset, case):
                             curatedSearchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                             if curatedSearchString not in cpeBaseStrings:
                                 cpeBaseStrings.append(curatedSearchString)
+
+                            # If vendor prefix was successfully removed from product, also generate a product-only CPE Base String
+                            # This handles cases where the product is correctly curated but vendor name doesn't match CPE dictionary
+                            if product_only_curation_applied:
+                                product_only_match_string = "cpe:2.3:*:*:" + product + ":*:*:*:*:*:*:*:*"
+                                product_only_breakout = breakoutCPEAttributes(product_only_match_string)
+                                product_only_search_string = constructSearchString(product_only_breakout, "baseQuery")
+                                if product_only_search_string not in cpeBaseStrings:
+                                    cpeBaseStrings.append(product_only_search_string)
 
                             vendor_original = platform_data['vendor']
                             product_original = platform_data['product']
@@ -964,6 +976,10 @@ def suggestCPEData(apiKey, rawDataset, case):
                         culledStringVendor = curateCPEAttributes('vendor', cpeValidstringVendor, True)
                         culledStringProduct = curateCPEAttributes('vendorProduct', culledStringVendor, cpeValidstringPackageName)
                         
+                        # Check if vendorProduct curation successfully removed vendor prefix
+                        vendor_with_escaped_slash = culledStringVendor + "\\/"
+                        package_only_curation_applied = cpeValidstringPackageName.startswith(vendor_with_escaped_slash)
+                        
                         part = "*"
                         vendor = culledStringVendor
                         product = culledStringProduct
@@ -981,6 +997,15 @@ def suggestCPEData(apiKey, rawDataset, case):
                         scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                         scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                         cpeBaseStrings.append(scratchMatchString)           
+
+                        # If vendor prefix was successfully removed from packageName, also generate a product-only CPE Base String
+                        # This handles cases where the product is correctly curated but vendor name doesn't match CPE dictionary
+                        if package_only_curation_applied:
+                            package_only_match_string = "cpe:2.3:*:*:" + product + ":*:*:*:*:*:*:*:*"
+                            package_only_breakout = breakoutCPEAttributes(package_only_match_string)
+                            package_only_search_string = constructSearchString(package_only_breakout, "baseQuery")
+                            if package_only_search_string not in cpeBaseStrings:
+                                cpeBaseStrings.append(package_only_search_string)
 
                         vendor_original = platform_data['vendor']
                         packageName_original = platform_data['packageName']
@@ -1892,9 +1917,15 @@ def curateCPEAttributes(case, attributeString1, attributeString2):
             originalProduct = attributeString2
             
             # Remove the vendor name if it is duplicated in the product
-            productVCullValue = formatFor23CPE(attributeString1 + "_")          
-            if productVCullValue in attributeString2:
-                attributeString2 = attributeString2.replace(productVCullValue, "")
+            # # Handle cases where vendor appears as prefix with "/" delimiter
+            # Note: formatFor23CPE() is called before this function, so "/" becomes "\/"
+            vendor_with_escaped_slash = attributeString1 + "\\/"
+            if attributeString2.startswith(vendor_with_escaped_slash):
+                attributeString2 = attributeString2.replace(vendor_with_escaped_slash, "", 1)
+            else:
+                productVCullValue = formatFor23CPE(attributeString1 + "_")          
+                if productVCullValue in attributeString2:
+                    attributeString2 = attributeString2.replace(productVCullValue, "")
             
             # General Trimming
             if ("apache_") in attributeString2:
