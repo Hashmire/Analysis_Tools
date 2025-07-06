@@ -1331,7 +1331,7 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
 # Processes statistics based on /cpes/ response data
 def analyzeBaseStrings(cpeVersionChecks, json_response: Dict[str, Any]) -> Dict[str, Any]:
     # Initialize some data collection variables
-    base_strings = defaultdict(lambda: {"depTrueCount": 0, "depFalseCount": 0, "versionsFound": 0, "versionsFoundContent": []})
+    base_strings = defaultdict(lambda: {"depTrueCount": 0, "depFalseCount": 0, "versionsFound": 0, "versionsFoundContent": [], "references": []})
     total_deprecated = 0
     total_active = 0
     
@@ -1367,6 +1367,31 @@ def analyzeBaseStrings(cpeVersionChecks, json_response: Dict[str, Any]) -> Dict[
         base_strings[base_cpe_name]['versionsFoundContent'] = versions_found
         base_strings[base_cpe_name]['versionsFound'] = len(versions_found)
         
+        # Extract and store reference data from the CPE product
+        # Only extract references from non-deprecated CPE products to avoid outdated provenance data
+        if not product["cpe"]["deprecated"] and 'refs' in product['cpe'] and isinstance(product['cpe']['refs'], list):
+            existing_refs = base_strings[base_cpe_name]['references']
+            for ref in product['cpe']['refs']:
+                if isinstance(ref, dict) and 'ref' in ref:
+                    ref_url = ref.get('ref', '')
+                    ref_type = ref.get('type', 'Unknown')
+                    
+                    # Check if this URL+type combination already exists
+                    existing_ref = next((r for r in existing_refs 
+                                       if r['url'] == ref_url and r['type'] == ref_type), None)
+                    
+                    if existing_ref:
+                        # Increment frequency count
+                        existing_ref['frequency'] += 1
+                    else:
+                        # Add new reference with frequency tracking
+                        ref_data = {
+                            'url': ref_url,
+                            'type': ref_type,
+                            'frequency': 1
+                        }
+                        existing_refs.append(ref_data)
+        
         # Update the deprecated and active counts
         if product["cpe"]["deprecated"]:
             base_strings[base_cpe_name]["depTrueCount"] += 1
@@ -1374,6 +1399,14 @@ def analyzeBaseStrings(cpeVersionChecks, json_response: Dict[str, Any]) -> Dict[
         else:
             base_strings[base_cpe_name]["depFalseCount"] += 1
             total_active += 1
+
+    # Sort references by frequency (most common first) for each base string
+    for base_string_key, base_string_data in base_strings.items():
+        if 'references' in base_string_data and base_string_data['references']:
+            # Sort references by frequency (descending), then by type, then by URL for consistency
+            base_string_data['references'].sort(
+                key=lambda ref: (-ref['frequency'], ref['type'], ref['url'])
+            )
 
     return {
         "base_strings": base_strings,

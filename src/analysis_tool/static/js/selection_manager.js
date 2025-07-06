@@ -480,37 +480,47 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add click handlers to all CPE rows in this table
         const rows = table.querySelectorAll('.cpe-row');
         rows.forEach(function(row) {
-            row.addEventListener('click', function(event) {
-                // Don't handle clicks on elements with their own handlers
-                if (event.target.tagName === 'BUTTON' || 
-                    event.target.tagName === 'A' ||
-                    event.target.closest('button') ||
-                    event.target.closest('a')) {
-                    return;
-                }
+            // Add click handler only to the first cell for row selection
+            const firstCell = row.querySelector('td:first-child');
+            if (firstCell) {
+                firstCell.addEventListener('click', function(event) {
+                    // Don't handle clicks on elements with their own handlers
+                    if (event.target.tagName === 'BUTTON' || 
+                        event.target.tagName === 'A' ||
+                        event.target.closest('button') ||
+                        event.target.closest('a') ||
+                        event.target.closest('.badge') ||
+                        event.target.closest('.reference-section')) {
+                        return;
+                    }
+                    
+                    // Toggle row selection
+                    let cpeBase = row.getAttribute('data-cpe-base');
+                    
+                    // Normalize CPE base string when getting it from the row
+                    cpeBase = normalizeCpeString(cpeBase);
+                    
+                    const selections = window.tableSelections.get(tableId);
+                    
+                    if (selections.has(cpeBase)) {
+                        selections.delete(cpeBase);
+                        row.classList.remove('table-active');
+                    } else {
+                        selections.add(cpeBase);
+                        row.classList.add('table-active');
+                    }
+                    
+                    // Update the consolidated JSON for this table
+                    updateConsolidatedJson(tableId);
+                    
+                    // Update the Export All button (this will also update configSummary)
+                    updateExportAllButton();
+                });
                 
-                // Toggle row selection
-                let cpeBase = row.getAttribute('data-cpe-base');
-                
-                // Normalize CPE base string when getting it from the row
-                cpeBase = normalizeCpeString(cpeBase);
-                
-                const selections = window.tableSelections.get(tableId);
-                
-                if (selections.has(cpeBase)) {
-                    selections.delete(cpeBase);
-                    row.classList.remove('table-active');
-                } else {
-                    selections.add(cpeBase);
-                    row.classList.add('table-active');
-                }
-                
-                // Update the consolidated JSON for this table
-                updateConsolidatedJson(tableId);
-                
-                // Update the Export All button (this will also update configSummary)
-                updateExportAllButton();
-            });
+                // Add visual indicator that first cell is clickable for selection
+                firstCell.style.cursor = 'pointer';
+                firstCell.title = 'Click to select/deselect this CPE for JSON generation';
+            }
         });
         
         // Find the existing button container
