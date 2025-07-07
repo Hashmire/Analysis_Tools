@@ -353,9 +353,10 @@ Static class providing clean interface for modal operations.
 
 Core modal class with fail-fast validation.
 
-#### Static Methods
+#### Static Methods (Class)
 
 **`registerData(modalType, dataKey, data)`**
+
 - Registers data for modal access
 - **Parameters:**
   - `modalType` (string): Type of modal ('references')
@@ -366,6 +367,7 @@ Core modal class with fail-fast validation.
 #### Instance Methods
 
 **`show(dataKey, displayValue, additionalData)`**
+
 - Displays the modal with specified data
 - **Parameters:**
   - `dataKey` (string): Key for registered data
@@ -374,19 +376,22 @@ Core modal class with fail-fast validation.
 - **Throws:** Error if data not found
 
 **`hide()`**
+
 - Hides and removes the modal from DOM
 
 ### BadgeModalFactory
 
 Factory class for creating pre-configured modals.
 
-#### Static Methods
+#### Static Methods (BadgeModalFactory)
 
 **`createReferencesModal()`**
+
 - Creates a configured references modal instance
 - **Returns:** BadgeModal instance specialized for CPE references
 
 **`createGenericDataModal(config)`**
+
 - Creates a generic data modal with custom configuration
 - **Parameters:**
   - `config` (object): Custom configuration overrides

@@ -1232,6 +1232,9 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
             references = base_value.get('references', [])
             references_html = ""
             
+            # Define base_key_safe for use in modal system (needed for both references and sorting priority)
+            base_key_safe = base_key.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_").replace("*", "star")
+            
             if references:
                 # Group references by type for better organization
                 ref_types = {}
@@ -1276,8 +1279,6 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                     references_tooltip_content += f"...and {len(references) - 5} more references"
                 
                 # Create expandable reference section HTML
-                base_key_safe = base_key.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_").replace("*", "star")
-                
                 references_html = f'''
                 <div class="reference-section">
                     <span class="badge modal-badge bg-info" 
