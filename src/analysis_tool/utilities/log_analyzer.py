@@ -1121,7 +1121,7 @@ class LogAnalyzer:
         except Exception as e:
             self.data["cache"]["cache_file_size_formatted"] = "Error reading"
     
-    def save_json(self, output_file="reports/dashboard_data.json"):
+    def save_json(self, output_file="dashboard_data.json"):
         """Save parsed data as JSON"""
         output_path = resolve_output_path(output_file)
         
@@ -1279,7 +1279,7 @@ def main():
     parser = argparse.ArgumentParser(description='Analyze Hashmire/Analysis_Tools logs and generate dashboard data')
     parser.add_argument('--log-dir', default='logs', help='Directory containing log files')
     parser.add_argument('--log-file', help='Specific log file to analyze')
-    parser.add_argument('--output', default='reports/dashboard_data.json', help='Output JSON file')
+    parser.add_argument('--output', default='dashboard_data.json', help='Output JSON file')
     parser.add_argument('--summary', action='store_true', help='Print summary to console')
     parser.add_argument('--no-local-dashboard', action='store_true', help='Skip local dashboard generation')
     

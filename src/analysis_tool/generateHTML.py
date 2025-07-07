@@ -849,6 +849,44 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         
     return html.replace('\n', '')
 
+def create_empty_matches_table(tableIndex=0) -> str:
+    """
+    Create an empty matches table structure for when there are no CPE suggestions
+    but the Custom CPE Builder still needs a table to add rows to.
+    """
+    return f"""
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center collapsed" 
+             id="cpeHeader_{tableIndex}" 
+             data-bs-toggle="collapse" 
+             data-bs-target="#cpeCollapse_{tableIndex}" 
+             style="cursor: pointer;">
+            <h5 class="mb-0">
+                CPE Suggestions
+            </h5>
+            <span class="arrow-icon">&uarr;</span>
+        </div>
+        <div id="cpeCollapse_{tableIndex}" class="collapse" aria-labelledby="cpeHeader_{tableIndex}">
+            <div class="card-body">
+                <p class="text-muted mb-3">No CPE suggestions available. Use the Custom CPE Builder above to create entries.</p>
+                <div id="matchesTable_{tableIndex}_container" class="table-container">
+                    <table id="matchesTable_{tableIndex}" class="table table-hover matchesTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 65%">CPE Base String</th>
+                                <th style="width: 35%">Information</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Custom CPE rows will be added here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    """.replace('\n', '')
+
 def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data=None) -> str:
     try:
         # Early exit if there's no data to process
@@ -1574,21 +1612,13 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
             customCPEBuilderHTML = create_custom_cpe_builder_div(index, collapsed=has_matches)
             html_content += customCPEBuilderHTML
             
-            # Add the matches table after the custom CPE Builder div, but only if there's data to process
+            # Add the matches table after the custom CPE Builder div
+            # Always create the table structure, even if empty, so Custom CPE Builder can add rows
             if has_matches:
                 html_content += convertCPEsQueryDataToHTML(sortedCPEsQueryData, index, row)
             else:
-                # No CPE query results to process - add a simple message or skip entirely
-                html_content += f"""
-                <div class="card mb-3">
-                    <div class="card-header">
-                        <h5 class="mb-0">CPE Suggestions</h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="text-muted">No CPE suggestions available for this entry.</p>
-                    </div>
-                </div>
-                """.replace('\n', '')
+                # No CPE query results - create empty table structure for Custom CPE Builder
+                html_content += create_empty_matches_table(index)
             
             html_content += "</div>"  # Close the container div
             result_df.at[index, 'cpeQueryHTML'] = html_content

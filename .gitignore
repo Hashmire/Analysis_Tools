@@ -29,3 +29,4 @@ src/analysis_tool/__pycache__/*
 src/analysis_tool/utilities/__pycache__/*
 test_output/*
 src/__pycache__/*
+datasets/*
