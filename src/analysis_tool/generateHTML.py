@@ -1028,8 +1028,8 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 
                 references_html = f'''
                 <div class="reference-section">
-                    <span class="badge bg-success" title="{references_tooltip_content}" style="cursor: pointer;" 
-                          onclick="openReferencesModal('{base_key_safe}', '{cpe_base.replace("'", "\\'")}', {len(references)})" id="refBadge_{base_key_safe}">
+                    <span class="badge modal-badge bg-info" 
+                          onclick="BadgeModalManager.openReferencesModal('{base_key_safe}', '{cpe_base.replace("'", "\\'")}', {len(references)})" id="refBadge_{base_key_safe}">
                         📋 Provenance ({len(references)})
                     </span>
                 </div>'''
@@ -1053,32 +1053,67 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 
                 ref_data_js = ref_data_js.rstrip(', ') + "}"
                 
-                # Add reference data to global JavaScript storage
+                # Register reference data with the modular badge modal system
                 references_html += f'''
                 <script>
-                    if (!window.CPE_REFERENCE_DATA) window.CPE_REFERENCE_DATA = {{}};
-                    window.CPE_REFERENCE_DATA['{base_key_safe}'] = {ref_data_js};
+                    BadgeModal.registerData('references', '{base_key_safe}', {ref_data_js});
                 </script>'''
+                
+                # Create sorting priority data structure
+                sorting_data = {
+                    "searches": {},
+                    "versions": versions_found_content,
+                    "statistics": {
+                        "total_cpe_names": total_match_count,
+                        "final_count": dep_false_count,
+                        "deprecated_count": dep_true_count
+                    },
+                    "confirmedMapping": {
+                        "confidence": "High",
+                        "source": "Manual Verification",
+                        "verified_date": "Platform Entry"
+                    }
+                }
+                
+                # Add search source data
+                for key, value in sorted_search_keys:
+                    sorting_data["searches"][key] = value
+                
+                # Convert sorting data to JavaScript format
+                sorting_data_js = json.dumps(sorting_data, cls=CustomJSONEncoder)
+                
+                # Register sorting priority data with the modular badge modal system
+                sorting_priority_html = f'''
+                <script>
+                    BadgeModal.registerData('sortingPriority', '{base_key_safe}', {sorting_data_js});
+                </script>'''
+                
+                # Let frontend JavaScript calculate tab count dynamically from actual data
+                context_count = ""  # Remove hardcoded count, let JS calculate
                 
                 # Create merged row with both confirmed mapping badge and API data
                 html_content += f"""
                 <tr id="row_{base_key_id}" class="cpe-row confirmed-mapping-row" data-cpe-base="{cpe_base}">
                     <td class="text-break">{cpe_base}</td>
                     <td>
-                        <div class="d-flex flex-wrap gap-1 align-items-center">                        <span class="badge rounded-pill bg-success">Confirmed Mapping</span>
-                            <span class="badge rounded-pill bg-secondary" title="{search_keys_tooltip_content}">Relevant Searches: {search_count}</span>
-                            <span class="badge rounded-pill bg-info" title="{versions_found_tooltip_content}">Version Matches: {versions_found}</span>"""
+                        <div class="d-flex flex-wrap gap-1 align-items-center">
+                            <span class="badge modal-badge bg-success"
+                                  onclick="BadgeModalManager.openConfirmedMappingModal('{base_key_safe}', '{cpe_base.replace("'", "\\'")}')">
+                                ✅ Confirmed Mapping
+                            </span>
+                            <span class="badge modal-badge bg-secondary" 
+                                  onclick="BadgeModalManager.openSortingPriorityModal('{base_key_safe}', '{cpe_base.replace("'", "\\'")}', 'statistics')">
+                                📈 Sorting Priority Context
+                            </span>"""
                 
                 # Add enhanced references section if available
                 if references:
                     html_content += references_html
                 
+                # Add sorting priority registration
+                html_content += sorting_priority_html
+                
                 html_content += f"""
-                            <div class="badge bg-primary d-inline-flex align-items-center">
-                                Total CPE Names: {total_match_count}
-                                <span class="badge bg-info ms-1">Final: {dep_false_count}</span>
-                                <span class="badge bg-warning ms-1">Deprecated: {dep_true_count}</span>
-                            </div>
                         </div>
                     </td>
                 </tr>
@@ -1089,16 +1124,39 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
             else:
                 # This confirmed mapping is not in API results - show as confirmed mapping only
                 base_key_id = cpe_base.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
+                base_key_safe = cpe_base.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_").replace("*", "star")
+                
+                # Create minimal sorting priority data for confirmed mapping only
+                sorting_data = {
+                    "confirmedMapping": {
+                        "confidence": "High",
+                        "source": "Manual Verification",
+                        "verified_date": "Platform Entry"
+                    }
+                }
+                
+                # Convert sorting data to JavaScript format
+                sorting_data_js = json.dumps(sorting_data, cls=CustomJSONEncoder)
+                
+                # Register sorting priority data
+                sorting_priority_html = f'''
+                <script>
+                    BadgeModal.registerData('sortingPriority', '{base_key_safe}', {sorting_data_js});
+                </script>'''
                 
                 html_content += f"""
                 <tr id="row_{base_key_id}" class="cpe-row confirmed-mapping-row" data-cpe-base="{cpe_base}">
                     <td class="text-break">{cpe_base}</td>
                     <td>
                         <div class="d-flex flex-wrap gap-1 align-items-center">
-                            <span class="badge rounded-pill bg-success">Confirmed Mapping</span>
+                            <span class="badge modal-badge bg-success"
+                                  onclick="BadgeModalManager.openConfirmedMappingModal('{base_key_safe}', '{cpe_base.replace("'", "\\'")}')">
+                                ✅ Confirmed Mapping
+                            </span>
                         </div>
                     </td>
                 </tr>
+                {sorting_priority_html}
                 """
                 confirmed_mappings_processed.add(cpe_base)
         
@@ -1222,8 +1280,8 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 
                 references_html = f'''
                 <div class="reference-section">
-                    <span class="badge bg-success" title="{references_tooltip_content}" style="cursor: pointer;" 
-                          onclick="openReferencesModal('{base_key_safe}', '{base_key.replace("'", "\\'")}', {len(references)})" id="refBadge_{base_key_safe}">
+                    <span class="badge modal-badge bg-info" 
+                          onclick="BadgeModalManager.openReferencesModal('{base_key_safe}', '{base_key.replace("'", "\\'")}', {len(references)})" id="refBadge_{base_key_safe}">
                         📋 Provenance ({len(references)})
                     </span>
                 </div>'''
@@ -1247,34 +1305,60 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 
                 ref_data_js = ref_data_js.rstrip(', ') + "}"
                 
-                # Add reference data to global JavaScript storage
+                # Register reference data with the modular badge modal system
                 references_html += f'''
                 <script>
-                    if (!window.CPE_REFERENCE_DATA) window.CPE_REFERENCE_DATA = {{}};
-                    window.CPE_REFERENCE_DATA['{base_key_safe}'] = {ref_data_js};
+                    BadgeModal.registerData('references', '{base_key_safe}', {ref_data_js});
                 </script>'''
+            
+            # Create sorting priority data structure for this base_key
+            sorting_data = {
+                "searches": {},
+                "versions": versions_found_content,
+                "statistics": {
+                    "total_cpe_names": total_match_count,
+                    "final_count": dep_false_count,
+                    "deprecated_count": dep_true_count
+                }
+            }
+            
+            # Add search source data
+            for key, value in sorted_search_keys:
+                sorting_data["searches"][key] = value
+            
+            # Convert sorting data to JavaScript format
+            sorting_data_js = json.dumps(sorting_data, cls=CustomJSONEncoder)
+            
+            # Register sorting priority data with the modular badge modal system
+            sorting_priority_html = f'''
+            <script>
+                BadgeModal.registerData('sortingPriority', '{base_key_safe}', {sorting_data_js});
+            </script>'''
             
             # Sanitize base_key for use as ID
             base_key_id = base_key.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
+            
+            # Let frontend JavaScript calculate tab count dynamically from actual data
+            context_count = ""  # Remove hardcoded count, let JS calculate
             
             html_content += f"""
             <tr id="row_{base_key_id}" class="cpe-row" data-cpe-base="{base_key}">
                 <td class="text-break">{base_key}</td>
                 <td>
                 <div class="d-flex flex-wrap gap-1 align-items-center">
-                    <span class="badge rounded-pill bg-secondary" title="{search_keys_tooltip_content}">Relevant Searches: {search_count}</span>
-                    <span class="badge rounded-pill bg-info" title="{versions_found_tooltip_content}">Version Matches: {versions_found}</span>"""
+                    <span class="badge modal-badge bg-secondary" 
+                          onclick="BadgeModalManager.openSortingPriorityModal('{base_key_safe}', '{base_key.replace("'", "\\'")}', 'statistics')">
+                        📈 Sorting Priority Context
+                    </span>"""
             
             # Add enhanced references section if available
             if references:
                 html_content += references_html
             
+            # Add sorting priority registration
+            html_content += sorting_priority_html
+            
             html_content += f"""
-                        <div class="badge bg-primary d-inline-flex align-items-center">
-                            Total CPE Names: {total_match_count}
-                            <span class="badge bg-info ms-1">Final: {dep_false_count}</span>
-                            <span class="badge bg-warning ms-1">Deprecated: {dep_true_count}</span>
-                        </div>
                     </div>
                 </td>
             </tr>
@@ -1303,6 +1387,7 @@ def getCPEJsonScript() -> str:
     current_dir = os.path.dirname(os.path.abspath(__file__))
     # Define the files with paths relative to the current script
     js_files = [
+        os.path.join(current_dir, "static", "js", "badge_modal_system.js"),  # Add modular system first
         os.path.join(current_dir, "static", "js", "modular_rules.js"),
         os.path.join(current_dir, "static", "js", "cpe_json_handler.js"),
         os.path.join(current_dir, "static", "js", "ui_controller.js"),
@@ -1319,7 +1404,7 @@ def getCPEJsonScript() -> str:
     # Read each file and add its content to the script tag
     for js_file in js_files:
         try:
-            with open(js_file, 'r') as f:
+            with open(js_file, 'r', encoding='utf-8') as f:
                 js_content += f.read() + "\n\n"
         except Exception as e:
             logger.error(f"JavaScript file loading failed: Unable to read JS file '{js_file}' - {e}", group="page_generation")
@@ -1330,7 +1415,6 @@ def getCPEJsonScript() -> str:
     json_settings_injection = f"""
     // JSON Settings HTML generated by Python and injected on page load
     window.JSON_SETTINGS_HTML = {json.dumps(safe_json_settings, cls=CustomJSONEncoder)};
-    console.log('Loaded JSON settings HTML for', Object.keys(window.JSON_SETTINGS_HTML).length, 'tables');
     """
     
     # Add intelligent settings injection with defensive checking
@@ -1340,7 +1424,6 @@ def getCPEJsonScript() -> str:
         intelligent_settings_js = f"""
         // Intelligent settings computed by Python
         window.INTELLIGENT_SETTINGS = {json.dumps(safe_intelligent_settings, cls=CustomJSONEncoder)};
-        console.log('Loaded intelligent settings for', Object.keys(window.INTELLIGENT_SETTINGS).length, 'tables');
         """
     
     # Inject NON_SPECIFIC_VERSION_VALUES as a global JavaScript variable
@@ -1348,449 +1431,10 @@ def getCPEJsonScript() -> str:
     non_specific_versions_js = f"""
     // Non-specific version values injected from Python (single source of truth)
     window.NON_SPECIFIC_VERSION_VALUES = {json.dumps(NON_SPECIFIC_VERSION_VALUES)};
-    console.log('Loaded', window.NON_SPECIFIC_VERSION_VALUES.length, 'non-specific version values from Python');
     """
     
-    # Add JavaScript functions for reference modal
-    reference_functions_js = """
-    // Global storage for CPE reference data
-    window.CPE_REFERENCE_DATA = window.CPE_REFERENCE_DATA || {};
 
-    // Open references modal with improved UX and tabbed interface
-    function openReferencesModal(baseKeySafe, cpeBaseString, totalCount) {
-        const refData = window.CPE_REFERENCE_DATA[baseKeySafe];
-        if (!refData) {
-            alert('Reference data not found for this CPE');
-            return;
-        }
-
-        // Sort reference types by predefined order, then frequency for tab order
-        const typeOrder = ['Vendor', 'Project', 'Product', 'Version', 'ChangeLog', 'Change Log', 'Advisory', 'Unknown'];
-        
-        const sortedTypes = Object.entries(refData).sort((a, b) => {
-            const aIndex = typeOrder.indexOf(a[0]);
-            const bIndex = typeOrder.indexOf(b[0]);
-            
-            // If both types are in the predefined order, sort by order
-            if (aIndex !== -1 && bIndex !== -1) {
-                return aIndex - bIndex;
-            }
-            
-            // If only one type is in the predefined order, prioritize it
-            if (aIndex !== -1) return -1;
-            if (bIndex !== -1) return 1;
-            
-            // If neither type is in the predefined order, sort by frequency (descending)
-            return b[1].total_freq - a[1].total_freq;
-        });
-
-        // Create compact tab navigation HTML
-        let tabsHtml = '';
-        let tabContentHtml = '';
-        
-        sortedTypes.forEach(([refType, typeData], index) => {
-            const isActive = index === 0 ? 'active' : '';
-            const tabId = `tab-${refType.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-            
-            // Simplified tab button with just type name
-            tabsHtml += `
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link ${isActive}" id="${tabId}-tab" data-bs-toggle="tab" 
-                            data-bs-target="#${tabId}" type="button" role="tab">
-                        <strong style="font-size: 0.8rem;">${refType}</strong>
-                    </button>
-                </li>
-            `;
-            
-            // Compact tab content with reduced spacing
-            tabContentHtml += `
-                <div class="tab-pane fade ${isActive ? 'show active' : ''}" id="${tabId}" role="tabpanel">
-                    <div class="p-2" style="max-height: 250px; overflow-y: auto;">
-                        <div class="mb-2 pb-1 border-bottom">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <small class="text-muted fw-bold">${refType} References</small>
-                                <div>
-                                    <span class="badge bg-secondary" style="font-size: 0.65rem;">${typeData.refs.length} refs</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="references-compact">
-                            ${generateCompactReferenceContent(typeData.refs)}
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-
-        // Create compact modal HTML with fixed header and tabbed interface
-        const modalHtml = `
-            <div class="modal fade" id="referencesModal" tabindex="-1" aria-labelledby="referencesModalLabel" aria-hidden="true">
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <!-- Fixed Header with CPE String and Summary Stats -->
-                        <div class="modal-header bg-success text-white position-sticky draggable-header" style="top: 0; z-index: 1020; cursor: move;">
-                            <div class="header-content w-100">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <h6 class="modal-title mb-0" id="referencesModalLabel">
-                                        📋 CPE References
-                                    </h6>
-                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="cursor: pointer;"></button>
-                                </div>
-                                <div class="cpe-info-fixed">
-                                    <div class="cpe-string-compact mb-1">
-                                        <code class="text-white bg-dark px-2 py-1 rounded" style="font-size: 0.75rem;">${cpeBaseString}</code>
-                                    </div>
-                                    <div class="summary-stats-compact">
-                                        <span class="badge bg-light text-dark me-1" style="font-size: 0.65rem;">📊 ${totalCount} refs</span>
-                                        <span class="badge bg-light text-dark me-1" style="font-size: 0.65rem;">🏷️ ${Object.keys(refData).length} types</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Tabbed Navigation for Reference Types -->
-                        <div class="modal-body p-0">
-                            <ul class="nav nav-tabs nav-fill bg-light" id="referenceTypeTabs" role="tablist" style="border-bottom: 1px solid #dee2e6;">
-                                ${tabsHtml}
-                            </ul>
-                            
-                            <!-- Tab Content with Reduced Height -->
-                            <div class="tab-content" id="referenceTypeTabContent">
-                                ${tabContentHtml}
-                            </div>
-                        </div>
-                        
-                        <!-- Compact Footer -->
-                        <div class="modal-footer py-1">
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // Remove existing modal if present
-        const existingModal = document.getElementById('referencesModal');
-        if (existingModal) {
-            existingModal.remove();
-        }
-
-        // Add modal to page
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-        // Show modal using Bootstrap
-        const modal = new bootstrap.Modal(document.getElementById('referencesModal'));
-        modal.show();
-
-        // Make modal draggable by header
-        const modalDialog = document.querySelector('#referencesModal .modal-dialog');
-        const modalHeader = document.querySelector('#referencesModal .draggable-header');
-        
-        let isDragging = false;
-        let currentX;
-        let currentY;
-        let initialX;
-        let initialY;
-        let xOffset = 0;
-        let yOffset = 0;
-
-        modalHeader.addEventListener('mousedown', dragStart);
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('mouseup', dragEnd);
-
-        function dragStart(e) {
-            // Don't start dragging if clicking on close button
-            if (e.target.classList.contains('btn-close') || e.target.closest('.btn-close')) {
-                return;
-            }
-            
-            initialX = e.clientX - xOffset;
-            initialY = e.clientY - yOffset;
-
-            if (e.target === modalHeader || modalHeader.contains(e.target)) {
-                isDragging = true;
-                modalDialog.style.transform = `translate(${xOffset}px, ${yOffset}px)`;
-                modalDialog.style.transition = 'none';
-            }
-        }
-
-        function drag(e) {
-            if (isDragging) {
-                e.preventDefault();
-                currentX = e.clientX - initialX;
-                currentY = e.clientY - initialY;
-
-                xOffset = currentX;
-                yOffset = currentY;
-
-                modalDialog.style.transform = `translate(${currentX}px, ${currentY}px)`;
-            }
-        }
-
-        function dragEnd() {
-            if (isDragging) {
-                initialX = currentX;
-                initialY = currentY;
-                isDragging = false;
-                modalDialog.style.transition = '';
-            }
-        }
-
-        // Add tab switching event listeners to update the counter in header
-        document.querySelectorAll('#referenceTypeTabs button[data-bs-toggle="tab"]').forEach(tabButton => {
-            tabButton.addEventListener('shown.bs.tab', function (e) {
-                const refCount = e.target.getAttribute('data-ref-count');
-                const refFreq = e.target.getAttribute('data-ref-freq');
-                const refType = e.target.textContent.split('\\n')[0].trim(); // Get the reference type name
-            });
-        });
-
-        // Clean up modal after it's hidden
-        document.getElementById('referencesModal').addEventListener('hidden.bs.modal', function () {
-            this.remove();
-        });
-    }
-
-    // Generate compact reference content for individual tabs
-    function generateCompactReferenceContent(refs) {
-        let content = '';
-        
-        refs.forEach((ref, index) => {
-            content += `
-                <div class="reference-item-compact mb-1 p-2 border rounded" style="font-size: 0.8rem;">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="reference-link-container flex-grow-1 me-2">
-                            <a href="${ref.url}" target="_blank" class="reference-link-compact" title="${ref.url}">
-                                ${ref.url.length > 60 ? ref.url.substring(0, 60) + '...' : ref.url}
-                            </a>
-                        </div>
-                        <div class="reference-meta-compact">
-                            <span class="badge bg-dark" style="font-size: 0.65rem;">Included ${ref.count} times</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        return content;
-    }
-
-    // Add CSS for modal and reference sections when page loads
-    document.addEventListener('DOMContentLoaded', function() {
-        const referenceStyles = `
-        <style>
-        .reference-section {
-            margin: 2px 0;
-        }
-
-        .reference-section .badge {
-            transition: all 0.2s ease;
-            font-size: 0.8rem;
-        }
-
-        .reference-section .badge:hover {
-            background-color: #157347 !important;
-            transform: scale(1.05);
-        }
-
-        /* Draggable Modal Styling */
-        .draggable-header {
-            cursor: move;
-            user-select: none;
-        }
-
-        .draggable-header:active {
-            cursor: grabbing;
-        }
-
-        /* Ensure second cell has no pointer cursor unless over badges */
-        .cpe-row td:nth-child(2) {
-            cursor: default;
-        }
-
-        .cpe-row td:nth-child(2) .badge {
-            cursor: pointer;
-        }
-
-        /* Compact Modal Styling - Reduced by 50%+ */
-        #referencesModal .modal-lg {
-            max-width: 600px; /* Reduced from 700px */
-        }
-
-        #referencesModal .modal-content {
-            max-height: 60vh; /* Reduced from 80vh */
-            overflow: hidden;
-        }
-
-        #referencesModal .modal-header {
-            background: linear-gradient(45deg, #198754, #20c997);
-            border-bottom: none;
-            padding: 0.5rem 0.75rem; /* Reduced padding */
-        }
-
-        #referencesModal .header-content {
-            font-size: 0.85rem; /* Reduced font size */
-        }
-
-        #referencesModal .cpe-string-compact code {
-            font-size: 0.7rem; /* Reduced font size */
-            word-break: break-all;
-            max-width: 100%;
-            display: inline-block;
-        }
-
-        #referencesModal .summary-stats-compact .badge {
-            font-size: 0.65rem; /* Reduced badge size */
-        }
-
-        /* Compact Tabbed Interface */
-        #referencesModal .nav-tabs {
-            background-color: #f8f9fa;
-            border-bottom: 1px solid #dee2e6;
-            margin: 0;
-            min-height: auto; /* Reduce tab height */
-        }
-
-        #referencesModal .nav-tabs .nav-link {
-            border: none;
-            border-radius: 0;
-            padding: 0.375rem 0.5rem; /* Reduced padding */
-            font-size: 0.75rem; /* Reduced font size */
-            color: #6c757d;
-            background-color: transparent;
-        }
-
-        #referencesModal .nav-tabs .nav-link.active {
-            background-color: #fff;
-            color: #198754;
-            border-bottom: 2px solid #198754;
-            font-weight: 600;
-        }
-
-        #referencesModal .nav-tabs .nav-link:hover {
-            background-color: #e9ecef;
-            border-color: transparent;
-        }
-
-        /* Compact Tab Content */
-        #referencesModal .tab-compact {
-            text-align: center;
-            line-height: 1.1;
-        }
-
-        #referencesModal .tab-compact strong {
-            display: block;
-            font-size: 0.75rem;
-        }
-
-        /* Compact Reference Items */
-        #referencesModal .reference-item-compact {
-            background-color: #f8f9fa;
-            border: 1px solid #e9ecef !important;
-            font-size: 0.75rem; /* Reduced font size */
-            transition: all 0.2s ease;
-            margin-bottom: 0.25rem !important; /* Reduced margin */
-            padding: 0.375rem 0.5rem !important; /* Reduced padding */
-        }
-
-        #referencesModal .reference-item-compact:hover {
-            background-color: #e9ecef;
-            border-color: #198754 !important;
-            transform: translateY(-1px);
-        }
-
-        #referencesModal .reference-link-compact {
-            color: #0d6efd;
-            text-decoration: none;
-            word-break: break-all;
-            font-size: 0.75rem; /* Reduced font size */
-            line-height: 1.2;
-        }
-
-        #referencesModal .reference-link-compact:hover {
-            color: #0a58ca;
-            text-decoration: underline;
-        }
-
-        #referencesModal .reference-meta-compact .badge {
-            font-size: 0.65rem; /* Reduced badge size */
-        }
-
-        #referencesModal .reference-meta-compact small {
-            font-size: 0.65rem; /* Reduced font size */
-        }
-
-        /* Compact Modal Footer */
-        #referencesModal .modal-footer {
-            border-top: 1px solid #dee2e6;
-            background-color: #f8f9fa;
-            padding: 0.375rem 0.75rem; /* Reduced padding */
-        }
-
-        #referencesModal .modal-footer .btn {
-            font-size: 0.75rem; /* Reduced font size */
-            padding: 0.25rem 0.5rem; /* Reduced padding */
-        }
-
-        /* Compact Scrollable Content */
-        #referencesModal .tab-content {
-            background-color: #fff;
-        }
-
-        /* Fixed Header Improvements */
-        #referencesModal .modal-title {
-            font-size: 1rem; /* Reduced title size */
-        }
-
-        #referencesModal .cpe-info-fixed {
-            font-size: 0.8rem;
-        }
-
-        /* Ensure modal appears above all other content */
-        .modal {
-            z-index: 1055;
-        }
-
-        .modal-backdrop {
-            z-index: 1050;
-        }
-
-        /* Enhanced Responsive adjustments for compact design */
-        @media (max-width: 768px) {
-            #referencesModal .modal-lg {
-                max-width: 95vw;
-                margin: 0.25rem; /* Reduced margin */
-            }
-            
-            #referencesModal .modal-content {
-                max-height: 70vh; /* Slightly higher on mobile */
-            }
-            
-            #referencesModal .cpe-string-compact code {
-                font-size: 0.65rem; /* Even smaller on mobile */
-            }
-            
-            #referencesModal .nav-tabs .nav-link {
-                padding: 0.25rem 0.375rem; /* Further reduced mobile padding */
-                font-size: 0.7rem;
-            }
-            
-            #referencesModal .reference-item-compact {
-                font-size: 0.7rem;
-                padding: 0.25rem 0.375rem !important;
-            }
-        }
-        </style>
-        `;
-
-        // Inject the styles into the document head
-        if (document.head) {
-            document.head.insertAdjacentHTML('beforeend', referenceStyles);
-        }
-    });
-    """
-    
-    js_content += json_settings_injection + intelligent_settings_js + non_specific_versions_js + reference_functions_js
+    js_content += json_settings_injection + intelligent_settings_js + non_specific_versions_js
     
     # Return the JavaScript wrapped in a script tag
     return f"<script>\n{js_content}\n</script>"

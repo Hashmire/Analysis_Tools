@@ -584,3 +584,73 @@ table.dataframe td:last-child {
 /* Add Font Awesome if not already included in your HTML */
 @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css');
 
+/* Reference section styling */
+.reference-section {
+    margin: 2px 0;
+}
+
+.reference-section .badge {
+    transition: all 0.2s ease;
+    font-size: 0.8rem;
+}
+
+.reference-section .badge:hover {
+    background-color: #157347 !important;
+    transform: scale(1.05);
+}
+
+/* Ensure second cell has no pointer cursor unless over badges */
+.cpe-row td:nth-child(2) {
+    cursor: default;
+}
+
+.cpe-row td:nth-child(2) .badge {
+    cursor: pointer;
+}
+
+/* Modal Badge Styling - Consolidated styling for all modal-integrated badges */
+.modal-badge {
+    border-radius: 50rem !important; /* rounded-pill shape like confirmed mapping */
+    transition: all 0.2s ease;
+    font-size: 0.8rem;
+    padding: 0.35em 0.8em;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.modal-badge:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Confirmed Mapping Badge - Success green with checkmark */
+.modal-badge.bg-success {
+    background-color: #198754 !important;
+    color: white;
+}
+
+.modal-badge.bg-success:hover {
+    background-color: #157347 !important;
+}
+
+/* Provenance Badge - Blue theme for valuable information */
+.modal-badge.bg-info {
+    background-color: #0d6efd !important;
+    color: white;
+}
+
+.modal-badge.bg-info:hover {
+    background-color: #0b5ed7 !important;
+    color: white;
+}
+
+/* Sorting Priority Context Badge - Secondary gray */
+.modal-badge.bg-secondary {
+    background-color: #6c757d !important;
+    color: white;
+}
+
+.modal-badge.bg-secondary:hover {
+    background-color: #5c636a !important;
+}
+
