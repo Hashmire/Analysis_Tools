@@ -214,18 +214,37 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
                 logger.warning(f"{cve_id} is in REJECTED state - skipping processing", group="cve_queries")
                 return None
         
-        try:
-            nvdRecordData = gatherData.gatherNVDCVERecord(nvd_api_key, cve_id)
-        except Exception as api_error:
-            # Handle specific NVD API errors
-            error_str = str(api_error)
-            if "Invalid cpeMatchstring parameter" in error_str:
-                logger.warning(f"{cve_id} has invalid CPE match string - skipping processing", group="data_processing")
-                logger.debug(f"Error: {error_str}", group="data_processing")
-                return None
-            else:
-                # Re-raise other exceptions
-                raise
+        # TEMPORARILY DISABLED: NVD /cves/ API calls and processing
+        # TODO: Re-enable when NVD configuration data utilization is implemented
+        # This code is preserved for future enhancement when we add functionality to:
+        # 1. Process NVD configurations for cross-validation with CVE List data
+        # 2. Enable user selection and export of NVD-provided CPE configurations
+        # 3. Implement comparison/conflict resolution between CNA and NVD data
+        #
+        # try:
+        #     nvdRecordData = gatherData.gatherNVDCVERecord(nvd_api_key, cve_id)
+        # except Exception as api_error:
+        #     # Handle specific NVD API errors
+        #     error_str = str(api_error)
+        #     if "Invalid cpeMatchstring parameter" in error_str:
+        #         logger.warning(f"{cve_id} has invalid CPE match string - skipping processing", group="data_processing")
+        #         logger.debug(f"Error: {error_str}", group="data_processing")
+        #         return None
+        #     else:
+        #         # Re-raise other exceptions
+        #         raise
+        
+        # Create minimal mock NVD record data (no configurations) to maintain workflow compatibility
+        nvdRecordData = {
+            "vulnerabilities": [{
+                "cve": {
+                    "id": cve_id,
+                    "descriptions": [],
+                    "references": [],
+                    "configurations": []  # Empty configurations array - no NVD data processed
+                }
+            }]
+        }
         
         end_cve_queries("CVE data retrieved")
         

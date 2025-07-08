@@ -1755,11 +1755,17 @@ def processCVEData(dataframe, cveRecordData, nvdSourceData=None):
     return result_df, global_cve_metadata
 
 def processNVDRecordData(dataframe, nvdRecordData):
-    """Process NVD Record Data to extract platform-related information"""
+    """Process NVD Record Data to extract platform-related information
+    
+    NOTE: Currently processing mock NVD data with empty configurations.
+    The NVD /cves/ API calls have been temporarily disabled in analysis_tool.py
+    to reduce file size since NVD configuration data is not currently utilized
+    in the UI for selection, export, or cross-validation purposes.
+    """
     result_df = dataframe.copy()
     
     try:
-        # Process NVD vulnerabilities
+        # Process NVD vulnerabilities (currently will be empty configurations from mock data)
         if 'vulnerabilities' in nvdRecordData:
             for vuln in nvdRecordData['vulnerabilities']:
                 if 'cve' in vuln and 'configurations' in vuln['cve']:
