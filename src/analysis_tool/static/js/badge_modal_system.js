@@ -891,7 +891,7 @@ class BadgeModalFactory {
                     <div class="mb-2">
                         <span class="badge bg-success" style="font-size: 1rem; padding: 0.5rem 1rem;">✓ Confirmed Mapping</span>
                     </div>
-                    <small class="text-muted fw-bold">This CPE Base String has been verified as a Confirmed Mapping</small>
+                    <small class="text-muted fw-bold">This CPE Base String has been verified as a Confirmed Mapping by CPE Moderators and (along with other Confirmed Mappings for the row) should be selected over other CPE Base Strings</small>
                 </div>
                 
                 <div class="mapping-details">
