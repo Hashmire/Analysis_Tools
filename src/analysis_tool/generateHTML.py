@@ -700,12 +700,47 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
             error_tooltip = f"NVD CPE API returned errors for {invalid_cpe_count} CPE strings:&#013;" + "&#013;&#013;".join(cpe_error_messages)
             standard_badges.append(f'<span class="badge bg-secondary" title="{error_tooltip}">CPE API Errors</span> ')
 
-    # 11. CPE Base String Searches badge
+    # 11. CPE Base String Searches badge (Enhanced)
     cpe_base_strings = platform_metadata.get('cpeBaseStrings', [])
-    if cpe_base_strings:
-        sorted_cpe_base_strings = sort_cpe_strings_for_tooltip(cpe_base_strings)
-        base_strings_tooltip = "&#013;".join(sorted_cpe_base_strings)
-        standard_badges.append(f'<span class="badge bg-secondary" title="{base_strings_tooltip}">CPE Base String Searches</span> ')
+    culled_cpe_strings = platform_metadata.get('culledCpeBaseStrings', [])
+    
+    if cpe_base_strings or culled_cpe_strings:
+        # Build enhanced tooltip showing used and culled CPE strings
+        tooltip_parts = []
+        
+        # Summary line
+        used_count = len(cpe_base_strings)
+        culled_count = len(culled_cpe_strings)
+        if culled_count > 0:
+            tooltip_parts.append(f"CPE Base Strings: {used_count} used, {culled_count} culled")
+        else:
+            tooltip_parts.append(f"CPE Base Strings: {used_count} used")
+        
+        # Show used CPE strings
+        if cpe_base_strings:
+            tooltip_parts.append("Used:")
+            sorted_cpe_base_strings = sort_cpe_strings_for_tooltip(cpe_base_strings)
+            for cpe_string in sorted_cpe_base_strings:
+                tooltip_parts.append(f"  {cpe_string}")
+        
+        # Show culled CPE strings with reasons
+        if culled_cpe_strings:
+            tooltip_parts.append("Culled:")
+            for culled_info in culled_cpe_strings:
+                cpe_string = culled_info['cpe_string']
+                reason = culled_info['reason']
+                # Truncate long CPE strings for display
+                display_cpe = cpe_string if len(cpe_string) <= 50 else cpe_string[:47] + "..."
+                tooltip_parts.append(f"  {display_cpe} ({reason})")
+        
+        enhanced_tooltip = "&#013;".join(tooltip_parts)
+        
+        # Always use standard gray color regardless of culled CPEs
+        badge_color = "bg-secondary"
+        badge_text = f"CPE Base String Searches"
+        
+        # Always add to standard badges
+        standard_badges.append(f'<span class="badge {badge_color}" title="{enhanced_tooltip}">{badge_text}</span> ')
 
     # 12. Source to CPE Transformations Applied badge
     curation_tracking = platform_metadata.get('cpeCurationTracking', {})

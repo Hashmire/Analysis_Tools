@@ -1083,6 +1083,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                                 if cpe:  # Only log if there's actually a value
                                     issues['invalid_cpe_format'].append((index, source_role, f"Invalid CPE format: '{cpe}'"))                # Validate CPE base strings for specificity before storing
                 validated_cpe_strings = []
+                culled_cpe_strings = []
                 for cpe_string in cpeBaseStrings:
                     is_valid, reason = validate_cpe_specificity(cpe_string)
                     if is_valid:
@@ -1092,9 +1093,18 @@ def suggestCPEData(apiKey, rawDataset, case):
                         issues['overly_broad_cpe'].append((index, source_role, cpe_string, reason))
                         # Also log the validation failure for log analyzer to capture
                         logger.warning(f"Overly broad CPE detected, skipping: {cpe_string} - {reason}", group="cpe_validation")
+                        # Store culled CPE strings for badge display
+                        culled_cpe_strings.append({
+                            'cpe_string': cpe_string,
+                            'reason': reason
+                        })
 
                 # Update the cpeBaseStrings in platformEntryMetadata with validated strings
                 rawDataset.at[index, 'platformEntryMetadata']['cpeBaseStrings'] = validated_cpe_strings
+                
+                # Store culled CPE strings in metadata for badge display
+                if culled_cpe_strings:
+                    rawDataset.at[index, 'platformEntryMetadata']['culledCpeBaseStrings'] = culled_cpe_strings
 
                 # Store curation tracking in metadata if any changes were found
                 has_curations = any(curation_tracking.values())
