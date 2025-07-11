@@ -39,22 +39,27 @@ This comprehensive matrix maps all platform entry notification badges and their 
 
 | **Badge Name** | **Granular Check** | **Real-World Tooltip Example** | **Root Cause Owner** | **Dev Handled** | **Audiences** |
 |:---|:---|:---|:---:|:---:|:---:|
-| **🟢 Confirmed Mappings** | Verified CPE base string mappings available | "Confirmed CPE mappings available (3):&#013;cpe:2.3:a:mongodb:compass:*:*:*:*:*:*:*:*&#013;cpe:2.3:a:mongodb:mongodb_compass:*:*:*:*:*:*:*:*&#013;cpe:2.3:a:mongodb:compass_community:*:*:*:*:*:*:*:*&#013;&#013;Less specific mappings filtered out:&#013;cpe:2.3:a:mongodb:*:*:*:*:*:*:*:*:*" | Tool Development | ✅ | 👤🔧 |
-| **🔴 git versionType** | git versionType (with version ranges) | "CRITICAL: CPE Range Matching Logic does not currently support git versionTypes&#013;Detected in version range context" | Tool Development | ❌ | 👤🔧 |
-| **🔵 CVE Affected CPES Data** | Raw CPE data display from CVE | "Versions array contains 20 CPEs from affected entry: cpe:2.3:a:mongodb:compass:1.39.0:*:*:*:*:*:*:*, cpe:2.3:a:mongodb:compass:1.39.1:*:*:*:*:*:*:*, ..." | - | ℹ️ | 👤 |
+| **🟢 Confirmed Mappings: X** | Verified CPE base string mappings available | "Confirmed CPE mappings available (3):&#013;cpe:2.3:a:mongodb:compass:*:*:*:*:*:*:*:*&#013;cpe:2.3:a:mongodb:mongodb_compass:*:*:*:*:*:*:*:*&#013;cpe:2.3:a:mongodb:compass_community:*:*:*:*:*:*:*:*&#013;&#013;Less specific mappings filtered out:&#013;cpe:2.3:a:mongodb:*:*:*:*:*:*:*:*:*" | Tool Development | ✅ | 👤🔧 |
+| **🔴 git versionType** | git versionType (with version ranges) - CRITICAL | "CRITICAL: CPE Range Matching Logic does not currently support git versionTypes&#013;Detected in version range context" | Tool Development | ❌ | 👤🔧 |
+| **🔵 CVE Affects Product (No Versions)** | No version information detected | "No versions detected!" | - | ℹ️ | 👤 |
+| **🔵 CVE Affected CPES Data: X** | Raw CPE data display from CVE | "Versions array contains 20 CPEs from affected entry: cpe:2.3:a:mongodb:compass:1.39.0:*:*:*:*:*:*:*, cpe:2.3:a:mongodb:compass:1.39.1:*:*:*:*:*:*:*, ..." | - | ℹ️ | 👤 |
 | **🔵 CVE Affects Version Range(s)** | Raw version data display from CVE | "version: 3.0.0, status: affected&#013;version: 3.0.0 p1, status: affected&#013;version: 3.0.0 p2, status: affected&#013;...48 more versions" | - | ℹ️ | 👤 |
+| **🔵 CVE Affects Version(s) Exact** | Raw version data display from CVE | "version: 3.0.0, status: affected&#013;version: 3.0.0 p1, status: affected&#013;version: 3.0.0 p2, status: affected&#013;...48 more versions" | - | ℹ️ | 👤 |
+| **🔵 CVE Affects Version(s) Exact and Range(s)** | Raw version data display from CVE | "version: 3.0.0, status: affected&#013;version: 3.0.0 p1, status: affected&#013;version: 3.0.0 p2, status: affected&#013;...48 more versions" | - | ℹ️ | 👤 |
+| **🔵 NVD Configuration** | Raw version data display from NVD | - | - | ℹ️ | 👤 |
 | **🟡 git versionType** | git versionType detected (without version ranges) | "Versioning based on the git versionType is not advised for CPE Names, consider non-git versioning." | Tool Development | ❌ | 👤🔧 |
 | **🟡 Has Version Changes** | Version changes/fixes processed | "Versions array contains change history information requiring special handling" | Tool Development | ✅ | 👤🔧 |
 | **🟡 Wildcard Patterns** | Wildcard patterns expanded to ranges | "Versions array contains wildcard patterns requiring special handling" | Tool Development | ✅ | 👤🔧 |
-| **🟡 Update Patterns Detected** | Version string format normalization (synced with modular_rules.js) | "Detected Update Patterns in Versions Array:  Update pattern for version: 3.3 Patch 1 → 3.3:patch1&#013;Update pattern for version: 3.0.0 p1 → 3.0.0:patch1&#013;Update pattern for version: 2.0.0 sp1 → 2.0.0:sp1&#013;Update pattern for version: 3.1.0.p7 → 3.1.0:patch7&#013;... and 5 more patterns" | Tool Development | ✅ | 👤🔧 |
+| **🟡 Update Patterns Detected** | Version string format normalization (synced with modular_rules.js) | "Version Range Detected, Update Pattern Rules not applied!&#013;3.3 Patch 1   → 3.3:patch1&#013;3.0.0 p1     → 3.0.0:patch1&#013;2.0.0 sp1    → 2.0.0:sp1&#013;3.1.0.p7     → 3.1.0:patch7" | Tool Development | ✅ | 👤🔧 |
 | **⚫ CPE API Errors** | NVD CPE API errors for invalid/malformed CPE strings | "NVD CPE API returned errors for 2 CPE strings:&#013;CPE: cpe:2.3:a:vendor:product:*:*:*:*:*:*:*:*&#013;Error: Invalid CPE format - malformed component&#013;&#013;CPE: cpe:2.3:a:cisco:invalid_product:1.0:*:*:*:*:*:*:*&#013;Error: CPE not found in NVD database" | Tool Development | ❌ | 🔧 |
-| **⚫ CPE Base String Searches** | Generated CPE search patterns display | "cpe:2.3:a:mongodb:compass:*:*:*:*:*:*:*:*&#013;cpe:2.3:*:mongodb:*compass*:*:*:*:*:*:*:*:*&#013;cpe:2.3:a:mongodb:*compass*:*:*:*:*:*:*:*:*" | Tool Development | ℹ️ | 🔧 |
+| **⚫ CPE Base String Searches** | Generated CPE search patterns display with used and culled CPEs | "CPE Base Strings: 3 used, 1 culled&#013;Used:&#013;  cpe:2.3:a:mongodb:compass:*:*:*:*:*:*:*:*&#013;  cpe:2.3:a:mongodb:mongodb_compass:*:*:*:*:*:*:*:*&#013;  cpe:2.3:a:mongodb:compass_community:*:*:*:*:*:*:*:*&#013;Culled:&#013;  cpe:2.3:a:mongodb:*:*:*:*:*:*:*:*:* (too broad)" | Tool Development | ℹ️ | 🔧 |
 | **⚫ Source to CPE Transformations Applied** | Vendor name curation | "Source to CPE transformations applied:&#013;Vendor: mongodb_inc → mongodb" | Tool Development | ✅ | 🔧 |
 | **⚫ Source to CPE Transformations Applied** | Product name curation | "Source to CPE transformations applied:&#013;Product: cisco_identity_services_engine_software → cisco_identity_services_engine" | Tool Development | ✅ | 🔧 |
 | **⚫ Source to CPE Transformations Applied** | Platform mapping | "Source to CPE transformations applied:&#013;Platform: 32-bit Systems → x86&#013;Platform: x64-based Systems → x64" | Tool Development | ✅ | 🔧 |
 | **⚫ Source to CPE Transformations Applied** | Vendor+Product combination curation | "Source to CPE transformations applied:&#013;Vendor+Product: MongoDB Inc:MongoDB Compass → mongodb:compass" | Tool Development | ✅ | 🔧 |
 | **⚫ Source to CPE Transformations Applied** | Vendor+Package combination curation | "Source to CPE transformations applied:&#013;Vendor+Package: Apache:HTTP Server → apache:httpd" | Tool Development | ✅ | 🔧 |
 | **⚫ Source to CPE Transformations Applied** | Unicode normalization applied | "Source to CPE transformations applied:&#013;Product: 'Café Server' → 'Cafe Server'" | Tool Development | ✅ | 🔧 |
+| **⚫ Source to CPE Transformations Applied** | Unicode normalization skipped | "Source to CPE transformations applied:&#013;Product: 'Test-123' → [SKIPPED - already ASCII]" | Tool Development | ✅ | 🔧 |
 | **🟪 Vendor: N/A** | Placeholder vendor entries (n/a values) | "Vendor field contains 'n/a' which prevents proper CPE matching&#013;Original value: 'n/a'" | External Source | ℹ️ | 👤🔧🗃️ |
 | **🟪 Product: N/A** | Placeholder product entries (n/a values) | "Product field contains 'n/a' which prevents proper CPE matching&#013;Original value: 'n/a'" | External Source | ℹ️ | 👤🔧🗃️ |
 | **🟪 Versions Data Concern** | Version text patterns | "Versions array contains formatting issues:&#013;Text in version: 4.60 through 5.36 Patch 1 (patterns: through)" | External Source | ❌ | 👤🔧🗃️ |
@@ -71,22 +76,22 @@ This comprehensive matrix maps all platform entry notification badges and their 
 
 ### **By Responsibility**
 
-- **External Source (8 checks)**: Issues originating from CVE data providers
-- **Tool Development (15 checks)**: Processing and transformation handled by the tool
+- **External Source (9 checks)**: Issues originating from CVE data providers
+- **Tool Development (20 checks)**: Processing and transformation handled by the tool
 
 ### **By Color Group**
 
 - **🟪 Purple (9 checks)**: Data quality and source transformation tracking  
-- **🔵 Blue (2 checks)**: Informational display of CVE data
+- **🔵 Blue (5 checks)**: Informational display of CVE data
 - **🟢 Green (1 check)**: Confirmed mappings and verified information
-- **🔴Red (2 checks)**: Critical system warnings
+- **🔴 Red (2 checks)**: Critical system warnings
 - **🟡 Yellow (4 checks)**: Important processing advisories
-- **⚫ Gray (7 checks)**: Debug and system-generated information
+- **⚫ Gray (8 checks)**: Debug and system-generated information
 
-### **By Audience (Total: 23 unique checks)**
+### **By Audience (Total: 29 unique checks)**
 
-- **👤 Tool Users (16 checks)**: All badges provide user-relevant processing information
-- **🔧 Tool Developers (20 checks)**: Most badges provide debugging and improvement insights
+- **👤 Tool Users (21 checks)**: All badges provide user-relevant processing information
+- **🔧 Tool Developers (25 checks)**: Most badges provide debugging and improvement insights
 - **🗃️ Source Data Providers (9 checks)**: External Source badges highlight upstream data quality issues
 
 ### **Multi-Audience Badge Examples**
