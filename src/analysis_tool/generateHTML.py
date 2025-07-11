@@ -615,13 +615,18 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         # Get CPE overlap processing information
         overlap_info = analyze_cpe_overlap_processing(raw_platform_data)
         
+        # Check if version ranges are present
+        versions = raw_platform_data.get('versions', [])
+        has_ranges = any(v and isinstance(v, dict) and ('lessThan' in v or 'lessThanOrEqual' in v) for v in versions)
+        
         # Build compact, sorted, and interwoven tooltip
         tooltip_parts = []
         
-        # Extract version data for grouping
-        versions = raw_platform_data.get('versions', [])
+        # Add special warning if version ranges are detected
+        if has_ranges:
+            tooltip_parts.append("Version Range Detected, Update Pattern Rules not applied!")
         
-        # Group versions by base version
+        # Extract version data for grouping
         version_groups = {}
         for version in versions:
             if not version or 'version' not in version:
@@ -2221,6 +2226,15 @@ def analyze_data_for_smart_defaults(raw_platform_data):
     """Generate intelligent settings using centralized analysis"""
     characteristics = analyze_version_characteristics(raw_platform_data)
     
+    # Special case: If update patterns exist but version ranges are detected,
+    # do not enable update patterns by default
+    enable_update_patterns = characteristics['has_update_patterns']
+    if enable_update_patterns and raw_platform_data:
+        versions = raw_platform_data.get('versions', [])
+        has_ranges = any(v and isinstance(v, dict) and ('lessThan' in v or 'lessThanOrEqual' in v) for v in versions)
+        if has_ranges:
+            enable_update_patterns = False
+    
     return {
         'enableWildcardExpansion': characteristics['has_wildcards'],
         'enableVersionChanges': characteristics['has_version_changes'],
@@ -2229,7 +2243,7 @@ def analyze_data_for_smart_defaults(raw_platform_data):
         'enableMultipleBranches': characteristics['has_multiple_branches'],
         'enableMixedStatus': characteristics['has_mixed_status'],
         'enableGapProcessing': characteristics['needs_gap_processing'],
-        'enableUpdatePatterns': characteristics['has_update_patterns']
+        'enableUpdatePatterns': enable_update_patterns
     }
 
 def store_json_settings_html(table_id, raw_platform_data=None):
