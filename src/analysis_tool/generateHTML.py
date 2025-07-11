@@ -612,7 +612,67 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         
     # 9. Update Patterns Detected badge
     if characteristics['has_update_patterns'] and characteristics['update_patterns']:
-        update_patterns_tooltip = 'Detected Update Patterns in Versions Array:&#013;' + '&#013;'.join(characteristics['update_patterns'])
+        # Get CPE overlap processing information
+        overlap_info = analyze_cpe_overlap_processing(raw_platform_data)
+        
+        # Build compact, sorted, and interwoven tooltip
+        tooltip_parts = []
+        
+        # Extract version data for grouping
+        versions = raw_platform_data.get('versions', [])
+        
+        # Group versions by base version
+        version_groups = {}
+        for version in versions:
+            if not version or 'version' not in version:
+                continue
+            version_str = version.get('version', '')
+            if not version_str:
+                continue
+            
+            base_version, update_component, transformed_version = transform_version_with_update_pattern(version_str)
+            
+            if base_version and update_component:
+                # This version has an update pattern
+                if base_version not in version_groups:
+                    version_groups[base_version] = {
+                        'wildcard': False,
+                        'specific_updates': []
+                    }
+                version_groups[base_version]['specific_updates'].append({
+                    'original': version_str,
+                    'update': update_component,
+                    'transformed': transformed_version
+                })
+            else:
+                # This is a regular version - check if it matches any base version
+                for base_ver in version_groups:
+                    if version_str == base_ver:
+                        version_groups[base_ver]['wildcard'] = True
+                        break
+                else:
+                    # No matching base version found, create a new group
+                    version_groups[version_str] = {
+                        'wildcard': True,
+                        'specific_updates': []
+                    }
+        
+        # Generate compact tooltip format
+        for base_version in sorted(version_groups.keys()):
+            group = version_groups[base_version]
+            
+            # Only add wildcard entry if there are specific updates for this base version
+            # This prevents showing unnecessary wildcard-to-dash conversions for versions
+            # that don't have overlapping specific update versions
+            if group['wildcard'] and len(group['specific_updates']) > 0:
+                tooltip_parts.append(f"{base_version.ljust(12)} → {base_version}:-")
+            
+            # Add specific updates, sorted by update component
+            for update_info in sorted(group['specific_updates'], key=lambda x: x['update']):
+                original_display = update_info['original']
+                tooltip_parts.append(f"{original_display.ljust(12)} → {update_info['transformed']}")
+        
+        update_patterns_tooltip = '&#013;'.join(tooltip_parts)
         warning_badges.append(f'<span class="badge bg-warning" title="{update_patterns_tooltip}">Update Patterns Detected</span> ')
 
     # ===== ⚫ STANDARD BADGES (Gray) =====
@@ -2340,4 +2400,75 @@ def transform_version_with_update_pattern(version_str):
             return base_version, update_component, transformed_version
     
     return None, None, None
+
+def analyze_cpe_overlap_processing(raw_platform_data):
+    """
+    Analyze CPE overlap processing to replicate JavaScript processOverlappingCpeMatches logic.
+    Returns information about wildcard to dash transformations and specificity checks.
+    """
+    overlap_info = {
+        'has_overlapping_cpes': False,
+        'wildcard_to_dash_count': 0,
+        'specific_update_count': 0,
+        'overlap_details': []
+    }
+    
+    # Extract version data similar to JavaScript logic
+    versions = raw_platform_data.get('versions', [])
+    
+    # Group versions by base version (excluding update patterns)
+    version_groups = {}
+    
+    for version in versions:
+        if not version or 'version' not in version:
+            continue
+            
+        version_str = version.get('version', '')
+        if not version_str:
+            continue
+        
+        # Check if this version has an update pattern
+        base_version, update_component, transformed_version = transform_version_with_update_pattern(version_str)
+        
+        if base_version and update_component:
+            # This version has an update pattern - it would create a specific update CPE
+            group_key = base_version
+            if group_key not in version_groups:
+                version_groups[group_key] = {
+                    'base_versions': [],
+                    'update_versions': []
+                }
+            version_groups[group_key]['update_versions'].append({
+                'original': version_str,
+                'base': base_version,
+                'update': update_component,
+                'transformed': transformed_version
+            })
+        else:
+            # This is a regular version - it would create a wildcard update CPE
+            if version_str not in version_groups:
+                version_groups[version_str] = {
+                    'base_versions': [],
+                    'update_versions': []
+                }
+            version_groups[version_str]['base_versions'].append(version_str)
+    
+    # Check for overlaps between base versions and update versions
+    for group_key, group_data in version_groups.items():
+        has_base_versions = len(group_data['base_versions']) > 0
+        has_update_versions = len(group_data['update_versions']) > 0
+        
+        if has_base_versions and has_update_versions:
+            # This is an overlap scenario - base version (would be wildcard update) 
+            # and specific update versions exist for the same base
+            overlap_info['has_overlapping_cpes'] = True
+            overlap_info['wildcard_to_dash_count'] += len(group_data['base_versions'])
+            overlap_info['specific_update_count'] += len(group_data['update_versions'])
+            
+            # Create overlap detail
+            update_list = [uv['update'] for uv in group_data['update_versions']]
+            detail = f"Base version '{group_key}' (wildcard update '*' → '-') with specific updates: {', '.join(update_list)}"
+            overlap_info['overlap_details'].append(detail)
+    
+    return overlap_info
 
