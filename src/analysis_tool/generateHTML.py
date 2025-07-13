@@ -1247,11 +1247,20 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 
                 ref_data_js = ref_data_js.rstrip(', ') + "}"
                 
-                # Register reference data with the modular badge modal system
-                references_html += f'''
-                <script>
-                    BadgeModal.registerData('references', '{base_key_safe}', {ref_data_js});
-                </script>'''
+                # Parse the JSON for storage in global registry
+                ref_data_dict = json.loads(ref_data_js)
+                
+                # Register reference data with the global CPE registry (deduplicated)
+                register_cpe_data(cpe_base, 'references', ref_data_dict)
+                
+                # Create reference HTML without inline script
+                references_html = f'''
+                <div class="reference-section">
+                    <span class="badge modal-badge bg-info" 
+                          onclick="BadgeModalManager.openReferencesModal('{base_key_safe}', '{cpe_base.replace("'", "\\'")}', {len(references)})" id="refBadge_{base_key_safe}">
+                        📋 Provenance ({len(references)})
+                    </span>
+                </div>'''
                 
                 # Create sorting priority data structure
                 sorting_data = {
@@ -1273,14 +1282,8 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 for key, value in sorted_search_keys:
                     sorting_data["searches"][key] = value
                 
-                # Convert sorting data to JavaScript format
-                sorting_data_js = json.dumps(sorting_data, cls=CustomJSONEncoder)
-                
-                # Register sorting priority data with the modular badge modal system
-                sorting_priority_html = f'''
-                <script>
-                    BadgeModal.registerData('sortingPriority', '{base_key_safe}', {sorting_data_js});
-                </script>'''
+                # Register sorting priority data with the global CPE registry (deduplicated)
+                register_cpe_data(cpe_base, 'sortingPriority', sorting_data)
                 
                 # Let frontend JavaScript calculate tab count dynamically from actual data
                 context_count = ""  # Remove hardcoded count, let JS calculate
@@ -1303,9 +1306,6 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 # Add enhanced references section if available
                 if references:
                     html_content += references_html
-                
-                # Add sorting priority registration
-                html_content += sorting_priority_html
                 
                 html_content += f"""
                         </div>
@@ -1500,11 +1500,20 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 
                 ref_data_js = ref_data_js.rstrip(', ') + "}"
                 
-                # Register reference data with the modular badge modal system
-                references_html += f'''
-                <script>
-                    BadgeModal.registerData('references', '{base_key_safe}', {ref_data_js});
-                </script>'''
+                # Parse the JSON for storage in global registry
+                ref_data_dict = json.loads(ref_data_js)
+                
+                # Register reference data with the global CPE registry (deduplicated)
+                register_cpe_data(base_key, 'references', ref_data_dict)
+                
+                # Create reference HTML without inline script
+                references_html = f'''
+                <div class="reference-section">
+                    <span class="badge modal-badge bg-info" 
+                          onclick="BadgeModalManager.openReferencesModal('{base_key_safe}', '{base_key.replace("'", "\\'")}', {len(references)})" id="refBadge_{base_key_safe}">
+                        📋 Provenance ({len(references)})
+                    </span>
+                </div>'''
             
             # Create sorting priority data structure for this base_key
             sorting_data = {
@@ -1521,14 +1530,8 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
             for key, value in sorted_search_keys:
                 sorting_data["searches"][key] = value
             
-            # Convert sorting data to JavaScript format
-            sorting_data_js = json.dumps(sorting_data, cls=CustomJSONEncoder)
-            
-            # Register sorting priority data with the modular badge modal system
-            sorting_priority_html = f'''
-            <script>
-                BadgeModal.registerData('sortingPriority', '{base_key_safe}', {sorting_data_js});
-            </script>'''
+            # Register sorting priority data with the global CPE registry (deduplicated)
+            register_cpe_data(base_key, 'sortingPriority', sorting_data)
             
             # Sanitize base_key for use as ID
             base_key_id = base_key.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
@@ -1549,9 +1552,6 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
             # Add enhanced references section if available
             if references:
                 html_content += references_html
-            
-            # Add sorting priority registration
-            html_content += sorting_priority_html
             
             html_content += f"""
                     </div>
@@ -1601,6 +1601,8 @@ def getCPEJsonScript() -> str:
         try:
             with open(js_file, 'r', encoding='utf-8') as f:
                 js_content += f.read() + "\n\n"
+       
+
         except Exception as e:
             logger.error(f"JavaScript file loading failed: Unable to read JS file '{js_file}' - {e}", group="page_generation")
             # Add placeholder comment if file can't be read
@@ -1628,8 +1630,10 @@ def getCPEJsonScript() -> str:
     window.NON_SPECIFIC_VERSION_VALUES = {json.dumps(NON_SPECIFIC_VERSION_VALUES)};
     """
     
+    # Get consolidated CPE registrations (deduplicated)
+    consolidated_cpe_registrations = get_consolidated_cpe_registration_script()
 
-    js_content += json_settings_injection + intelligent_settings_js + non_specific_versions_js
+    js_content += json_settings_injection + intelligent_settings_js + non_specific_versions_js + consolidated_cpe_registrations
     
     # Return the JavaScript wrapped in a script tag
     return f"<script>\n{js_content}\n</script>"
@@ -1651,8 +1655,8 @@ def has_update_related_content(raw_platform_data):
         r'^(.+?)[\.\-_]*a[\.\-_]*(\d+)[\.\-_]*$',
         
         # Beta patterns
-        r'^(.+?)[\.\-_]*beta[\.\-_]*(\d*)[\.\-_]*$',
-        r'^(.+?)[\.\-_]*b[\.\-_]*(\d+)[\.\-_]*$',
+        r'^(.+?)[\.\-_]*beta[\.\-_\s]*(\d*)[\.\-_\s]*$',
+        r'^(.+?)[\.\-_\s]*b[\.\-_\s]*(\d+)[\.\-_\s]*$',
         
         # Release candidate patterns
         r'^(.+?)[\.\-_]*rc[\.\-_]*(\d*)[\.\-_]*$',
@@ -2230,56 +2234,113 @@ def create_json_generation_settings_html(table_id, settings=None):
 JSON_SETTINGS_HTML = {}
 INTELLIGENT_SETTINGS = {}
 
+# Global CPE data registry to prevent duplication across rows
+GLOBAL_CPE_DATA_REGISTRY = {
+    'references': {},       # CPE base string -> reference data
+    'sortingPriority': {},  # CPE base string -> sorting data
+    'registered_cpes': set() # Track which CPEs have been processed
+}
+
 # Ensure clean state on module import
 def _initialize_clean_state():
     """Initialize clean global state when module is imported"""
-    global JSON_SETTINGS_HTML, INTELLIGENT_SETTINGS
+    global JSON_SETTINGS_HTML, INTELLIGENT_SETTINGS, GLOBAL_CPE_DATA_REGISTRY
     JSON_SETTINGS_HTML = {}
     INTELLIGENT_SETTINGS = {}
+    GLOBAL_CPE_DATA_REGISTRY = {
+        'references': {},
+        'sortingPriority': {},
+        'registered_cpes': set()
+    }
 
 # Call initialization immediately
 _initialize_clean_state()
 
-# Update the HTML generation for provenance descriptions:
-def generateProvenanceDetailsHTML(provenance_data, provenance_id):
-    html = f"""
-    <div class="description-container-wrapper">
-        <button id="toggle_{provenance_id}" class="btn btn-info btn-sm btn-transition mb-2"
-                onclick="toggleProvenanceDescription('toggle_{provenance_id}')">Show Description</button>
-        <div id="description_{provenance_id}" class="description-container collapsed">
-            <div class="card">
-                <div class="card-body">
-                    {provenance_data['description']}
-                </div>
-            </div>
-        </div>
-    </div>
+def register_cpe_data(cpe_base_string, data_type, data):
     """
-    return html
+    Register CPE data in the global registry to prevent duplication.
+    
+    Args:
+        cpe_base_string: The CPE base string (e.g., "cpe:2.3:a:vendor:product:*")
+        data_type: The type of data ('references' or 'sortingPriority')
+        data: The data to store
+    
+    Returns:
+        bool: True if data was newly registered, False if already existed
+    """
+    global GLOBAL_CPE_DATA_REGISTRY
+    
+    # Create safe key for JavaScript
+    base_key_safe = cpe_base_string.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_").replace("*", "star")
+    
+    # Check if this CPE data is already registered
+    if base_key_safe in GLOBAL_CPE_DATA_REGISTRY[data_type]:
+        return False  # Already registered
+    
+    # Register the data
+    GLOBAL_CPE_DATA_REGISTRY[data_type][base_key_safe] = data
+    GLOBAL_CPE_DATA_REGISTRY['registered_cpes'].add(cpe_base_string)
+    
+    return True  # Newly registered
 
-def analyze_data_for_smart_defaults(raw_platform_data):
-    """Generate intelligent settings using centralized analysis"""
-    characteristics = analyze_version_characteristics(raw_platform_data)
+def is_cpe_data_registered(cpe_base_string, data_type):
+    """
+    Check if CPE data is already registered.
     
-    # Special case: If update patterns exist but version ranges are detected,
-    # do not enable update patterns by default
-    enable_update_patterns = characteristics['has_update_patterns']
-    if enable_update_patterns and raw_platform_data:
-        versions = raw_platform_data.get('versions', [])
-        has_ranges = any(v and isinstance(v, dict) and ('lessThan' in v or 'lessThanOrEqual' in v) for v in versions)
-        if has_ranges:
-            enable_update_patterns = False
+    Args:
+        cpe_base_string: The CPE base string
+        data_type: The type of data ('references' or 'sortingPriority')
     
-    return {
-        'enableWildcardExpansion': characteristics['has_wildcards'],
-        'enableVersionChanges': characteristics['has_version_changes'],
-        'enableSpecialVersionTypes': characteristics['has_special_version_types'],
-        'enableInverseStatus': characteristics['has_inverse_status'],
-        'enableMultipleBranches': characteristics['has_multiple_branches'],
-        'enableMixedStatus': characteristics['has_mixed_status'],
-        'enableGapProcessing': characteristics['needs_gap_processing'],
-        'enableUpdatePatterns': enable_update_patterns
+    Returns:
+        bool: True if already registered
+    """
+    global GLOBAL_CPE_DATA_REGISTRY
+    
+    base_key_safe = cpe_base_string.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_").replace("*", "star")
+    return base_key_safe in GLOBAL_CPE_DATA_REGISTRY[data_type]
+
+def get_consolidated_cpe_registration_script():
+    """
+    Generate a single consolidated script block with all CPE data registrations.
+    
+    Returns:
+        str: JavaScript code block with all BadgeModal.registerData calls
+    """
+    global GLOBAL_CPE_DATA_REGISTRY
+    
+    script_content = ""
+    
+    # Register all references data
+    for base_key_safe, ref_data in GLOBAL_CPE_DATA_REGISTRY['references'].items():
+        ref_data_js = json.dumps(ref_data, cls=CustomJSONEncoder)
+        script_content += f"    BadgeModal.registerData('references', '{base_key_safe}', {ref_data_js});\n"
+    
+    # Register all sorting priority data
+    for base_key_safe, sorting_data in GLOBAL_CPE_DATA_REGISTRY['sortingPriority'].items():
+        sorting_data_js = json.dumps(sorting_data, cls=CustomJSONEncoder)
+        script_content += f"    BadgeModal.registerData('sortingPriority', '{base_key_safe}', {sorting_data_js});\n"
+    
+    if script_content:
+        return f"""
+// Consolidated CPE data registrations (deduplicated)
+{script_content}"""
+    else:
+        return ""
+
+def clear_global_html_state():
+    """Clear global HTML generation state to prevent accumulation between CVE processing runs"""
+    global JSON_SETTINGS_HTML, INTELLIGENT_SETTINGS, GLOBAL_CPE_DATA_REGISTRY
+    
+    # Reinitialize to ensure completely fresh state
+    JSON_SETTINGS_HTML = {}
+    INTELLIGENT_SETTINGS = {}
+    GLOBAL_CPE_DATA_REGISTRY = {
+        'references': {},
+        'sortingPriority': {},
+        'registered_cpes': set()
     }
+    
+    logger.debug("Cleared global HTML state - reinitialized fresh dictionaries and CPE registry", group="page_generation")
 
 def store_json_settings_html(table_id, raw_platform_data=None):
     """Store the JSON settings HTML for a table with intelligent defaults"""
@@ -2298,18 +2359,7 @@ def store_json_settings_html(table_id, raw_platform_data=None):
     JSON_SETTINGS_HTML[table_id] = create_json_generation_settings_html(table_id, settings)
     
     # Store intelligent settings for JavaScript
-    
     INTELLIGENT_SETTINGS[table_id] = settings
-
-def clear_global_html_state():
-    """Clear global HTML generation state to prevent accumulation between CVE processing runs"""
-    global JSON_SETTINGS_HTML, INTELLIGENT_SETTINGS
-    
-    # Reinitialize to ensure completely fresh state
-    JSON_SETTINGS_HTML = {}
-    INTELLIGENT_SETTINGS = {}
-    
-    logger.debug("Cleared global HTML state - reinitialized fresh dictionaries", group="page_generation")
 
 def transform_version_with_update_pattern(version_str):
     """
@@ -2357,7 +2407,7 @@ def transform_version_with_update_pattern(version_str):
         {'pattern': r'^(.+?)\s+Alpha\s*(\d*)$', 'type': 'alpha'},  # Handle "1.0.0 Alpha 1"
         {'pattern': r'^(.+?)\s+a(\d+)$', 'type': 'alpha'},  # Handle "1.0.0 a1"
         
-        # Space-separated release candidate patterns
+        # Release candidate patterns
         {'pattern': r'^(.+?)\s+rc\s*(\d*)$', 'type': 'rc'},  # Handle "1.0.0 rc", "1.0.0 rc 1"
         {'pattern': r'^(.+?)\s+RC\s*(\d*)$', 'type': 'rc'},  # Handle "1.0.0 RC 1"
         {'pattern': r'^(.+?)\s+release\s+candidate\s*(\d*)$', 'type': 'rc'},  # Handle "1.0.0 release candidate 1"
@@ -2520,4 +2570,28 @@ def analyze_cpe_overlap_processing(raw_platform_data):
             overlap_info['overlap_details'].append(detail)
     
     return overlap_info
+
+def analyze_data_for_smart_defaults(raw_platform_data):
+    """Generate intelligent settings using centralized analysis"""
+    characteristics = analyze_version_characteristics(raw_platform_data)
+    
+    # Special case: If update patterns exist but version ranges are detected,
+    # do not enable update patterns by default
+    enable_update_patterns = characteristics['has_update_patterns']
+    if enable_update_patterns and raw_platform_data:
+        versions = raw_platform_data.get('versions', [])
+        has_ranges = any(v and isinstance(v, dict) and ('lessThan' in v or 'lessThanOrEqual' in v) for v in versions)
+        if has_ranges:
+            enable_update_patterns = False
+    
+    return {
+        'enableWildcardExpansion': characteristics['has_wildcards'],
+        'enableVersionChanges': characteristics['has_version_changes'],
+        'enableSpecialVersionTypes': characteristics['has_special_version_types'],
+        'enableInverseStatus': characteristics['has_inverse_status'],
+        'enableMultipleBranches': characteristics['has_multiple_branches'],
+        'enableMixedStatus': characteristics['has_mixed_status'],
+        'enableGapProcessing': characteristics['needs_gap_processing'],
+        'enableUpdatePatterns': enable_update_patterns
+    }
 
