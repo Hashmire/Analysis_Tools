@@ -654,3 +654,353 @@ table.dataframe td:last-child {
     background-color: #5c636a !important;
 }
 
+/* Wildcard Modal Badge - Warning yellow for JSON generation rules */
+.modal-badge.bg-warning {
+    background-color: #ffc107 !important;
+    color: #212529;
+}
+
+.modal-badge.bg-warning:hover {
+    background-color: #ffcd39 !important;
+}
+
+/* ========================================
+ * WILDCARD MODAL STYLING
+ * ======================================== */
+
+/* Wildcard item containers */
+.wildcard-item {
+    background-color: #fff8e1;
+    border: 1px solid #ffc107 !important;
+    font-size: 0.75rem;
+    transition: all 0.2s ease;
+    margin-bottom: 0.5rem !important;
+    padding: 0.75rem !important;
+}
+
+.wildcard-item:hover {
+    background-color: #fff3cd;
+    border-color: #ffc107 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+}
+
+/* JSON input/output display styling */
+.json-input {
+    background-color: #e8f4fd;
+    border: 1px solid #007bff;
+    font-family: 'Courier New', monospace;
+    font-size: 0.7rem;
+    color: #004085;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    overflow-x: auto;
+}
+
+.json-output {
+    background-color: #e8f5e8;
+    border: 1px solid #28a745;
+    font-family: 'Courier New', monospace;
+    font-size: 0.7rem;
+    color: #155724;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    overflow-x: auto;
+}
+
+/* Transformation arrow styling */
+.transformation-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #ffc107;
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-align: center;
+    margin: 0.25rem 0;
+}
+
+.arrow-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.transformation-icon {
+    font-size: 1.8rem;
+    color: #ffc107;
+    background: rgba(255, 193, 7, 0.15);
+    padding: 0.4rem;
+    border-radius: 0.25rem;
+    border: 2px solid rgba(255, 193, 7, 0.4);
+    font-weight: bold;
+}
+
+.transformation-icon-medium {
+    font-size: 2.0rem;
+    color: #ffc107;
+    font-weight: bold;
+    padding: 0.2rem;
+}
+
+.arrow-label {
+    font-size: 0.6rem;
+    font-weight: bold;
+    color: #856404;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Section overview styling */
+.section-overview {
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    border-radius: 0.5rem;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.overview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.section-title {
+    margin: 0;
+    color: #856404;
+    font-weight: bold;
+}
+
+.processing-summary {
+    font-size: 0.8rem;
+    color: #856404;
+}
+
+.rule-count {
+    background: rgba(255, 255, 255, 0.8);
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 193, 7, 0.5);
+}
+
+.json-display {
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    margin: 0;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 0.25rem;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    line-height: 1.4;
+}
+
+.explanation-text {
+    background-color: #fff8e1;
+    border-left: 3px solid #ffc107;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    font-style: italic;
+    color: #856404;
+}
+
+/* ========================================
+ * REFERENCE MODAL STYLING
+ * ======================================== */
+
+.reference-item-compact {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef !important;
+    font-size: 0.75rem;
+    transition: all 0.2s ease;
+    margin-bottom: 0.25rem !important;
+    padding: 0.375rem 0.5rem !important;
+}
+
+.reference-item-compact:hover {
+    background-color: #e9ecef;
+    border-color: #0d6efd !important;
+    transform: translateY(-1px);
+}
+
+.reference-link-compact {
+    color: #0d6efd;
+    text-decoration: none;
+    word-break: break-all;
+    font-size: 0.75rem;
+    line-height: 1.2;
+}
+
+.reference-link-compact:hover {
+    color: #0a58ca;
+    text-decoration: underline;
+}
+
+/* ========================================
+ * SORTING PRIORITY MODAL STYLING
+ * ======================================== */
+
+.sorting-item {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef !important;
+    font-size: 0.75rem;
+    transition: all 0.2s ease;
+    margin-bottom: 0.25rem !important;
+    padding: 0.375rem 0.5rem !important;
+}
+
+.sorting-item:hover {
+    background-color: #e9ecef;
+    border-color: #6c757d !important;
+    transform: translateY(-1px);
+}
+
+.search-key {
+    color: #495057;
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+.search-value {
+    color: #6c757d;
+    font-size: 0.7rem;
+    font-family: 'Courier New', monospace;
+}
+
+.version-key {
+    color: #495057;
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+.version-value {
+    color: #6c757d;
+    font-size: 0.7rem;
+}
+
+.priority-indicator {
+    background-color: #6c757d;
+    color: white;
+    font-size: 0.6rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 0.25rem;
+    font-weight: bold;
+}
+
+/* ========================================
+ * JSON GENERATION RULES MODAL STYLING
+ * ======================================== */
+
+.json-rule-item-compact {
+    background-color: #fff3cd;
+    border: 1px solid #ffeaa7 !important;
+    font-size: 0.75rem;
+    transition: all 0.2s ease;
+    margin-bottom: 0.5rem !important;
+    padding: 0.5rem !important;
+}
+
+/* ========================================
+ * MODAL CONTENT STYLING
+ * ======================================== */
+
+/* Confirmed Mapping Modal Styles */
+.confirmed-mapping-compact .sorting-item {
+    background: linear-gradient(135deg, rgba(25, 135, 84, 0.1) 0%, rgba(25, 135, 84, 0.05) 100%);
+    border-color: #198754 !important;
+}
+
+.confirmed-mapping-card {
+    background-color: rgba(25, 135, 84, 0.1);
+    border: 1px solid rgba(25, 135, 84, 0.3);
+}
+
+.confirmed-mapping-badge {
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+}
+
+.cpe-base-string-display {
+    font-size: 0.9rem;
+}
+
+/* Search Results Modal Styles */
+.searches-compact .sorting-item {
+    font-size: 0.8rem;
+}
+
+.cpe-name-section {
+    flex: 1;
+}
+
+.search-value {
+    font-family: 'Courier New', monospace;
+    font-size: 0.7rem;
+    color: #495057;
+    font-weight: 600;
+}
+
+.search-type-badge {
+    font-size: 0.7rem;
+    color: white;
+}
+
+/* Version Match Modal Styles */
+.versions-compact .sorting-item {
+    font-size: 0.8rem;
+}
+
+.cpe-name-section-version {
+    min-width: 300px;
+}
+
+.version-value {
+    font-family: 'Courier New', monospace;
+    font-size: 0.7rem;
+    color: #495057;
+    font-weight: 600;
+}
+
+.version-type-badge {
+    font-size: 0.7rem;
+}
+
+.additional-fields {
+    border-color: #e9ecef !important;
+}
+
+.version-key {
+    font-size: 0.7rem;
+    color: #6c757d;
+}
+
+.version-field-value {
+    font-size: 0.7rem;
+    color: #495057;
+}
+
+/* Common Modal Badge Sizes */
+.badge-xs {
+    font-size: 0.65rem;
+}
+
+.badge-sm {
+    font-size: 0.7rem;
+}
+
+.badge-verified {
+    font-size: 0.65rem;
+}
+
+.badge-count {
+    font-size: 0.65rem;
+}
+
+/* CPE Code Display */
+.cpe-code {
+    font-size: 0.75rem;
+}
+

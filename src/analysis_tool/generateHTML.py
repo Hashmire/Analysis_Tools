@@ -12,21 +12,8 @@ from .workflow_logger import get_logger, LogGroup
 # Get logger instance
 logger = get_logger()
 
-# NOTE: Debug logging is disabled by default in config.json (level: "INFO", debug group: enabled: false)
-# To enable debug logging temporarily for troubleshooting:
-# 1. Change "level": "DEBUG" in config.json, OR
-# 2. Change "DEBUG": {"enabled": true} in config.json logging groups
-# Debug messages help with troubleshooting pandas Series issues and HTML generation
-
-def extract_badge_names(badge_html_list):
-    """Extract badge names from HTML badge list"""
-    badge_names = []
-    for badge_html in badge_html_list:
-        # Extract text between > and </span>
-        match = re.search(r'>([^<]+)</span>', badge_html)
-        if match:
-            badge_names.append(match.group(1))
-    return badge_names
+# Import the new badge and modal system
+from .badge_modal_system import *
 
 # Load configuration
 def load_config():
@@ -51,61 +38,6 @@ TOOLNAME = config['application']['toolname']
 # Import Analysis Tool
 from . import processData
 
-# Define non-specific version values that should be treated as placeholders
-# This list is used for both version data concern checks and JavaScript JSON generation
-NON_SPECIFIC_VERSION_VALUES = [
-    'unspecified', 'unknown', 'none', 'undefined', 'various',
-    'n/a', 'not available', 'not applicable', 'unavailable',
-    'na', 'nil', 'tbd', 'to be determined', 'pending',
-    'not specified', 'not determined', 'not known', 'not listed',
-    'not provided', 'missing', 'empty', 'null'
-]
-
-# Define version text patterns at module level for reuse
-VERSION_TEXT_PATTERNS = [
-    # Range indicators
-    'through', 'thru', 'to', 'between', 'and',
-    
-    # Upper bound indicators
-    'before', 'prior to', 'earlier than', 'up to', 'until', 
-    'not after', 'older than', 'below',
-    
-    # Lower bound indicators
-    'after', 'since', 'later than', 'newer than', 
-    'starting with', 'from', 'above',
-    
-    # Approximation indicators
-    'about', 'approximately', 'circa', 'around', 'roughly',
-    
-    # Inclusive/exclusive indicators
-    'inclusive', 'exclusive', 'including', 'excluding',
-    
-    # Non-specific versions
-    'all versions', 'any version', 'multiple versions',
-    
-    # Reference directives
-    'see references', 'see advisory', 'refer to', 'check', 'as noted',
-    
-    # Missing/Unknown values (use the shared constant)
-    *NON_SPECIFIC_VERSION_VALUES,
-    
-    # Descriptive statements
-    'supported', 'unstable', 'development', 'beta', 'release candidate', 'nightly',
-    
-    # Date-based indicators that aren't version numbers
-    'builds', 'release', 'pre-', 'post-',
-    
-    # Unclear bounds
-    'earliest', 'recent', 'legacy', 'past', 'future', 'latest',
-    
-    # Commitish references
-    'commit', 'git hash', 'branch',
-    
-    # Version range text indicators
-    '_and_prior', '_and_later', '_and_earlier', '_and_newer',
-    'and_prior', 'and_later', 'and_earlier', 'and_newer'
-]
-
 class CustomJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles sets and other non-standard JSON types"""
     def default(self, obj):
@@ -118,340 +50,6 @@ class CustomJSONEncoder(json.JSONEncoder):
         except TypeError:
             # If we can't encode it normally, convert to string
             return str(obj)
-
-def analyze_version_characteristics(raw_platform_data):
-    """Centralized analysis of version data characteristics - SINGLE SOURCE OF TRUTH"""
-    if not raw_platform_data or not isinstance(raw_platform_data, dict):
-        return {
-            'has_wildcards': False,
-            'has_version_changes': False,
-            'has_special_version_types': False,
-            'has_git_version_type': False,
-            'has_inverse_status': False,
-            'has_multiple_branches': False,
-            'has_mixed_status': False,
-            'needs_gap_processing': False,
-            'has_update_patterns': False,  
-            'wildcard_patterns': [],
-            'special_version_types': [],
-            'version_families': set(),
-            'status_types': set(),
-            'version_concerns': []
-        }
-    
-    versions = raw_platform_data.get('versions', [])
-    if not isinstance(versions, list):
-        return {}
-    
-    characteristics = {
-        'has_wildcards': False,
-        'has_version_changes': False,
-        'has_special_version_types': False,
-        'has_git_version_type': False,
-        'has_inverse_status': False,
-        'has_multiple_branches': False,
-        'has_mixed_status': False,
-        'needs_gap_processing': False,
-        'has_update_patterns': False, 
-        'wildcard_patterns': [],
-        'special_version_types': [],
-        'version_families': set(),
-        'status_types': set(),
-        'version_concerns': [],
-        'update_patterns': []
-    }
-    
-    # Extended list of comparators to check for
-    comparators = ['<', '>', '=', '<=', '=<', '=>', '>=', '!=']
-    
-    
-    processed_concerns = set()  
-    processed_update_patterns = set()  # Track update patterns separately
-    
-    for version in versions:
-        if not isinstance(version, dict):
-            continue
-        
-        # === WILDCARD DETECTION ===
-        for field in ['version', 'lessThan', 'lessThanOrEqual']:
-            if field in version and isinstance(version[field], str) and '*' in version[field]:
-                characteristics['has_wildcards'] = True
-                characteristics['wildcard_patterns'].append(f"{field}: {version[field]}")
-        
-        # === VERSION CHANGES DETECTION ===
-        if version.get('changes'):
-            characteristics['has_version_changes'] = True
-        
-        # === VERSION TYPE DETECTION ===
-        version_type = version.get('versionType')
-        if version_type and version_type not in ['semver', 'string', None]:
-            characteristics['has_special_version_types'] = True
-            characteristics['special_version_types'].append(version_type)
-            if version_type == 'git':
-                characteristics['has_git_version_type'] = True
-        
-        # === STATUS COLLECTION ===
-        if 'status' in version and version['status']:
-            characteristics['status_types'].add(version['status'])
-        
-        # === VERSION FAMILY EXTRACTION ===
-        for field in ['version', 'lessThan', 'lessThanOrEqual']:
-            if field in version and isinstance(version[field], str):
-                version_str = version[field]
-                if version_str and version_str != '*':
-                    match = re.match(r'^(\d+)', version_str)
-                    if match:
-                        characteristics['version_families'].add(match.group(1))
-                        break
-        
-        # === DETAILED VERSION CONCERNS DETECTION (PER VERSION) ===
-        for field in ['version', 'lessThan', 'lessThanOrEqual']:
-            if field not in version:
-                continue
-                
-            field_value = version[field]
-            
-            # Skip None, empty, or non-processable values
-            if field_value is None:
-                continue
-            
-            # Handle string values
-            if isinstance(field_value, str):
-                # Skip empty strings
-                if not field_value.strip():
-                    continue
-                    
-                field_value_lower = field_value.lower()
-                # Check ALL pattern types
-                has_comparator = any(comp in field_value_lower for comp in comparators)
-                has_text_pattern = any(text_comp in field_value_lower for text_comp in VERSION_TEXT_PATTERNS)
-                
-                update_patterns = [
-                    # Alpha patterns
-                    r'^(.+?)[\.\-_\s]*alpha[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*a[\.\-_\s]*(\d+)[\.\-_\s]*$',
-                    
-                    # Beta patterns
-                    r'^(.+?)[\.\-_\s]*beta[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*b[\.\-_\s]*(\d+)[\.\-_\s]*$',
-                    
-                    # Release candidate patterns
-                    r'^(.+?)[\.\-_\s]*rc[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*release[\s\-_]+candidate[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    
-                    # Patch patterns
-                    r'^(.+?)[\.\-_\s]*patch[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*p[\.\-_\s]*(\d+)[\.\-_\s]*$',
-                    r'^(.+?)\.p(\d+)$', # Handle 3.1.0.p7
-                    
-                    # Hotfix patterns
-                    r'^(.+?)[\.\-_\s]*hotfix[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*hf[\.\-_\s]*(\d+)[\.\-_\s]*$',
-                    
-                    # Service pack patterns
-                    r'^(.+?)[\.\-_\s]*service[\s\-_]+pack[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*sp[\.\-_\s]*(\d+)[\.\-_\s]*$',
-                    r'^(.+?)\.sp(\d+)$', # Handle 3.0.0.sp1
-                    
-                    # Update patterns
-                    r'^(.+?)[\.\-_\s]*update[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*upd[\.\-_\s]*(\d+)[\.\-_\s]*$',
-                    
-                    # Fix patterns
-                    r'^(.+?)[\.\-_\s]*fix[\.\-_\s]*(\d+)[\.\-_\s]*$',
-                    
-                    # Revision patterns
-                    r'^(.+?)[\.\-_\s]*revision[\.\-_\s]*(\d+)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*rev[\.\-_\s]*(\d+)[\.\-_\s]*$'
-                ]
-                compiled_update_patterns = [re.compile(pattern, re.IGNORECASE) for pattern in update_patterns]
-                has_update_pattern = any(pattern.match(field_value) for pattern in compiled_update_patterns)
-                
-                # Collect all applicable concerns
-                if has_comparator:
-                    matching_comps = [comp for comp in comparators if comp in field_value_lower]
-                    concern = f"Comparator in {field}: {field_value} (found: {', '.join(matching_comps)})"
-                    processed_concerns.add(html.escape(concern))
-                
-                if has_text_pattern:
-                    matching_patterns = [text_comp for text_comp in VERSION_TEXT_PATTERNS if text_comp in field_value_lower]
-                    limited_patterns = matching_patterns[:3]
-                    pattern_text = ', '.join(limited_patterns)
-                    if len(matching_patterns) > 3:
-                        pattern_text += f" (+{len(matching_patterns) - 3} more)"
-                    concern = f"Text in {field}: {field_value} (patterns: {pattern_text})"
-                    processed_concerns.add(html.escape(concern))
-                
-                # Add update pattern concerns
-                if has_update_pattern:
-                    characteristics['has_update_patterns'] = True  # Set the flag!
-                    
-                    # Use the transformation function to get the actual transformation
-                    base_version, update_component, transformed_version = transform_version_with_update_pattern(field_value)
-                    
-                    if base_version and update_component and transformed_version:
-                        # Show the actual transformation (before → after)
-                        concern = f"Update pattern for {field}: {field_value} → {transformed_version}"
-                        processed_update_patterns.add(html.escape(concern))
-                    else:
-                        # Fallback for patterns that match but don't transform (shouldn't happen)
-                        matching_update_patterns = [pattern.pattern for pattern in compiled_update_patterns if pattern.match(field_value)]
-                        pattern_names = []
-                        for pattern in matching_update_patterns[:3]:  # Limit to 3
-                            if 'patch' in pattern:
-                                pattern_names.append('patch')
-                            elif 'sp|service' in pattern:
-                                pattern_names.append('service pack')
-                            elif 'alpha' in pattern:
-                                pattern_names.append('alpha')
-                            elif 'beta' in pattern:
-                                pattern_names.append('beta')
-                            elif 'rc|release' in pattern:
-                                pattern_names.append('release candidate')
-                            elif 'hotfix|hf' in pattern:
-                                pattern_names.append('hotfix')
-                            elif 'update|upd' in pattern:
-                                pattern_names.append('update')
-                            elif 'fix' in pattern:
-                                pattern_names.append('fix')
-                            elif 'revision|rev' in pattern:
-                                pattern_names.append('revision')
-                        
-                        if pattern_names:
-                            concern = f"Update attribute content in {field}: {field_value} ({', '.join(set(pattern_names))})"
-                            processed_update_patterns.add(html.escape(concern))
-            
-            # Handle dictionary values (nested version objects)
-            elif isinstance(field_value, dict):
-                # Recursively check nested string values
-                for nested_key, nested_value in field_value.items():
-                    if isinstance(nested_value, str) and nested_value.strip():
-                        nested_value_lower = nested_value.lower()
-                        
-                        # Check nested values for concerns
-                        if any(comp in nested_value_lower for comp in comparators):
-                            concern = f"Comparator in {field}.{nested_key}: {nested_value}"
-                            processed_concerns.add(html.escape(concern))
-                        
-                        if any(text_comp in nested_value_lower for text_comp in VERSION_TEXT_PATTERNS):
-                            concern = f"Text in {field}.{nested_key}: {nested_value}"
-                            processed_concerns.add(html.escape(concern))
-                    
-                    # Handle deeply nested structures
-                    elif isinstance(nested_value, dict):
-                        for deep_key, deep_value in nested_value.items():
-                            if isinstance(deep_value, str) and deep_value.strip():
-                                deep_value_lower = deep_value.lower()
-                                if any(text_comp in deep_value_lower for text_comp in VERSION_TEXT_PATTERNS):
-                                    concern = f"Text in {field}.{nested_key}.{deep_key}: {deep_value}"
-                                    processed_concerns.add(html.escape(concern))
-            
-            # Handle list values (arrays of version objects)
-            elif isinstance(field_value, list):
-                for i, list_item in enumerate(field_value):
-                    if isinstance(list_item, str) and list_item.strip():
-                        list_item_lower = list_item.lower()
-                        if any(text_comp in list_item_lower for text_comp in VERSION_TEXT_PATTERNS):
-                            concern = f"Text in {field}[{i}]: {list_item}"
-                            processed_concerns.add(html.escape(concern))
-                    elif isinstance(list_item, dict):
-                        for list_key, list_value in list_item.items():
-                            if isinstance(list_value, str) and list_value.strip():
-                                list_value_lower = list_value.lower()
-                                if any(text_comp in list_value_lower for text_comp in VERSION_TEXT_PATTERNS):
-                                    concern = f"Text in {field}[{i}].{list_key}: {list_value}"
-                                    processed_concerns.add(html.escape(concern))
-            
-            # Log unexpected types
-            elif field_value is not None:  
-                logger.error(f"DataFrame type coercion detected in version field '{field}': expected string, got {type(field_value).__name__}. This indicates pandas DataFrame processing issue.", group="data_processing")
-    
-    # === MULTIPLE WILDCARD BRANCHES CHECK ===
-    wildcard_branches = []
-    for v in versions:
-        if isinstance(v, dict) and v.get('version') == '*' and ('lessThan' in v or 'lessThanOrEqual' in v):
-            branch_end = v.get('lessThan') or v.get('lessThanOrEqual')
-            wildcard_branches.append(branch_end)
-    
-    if len(wildcard_branches) > 1:
-        branch_ranges = ", ".join(wildcard_branches)
-        processed_concerns.add(f"Multiple overlapping branch ranges with wildcard starts: {branch_ranges}")
-    
-    # === INCONSISTENT VERSION GRANULARITY CHECK ===
-    version_granularities = {}  # Track different version granularity patterns
-    base_versions = set()  # Track base versions (e.g., "3.3" from "3.3.0" or "3.3 Patch 1")
-    version_examples = {}  # Track examples for each base version and granularity
-    
-    for v in versions:
-        if isinstance(v, dict) and 'version' in v and isinstance(v['version'], str):
-            version_str = v['version'].strip()
-            if not version_str or version_str == '*':
-                continue
-                
-            # Extract base version number (before any patches/updates)
-            # Handle cases like "3.0.0 p1", "3.3 Patch 1", "3.1.0", etc.
-            base_match = re.match(r'^(\d+\.\d+)(?:\.(\d+))?', version_str)
-            if base_match:
-                major_minor = base_match.group(1)  # e.g., "3.0", "3.3"
-                patch_part = base_match.group(2)   # e.g., "0" from "3.0.0", None from "3.3"
-                
-                # Determine granularity: 2-part (3.3) vs 3-part (3.3.0)
-                if patch_part is not None:
-                    granularity = "3-part"
-                else:
-                    granularity = "2-part"
-                
-                # Track this base version and its granularity
-                base_versions.add(major_minor)
-                if major_minor not in version_granularities:
-                    version_granularities[major_minor] = set()
-                    version_examples[major_minor] = {}
-                version_granularities[major_minor].add(granularity)
-                
-                # Store examples for this granularity
-                if granularity not in version_examples[major_minor]:
-                    version_examples[major_minor][granularity] = []
-                if len(version_examples[major_minor][granularity]) < 2:  # Limit to 2 examples
-                    version_examples[major_minor][granularity].append(version_str)
-    
-    # Check for inconsistent granularity within the same base version
-    inconsistent_bases = []
-    for base_version, granularities in version_granularities.items():
-        if len(granularities) > 1:
-            granularity_descriptions = []
-            for granularity in sorted(list(granularities)):
-                examples = version_examples[base_version][granularity]
-                examples_str = ", ".join(examples)
-                granularity_descriptions.append(f"{granularity} ({examples_str})")
-            
-            inconsistent_bases.append(f"{base_version}: {', '.join(granularity_descriptions)}")
-    
-    if inconsistent_bases:
-        concern = f"Inconsistent version granularity: {', '.join(inconsistent_bases)}"
-        processed_concerns.add(concern)
-    
-    
-    # === ASSIGN COLLECTED DATA TO CHARACTERISTICS ===
-    # Assign version concerns to characteristics
-    characteristics['version_concerns'] = list(processed_concerns)
-    # Assign update patterns to characteristics
-    characteristics['update_patterns'] = list(processed_update_patterns)
-    
-    # === DERIVED CHARACTERISTICS ===
-    characteristics['has_inverse_status'] = raw_platform_data.get('defaultStatus') == 'unaffected'
-    characteristics['has_multiple_branches'] = len(characteristics['version_families']) >= 3
-    characteristics['has_mixed_status'] = (
-        len(characteristics['status_types']) > 1 and 
-        'affected' in characteristics['status_types'] and 
-        'unaffected' in characteristics['status_types']
-    )
-    
-    # Gap processing logic
-    has_ranges = any(v and isinstance(v, dict) and ('lessThan' in v or 'lessThanOrEqual' in v) for v in versions)
-    has_exact_versions = any(v and isinstance(v, dict) and 'version' in v and v['version'] and v['version'] != '*' for v in versions)
-    characteristics['needs_gap_processing'] = (has_ranges and has_exact_versions) or characteristics['has_wildcards']
-    
-    return characteristics
 
 def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     # Access platformEntryMetadata for consolidated fields
@@ -605,16 +203,123 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         changes_tooltip = 'Versions array contains change history information requiring special handling'
         warning_badges.append(f'<span class="badge bg-warning" title="{changes_tooltip}">Has Version Changes</span> ')
 
-    # 8. Wildcard Patterns badge
+    # 8. JSON Generation Rules badge (replaces old Wildcard Patterns badge)
     if characteristics['has_wildcards']:
-        wildcard_tooltip = 'Versions array contains wildcard patterns requiring special handling'
-        warning_badges.append(f'<span class="badge bg-warning" title="{wildcard_tooltip}">Wildcard Patterns</span> ')
+        # Analyze wildcard generation patterns following JavaScript wildcardExpansion rule
+        wildcard_info = analyze_wildcard_generation(raw_platform_data)
+        
+        if wildcard_info['has_wildcards'] and wildcard_info['wildcard_transformations']:
+            # Create a simple tooltip for the basic badge
+            wildcard_count = len(wildcard_info['wildcard_transformations'])
+            simple_tooltip = f'JSON Generation Rules detected - {wildcard_count} wildcard transformation(s) will be applied. Click for detailed processing examples and complete affected entries context.'
+            
+            # Create a unique identifier for this badge's modal data
+            vendor = raw_platform_data.get('vendor', 'unknown')
+            product = raw_platform_data.get('product', 'unknown')
+            badge_key_safe = f"wildcard_{tableIndex}_{vendor}_{product}".replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_").replace("*", "star")
+            
+            # Build detailed modal content showing input → output JSON transformations
+            modal_content = {
+                "wildcardGeneration": {
+                    "transformations": [],
+                    "summary": {
+                        "total_patterns": wildcard_count,
+                        "fields_affected": list(set(t['field'] for t in wildcard_info['wildcard_transformations']))
+                    }
+                }
+            }
+            
+            # Collect all version entries for context matching
+            versions = raw_platform_data.get('versions', [])
+            
+            # Group transformations by field for better organization
+            field_groups = {}
+            for transformation in wildcard_info['wildcard_transformations']:
+                field = transformation['field']
+                if field not in field_groups:
+                    field_groups[field] = []
+                field_groups[field].append(transformation)
+            
+            # Process each field group for the modal
+            for field in sorted(field_groups.keys()):
+                transformations = field_groups[field]
+                
+                field_name = field.replace('lessThanOrEqual', 'Upper Bound (≤)').replace('lessThan', 'Upper Bound (<)').replace('version', 'Version')
+                
+                for transformation in transformations:
+                    original = transformation['original']
+                    start_version = transformation['start_version']
+                    end_version = transformation['end_version']
+                    field_key = transformation['field']
+                    
+                    # Find the complete version entry that contains this wildcard pattern
+                    complete_entry = None
+                    for version in versions:
+                        if not version or not isinstance(version, dict):
+                            continue
+                        if field_key in version and version[field_key] == original:
+                            complete_entry = version
+                            break
+                    
+                    # Determine the derivation description based on field type
+                    if field_key == 'lessThanOrEqual':
+                        derivation_desc = "Derive Upper Bound (excluding)"
+                    elif field_key == 'lessThan':
+                        derivation_desc = "Derive Upper Bound (excluding)"
+                    elif field_key == 'version':
+                        derivation_desc = "Derive Version Range"
+                    else:
+                        derivation_desc = "Derive Range"
+                    
+                    # Create realistic CPE match object transformations
+                    if original == "*":
+                        # Global wildcard transformation
+                        input_json = complete_entry if complete_entry else {field_key: original}
+                        if end_version == '∞':
+                            output_json = {"versionStartIncluding": complete_entry.get('version', '0') if complete_entry else '0'}
+                        else:
+                            output_json = {
+                                "versionStartIncluding": complete_entry.get('version', '0') if complete_entry else '0',
+                                "versionEndExcluding": end_version
+                            }
+                        explanation = f"Global wildcard '*' uses version '{complete_entry.get('version', '0') if complete_entry else '0'}' as start, expands to unbounded or bounded range"
+                    else:
+                        # Specific wildcard pattern transformation
+                        input_json = complete_entry if complete_entry else {field_key: original}
+                        version_value = complete_entry.get('version') if complete_entry else 'unknown'
+                        
+                        # For lessThan/lessThanOrEqual fields, the actual transformation uses the version field as the start
+                        if field_key in ['lessThanOrEqual', 'lessThan']:
+                            output_json = {
+                                "versionStartIncluding": version_value,
+                                "versionEndExcluding": end_version
+                            }
+                            explanation = f"Uses version '{version_value}' as range start, wildcard pattern '{original}' expands upper bound to '{end_version}'"
+                        else:  # version field with wildcard
+                            # For version field wildcards, use the calculated range
+                            output_json = {"versionStartIncluding": start_version, "versionEndExcluding": end_version}
+                            explanation = f"Version wildcard pattern '{original}' expands to range [{start_version}, {end_version})"
+                    
+                    modal_content["wildcardGeneration"]["transformations"].append({
+                        "field": field_key,
+                        "field_display": field_name,
+                        "derivation_desc": derivation_desc,
+                        "input": input_json,
+                        "output": output_json,
+                        "explanation": explanation
+                    })
+            
+            # Register the modal content for later use
+            register_platform_notification_data(tableIndex, 'jsonGenerationRules', modal_content)
+            
+            # Create the modal badge instead of a simple tooltip badge  
+            # Get source role and vendor/product for display
+            source_role = row.get('sourceRole', 'Unknown')
+            platform_identifier = f"Platform Entry {tableIndex} ({source_role}, {vendor}/{product})"
+            warning_badges.append(f'<span class="badge modal-badge bg-warning" onclick="BadgeModalManager.openWildcardGenerationModal(\'{tableIndex}\', \'{platform_identifier}\')" title="{simple_tooltip}">⚙️ JSON Generation Rules</span> ')
         
     # 9. Update Patterns Detected badge
     if characteristics['has_update_patterns'] and characteristics['update_patterns']:
-        # Get CPE overlap processing information
-        overlap_info = analyze_cpe_overlap_processing(raw_platform_data)
-        
         # Check if version ranges are present
         versions = raw_platform_data.get('versions', [])
         has_ranges = any(v and isinstance(v, dict) and ('lessThan' in v or 'lessThanOrEqual' in v) for v in versions)
@@ -1601,7 +1306,6 @@ def getCPEJsonScript() -> str:
         try:
             with open(js_file, 'r', encoding='utf-8') as f:
                 js_content += f.read() + "\n\n"
-       
 
         except Exception as e:
             logger.error(f"JavaScript file loading failed: Unable to read JS file '{js_file}' - {e}", group="page_generation")
@@ -1630,85 +1334,15 @@ def getCPEJsonScript() -> str:
     window.NON_SPECIFIC_VERSION_VALUES = {json.dumps(NON_SPECIFIC_VERSION_VALUES)};
     """
     
-    # Get consolidated CPE registrations (deduplicated)
+    # Get consolidated registrations from badge_modal_system
     consolidated_cpe_registrations = get_consolidated_cpe_registration_script()
+    consolidated_platform_registrations = get_consolidated_platform_notification_script()
 
-    js_content += json_settings_injection + intelligent_settings_js + non_specific_versions_js + consolidated_cpe_registrations
+    js_content += (json_settings_injection + intelligent_settings_js + 
+                  non_specific_versions_js + consolidated_cpe_registrations + 
+                  consolidated_platform_registrations)
     
-    # Return the JavaScript wrapped in a script tag
     return f"<script>\n{js_content}\n</script>"
-
-def has_update_related_content(raw_platform_data):
-    """Check if rawPlatformData contains update-related content that can be extracted by JavaScript"""
-    if not raw_platform_data or 'versions' not in raw_platform_data:
-        return False
-    
-    versions = raw_platform_data.get('versions', [])
-    if not isinstance(versions, list):
-        return False
-    
-    # Synchronized patterns with JavaScript Update Patterns rule
-    # These must match exactly to ensure button only shows when extraction will work
-    update_patterns = [
-        # Alpha patterns
-        r'^(.+?)[\.\-_]*alpha[\.\-_]*(\d*)[\.\-_]*$',
-        r'^(.+?)[\.\-_]*a[\.\-_]*(\d+)[\.\-_]*$',
-        
-        # Beta patterns
-        r'^(.+?)[\.\-_]*beta[\.\-_\s]*(\d*)[\.\-_\s]*$',
-        r'^(.+?)[\.\-_\s]*b[\.\-_\s]*(\d+)[\.\-_\s]*$',
-        
-        # Release candidate patterns
-        r'^(.+?)[\.\-_]*rc[\.\-_]*(\d*)[\.\-_]*$',
-        r'^(.+?)[\.\-_]*release[\s\-_]+candidate[\.\-_]*(\d*)[\.\-_]*$',
-        
-        # Patch patterns
-        r'^(.+?)[\.\-_]*patch[\.\-_]*(\d*)[\.\-_]*$',
-        r'^(.+?)[\.\-_]*p[\.\-_]*(\d+)[\.\-_]*$',
-        r'^(.+?)\.p(\d+)$', # Handle 3.1.0.p7
-        
-        # Hotfix patterns
-        r'^(.+?)[\.\-_]*hotfix[\.\-_]*(\d*)[\.\-_]*$',
-        r'^(.+?)[\.\-_]*hf[\.\-_]*(\d+)[\.\-_]*$',
-        
-        # Service pack patterns
-        r'^(.+?)[\.\-_]*service[\s\-_]+pack[\.\-_]*(\d*)[\.\-_]*$',
-        r'^(.+?)[\.\-_]*sp[\.\-_]*(\d+)[\.\-_]*$',
-        r'^(.+?)\.sp(\d+)$', # Handle 3.0.0.sp1
-        
-        # Update patterns
-        r'^(.+?)[\.\-_]*update[\.\-_]*(\d*)[\.\-_]*$',
-        r'^(.+?)[\.\-_]*upd[\.\-_]*(\d+)[\.\-_]*$',
-        
-        # Fix patterns
-        r'^(.+?)[\.\-_]*fix[\.\-_]*(\d+)[\.\-_]*$',
-        
-        # Revision patterns
-        r'^(.+?)[\.\-_]*revision[\.\-_]*(\d+)[\.\-_]*$',
-        r'^(.+?)[\.\-_]*rev[\.\-_]*(\d+)[\.\-_]*$'
-    ]
-    
-    # Compile patterns for efficiency (case-insensitive to match JavaScript /i flag)
-    compiled_patterns = [re.compile(pattern, re.IGNORECASE) for pattern in update_patterns]
-    
-    # Check version, lessThan, and lessThanOrEqual fields
-    for version in versions:
-        if not isinstance(version, dict):
-            continue
-            
-        fields_to_check = [
-            version.get('version', ''),
-            version.get('lessThan', ''),
-            version.get('lessThanOrEqual', '')
-        ]
-        
-        for field_value in fields_to_check:
-            if field_value and isinstance(field_value, str):
-                for pattern in compiled_patterns:
-                    if pattern.match(field_value):  # Use match() for anchored patterns
-                        return True
-    
-    return False
 
 def update_cpeQueryHTML_column(dataframe, nvdSourceData):
     """Updates the dataframe to include a column with HTML for CPE query results"""
@@ -1791,7 +1425,6 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
     return result_df
 
 # Modify the buildHTMLPage function to accept and include globalCVEMetadata
-
 def buildHTMLPage(affectedHtml, targetCve, globalCVEMetadata=None, vdbIntelHtml=None,):
     
     # Generate UTC timestamp for the page creation
@@ -1924,59 +1557,6 @@ def buildHTMLPage(affectedHtml, targetCve, globalCVEMetadata=None, vdbIntelHtml=
     
     return fullHtml
 
-def sort_cpe_strings_for_tooltip(base_strings):
-    """Sort CPE base strings for tooltip display in a logical order."""
-    def get_sort_key(cpe_string):
-        # Extract parts to use for sorting
-        parts = cpe_string.split(':')
-        if len(parts) < 12:
-            # Not a valid CPE - sort to bottom
-            return (9, cpe_string)
-            
-        # Get the key parts
-        part_type = parts[2]  # 'a', 'o', 'h' or '*'
-        vendor = parts[3]
-        product = parts[4]
-        has_specific_vendor = vendor != '*'
-        has_specific_product = product != '*' and not product.startswith('*') and not product.endswith('*')
-        has_wildcard_product = product != '*' and (product.startswith('*') or product.endswith('*')) 
-        has_hardware_info = parts[11] != '*'  # targetHW field
-        
-        # Prioritize strings
-        if "cpe:2.3:a:" in cpe_string and has_specific_vendor and has_specific_product:
-            # Exact application CPE priority
-            priority = 0
-        elif part_type != '*' and has_specific_vendor and has_specific_product:
-            # Other exact part type with specific vendor and product
-            priority = 1
-        elif has_hardware_info:
-            # Hardware-specific CPE strings
-            priority = 2
-        elif has_specific_vendor and has_wildcard_product:
-            # Vendor + wildcarded product
-            priority = 3
-        elif has_specific_vendor:
-            # Vendor only
-            priority = 4
-        elif has_specific_product or has_wildcard_product:
-            # Product only
-            priority = 5
-        else:
-            # Generic patterns
-            priority = 6
-            
-        return (priority, vendor, product, cpe_string)
-    
-    # Sort the strings using the custom sort key
-    return sorted(base_strings, key=get_sort_key)
-
-def strings_were_curated(original, curated):
-    """Compare original string with curated string, ignoring insignificant differences"""
-    # Remove trailing underscores that might be added/removed during formatting
-    original = original.rstrip('_')
-    curated = curated.rstrip('_')
-    return original != curated
-
 def create_provenance_assistance_div(index, collapsed=True):
     """Creates a collapsible div for Provenance Assistance
     
@@ -2027,7 +1607,6 @@ def create_provenance_assistance_div(index, collapsed=True):
     
     return html.replace('\n', '')
 
-# Add this new function along with the other div creation functions
 
 def create_custom_cpe_builder_div(index, collapsed=True):
     """Creates a collapsible div for Custom CPE Builder
@@ -2234,13 +1813,6 @@ def create_json_generation_settings_html(table_id, settings=None):
 JSON_SETTINGS_HTML = {}
 INTELLIGENT_SETTINGS = {}
 
-# Global CPE data registry to prevent duplication across rows
-GLOBAL_CPE_DATA_REGISTRY = {
-    'references': {},       # CPE base string -> reference data
-    'sortingPriority': {},  # CPE base string -> sorting data
-    'registered_cpes': set() # Track which CPEs have been processed
-}
-
 # Ensure clean state on module import
 def _initialize_clean_state():
     """Initialize clean global state when module is imported"""
@@ -2255,33 +1827,6 @@ def _initialize_clean_state():
 
 # Call initialization immediately
 _initialize_clean_state()
-
-def register_cpe_data(cpe_base_string, data_type, data):
-    """
-    Register CPE data in the global registry to prevent duplication.
-    
-    Args:
-        cpe_base_string: The CPE base string (e.g., "cpe:2.3:a:vendor:product:*")
-        data_type: The type of data ('references' or 'sortingPriority')
-        data: The data to store
-    
-    Returns:
-        bool: True if data was newly registered, False if already existed
-    """
-    global GLOBAL_CPE_DATA_REGISTRY
-    
-    # Create safe key for JavaScript
-    base_key_safe = cpe_base_string.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_").replace("*", "star")
-    
-    # Check if this CPE data is already registered
-    if base_key_safe in GLOBAL_CPE_DATA_REGISTRY[data_type]:
-        return False  # Already registered
-    
-    # Register the data
-    GLOBAL_CPE_DATA_REGISTRY[data_type][base_key_safe] = data
-    GLOBAL_CPE_DATA_REGISTRY['registered_cpes'].add(cpe_base_string)
-    
-    return True  # Newly registered
 
 def is_cpe_data_registered(cpe_base_string, data_type):
     """
@@ -2299,48 +1844,18 @@ def is_cpe_data_registered(cpe_base_string, data_type):
     base_key_safe = cpe_base_string.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_").replace("*", "star")
     return base_key_safe in GLOBAL_CPE_DATA_REGISTRY[data_type]
 
-def get_consolidated_cpe_registration_script():
-    """
-    Generate a single consolidated script block with all CPE data registrations.
-    
-    Returns:
-        str: JavaScript code block with all BadgeModal.registerData calls
-    """
-    global GLOBAL_CPE_DATA_REGISTRY
-    
-    script_content = ""
-    
-    # Register all references data
-    for base_key_safe, ref_data in GLOBAL_CPE_DATA_REGISTRY['references'].items():
-        ref_data_js = json.dumps(ref_data, cls=CustomJSONEncoder)
-        script_content += f"    BadgeModal.registerData('references', '{base_key_safe}', {ref_data_js});\n"
-    
-    # Register all sorting priority data
-    for base_key_safe, sorting_data in GLOBAL_CPE_DATA_REGISTRY['sortingPriority'].items():
-        sorting_data_js = json.dumps(sorting_data, cls=CustomJSONEncoder)
-        script_content += f"    BadgeModal.registerData('sortingPriority', '{base_key_safe}', {sorting_data_js});\n"
-    
-    if script_content:
-        return f"""
-// Consolidated CPE data registrations (deduplicated)
-{script_content}"""
-    else:
-        return ""
-
 def clear_global_html_state():
     """Clear global HTML generation state to prevent accumulation between CVE processing runs"""
-    global JSON_SETTINGS_HTML, INTELLIGENT_SETTINGS, GLOBAL_CPE_DATA_REGISTRY
+    global JSON_SETTINGS_HTML, INTELLIGENT_SETTINGS
     
-    # Reinitialize to ensure completely fresh state
+    # Clear badge and modal registries (now handled by external module)
+    clear_all_registries()
+    
+    # Reinitialize local HTML state
     JSON_SETTINGS_HTML = {}
     INTELLIGENT_SETTINGS = {}
-    GLOBAL_CPE_DATA_REGISTRY = {
-        'references': {},
-        'sortingPriority': {},
-        'registered_cpes': set()
-    }
     
-    logger.debug("Cleared global HTML state - reinitialized fresh dictionaries and CPE registry", group="page_generation")
+    logger.debug("Cleared global HTML state and badge/modal registries", group="page_generation")
 
 def store_json_settings_html(table_id, raw_platform_data=None):
     """Store the JSON settings HTML for a table with intelligent defaults"""
@@ -2361,237 +1876,4 @@ def store_json_settings_html(table_id, raw_platform_data=None):
     # Store intelligent settings for JavaScript
     INTELLIGENT_SETTINGS[table_id] = settings
 
-def transform_version_with_update_pattern(version_str):
-    """
-    Transform a version string with update patterns to match JavaScript modular_rules.js logic.
-    Returns a tuple: (base_version, update_component, transformed_version) or (None, None, None) if no match.
-    
-    This function mirrors the JavaScript updatePatterns logic exactly.
-    """
-    if not version_str:
-        return None, None, None
-    
-    # Enhanced pattern definitions with proper ordering (specific patterns first)
-    # Matches the JavaScript updatePatterns exactly
-    update_patterns = [
-        # SPACE-SEPARATED PATTERNS (for real-world CVE data formats)
-        # These must come first as they're more specific than the general patterns below
-        
-        # Space-separated patch patterns (most common in CVE data)
-        {'pattern': r'^(.+?)\s+p(\d+)$', 'type': 'patch'},  # Handle "3.0.0 p1", "3.1.0 p2"
-        {'pattern': r'^(.+?)\s+patch\s*(\d+)$', 'type': 'patch'},  # Handle "3.3 Patch 1", "3.3 Patch 2"
-        {'pattern': r'^(.+?)\s+Patch\s*(\d+)$', 'type': 'patch'},  # Handle "3.3 Patch 1" (capitalized)
-        
-        # Space-separated service pack patterns
-        {'pattern': r'^(.+?)\s+sp(\d+)$', 'type': 'sp'},  # Handle "2.0.0 sp1"
-        {'pattern': r'^(.+?)\s+service\s+pack\s*(\d+)$', 'type': 'sp'},  # Handle "2.0.0 service pack 1"
-        {'pattern': r'^(.+?)\s+Service\s+Pack\s*(\d+)$', 'type': 'sp'},  # Handle "2.0.0 Service Pack 1"
-        
-        # Space-separated hotfix patterns
-        {'pattern': r'^(.+?)\s+hotfix\s*(\d+)$', 'type': 'hotfix'},  # Handle "3.0.0 hotfix 1"
-        {'pattern': r'^(.+?)\s+Hotfix\s*(\d+)$', 'type': 'hotfix'},  # Handle "3.0.0 Hotfix 1"
-        {'pattern': r'^(.+?)\s+hf(\d+)$', 'type': 'hotfix'},  # Handle "3.0.0 hf1"
-        
-        # Space-separated update patterns
-        {'pattern': r'^(.+?)\s+update\s*(\d+)$', 'type': 'update'},  # Handle "3.0.0 update 1"
-        {'pattern': r'^(.+?)\s+Update\s*(\d+)$', 'type': 'update'},  # Handle "3.0.0 Update 1"
-        {'pattern': r'^(.+?)\s+upd(\d+)$', 'type': 'update'},  # Handle "3.0.0 upd1"
-        
-        # Space-separated beta patterns
-        {'pattern': r'^(.+?)\s+beta\s*(\d*)$', 'type': 'beta'},  # Handle "1.0.0 beta", "1.0.0 beta 1"
-        {'pattern': r'^(.+?)\s+Beta\s*(\d*)$', 'type': 'beta'},  # Handle "1.0.0 Beta 1"
-        {'pattern': r'^(.+?)\s+b(\d+)$', 'type': 'beta'},  # Handle "1.0.0 b1"
-        
-        # Space-separated alpha patterns
-        {'pattern': r'^(.+?)\s+alpha\s*(\d*)$', 'type': 'alpha'},  # Handle "1.0.0 alpha", "1.0.0 alpha 1"
-        {'pattern': r'^(.+?)\s+Alpha\s*(\d*)$', 'type': 'alpha'},  # Handle "1.0.0 Alpha 1"
-        {'pattern': r'^(.+?)\s+a(\d+)$', 'type': 'alpha'},  # Handle "1.0.0 a1"
-        
-        # Release candidate patterns
-        {'pattern': r'^(.+?)\s+rc\s*(\d*)$', 'type': 'rc'},  # Handle "1.0.0 rc", "1.0.0 rc 1"
-        {'pattern': r'^(.+?)\s+RC\s*(\d*)$', 'type': 'rc'},  # Handle "1.0.0 RC 1"
-        {'pattern': r'^(.+?)\s+release\s+candidate\s*(\d*)$', 'type': 'rc'},  # Handle "1.0.0 release candidate 1"
-        {'pattern': r'^(.+?)\s+Release\s+Candidate\s*(\d*)$', 'type': 'rc'},  # Handle "1.0.0 Release Candidate 1"
-        
-        # Space-separated fix patterns
-        {'pattern': r'^(.+?)\s+fix\s*(\d+)$', 'type': 'fix'},  # Handle "3.0.0 fix 1"
-        {'pattern': r'^(.+?)\s+Fix\s*(\d+)$', 'type': 'fix'},  # Handle "3.0.0 Fix 1"
-        
-        # Space-separated revision patterns
-        {'pattern': r'^(.+?)\s+revision\s*(\d+)$', 'type': 'revision'},  # Handle "3.0.0 revision 1"
-        {'pattern': r'^(.+?)\s+Revision\s*(\d+)$', 'type': 'revision'},  # Handle "3.0.0 Revision 1"
-        {'pattern': r'^(.+?)\s+rev\s*(\d+)$', 'type': 'revision'},  # Handle "3.0.0 rev 1"
-        {'pattern': r'^(.+?)\s+Rev\s*(\d+)$', 'type': 'revision'},  # Handle "3.0.0 Rev 1"
-        
-        # TRADITIONAL DOT/DASH/UNDERSCORE PATTERNS (existing patterns)
-        
-        # Service pack patterns (most specific first)
-        {'pattern': r'^(.+?)\.sp(\d+)$', 'type': 'sp'},  # Handle 3.0.0.sp1
-        {'pattern': r'^(.+?)[\.\-_]*service[\s\-_]+pack[\.\-_]*(\d*)[\.\-_]*$', 'type': 'sp'},
-        {'pattern': r'^(.+?)[\.\-_]*sp[\.\-_]*(\d+)[\.\-_]*$', 'type': 'sp'},
-        
-        # Patch patterns (handle p-notation specifically)
-        {'pattern': r'^(.+?)\.p(\d+)$', 'type': 'patch'},  # Handle 3.1.0.p7
-        {'pattern': r'^(.+?)[\.\-_]*patch[\.\-_]*(\d*)[\.\-_]*$', 'type': 'patch'},
-        
-        # Beta patterns (handle .1 notation specifically)
-        {'pattern': r'^(.+?)-beta\.(\d+)$', 'type': 'beta'},  # Handle 1.0.0-beta.1
-        {'pattern': r'^(.+?)[\.\-_]*beta[\.\-_]*(\d*)[\.\-_]*$', 'type': 'beta'},
-        {'pattern': r'^(.+?)[\.\-_]*b[\.\-_]*(\d+)[\.\-_]*$', 'type': 'beta'},
-        
-        # Alpha patterns
-        {'pattern': r'^(.+?)-alpha\.(\d+)$', 'type': 'alpha'},  # Handle 1.0.0-alpha.1
-        {'pattern': r'^(.+?)[\.\-_]*alpha[\.\-_]*(\d*)[\.\-_]*$', 'type': 'alpha'},
-        {'pattern': r'^(.+?)[\.\-_]*a[\.\-_]*(\d+)[\.\-_]*$', 'type': 'alpha'},
-        
-        # Release candidate patterns
-        {'pattern': r'^(.+?)-rc\.(\d+)$', 'type': 'rc'},  # Handle 1.0.0-rc.1
-        {'pattern': r'^(.+?)[\.\-_]*rc[\.\-_]*(\d*)[\.\-_]*$', 'type': 'rc'},
-        {'pattern': r'^(.+?)[\.\-_]*release[\s\-_]+candidate[\.\-_]*(\d*)[\.\-_]*$', 'type': 'rc'},
-        
-        # Hotfix patterns (handle .2 notation specifically)
-        {'pattern': r'^(.+?)-hotfix\.(\d+)$', 'type': 'hotfix'},  # Handle 2.1.0-hotfix.2
-        {'pattern': r'^(.+?)[\.\-_]*hotfix[\.\-_]*(\d*)[\.\-_]*$', 'type': 'hotfix'},
-        {'pattern': r'^(.+?)[\.\-_]*hf[\.\-_]*(\d+)[\.\-_]*$', 'type': 'hotfix'},
-        
-        # Patch patterns with specific numbering (handle .5 notation)
-        {'pattern': r'^(.+?)-patch\.(\d+)$', 'type': 'patch'},  # Handle 2.0.0-patch.5
-        
-        # Update patterns
-        {'pattern': r'^(.+?)[\.\-_]*update[\.\-_]*(\d*)[\.\-_]*$', 'type': 'update'},
-        {'pattern': r'^(.+?)[\.\-_]*upd[\.\-_]*(\d+)[\.\-_]*$', 'type': 'update'},
-        
-        # Fix patterns
-        {'pattern': r'^(.+?)[\.\-_]*fix[\.\-_]*(\d+)[\.\-_]*$', 'type': 'fix'},
-        
-        # Revision patterns
-        {'pattern': r'^(.+?)[\.\-_]*revision[\.\-_]*(\d+)[\.\-_]*$', 'type': 'revision'},
-        {'pattern': r'^(.+?)[\.\-_]*rev[\.\-_]*(\d+)[\.\-_]*$', 'type': 'revision'}
-    ]
-    
-    for pattern_info in update_patterns:
-        pattern = re.compile(pattern_info['pattern'], re.IGNORECASE)
-        match = pattern.match(version_str)
-        if match:
-            # Extract base version and update component
-            base_version = match.group(1).strip()  # Trim any trailing spaces
-            update_number = match.group(2) if len(match.groups()) > 1 else ''
-            pattern_type = pattern_info['type']
-            
-            # Handle p-notation expansion (p7 -> patch7)
-            final_type = pattern_type
-            if '.p(' in pattern_info['pattern'] and pattern_type == 'patch':
-                # This is the p-notation pattern, already correct type
-                final_type = 'patch'
-            
-            # Clean and format the update component
-            if update_number:
-                # Remove any punctuation and spaces from the number and combine with type
-                clean_number = re.sub(r'[\.\-_,\s]', '', update_number)
-                update_component = f"{final_type}{clean_number}"
-            else:
-                # Just use the type name if no number
-                update_component = final_type
-            
-            # Create the transformed version string (base:update format like CPE)
-            transformed_version = f"{base_version}:{update_component}"
-            
-            return base_version, update_component, transformed_version
-    
-    return None, None, None
-
-def analyze_cpe_overlap_processing(raw_platform_data):
-    """
-    Analyze CPE overlap processing to replicate JavaScript processOverlappingCpeMatches logic.
-    Returns information about wildcard to dash transformations and specificity checks.
-    """
-    overlap_info = {
-        'has_overlapping_cpes': False,
-        'wildcard_to_dash_count': 0,
-        'specific_update_count': 0,
-        'overlap_details': []
-    }
-    
-    # Extract version data similar to JavaScript logic
-    versions = raw_platform_data.get('versions', [])
-    
-    # Group versions by base version (excluding update patterns)
-    version_groups = {}
-    
-    for version in versions:
-        if not version or 'version' not in version:
-            continue
-            
-        version_str = version.get('version', '')
-        if not version_str:
-            continue
-        
-        # Check if this version has an update pattern
-        base_version, update_component, transformed_version = transform_version_with_update_pattern(version_str)
-        
-        if base_version and update_component:
-            # This version has an update pattern - it would create a specific update CPE
-            group_key = base_version
-            if group_key not in version_groups:
-                version_groups[group_key] = {
-                    'base_versions': [],
-                    'update_versions': []
-                }
-            version_groups[group_key]['update_versions'].append({
-                'original': version_str,
-                'base': base_version,
-                'update': update_component,
-                'transformed': transformed_version
-            })
-        else:
-            # This is a regular version - it would create a wildcard update CPE
-            if version_str not in version_groups:
-                version_groups[version_str] = {
-                    'base_versions': [],
-                    'update_versions': []
-                }
-            version_groups[version_str]['base_versions'].append(version_str)
-    
-    # Check for overlaps between base versions and update versions
-    for group_key, group_data in version_groups.items():
-        has_base_versions = len(group_data['base_versions']) > 0
-        has_update_versions = len(group_data['update_versions']) > 0
-        
-        if has_base_versions and has_update_versions:
-            # This is an overlap scenario - base version (would be wildcard update) 
-            # and specific update versions exist for the same base
-            overlap_info['has_overlapping_cpes'] = True
-            overlap_info['wildcard_to_dash_count'] += len(group_data['base_versions'])
-            overlap_info['specific_update_count'] += len(group_data['update_versions'])
-            
-            # Create overlap detail
-            update_list = [uv['update'] for uv in group_data['update_versions']]
-            detail = f"Base version '{group_key}' (wildcard update '*' → '-') with specific updates: {', '.join(update_list)}"
-            overlap_info['overlap_details'].append(detail)
-    
-    return overlap_info
-
-def analyze_data_for_smart_defaults(raw_platform_data):
-    """Generate intelligent settings using centralized analysis"""
-    characteristics = analyze_version_characteristics(raw_platform_data)
-    
-    # Special case: If update patterns exist but version ranges are detected,
-    # do not enable update patterns by default
-    enable_update_patterns = characteristics['has_update_patterns']
-    if enable_update_patterns and raw_platform_data:
-        versions = raw_platform_data.get('versions', [])
-        has_ranges = any(v and isinstance(v, dict) and ('lessThan' in v or 'lessThanOrEqual' in v) for v in versions)
-        if has_ranges:
-            enable_update_patterns = False
-    
-    return {
-        'enableWildcardExpansion': characteristics['has_wildcards'],
-        'enableVersionChanges': characteristics['has_version_changes'],
-        'enableSpecialVersionTypes': characteristics['has_special_version_types'],
-        'enableInverseStatus': characteristics['has_inverse_status'],
-        'enableMultipleBranches': characteristics['has_multiple_branches'],
-        'enableMixedStatus': characteristics['has_mixed_status'],
-        'enableGapProcessing': characteristics['needs_gap_processing'],
-        'enableUpdatePatterns': enable_update_patterns
-    }
 

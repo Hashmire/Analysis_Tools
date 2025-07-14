@@ -538,36 +538,7 @@ class BadgeModalFactory {
                     badge: typeData.refs.length,
                     content: BadgeModalFactory.generateReferenceTabContent(typeData.refs, refType)
                 }));
-            },
-            customCSS: `
-                .reference-item-compact {
-                    background-color: #f8f9fa;
-                    border: 1px solid #e9ecef !important;
-                    font-size: 0.75rem;
-                    transition: all 0.2s ease;
-                    margin-bottom: 0.25rem !important;
-                    padding: 0.375rem 0.5rem !important;
-                }
-
-                .reference-item-compact:hover {
-                    background-color: #e9ecef;
-                    border-color: #0d6efd !important;
-                    transform: translateY(-1px);
-                }
-
-                .reference-link-compact {
-                    color: #0d6efd;
-                    text-decoration: none;
-                    word-break: break-all;
-                    font-size: 0.75rem;
-                    line-height: 1.2;
-                }
-
-                .reference-link-compact:hover {
-                    color: #0a58ca;
-                    text-decoration: underline;
-                }
-            `
+            }
         });
     }
 
@@ -700,213 +671,68 @@ class BadgeModalFactory {
                 }
                 
                 return tabs;
-            },
-            customCSS: `
-                .sorting-item {
-                    background-color: #f8f9fa;
-                    border: 1px solid #e9ecef !important;
-                    font-size: 0.75rem;
-                    transition: all 0.2s ease;
-                    margin-bottom: 0.25rem !important;
-                    padding: 0.375rem 0.5rem !important;
-                }
-
-                .sorting-item:hover {
-                    background-color: #e9ecef;
-                    border-color: #6c757d !important;
-                    transform: translateY(-1px);
-                }
-
-                .search-key {
-                    color: #495057;
-                    font-weight: 600;
-                    font-size: 0.75rem;
-                }
-
-                .search-value {
-                    color: #6c757d;
-                    font-size: 0.7rem;
-                    font-family: 'Courier New', monospace;
-                }
-
-                .version-key {
-                    color: #495057;
-                    font-weight: 600;
-                    font-size: 0.75rem;
-                }
-
-                .version-value {
-                    color: #6c757d;
-                    font-size: 0.7rem;
-                }
-
-                .priority-indicator {
-                    background-color: #6c757d;
-                    color: white;
-                    font-size: 0.6rem;
-                    padding: 0.1rem 0.3rem;
-                    border-radius: 0.25rem;
-                    font-weight: bold;
-                }
-            `
-        });
-    }
-
-    static generateSearchesTabContent(searches) {
-        let content = `
-            <div class="mb-2 pb-1 border-bottom">
-                <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted fw-bold">Matched CPE Base String Searches</small>
-                    <div>
-                        <span class="badge bg-secondary" style="font-size: 0.65rem;">${Object.keys(searches).length} searches</span>
-                    </div>
-                </div>
-            </div>
-            <div class="searches-compact">
-        `;
-        
-        // Define search priority order
-        const searchPriority = {
-            'searchSourcecveAffectedCPEsArray': 1,
-            'searchSourcepartvendorproduct': 2, 
-            'searchSourcevendorproduct': 3,
-            'searchSourceproduct': 4,
-            'searchSourcevendor': 5
-        };
-        
-        // Sort searches by priority
-        const sortedSearches = Object.entries(searches).sort((a, b) => {
-            const aPriority = searchPriority[a[0]] || 999;
-            const bPriority = searchPriority[b[0]] || 999;
-            return aPriority - bPriority;
-        });
-        
-        sortedSearches.forEach(([searchKey, searchValue], index) => {
-            const priority = searchPriority[searchKey] || 999;
-            
-            // Clean up the search key for display and emphasize search type
-            const displayKey = searchKey.replace('searchSource', '').replace(/([A-Z])/g, ' $1').trim();
-            
-            content += `
-                <div class="sorting-item mb-1 p-2 border rounded" style="font-size: 0.8rem;">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="cpe-name-section me-3" style="flex: 1;">
-                            <div class="search-value" style="font-family: 'Courier New', monospace; font-size: 0.7rem; color: #495057; font-weight: 600;">${searchValue}</div>
-                        </div>
-                        <div class="search-type-section">
-                            <span class="badge bg-secondary" style="font-size: 0.7rem; color: white;">${displayKey}</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        content += '</div>';
-        return content;
-    }
-
-    static generateVersionsTabContent(versions) {
-        let content = `
-            <div class="mb-2 pb-1 border-bottom">
-                <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted fw-bold">Version Match Details</small>
-                    <div>
-                        <span class="badge bg-secondary" style="font-size: 0.65rem;">${versions.length} matches</span>
-                    </div>
-                </div>
-            </div>
-            <div class="versions-compact">
-        `;
-        
-        versions.forEach((version, index) => {
-            // Find the CPE name in the version object (usually the longest value or one containing "cpe:")
-            let cpeName = '';
-            let versionType = '';
-            let otherFields = {};
-            
-            Object.entries(version).forEach(([key, value]) => {
-                if (value && typeof value === 'string' && value.includes('cpe:')) {
-                    cpeName = value;
-                } else if (['version', 'lessThan', 'lessThanOrEqual', 'greaterThan', 'greaterThanOrEqual'].includes(key)) {
-                    versionType = key;
-                } else {
-                    otherFields[key] = value;
-                }
-            });
-            
-            content += `
-                <div class="sorting-item mb-2 p-2 border rounded" style="font-size: 0.8rem;">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="cpe-name-section me-3" style="min-width: 300px;">
-                            <div class="version-value" style="font-family: 'Courier New', monospace; font-size: 0.7rem; color: #495057; font-weight: 600;">${cpeName}</div>
-                        </div>
-                        <div class="version-type-section">
-                            ${versionType ? `<span class="badge bg-success" style="font-size: 0.7rem;">${versionType}</span>` : ''}
-                        </div>
-                    </div>
-            `;
-            
-            // Display other fields if any
-            if (Object.keys(otherFields).length > 0) {
-                content += `
-                    <div class="additional-fields mt-1 pt-1 border-top" style="border-color: #e9ecef !important;">
-                `;
-                Object.entries(otherFields).forEach(([key, value]) => {
-                    if (value) {
-                        content += `
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="version-key" style="font-size: 0.7rem; color: #6c757d;">${key}:</span>
-                                <span class="version-value" style="font-size: 0.7rem; color: #495057;">${value}</span>
-                            </div>
-                        `;
-                    }
-                });
-                content += `</div>`;
             }
-            
-            content += `</div>`;
         });
-        
-        content += '</div>';
-        return content;
     }
 
-    static generateConfirmedMappingTabContent(mappingData, cpeBaseString) {
-        let content = `
-            <div class="mb-3 pb-2 border-bottom">
-                <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted fw-bold">Confirmed CPE Base String Mapping</small>
-                    <div>
-                        <span class="badge bg-success" style="font-size: 0.65rem;">✓ Verified</span>
-                    </div>
-                </div>
-            </div>
-            <div class="confirmed-mapping-compact">
-        `;
-        
-        // Main confirmation card
-        content += `
-            <div class="sorting-item mb-3 p-3 border rounded" style="background: linear-gradient(135deg, rgba(25, 135, 84, 0.1) 0%, rgba(25, 135, 84, 0.05) 100%); border-color: #198754 !important;">
-                <div class="text-center mb-3">
-                    <div class="mb-2">
-                        <span class="badge bg-success" style="font-size: 1rem; padding: 0.5rem 1rem;">✓ Confirmed Mapping</span>
-                    </div>
-                    <small class="text-muted fw-bold">This CPE Base String has been verified as a Confirmed Mapping by CPE Moderators and (along with other Confirmed Mappings for the row) should be selected over other CPE Base Strings</small>
-                </div>
+    static createWildcardGenerationModal() {
+        return new BadgeModal({
+            modalType: 'jsonGenerationRules',
+            title: 'JSON Generation Rules - Platform Processing',
+            icon: '⚙️',
+            headerColor: '#ffc107', // Bootstrap warning yellow for JSON generation rules
+            enableTabs: true,
+            generateHeaderContent: (displayValue, additionalData) => {
+                const ruleCount = additionalData.ruleCount || 0;
+                const ruleTypes = additionalData.ruleTypes || [];
                 
-                <div class="mapping-details">
-                    <div class="mb-2">
-                        <div class="text-center p-2 rounded" style="background-color: rgba(25, 135, 84, 0.1); border: 1px solid rgba(25, 135, 84, 0.3);">
-                            <div class="fw-bold text-success mb-1" style="font-size: 0.9rem;">CPE Base String</div>
-                            <code class="bg-dark text-white px-2 py-1 rounded" style="font-size: 0.75rem;">${cpeBaseString}</code>
+                return `
+                    <div class="json-rules-info-fixed">
+                        <div class="platform-string-compact mb-1">
+                            <code class="text-dark bg-light px-2 py-1 rounded" style="font-size: 0.75rem;">${displayValue}</code>
+                        </div>
+                        <div class="summary-stats-compact">
+                            <span class="badge bg-light text-dark me-1" style="font-size: 0.65rem;">⚙️ ${ruleCount} rules</span>
+                            <span class="badge bg-light text-dark me-1" style="font-size: 0.65rem;">🏷️ ${ruleTypes.length} types</span>
                         </div>
                     </div>
-                </div>
-            </div>
-        `;
-        
-        content += '</div>';
-        return content;
+                `;
+            },
+            generateTabsData: (data, displayValue, additionalData) => {
+                const tabs = [];
+                
+                // Add Wildcard Generation Rules tab
+                if (data.wildcardGeneration && data.wildcardGeneration.transformations) {
+                    tabs.push({
+                        id: 'wildcard',
+                        label: 'Wildcard Generation',
+                        badge: data.wildcardGeneration.transformations.length,
+                        content: BadgeModalFactory.generateWildcardRulesTabContent(data.wildcardGeneration)
+                    });
+                }
+                
+                // Add placeholder tabs for other rule types (future expansion)
+                if (data.updatePatterns) {
+                    tabs.push({
+                        id: 'updatepatterns',
+                        label: 'Update Patterns',
+                        badge: data.updatePatterns.rules ? data.updatePatterns.rules.length : 0,
+                        content: BadgeModalFactory.generateUpdatePatternsTabContent(data.updatePatterns)
+                    });
+                }
+                
+                if (data.versionRanges) {
+                    tabs.push({
+                        id: 'versionranges',
+                        label: 'Version Ranges',
+                        badge: data.versionRanges.rules ? data.versionRanges.rules.length : 0,
+                        content: BadgeModalFactory.generateVersionRangesTabContent(data.versionRanges)
+                    });
+                }
+                
+                return tabs;
+            }
+        });
     }
 
     static generateStatisticsTabContent(statistics) {
@@ -981,6 +807,482 @@ class BadgeModalFactory {
         return content;
     }
 
+    static generateWildcardRulesTabContent(wildcardData) {
+        let content = `
+            <div class="mb-3 pb-2 border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted fw-bold">Wildcard Pattern Processing - Complete Context</small>
+                    <div>
+                        <span class="badge bg-warning" style="font-size: 0.65rem;">🔄 ${wildcardData.transformations.length} transformations</span>
+                    </div>
+                </div>
+            </div>
+            <div class="wildcard-rules-compact">
+        `;
+        
+        // Overview section - condensed
+        content += `
+            <div class="wildcard-item mb-2 p-2">
+                <div class="overview-header mb-2 text-center">
+                    <small class="text-dark fw-bold">These rules convert wildcard patterns into precise CPE match object version ranges.</small>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted"><strong>Patterns:</strong> ${wildcardData.summary ? wildcardData.summary.total_patterns : wildcardData.transformations.length}</small>
+                    <small class="text-muted"><strong>Fields:</strong> ${wildcardData.summary ? wildcardData.summary.fields_affected.length : 1}</small>
+                </div>
+            </div>
+        `;
+        
+        // Show transformation rules
+        content += `
+            <div class="transformations-section">
+        `;
+        
+        wildcardData.transformations.forEach((transformation, index) => {
+            const inputJson = this.formatJsonWithoutBrackets(transformation.input);
+            const outputJson = this.formatJsonWithoutBrackets(transformation.output);
+            
+            content += `
+                <div class="wildcard-item mb-3">
+                    <div class="transformation-header mb-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="fw-bold text-warning">Entry ${index + 1}: ${transformation.derivation_desc || transformation.field_display}</small>
+                            <span class="badge bg-warning text-dark" style="font-size: 0.6rem;">${transformation.field}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="transformation-content">
+                        <div class="row">
+                            <div class="col-5">
+                                <div class="mb-1">
+                                    <small class="fw-bold text-muted">INPUT (Platform JSON):</small>
+                                </div>
+                                <div class="json-input">
+                                    ${inputJson}
+                                </div>
+                            </div>
+                            <div class="col-2 d-flex align-items-center">
+                                <div class="transformation-arrow w-100 text-center">
+                                    <div class="transformation-icon-medium">→</div>
+                                </div>
+                            </div>
+                            <div class="col-5">
+                                <div class="mb-1">
+                                    <small class="fw-bold text-success">OUTPUT (CPE Match Object):</small>
+                                </div>
+                                <div class="json-output">
+                                    ${outputJson}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="explanation-text">
+                            <strong>Rule Logic:</strong> ${transformation.explanation}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        content += '</div></div>';
+        return content;
+    }
+
+    static formatJsonForDisplay(obj) {
+        if (!obj) return 'null';
+        
+        // Clean JSON formatting without outer brackets for simple objects
+        const jsonStr = JSON.stringify(obj, null, 2);
+        
+        // For simple objects, remove the outer braces and adjust indentation
+        if (typeof obj === 'object' && !Array.isArray(obj) && Object.keys(obj).length <= 4) {
+            const lines = jsonStr.split('\n');
+            if (lines.length <= 6) { // Simple object
+                const innerContent = lines.slice(1, -1).map(line => line.substring(2)).join('\n');
+                return innerContent || jsonStr;
+            }
+        }
+        
+        return jsonStr;
+    }
+
+    static formatJsonWithoutBrackets(obj) {
+        if (!obj) return 'null';
+        
+        const jsonStr = JSON.stringify(obj, null, 2);
+        
+        // Remove outer braces and adjust indentation for all objects
+        if (typeof obj === 'object' && !Array.isArray(obj)) {
+            const lines = jsonStr.split('\n');
+            if (lines.length > 2) {
+                const innerContent = lines.slice(1, -1).map(line => line.substring(2)).join('\n');
+                return innerContent;
+            }
+        }
+        
+        return jsonStr;
+    }
+
+    static generateConfirmedMappingTabContent(mappingData, cpeBaseString) {
+        let content = `
+            <div class="mb-3 pb-2 border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted fw-bold">Confirmed CPE Base String Mapping</small>
+                    <div>
+                        <span class="badge bg-success badge-verified">✓ Verified</span>
+                    </div>
+                </div>
+            </div>
+            <div class="confirmed-mapping-compact">
+        `;
+        
+        // Main confirmation card
+        content += `
+            <div class="sorting-item mb-3 p-3 border rounded">
+                <div class="text-center mb-3">
+                    <div class="mb-2">
+                        <span class="badge bg-success confirmed-mapping-badge">✓ Confirmed Mapping</span>
+                    </div>
+                    <small class="text-muted fw-bold">This CPE Base String has been verified as a Confirmed Mapping by CPE Moderators and (along with other Confirmed Mappings for the row) should be selected over other CPE Base Strings</small>
+                </div>
+                
+                <div class="mapping-details">
+                    <div class="mb-2">
+                        <div class="text-center p-2 rounded confirmed-mapping-card">
+                            <div class="fw-bold text-success mb-1 cpe-base-string-display">CPE Base String</div>
+                            <code class="bg-dark text-white px-2 py-1 rounded cpe-code">${cpeBaseString}</code>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        content += '</div>';
+        return content;
+    }
+
+    static generateSearchesTabContent(searches) {
+        let content = `
+            <div class="mb-2 pb-1 border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted fw-bold">Matched CPE Base String Searches</small>
+                    <div>
+                        <span class="badge bg-secondary badge-count">${Object.keys(searches).length} searches</span>
+                    </div>
+                </div>
+            </div>
+            <div class="searches-compact">
+        `;
+        
+        // Define search priority order
+        const searchPriority = {
+            'searchSourcecveAffectedCPEsArray': 1,
+            'searchSourcepartvendorproduct': 2, 
+            'searchSourcevendorproduct': 3,
+            'searchSourceproduct': 4,
+            'searchSourcevendor': 5
+        };
+        
+        // Sort searches by priority
+        const sortedSearches = Object.entries(searches).sort((a, b) => {
+            const aPriority = searchPriority[a[0]] || 999;
+            const bPriority = searchPriority[b[0]] || 999;
+            return aPriority - bPriority;
+        });
+        
+        sortedSearches.forEach(([searchKey, searchValue], index) => {
+            const priority = searchPriority[searchKey] || 999;
+            
+            // Clean up the search key for display and emphasize search type
+            const displayKey = searchKey.replace('searchSource', '').replace(/([A-Z])/g, ' $1').trim();
+            
+            content += `
+                <div class="sorting-item mb-1 p-2 border rounded">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="cpe-name-section me-3">
+                            <div class="search-value">${searchValue}</div>
+                        </div>
+                        <div class="search-type-section">
+                            <span class="badge bg-secondary search-type-badge">${displayKey}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        content += '</div>';
+        return content;
+    }
+
+    static generateVersionsTabContent(versions) {
+        let content = `
+            <div class="mb-2 pb-1 border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted fw-bold">Version Match Details</small>
+                    <div>
+                        <span class="badge bg-secondary badge-count">${versions.length} matches</span>
+                    </div>
+                </div>
+            </div>
+            <div class="versions-compact">
+        `;
+        
+        versions.forEach((version, index) => {
+            // Find the CPE name in the version object (usually the longest value or one containing "cpe:")
+            let cpeName = '';
+            let versionType = '';
+            let otherFields = {};
+            
+            Object.entries(version).forEach(([key, value]) => {
+                if (value && typeof value === 'string' && value.includes('cpe:')) {
+                    cpeName = value;
+                } else if (['version', 'lessThan', 'lessThanOrEqual', 'greaterThan', 'greaterThanOrEqual'].includes(key)) {
+                    versionType = key;
+                } else {
+                    otherFields[key] = value;
+                }
+            });
+            
+            content += `
+                <div class="sorting-item mb-2 p-2 border rounded">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="cpe-name-section-version me-3">
+                            <div class="version-value">${cpeName}</div>
+                        </div>
+                        <div class="version-type-section">
+                            ${versionType ? `<span class="badge bg-success version-type-badge">${versionType}</span>` : ''}
+                        </div>
+                    </div>
+            `;
+            
+            // Display other fields if any
+            if (Object.keys(otherFields).length > 0) {
+                content += `
+                    <div class="additional-fields mt-1 pt-1 border-top">
+                `;
+                Object.entries(otherFields).forEach(([key, value]) => {
+                    if (value) {
+                        content += `
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="version-key">${key}:</span>
+                                <span class="version-field-value">${value}</span>
+                            </div>
+                        `;
+                    }
+                });
+                content += `</div>`;
+            }
+            
+            content += `</div>`;
+        });
+        
+        content += '</div>';
+        return content;
+    }
+
+    static generateUpdatePatternsTabContent(updatePatternsData) {
+        return `
+            <div class="update-patterns-content p-3">
+                <div class="text-center text-muted">
+                    <h6>🔄 Update Patterns Rules</h6>
+                    <p>Update pattern processing rules will be displayed here when implemented.</p>
+                    <small>This tab is reserved for future update pattern transformation rules.</small>
+                </div>
+            </div>
+        `;
+    }
+
+    static generateVersionRangesTabContent(versionRangesData) {
+        return `
+            <div class="version-ranges-content p-3">
+                <div class="text-center text-muted">
+                    <h6>📊 Version Ranges Rules</h6>
+                    <p>Version range processing rules will be displayed here when implemented.</p>
+                    <small>This tab is reserved for future version range transformation rules.</small>
+                </div>
+            </div>
+        `;
+    }
+
+
+
+    static createJsonGenerationRulesModal() {
+        return new BadgeModal({
+            modalType: 'jsonGenerationRules',
+            title: 'JSON Generation Rules',
+            icon: '⚙️',
+            headerColor: '#ffc107',
+            enableTabs: true,
+            generateHeaderContent: (displayValue, additionalData) => {
+                const ruleCount = additionalData.ruleCount || 0;
+                const ruleTypes = additionalData.ruleTypes || [];
+                
+                return `
+                    <div class="json-rules-info-fixed">
+                        <div class="platform-string-compact mb-1">
+                            <code class="text-white bg-dark px-2 py-1 rounded" style="font-size: 0.75rem;">${displayValue}</code>
+                        </div>
+                        <div class="summary-stats-compact">
+                            <span class="badge bg-light text-dark me-1" style="font-size: 0.65rem;">⚙️ ${ruleCount} rules</span>
+                            <span class="badge bg-light text-dark me-1" style="font-size: 0.65rem;">🏷️ ${ruleTypes.length} types</span>
+                        </div>
+                    </div>
+                `;
+            },
+            generateTabsData: (data, displayValue, additionalData) => {
+                const tabs = [];
+                
+                // Create tabs for each rule type in the data
+                if (data.rules && Array.isArray(data.rules)) {
+                    data.rules.forEach(rule => {
+                        tabs.push({
+                            id: rule.type.toLowerCase().replace(/[^a-z0-9]/g, ''),
+                            label: rule.type,
+                            badge: rule.transformations ? rule.transformations.length : 0,
+                            content: BadgeModalFactory.generateJsonRuleTabContent(rule)
+                        });
+                    });
+                }
+                
+                // Add summary tab if there's multiple rule types
+                if (data.summary && tabs.length > 1) {
+                    tabs.unshift({
+                        id: 'summary',
+                        label: 'Summary',
+                        badge: data.summary.total_rules,
+                        content: BadgeModalFactory.generateJsonRuleSummaryTabContent(data.summary)
+                    });
+                }
+                
+                return tabs;
+            }
+        });
+    }
+
+    static generateJsonRuleTabContent(rule) {
+        let content = `
+            <div class="mb-2 pb-1 border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted fw-bold">${rule.type} Rule Transformations</small>
+                    <div>
+                        <span class="badge bg-warning" style="font-size: 0.65rem;">${rule.transformations ? rule.transformations.length : 0} transformations</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        if (rule.description) {
+            content += `
+                <div class="rule-description mb-3 p-2 bg-light border-start border-warning border-3">
+                    <small class="text-muted">${rule.description}</small>
+                </div>
+            `;
+        }
+        
+        content += '<div class="json-transformations-compact">';
+        
+        if (rule.transformations && Array.isArray(rule.transformations)) {
+            rule.transformations.forEach((transformation, index) => {
+                const inputJson = JSON.stringify(transformation.input, null, 2);
+                const outputJson = JSON.stringify(transformation.output, null, 2);
+                
+                content += `
+                    <div class="json-rule-item-compact mb-3">
+                        <div class="transformation-header mb-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="fw-bold text-warning">Transformation ${index + 1}</small>
+                                <span class="badge bg-warning text-dark" style="font-size: 0.6rem;">${rule.type}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="transformation-content">
+                            <div class="row">
+                                <div class="col-5">
+                                    <div class="mb-1">
+                                        <small class="fw-bold text-muted">INPUT:</small>
+                                    </div>
+                                    <div class="json-input">
+                                        ${inputJson}
+                                    </div>
+                                </div>
+                                <div class="col-2 d-flex align-items-center">
+                                    <div class="transformation-arrow w-100">→</div>
+                                </div>
+                                <div class="col-5">
+                                    <div class="mb-1">
+                                        <small class="fw-bold text-success">OUTPUT:</small>
+                                    </div>
+                                    <div class="json-output">
+                                        ${outputJson}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            ${transformation.explanation ? `
+                                <div class="explanation-text mt-2">
+                                    <strong>Rule Logic:</strong> ${transformation.explanation}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            content += `
+                <div class="text-muted text-center py-3">
+                    <em>No transformations available for this rule type.</em>
+                </div>
+            `;
+        }
+        
+        content += '</div>';
+        return content;
+    }
+
+    static generateJsonRuleSummaryTabContent(summary) {
+        let content = `
+            <div class="mb-3 pb-2 border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted fw-bold">JSON Generation Rules Summary</small>
+                    <div>
+                        <span class="badge bg-warning" style="font-size: 0.65rem;">${summary.total_rules} total rules</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        content += '<div class="summary-content">';
+        
+        if (summary.rule_types && Array.isArray(summary.rule_types)) {
+            content += `
+                <div class="mb-3">
+                    <h6 class="text-warning">Rule Types Detected:</h6>
+                    <div class="rule-types-list">
+            `;
+            
+            summary.rule_types.forEach(ruleType => {
+                content += `
+                    <span class="badge bg-warning text-dark me-1 mb-1" style="font-size: 0.75rem;">⚙️ ${ruleType}</span>
+                `;
+            });
+            
+            content += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        if (summary.description) {
+            content += `
+                <div class="summary-description p-3 bg-light border border-warning rounded">
+                    <small class="text-muted">${summary.description}</small>
+                </div>
+            `;
+        }
+        
+        content += '</div>';
+        return content;
+    }
 }
 
 /**
@@ -1064,6 +1366,56 @@ class BadgeModalManager {
     static openConfirmedMappingModal(baseKeySafe, cpeBaseString) {
         // Open the sorting priority modal with confirmed mapping tab focused
         return this.openSortingPriorityModal(baseKeySafe, cpeBaseString, 'confirmedMapping');
+    }
+
+    static openWildcardGenerationModal(tableIndex, displayValue) {
+        const modal = BadgeModalFactory.createWildcardGenerationModal();
+        
+        // Fail fast if no JSON generation rules data is registered at all
+        if (!window.BADGE_MODAL_DATA.jsonGenerationRules) {
+            throw new Error('No JSON generation rules data registered - ensure BadgeModal.registerData("jsonGenerationRules", ...) calls have executed');
+        }
+        
+        const registeredData = window.BADGE_MODAL_DATA.jsonGenerationRules[tableIndex]; // No optional chaining - fail fast
+        if (!registeredData) {
+            throw new Error(`No JSON generation rules data registered for key '${tableIndex}' - check BadgeModal.registerData() calls`);
+        }
+        
+        // Calculate counts for header display
+        let ruleCount = 1; // Currently only wildcard generation rules
+        const ruleTypes = ['Wildcard Generation'];
+        
+        // Add more rule types if they exist in the data
+        if (registeredData.updatePatterns) {
+            ruleCount++;
+            ruleTypes.push('Update Patterns');
+        }
+        if (registeredData.versionRanges) {
+            ruleCount++;
+            ruleTypes.push('Version Ranges');
+        }
+        
+        modal.show(tableIndex, displayValue, { ruleCount, ruleTypes });
+    }
+
+    static openJsonGenerationRulesModal(tableIndex, displayValue) {
+        const modal = BadgeModalFactory.createJsonGenerationRulesModal();
+        
+        // Fail fast if no JSON generation rules data is registered at all
+        if (!window.BADGE_MODAL_DATA.jsonGenerationRules) {
+            throw new Error('No JSON generation rules data registered - ensure BadgeModal.registerData("jsonGenerationRules", ...) calls have executed');
+        }
+        
+        const registeredData = window.BADGE_MODAL_DATA.jsonGenerationRules[tableIndex]; // No optional chaining - fail fast
+        if (!registeredData) {
+            throw new Error(`No JSON generation rules data registered for key '${tableIndex}' - check BadgeModal.registerData() calls`);
+        }
+        
+        // Calculate counts for header display
+        const ruleCount = registeredData.summary ? registeredData.summary.total_rules : 0;
+        const ruleTypes = registeredData.summary ? registeredData.summary.rule_types : [];
+        
+        modal.show(tableIndex, displayValue, { ruleCount, ruleTypes });
     }
 
     /**
