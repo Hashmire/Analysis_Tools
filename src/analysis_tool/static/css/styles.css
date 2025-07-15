@@ -1004,3 +1004,256 @@ table.dataframe td:last-child {
     font-size: 0.75rem;
 }
 
+/* ========================================
+ * SHARED MODAL ITEM STYLING
+ * ======================================== */
+
+/* Base modal item styling - shared across all modals */
+.modal-item-base {
+    font-size: 0.75rem;
+    transition: all 0.2s ease;
+    margin-bottom: 0.5rem !important;
+    padding: 0.75rem !important;
+    border-radius: 0.375rem;
+}
+
+.modal-item-base:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Warning themed items (Update Patterns, Wildcard, JSON Rules) */
+.modal-item-warning {
+    background-color: #fff3cd;
+    border: 1px solid #ffc107 !important;
+}
+
+.modal-item-warning:hover {
+    background-color: #ffeaa7;
+    border-color: #ffc107 !important;
+    box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+}
+
+/* Secondary themed items (References, Sorting Priority) */
+.modal-item-secondary {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef !important;
+}
+
+.modal-item-secondary:hover {
+    background-color: #e9ecef;
+    border-color: #6c757d !important;
+}
+
+/* Success themed items (Confirmed Mappings) */
+.modal-item-success {
+    background: linear-gradient(135deg, rgba(25, 135, 84, 0.1) 0%, rgba(25, 135, 84, 0.05) 100%);
+    border: 1px solid #198754 !important;
+}
+
+/* ========================================
+ * TRANSFORMATION STYLING
+ * ======================================== */
+
+/* Transformation header styling */
+.transformation-header {
+    margin-bottom: 0.5rem;
+}
+
+/* Transformation arrows */
+.transformation-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #ffc107;
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-align: center;
+    margin: 0.25rem 0;
+}
+
+.transformation-icon-medium {
+    font-size: 1.2rem;
+    color: #ffc107;
+    font-weight: bold;
+    padding: 0.2rem;
+}
+
+/* JSON input/output display styling */
+.json-input {
+    background-color: #e8f4fd;
+    border: 1px solid #007bff;
+    font-family: 'Courier New', monospace;
+    font-size: 0.7rem;
+    color: #004085;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    overflow-x: auto;
+}
+
+.json-output {
+    background-color: #e8f5e8;
+    border: 1px solid #28a745;
+    font-family: 'Courier New', monospace;
+    font-size: 0.7rem;
+    color: #155724;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    overflow-x: auto;
+}
+
+/* ========================================
+ * WILDCARD MODAL STYLING
+ * ======================================== */
+
+.wildcard-item {
+    border-left: 3px solid #ffc107;
+    padding-left: 0.75rem;
+}
+
+.wildcard-item:hover {
+    background-color: rgba(255, 193, 7, 0.05);
+}
+
+/* ========================================
+ * REFERENCE MODAL STYLING
+ * ======================================== */
+
+.reference-item-compact {
+    padding: 0.375rem 0.5rem !important;
+    margin-bottom: 0.25rem !important;
+}
+
+.reference-link-compact {
+    color: #0d6efd;
+    text-decoration: none;
+    word-break: break-all;
+    font-size: 0.75rem;
+    line-height: 1.2;
+}
+
+.reference-link-compact:hover {
+    color: #0a58ca;
+    text-decoration: underline;
+}
+
+/* ========================================
+ * SORTING PRIORITY MODAL STYLING
+ * ======================================== */
+
+.sorting-item {
+    padding: 0.375rem 0.5rem !important;
+    margin-bottom: 0.25rem !important;
+}
+
+.search-value, .version-value {
+    font-family: 'Courier New', monospace;
+    font-size: 0.7rem;
+    color: #495057;
+    font-weight: 600;
+}
+
+.search-key, .version-key {
+    color: #495057;
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+/* ========================================
+ * UPDATE PATTERNS MODAL STYLING
+ * ======================================== */
+
+.update-pattern-item {
+    border-left: 3px solid #ffc107;
+    padding-left: 0.75rem;
+}
+
+.update-pattern-item:hover {
+    background-color: rgba(255, 193, 7, 0.05);
+}
+
+/* Update Patterns output styling */
+.update-pattern-output {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    color: #198754;
+    font-weight: 500;
+    text-align: center;
+    letter-spacing: 0.5px;
+}
+
+.update-pattern-output:hover {
+    background-color: #e9ecef;
+    border-color: #198754;
+}
+
+.update-patterns-compact .alert-warning {
+    background-color: rgba(255, 193, 7, 0.1);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    color: #856404;
+}
+
+/* ========================================
+ * CONFIRMED MAPPING MODAL STYLING
+ * ======================================== */
+
+.confirmed-mapping-card {
+    background-color: rgba(25, 135, 84, 0.1);
+    border: 1px solid rgba(25, 135, 84, 0.3);
+}
+
+.confirmed-mapping-badge {
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+}
+
+.cpe-base-string-display {
+    font-size: 0.9rem;
+}
+
+.cpe-code {
+    font-size: 0.75rem;
+}
+
+/* ========================================
+ * VERSION MATCH MODAL STYLING
+ * ======================================== */
+
+.cpe-name-section-version {
+    min-width: 300px;
+}
+
+.additional-fields {
+    border-color: #e9ecef !important;
+}
+
+.version-field-value {
+    font-size: 0.7rem;
+    color: #495057;
+}
+
+/* ========================================
+ * BADGE STYLING
+ * ======================================== */
+
+.badge-xs {
+    font-size: 0.65rem;
+}
+
+.badge-sm {
+    font-size: 0.7rem;
+}
+
+.badge-verified {
+    font-size: 0.65rem;
+}
+
+.badge-count {
+    font-size: 0.65rem;
+}
+

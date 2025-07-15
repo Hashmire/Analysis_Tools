@@ -1027,12 +1027,16 @@ def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict
     # Add update patterns tab if applicable
     if has_update_patterns and update_info['update_transformations']:
         update_count = len(update_info['update_transformations'])
-        modal_content["rules"].append({
+        update_patterns_rule = {
             "type": "updatePatterns",
             "title": "Update Pattern Detection",
             "count": update_count,
             "transformations": []
-        })
+        }
+        modal_content["rules"].append(update_patterns_rule)
+        
+        # Get the index of the update patterns rule we just added
+        update_patterns_index = len(modal_content["rules"]) - 1
         
         # Process update pattern transformations
         for transformation in update_info['update_transformations']:
@@ -1048,7 +1052,7 @@ def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict
             if transformation.get('blocked_by_ranges'):
                 explanation += " (Note: Blocked by version ranges in data)"
             
-            modal_content["rules"][1]["transformations"].append({
+            modal_content["rules"][update_patterns_index]["transformations"].append({
                 "field": transformation['field'],
                 "field_display": field_display,
                 "input": input_json,

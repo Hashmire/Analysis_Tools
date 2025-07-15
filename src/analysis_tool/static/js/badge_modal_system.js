@@ -557,7 +557,7 @@ class BadgeModalFactory {
         
         refs.forEach((ref) => {
             content += `
-                <div class="reference-item-compact mb-1 p-2 border rounded" style="font-size: 0.8rem;">
+                <div class="modal-item-base modal-item-secondary reference-item-compact mb-1 p-2 border rounded" style="font-size: 0.8rem;">
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="reference-link-container flex-grow-1 me-2">
                             <a href="${ref.url}" target="_blank" class="reference-link-compact" title="${ref.url}">
@@ -750,7 +750,7 @@ class BadgeModalFactory {
         
         // Main statistics overview card
         content += `
-            <div class="sorting-item mb-3 p-3 border rounded" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-color: #6c757d !important;">
+            <div class="modal-item-base modal-item-secondary sorting-item mb-3 p-3 border rounded" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-color: #6c757d !important;">
                 <div class="text-center mb-3">
                     <h4 class="mb-1 text-secondary">${statistics.total_cpe_names}</h4>
                     <small class="text-muted fw-bold">Total CPE Names Found</small>
@@ -781,7 +781,7 @@ class BadgeModalFactory {
             const deprecatedPercentage = Math.round((statistics.deprecated_count / statistics.total_cpe_names) * 100);
             
             content += `
-                <div class="sorting-item p-2 border rounded" style="background-color: #f8f9fa;">
+                <div class="modal-item-base modal-item-secondary sorting-item p-2 border rounded" style="background-color: #f8f9fa;">
                     <div class="row align-items-center">
                         <div class="col-4">
                             <small class="text-muted fw-bold">Distribution Analysis</small>
@@ -822,7 +822,7 @@ class BadgeModalFactory {
         
         // Overview section - condensed
         content += `
-            <div class="wildcard-item mb-2 p-2">
+            <div class="modal-item-base modal-item-warning wildcard-item mb-2 p-2">
                 <div class="overview-header mb-2 text-center">
                     <small class="text-dark fw-bold">These rules convert wildcard patterns into precise CPE match object version ranges.</small>
                 </div>
@@ -843,7 +843,7 @@ class BadgeModalFactory {
             const outputJson = this.formatJsonWithoutBrackets(transformation.output);
             
             content += `
-                <div class="wildcard-item mb-3">
+                <div class="modal-item-base modal-item-warning wildcard-item mb-3">
                     <div class="transformation-header mb-2">
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="fw-bold text-warning">Entry ${index + 1}: ${transformation.derivation_desc || transformation.field_display}</small>
@@ -874,10 +874,6 @@ class BadgeModalFactory {
                                     ${outputJson}
                                 </div>
                             </div>
-                        </div>
-                        
-                        <div class="explanation-text">
-                            <strong>Rule Logic:</strong> ${transformation.explanation}
                         </div>
                     </div>
                 </div>
@@ -938,7 +934,7 @@ class BadgeModalFactory {
         
         // Main confirmation card
         content += `
-            <div class="sorting-item mb-3 p-3 border rounded">
+            <div class="modal-item-base modal-item-secondary sorting-item mb-3 p-3 border rounded">
                 <div class="text-center mb-3">
                     <div class="mb-2">
                         <span class="badge bg-success confirmed-mapping-badge">✓ Confirmed Mapping</span>
@@ -997,7 +993,7 @@ class BadgeModalFactory {
             const displayKey = searchKey.replace('searchSource', '').replace(/([A-Z])/g, ' $1').trim();
             
             content += `
-                <div class="sorting-item mb-1 p-2 border rounded">
+                <div class="modal-item-base modal-item-secondary sorting-item mb-1 p-2 border rounded">
                     <div class="d-flex align-items-center justify-content-between">
                         <div class="cpe-name-section me-3">
                             <div class="search-value">${searchValue}</div>
@@ -1044,7 +1040,7 @@ class BadgeModalFactory {
             });
             
             content += `
-                <div class="sorting-item mb-2 p-2 border rounded">
+                <div class="modal-item-base modal-item-secondary sorting-item mb-2 p-2 border rounded">
                     <div class="d-flex align-items-center justify-content-between">
                         <div class="cpe-name-section-version me-3">
                             <div class="version-value">${cpeName}</div>
@@ -1081,15 +1077,103 @@ class BadgeModalFactory {
     }
 
     static generateUpdatePatternsTabContent(updatePatternsData) {
-        return `
-            <div class="update-patterns-content p-3">
-                <div class="text-center text-muted">
-                    <h6>🔄 Update Patterns Rules</h6>
-                    <p>Update pattern processing rules will be displayed here when implemented.</p>
-                    <small>This tab is reserved for future update pattern transformation rules.</small>
+        if (!updatePatternsData || !updatePatternsData.transformations || updatePatternsData.transformations.length === 0) {
+            return `
+                <div class="update-patterns-content p-3">
+                    <div class="text-center text-muted">
+                        <h6>🔄 Update Patterns Rules</h6>
+                        <p>No update pattern transformations available for this entry.</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        let content = `
+            <div class="mb-3 pb-2 border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted fw-bold">Update Pattern Processing - Complete Context</small>
+                    <div>
+                        <span class="badge bg-warning badge-count">🔄 ${updatePatternsData.transformations.length} transformations</span>
+                    </div>
+                </div>
+            </div>
+            <div class="update-patterns-compact">
+        `;
+        
+        // Overview section
+        content += `
+            <div class="modal-item-base modal-item-warning update-pattern-item mb-2 p-2">
+                <div class="overview-header mb-2 text-center">
+                    <small class="text-dark fw-bold">These rules detect version update patterns and split them into base versions and update components.</small>
+                </div>
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted"><strong>Transformations:</strong> ${updatePatternsData.transformations.length}</small>
+                    <small class="text-muted"><strong>Pattern Types:</strong> ${updatePatternsData.pattern_types ? updatePatternsData.pattern_types.length : 1}</small>
                 </div>
             </div>
         `;
+        
+        // Show transformation rules
+        content += `
+            <div class="transformations-section">
+        `;
+        
+        updatePatternsData.transformations.forEach((transformation, index) => {
+            const inputJson = BadgeModalFactory.formatJsonWithoutBrackets(transformation.input);
+            
+            // Format output as "base_version   :   update_component"
+            const baseVersion = transformation.output.version || '';
+            const updateComponent = transformation.output.update || '';
+            const outputAttributes = `${baseVersion}   :   ${updateComponent}`;
+            
+            // Add blocked by ranges warning if applicable
+            let warningText = '';
+            if (transformation.blocked_by_ranges) {
+                warningText = '<div class="alert alert-warning p-2 mb-2" style="font-size: 0.75rem;"><strong>⚠️ Note:</strong> Version ranges detected - Update pattern rules may not be applied in final JSON generation.</div>';
+            }
+            
+            content += `
+                <div class="modal-item-base modal-item-warning update-pattern-item mb-3">
+                    <div class="transformation-header mb-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="fw-bold text-warning">Entry ${index + 1}: ${transformation.field_display}</small>
+                            <span class="badge bg-warning text-dark" style="font-size: 0.6rem;">${transformation.pattern_type || 'update'}</span>
+                        </div>
+                    </div>
+                    
+                    ${warningText}
+                    
+                    <div class="transformation-content">
+                        <div class="row">
+                            <div class="col-5">
+                                <div class="mb-1">
+                                    <small class="fw-bold text-muted">INPUT (Original Version):</small>
+                                </div>
+                                <div class="json-input">
+                                    ${inputJson}
+                                </div>
+                            </div>
+                            <div class="col-2 d-flex align-items-center">
+                                <div class="transformation-arrow w-100 text-center">
+                                    <div class="transformation-icon-medium">→</div>
+                                </div>
+                            </div>
+                            <div class="col-5">
+                                <div class="mb-1">
+                                    <small class="fw-bold text-success">Resulting Attributes (Version : Update):</small>
+                                </div>
+                                <div class="json-output">
+                                    ${outputAttributes}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        content += '</div></div>';
+        return content;
     }
 
     static generateVersionRangesTabContent(versionRangesData) {
@@ -1135,9 +1219,12 @@ class BadgeModalFactory {
                 // Create tabs for each rule type in the data
                 if (data.rules && Array.isArray(data.rules)) {
                     data.rules.forEach(rule => {
+                        // Format the rule type for display
+                        const displayType = rule.type === 'updatePatterns' ? 'Update Patterns' : rule.type;
+                        
                         tabs.push({
                             id: rule.type.toLowerCase().replace(/[^a-z0-9]/g, ''),
-                            label: rule.type,
+                            label: displayType,
                             badge: rule.transformations ? rule.transformations.length : 0,
                             content: BadgeModalFactory.generateJsonRuleTabContent(rule)
                         });
@@ -1160,10 +1247,24 @@ class BadgeModalFactory {
     }
 
     static generateJsonRuleTabContent(rule) {
+        // Format the rule type for display
+        const displayType = rule.type === 'updatePatterns' ? 'Update Patterns' : rule.type;
+        
+        // For Update Patterns, use the special formatting
+        if (rule.type === 'updatePatterns') {
+            // Calculate unique pattern types from transformations
+            const uniquePatternTypes = [...new Set(rule.transformations.map(t => t.pattern_type).filter(Boolean))];
+            
+            return BadgeModalFactory.generateUpdatePatternsTabContent({
+                transformations: rule.transformations,
+                pattern_types: uniquePatternTypes
+            });
+        }
+        
         let content = `
             <div class="mb-2 pb-1 border-bottom">
                 <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted fw-bold">${rule.type} Rule Transformations</small>
+                    <small class="text-muted fw-bold">${displayType} Rule Transformations</small>
                     <div>
                         <span class="badge bg-warning" style="font-size: 0.65rem;">${rule.transformations ? rule.transformations.length : 0} transformations</span>
                     </div>
@@ -1191,7 +1292,7 @@ class BadgeModalFactory {
                         <div class="transformation-header mb-2">
                             <div class="d-flex justify-content-between align-items-center">
                                 <small class="fw-bold text-warning">Transformation ${index + 1}</small>
-                                <span class="badge bg-warning text-dark" style="font-size: 0.6rem;">${rule.type}</span>
+                                <span class="badge bg-warning text-dark" style="font-size: 0.6rem;">${displayType}</span>
                             </div>
                         </div>
                         

@@ -125,6 +125,10 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     raw_platform_data = row.get('rawPlatformData', {})
     characteristics = analyze_version_characteristics(raw_platform_data)
 
+    # Extract vendor and product for use throughout the function
+    vendor = raw_platform_data.get('vendor', 'unknown')
+    product = raw_platform_data.get('product', 'unknown')
+
     # Group badges by priority level
     danger_badges = []
     warning_badges = []
@@ -214,8 +218,6 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
             simple_tooltip = f'JSON Generation Rules detected - {wildcard_count} wildcard transformation(s) will be applied. Click for detailed processing examples and complete affected entries context.'
             
             # Create a unique identifier for this badge's modal data
-            vendor = raw_platform_data.get('vendor', 'unknown')
-            product = raw_platform_data.get('product', 'unknown')
             badge_key_safe = f"wildcard_{tableIndex}_{vendor}_{product}".replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_").replace("*", "star")
             
             # Build detailed modal content showing input → output JSON transformations
@@ -318,72 +320,12 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
             platform_identifier = f"Platform Entry {tableIndex} ({source_role}, {vendor}/{product})"
             warning_badges.append(f'<span class="badge modal-badge bg-warning" onclick="BadgeModalManager.openWildcardGenerationModal(\'{tableIndex}\', \'{platform_identifier}\')" title="{simple_tooltip}">⚙️ JSON Generation Rules</span> ')
         
-    # 9. Update Patterns Detected badge
+    # 9. Update Patterns Detected badge - now integrated into JSON Generation Rules
     if characteristics['has_update_patterns'] and characteristics['update_patterns']:
-        # Check if version ranges are present
-        versions = raw_platform_data.get('versions', [])
-        has_ranges = any(v and isinstance(v, dict) and ('lessThan' in v or 'lessThanOrEqual' in v) for v in versions)
-        
-        # Build compact, sorted, and interwoven tooltip
-        tooltip_parts = []
-        
-        # Add special warning if version ranges are detected
-        if has_ranges:
-            tooltip_parts.append("Version Range Detected, Update Pattern Rules not applied!")
-        
-        # Extract version data for grouping
-        version_groups = {}
-        for version in versions:
-            if not version or 'version' not in version:
-                continue
-            version_str = version.get('version', '')
-            if not version_str:
-                continue
-            
-            base_version, update_component, transformed_version = transform_version_with_update_pattern(version_str)
-            
-            if base_version and update_component:
-                # This version has an update pattern
-                if base_version not in version_groups:
-                    version_groups[base_version] = {
-                        'wildcard': False,
-                        'specific_updates': []
-                    }
-                version_groups[base_version]['specific_updates'].append({
-                    'original': version_str,
-                    'update': update_component,
-                    'transformed': transformed_version
-                })
-            else:
-                # This is a regular version - check if it matches any base version
-                for base_ver in version_groups:
-                    if version_str == base_ver:
-                        version_groups[base_ver]['wildcard'] = True
-                        break
-                else:
-                    # No matching base version found, create a new group
-                    version_groups[version_str] = {
-                        'wildcard': True,
-                        'specific_updates': []
-                    }
-        
-        # Generate compact tooltip format
-        for base_version in sorted(version_groups.keys()):
-            group = version_groups[base_version]
-            
-            # Only add wildcard entry if there are specific updates for this base version
-            # This prevents showing unnecessary wildcard-to-dash conversions for versions
-            # that don't have overlapping specific update versions
-            if group['wildcard'] and len(group['specific_updates']) > 0:
-                tooltip_parts.append(f"{base_version.ljust(12)} → {base_version}:-")
-            
-            # Add specific updates, sorted by update component
-            for update_info in sorted(group['specific_updates'], key=lambda x: x['update']):
-                original_display = update_info['original']
-                tooltip_parts.append(f"{original_display.ljust(12)} → {update_info['transformed']}")
-        
-        update_patterns_tooltip = '&#013;'.join(tooltip_parts)
-        warning_badges.append(f'<span class="badge bg-warning" title="{update_patterns_tooltip}">Update Patterns Detected</span> ')
+        # Use the unified JSON Generation Rules badge system
+        json_rules_badge = create_json_generation_rules_badge(tableIndex, raw_platform_data, vendor, product)
+        if json_rules_badge:
+            warning_badges.append(json_rules_badge)
 
     # ===== ⚫ STANDARD BADGES (Gray) =====
     
