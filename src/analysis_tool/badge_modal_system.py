@@ -41,7 +41,8 @@ GLOBAL_CPE_DATA_REGISTRY = {
 PLATFORM_ENTRY_NOTIFICATION_REGISTRY = {
     'wildcardGeneration': {},  # table_index -> wildcard transformation data
     'updatePatterns': {},      # table_index -> update pattern data
-    'jsonGenerationRules': {}  # table_index -> combined JSON generation rules data
+    'jsonGenerationRules': {}, # table_index -> combined JSON generation rules data
+    'supportingInformation': {} # table_index -> supporting information data
 }
 
 # ===== CONSTANTS AND PATTERNS =====
@@ -158,7 +159,7 @@ def register_platform_notification_data(table_index: int, data_type: str, data: 
     
     Args:
         table_index: The table/row index
-        data_type: The type of data ('wildcardGeneration', 'updatePatterns', 'jsonGenerationRules')
+        data_type: The type of data ('wildcardGeneration', 'updatePatterns', 'jsonGenerationRules', 'supportingInformation')
         data: The data to store
     
     Returns:
@@ -232,6 +233,11 @@ def get_consolidated_platform_notification_script() -> str:
     for table_index, rules_data in PLATFORM_ENTRY_NOTIFICATION_REGISTRY['jsonGenerationRules'].items():
         rules_data_js = json.dumps(rules_data)
         script_content += f"    BadgeModal.registerData('jsonGenerationRules', '{table_index}', {rules_data_js});\n"
+    
+    # Register all supporting information data
+    for table_index, supporting_data in PLATFORM_ENTRY_NOTIFICATION_REGISTRY['supportingInformation'].items():
+        supporting_data_js = json.dumps(supporting_data)
+        script_content += f"    BadgeModal.registerData('supportingInformation', '{table_index}', {supporting_data_js});\n"
     
     if script_content:
         return f"""
@@ -481,8 +487,8 @@ def analyze_version_characteristics(raw_platform_data):
                     r'^(.+?)[\.\-_\s]*hf[\.\-_\s]*(\d+)[\.\-_\s]*$',
                     
                     # Service pack patterns
-                    r'^(.+?)[\.\-_\s]*service[\s\-_]+pack[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*sp[\.\-_\s]*(\d+)[\.\-_\s]*$',
+                    r'^(.+?)[\.\-_\s]*service[\s\-_]+pack[\.\-_\s]*(\d*)[\.\-_]*$',
+                    r'^(.+?)[\.\-_\s]*sp[\.\-_]*(\d+)[\.\-_]*$',
                     r'^(.+?)\.sp(\d+)$', # Handle 3.0.0.sp1
                     
                     # Update patterns
@@ -1077,6 +1083,266 @@ def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict
     
     return badge_html
 
+# ===== SUPPORTING INFORMATION MODAL SYSTEM =====
+
+def create_supporting_information_badge(table_index: int, row: Dict, platform_metadata: Dict, 
+                                       raw_platform_data: Dict, characteristics: Dict,
+                                       platform_format_type: str, readable_format_type: str,
+                                       vendor: str, product: str, nvd_source_data: Dict) -> Optional[str]:
+    """
+    Create a unified Supporting Information badge that consolidates Standard and Info badges.
+    
+    Args:
+        table_index: The table index for unique identification
+        row: The complete row data
+        platform_metadata: Platform metadata from the row
+        raw_platform_data: The raw platform data
+        characteristics: Version characteristics analysis
+        platform_format_type: The platform format type
+        readable_format_type: Human-readable format type
+        vendor: The vendor name
+        product: The product name
+        nvd_source_data: NVD source data for lookups
+    
+    Returns:
+        HTML string for the badge, or None if no supporting information detected
+    """
+    # Collect all supporting information
+    supporting_info = {
+        "tabs": [],
+        "summary": {
+            "total_items": 0,
+            "categories": []
+        }
+    }
+    
+    # === VERSIONS ARRAY DETAILS TAB ===
+    versions_details = []
+    
+    # 1. CVE Affected CPES Data
+    cpes_array = []
+    has_cpe_array = platform_metadata.get('hasCPEArray', False)
+    if has_cpe_array and 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
+        cpes_array = [cpe for cpe in raw_platform_data['cpes'] if cpe and isinstance(cpe, str) and cpe.startswith('cpe:')]
+        if cpes_array:
+            cpe_count = len(cpes_array)
+            versions_details.append({
+                "title": "CVE Affected CPES Data",
+                "content": f"{cpe_count} CPEs detected",
+                "details": f"Versions array contains {cpe_count} CPEs from affected entry",
+                "cpes": cpes_array,
+                "type": "cpe_data"
+            })
+    
+    # 2. Versions Array Structure
+    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
+        versions_array = raw_platform_data['versions']
+        if versions_array:
+            versions_details.append({
+                "title": "Versions Array Structure",
+                "content": f"{len(versions_array)} version entries",
+                "details": "Complete structure of the versions array from platform data",
+                "versions_array": versions_array,
+                "type": "versions_structure"
+            })
+    
+    # Add versions tab (first priority)
+    if versions_details:
+        supporting_info["tabs"].append({
+            "id": "versions",
+            "title": "Versions Array Details",
+            "icon": "fas fa-code-branch",
+            "items": versions_details
+        })
+        supporting_info["summary"]["categories"].append("Versions Array Details")
+    
+    # === SEARCH OPERATIONS TAB ===
+    search_operations = []
+    
+    # 1. CPE Base String Searches
+    cpe_base_strings = platform_metadata.get('cpeBaseStrings', [])
+    culled_cpe_strings = platform_metadata.get('culledCpeBaseStrings', [])
+    
+    if cpe_base_strings or culled_cpe_strings:
+        used_count = len(cpe_base_strings)
+        culled_count = len(culled_cpe_strings)
+        
+        search_operations.append({
+            "title": "CPE Base String Processing",
+            "content": f"{used_count} used, {culled_count} culled",
+            "details": "CPE base strings generated and searched for platform matching",
+            "used_strings": sort_cpe_strings_for_tooltip(cpe_base_strings),
+            "culled_strings": culled_cpe_strings,
+            "used_count": used_count,
+            "culled_count": culled_count,
+            "type": "cpe_searches"
+        })
+    
+    # Add search tab (second priority)
+    if search_operations:
+        supporting_info["tabs"].append({
+            "id": "search",
+            "title": "CPE Base Strings Searched",
+            "icon": "fas fa-search",
+            "items": search_operations
+        })
+        supporting_info["summary"]["categories"].append("CPE Base Strings Searched")
+    
+    # === DATA TRANSFORMATIONS TAB ===
+    transformations = []
+    
+    # 1. Source to CPE Transformations Applied
+    try:
+        from . import processData  # Import here to avoid circular import
+    except ImportError:
+        logger.warning("Could not import processData module", group="badge_modal")
+    
+    curation_tracking = platform_metadata.get('cpeCurationTracking', {})
+    unicode_normalization_details = platform_metadata.get('unicodeNormalizationDetails', {})
+    unicode_normalization_used = platform_metadata.get('unicodeNormalizationApplied', False)
+    
+    has_curation = bool(curation_tracking)
+    has_unicode_details = bool(unicode_normalization_details.get('transformations') or unicode_normalization_details.get('skipped_fields'))
+    has_legacy_unicode = unicode_normalization_used and not has_unicode_details
+    
+    if has_curation or has_unicode_details or has_legacy_unicode:
+        transformation_details = {
+            "title": "Source to CPE Transformations",
+            "content": "Applied to normalize source data",
+            "details": "Transformations applied to convert source vulnerability data to CPE format",
+            "type": "source_transformations"
+        }
+        
+        # Collect transformation details
+        all_transformations = []
+        
+        # Unicode normalization details
+        if has_unicode_details:
+            unicode_transforms = unicode_normalization_details.get('transformations', [])
+            unicode_skipped = unicode_normalization_details.get('skipped_fields', [])
+            
+            for transform in unicode_transforms:
+                all_transformations.append({
+                    "category": "Unicode Normalization",
+                    "field": transform['field'].replace('_', ' ').title(),
+                    "original": transform['original'],
+                    "transformed": transform['normalized'],
+                    "type": "unicode"
+                })
+            
+            for skipped in unicode_skipped:
+                all_transformations.append({
+                    "category": "Unicode Normalization",
+                    "field": skipped['field'].replace('_', ' ').title(),
+                    "original": skipped['original'],
+                    "transformed": "[SKIPPED]",
+                    "reason": skipped['reason'],
+                    "type": "unicode_skipped"
+                })
+        
+        # Legacy unicode normalization
+        elif has_legacy_unicode:
+            all_transformations.append({
+                "category": "Unicode Normalization",
+                "field": "General",
+                "original": "Various Unicode characters",
+                "transformed": "ASCII equivalents",
+                "type": "unicode_legacy"
+            })
+        
+        # Curation tracking details
+        if has_curation:
+            for field_name, modifications in curation_tracking.items():
+                display_name = field_name.replace('_', ' ').title()
+                for mod in modifications:
+                    all_transformations.append({
+                        "category": "Field Curation",
+                        "field": display_name,
+                        "original": mod['original'],
+                        "transformed": mod['curated'],
+                        "type": "curation"
+                    })
+        
+        transformation_details["transformations"] = all_transformations
+        transformations.append(transformation_details)
+    
+    # Add transformations tab (third priority)
+    if transformations:
+        supporting_info["tabs"].append({
+            "id": "transformations",
+            "title": "Data Transformations",
+            "icon": "fas fa-exchange-alt",
+            "items": transformations
+        })
+        supporting_info["summary"]["categories"].append("Data Transformations")
+    
+    # === API RESULTS TAB ===
+    api_results = []
+    
+    # 1. CPE API Error Detection
+    sorted_cpe_query_data = row.get('sortedCPEsQueryData', {})
+    if sorted_cpe_query_data:
+        cpe_error_messages = []
+        invalid_cpe_count = 0
+        successful_queries = 0
+        
+        for cpe_string, query_data in sorted_cpe_query_data.items():
+            if isinstance(query_data, dict):
+                if query_data.get('status') == 'invalid_cpe' or query_data.get('status') == 'error':
+                    invalid_cpe_count += 1
+                    error_msg = query_data.get('error_message', 'Unknown CPE API error')
+                    cpe_error_messages.append({
+                        "cpe": cpe_string,
+                        "error": error_msg,
+                        "status": query_data.get('status', 'unknown')
+                    })
+                else:
+                    successful_queries += 1
+        
+        if invalid_cpe_count > 0 or successful_queries > 0:
+            api_results.append({
+                "title": "CPE API Query Results",
+                "content": f"{successful_queries} successful, {invalid_cpe_count} errors",
+                "details": f"NVD CPE API query results for {len(sorted_cpe_query_data)} CPE strings",
+                "errors": cpe_error_messages,
+                "successful_count": successful_queries,
+                "type": "cpe_api_results"
+            })
+    
+    # Add API results tab (fourth priority)
+    if api_results:
+        supporting_info["tabs"].append({
+            "id": "api",
+            "title": "API Results",
+            "icon": "fas fa-server",
+            "items": api_results
+        })
+        supporting_info["summary"]["categories"].append("API Results")
+    
+    # Check if we have any supporting information to display
+    if not supporting_info["tabs"]:
+        return None
+    
+    # Calculate total items across all tabs
+    total_items = sum(len(tab["items"]) for tab in supporting_info["tabs"])
+    supporting_info["summary"]["total_items"] = total_items
+    
+    # Register the modal content
+    register_platform_notification_data(table_index, 'supportingInformation', supporting_info)
+    
+    # Create tooltip
+    categories = " + ".join(supporting_info["summary"]["categories"])
+    tooltip = f'Supporting Information available - {categories} ({total_items} item(s)). Click for detailed technical insights and debugging information.'
+    
+    # Create the badge HTML with gray theme
+    # Create display value in format: "Platform Entry X (sourceRole, vendor/product)"
+    source_role = row.get('sourceRole', 'Unknown')
+    display_value = f"Platform Entry {table_index} ({source_role}, {vendor}/{product})"
+    
+    badge_html = f'<span class="badge modal-badge bg-secondary" onclick="BadgeModalManager.openSupportingInformationModal(\'{table_index}\', \'{display_value}\')" title="{tooltip}">🔍 Supporting Information</span> '
+    
+    return badge_html
+
 # ===== UTILITY FUNCTIONS =====
 
 def sort_cpe_strings_for_tooltip(base_strings):
@@ -1393,13 +1659,19 @@ INTELLIGENT_SETTINGS = {}
 
 def _initialize_clean_state():
     """Initialize clean global state when module is imported"""
-    global JSON_SETTINGS_HTML, INTELLIGENT_SETTINGS, GLOBAL_CPE_DATA_REGISTRY
+    global JSON_SETTINGS_HTML, INTELLIGENT_SETTINGS, GLOBAL_CPE_DATA_REGISTRY, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
     JSON_SETTINGS_HTML = {}
     INTELLIGENT_SETTINGS = {}
     GLOBAL_CPE_DATA_REGISTRY = {
         'references': {},
         'sortingPriority': {},
         'registered_cpes': set()
+    }
+    PLATFORM_ENTRY_NOTIFICATION_REGISTRY = {
+        'wildcardGeneration': {},
+        'updatePatterns': {},
+        'jsonGenerationRules': {},
+        'supportingInformation': {}
     }
 
 # Call initialization immediately

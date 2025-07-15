@@ -1154,9 +1154,7 @@ class BadgeModalFactory {
                                 </div>
                             </div>
                             <div class="col-2 d-flex align-items-center">
-                                <div class="transformation-arrow w-100 text-center">
-                                    <div class="transformation-icon-medium">→</div>
-                                </div>
+                                <div class="transformation-arrow w-100">→</div>
                             </div>
                             <div class="col-5">
                                 <div class="mb-1">
@@ -1384,6 +1382,363 @@ class BadgeModalFactory {
         content += '</div>';
         return content;
     }
+
+    static createSupportingInformationModal() {
+        return new BadgeModal({
+            modalType: 'supportingInformation',
+            title: 'Supporting Information',
+            icon: '🔍',
+            headerColor: '#6c757d', // Gray theme
+            enableTabs: true,
+            generateHeaderContent: (displayValue, additionalData) => {
+                const totalItems = additionalData.totalItems || 0;
+                const categories = additionalData.categories || [];
+                
+                return `
+                    <div class="supporting-info-fixed">
+                        <div class="platform-string-compact mb-1">
+                            <code class="text-white bg-dark px-2 py-1 rounded" style="font-size: 0.75rem;">${displayValue}</code>
+                        </div>
+                        <div class="summary-stats-compact">
+                            <span class="badge bg-light text-dark me-1" style="font-size: 0.65rem;">📊 ${totalItems} items</span>
+                            <span class="badge bg-light text-dark me-1" style="font-size: 0.65rem;">🏷️ ${categories.length} categories</span>
+                        </div>
+                    </div>
+                `;
+            },
+            generateTabsData: (data, displayValue, additionalData) => {
+                const tabs = [];
+                
+                // Create tabs for each category in the data
+                if (data.tabs && Array.isArray(data.tabs)) {
+                    data.tabs.forEach(tab => {
+                        tabs.push({
+                            id: tab.id,
+                            label: tab.title,
+                            badge: tab.items ? tab.items.length : 0,
+                            content: BadgeModalFactory.generateSupportingInfoTabContent(tab)
+                        });
+                    });
+                }
+                
+                return tabs;
+            }
+        });
+    }
+
+    static generateSupportingInfoTabContent(tab) {
+        if (!tab.items || tab.items.length === 0) {
+            return '<p class="text-muted">No information available</p>';
+        }
+
+        let content = `
+            <div class="supporting-info-content">
+                <div class="mb-3 pb-2 border-bottom">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted fw-bold">${tab.title}</small>
+                        <div>
+                            <span class="badge bg-secondary" style="font-size: 0.65rem;">${tab.items.length} items</span>
+                        </div>
+                    </div>
+                </div>
+        `;
+
+        tab.items.forEach(item => {
+            content += `
+                <div class="modal-item-base modal-item-secondary supporting-item mb-3 p-3 border rounded">
+            `;
+            
+            // Special handling for CPE searches - merge header with badges
+            if (item.type === 'cpe_searches') {
+                content += `
+                    <div class="item-header mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0 text-secondary fw-bold">CPE Base String Processing</h6>
+                            <div class="search-stats">
+                                <span class="badge bg-secondary me-1">${item.used_count || 0} used</span>
+                                <span class="badge bg-secondary">${item.culled_count || 0} culled</span>
+                            </div>
+                        </div>
+                        <div class="item-description">
+                            <small class="text-muted">${item.details}</small>
+                        </div>
+                    </div>
+                `;
+            } else if (item.type === 'versions_structure' && item.versions_array) {
+                // Special handling for versions - merge table directly under header (no separate content/details)
+                content += `
+                    <div class="item-header mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0 text-secondary fw-bold">Versions Array Details</h6>
+                            <span class="badge bg-secondary">${item.versions_array.length} entries</span>
+                        </div>
+                        <div class="item-description">
+                            <small class="text-muted">${item.details}</small>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th style="width: 5%;">#</th>
+                                    <th style="width: 25%;">Version</th>
+                                    <th style="width: 12%;">Status</th>
+                                    <th style="width: 20%;">LessThan</th>
+                                    <th style="width: 20%;">LessThanOrEqual</th>
+                                    <th style="width: 12%;">VersionType</th>
+                                    <th style="width: 6%;">Changes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                item.versions_array.forEach((version, index) => {
+                    const versionValue = version.version || '';
+                    const status = version.status || '';
+                    const lessThan = version.lessThan || '';
+                    const lessThanOrEqual = version.lessThanOrEqual || '';
+                    const versionType = version.versionType || '';
+                    const changes = version.changes ? version.changes.length : 0;
+                    
+                    content += `
+                        <tr>
+                            <td class="text-center">${index + 1}</td>
+                            <td>${versionValue ? `<code class="text-dark bg-light px-1 rounded">${versionValue}</code>` : ''}</td>
+                            <td>${status ? `<span class="badge ${status === 'affected' ? 'bg-danger' : status === 'unaffected' ? 'bg-success' : 'bg-secondary'}">${status}</span>` : ''}</td>
+                            <td>${lessThan ? `<code class="text-dark bg-light px-1 rounded">${lessThan}</code>` : ''}</td>
+                            <td>${lessThanOrEqual ? `<code class="text-dark bg-light px-1 rounded">${lessThanOrEqual}</code>` : ''}</td>
+                            <td>${versionType ? `<span class="badge bg-secondary">${versionType}</span>` : ''}</td>
+                            <td class="text-center">${changes > 0 ? changes : ''}</td>
+                        </tr>
+                    `;
+                });
+                content += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } else if (item.type === 'cpe_api_results') {
+                // Handle API results with proper header
+                content += `
+                    <div class="item-header mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0 text-secondary fw-bold">CPE API Query Results</h6>
+                            <div class="api-stats">
+                                <span class="badge bg-secondary me-1">${item.successful_count || 0} successful</span>
+                                <span class="badge bg-danger">${item.errors ? item.errors.length : 0} errors</span>
+                            </div>
+                        </div>
+                        <div class="item-description">
+                            <small class="text-muted">${item.details}</small>
+                        </div>
+                    </div>
+                `;
+            } else if (item.type === 'source_transformations') {
+                // Handle source transformations with proper header
+                content += `
+                    <div class="item-header mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0 text-secondary fw-bold">Source to CPE Transformations</h6>
+                            <div class="transformation-stats">
+                                <span class="badge bg-secondary">${item.transformations ? item.transformations.length : 0} transformations</span>
+                            </div>
+                        </div>
+                        <div class="item-description">
+                            <small class="text-muted">${item.details}</small>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Generic item handling
+                content += `
+                    <div class="item-header mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0 text-secondary fw-bold">${item.title}</h6>
+                            <span class="badge bg-secondary">${item.content}</span>
+                        </div>
+                        <div class="item-description">
+                            <small class="text-muted">${item.details}</small>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Handle different item types with enhanced styling - skip versions_structure as it's handled above
+            if (item.type === 'cpe_data' && item.cpes) {
+                content += `
+                    <div class="cpe-strings-section">
+                        <div class="mb-2">
+                            <strong class="text-secondary">CPE Strings:</strong>
+                        </div>
+                        <div class="cpe-strings-grid">
+                `;
+                item.cpes.forEach(cpe => {
+                    content += `
+                        <div class="cpe-string-item mb-1">
+                            <code class="text-dark bg-light px-2 py-1 rounded border">${cpe}</code>
+                        </div>
+                    `;
+                });
+                content += `
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (item.type === 'cpe_api_results' && item.errors && item.errors.length > 0) {
+                content += `
+                    <div class="api-errors-section">
+                        <div class="mb-2">
+                            <strong class="text-secondary">API Errors:</strong>
+                        </div>
+                        <div class="api-errors-list">
+                `;
+                item.errors.forEach(error => {
+                    content += `
+                        <div class="api-error-item mb-2 p-2 border rounded bg-light">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <code class="text-dark bg-white px-2 py-1 rounded border">${error.cpe}</code>
+                                <span class="badge bg-secondary">${error.status}</span>
+                            </div>
+                            <div class="error-message mt-1">
+                                <small class="text-muted">${error.error}</small>
+                            </div>
+                        </div>
+                    `;
+                });
+                content += `
+                        </div>
+                    </div>
+                `;
+            } else if (item.type === 'cpe_api_results' && item.successful_count > 0) {
+                content += `
+                    <div class="api-success-section">
+                        <div class="mb-2">
+                            <strong class="text-secondary">API Success:</strong>
+                        </div>
+                        <div class="border rounded border-secondary p-2">
+                            <small class="text-dark">All ${item.successful_count} CPE API queries completed successfully with no errors.</small>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (item.type === 'cpe_searches' && (item.used_strings || item.culled_strings)) {
+                content += `
+                    <div class="cpe-searches-section">
+                `;
+                
+                if (item.used_strings && item.used_strings.length > 0) {
+                    content += `
+                        <div class="used-strings-section mb-3">
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <strong class="text-secondary">Used CPE Strings:</strong>
+                                    <span class="badge bg-secondary">${item.used_strings.length}</span>
+                                </div>
+                            </div>
+                            <div class="used-strings-grid">
+                    `;
+                    item.used_strings.forEach(cpe => {
+                        content += `
+                            <div class="used-string-item mb-1">
+                                <code class="text-dark bg-light px-2 py-1 rounded border">${cpe}</code>
+                            </div>
+                        `;
+                    });
+                    content += `
+                            </div>
+                        </div>
+                    `;
+                }
+
+                if (item.culled_strings && item.culled_strings.length > 0) {
+                    content += `
+                        <div class="culled-strings-section">
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <strong class="text-secondary">Culled CPE Strings:</strong>
+                                    <span class="badge bg-secondary">${item.culled_strings.length}</span>
+                                </div>
+                            </div>
+                            <div class="culled-strings-grid">
+                    `;
+                    item.culled_strings.forEach(culled => {
+                        content += `
+                            <div class="culled-string-item mb-2 p-2 border rounded bg-light">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <code class="text-dark bg-white px-2 py-1 rounded">${culled.cpe_string}</code>
+                                    <span class="badge bg-secondary">${culled.reason}</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    content += `
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                content += `</div>`;
+            }
+
+            if (item.type === 'source_transformations' && item.transformations) {
+                content += `
+                    <div class="transformations-section">
+                        <div class="mb-2">
+                            <strong class="text-secondary">Applied Transformations:</strong>
+                        </div>
+                        <div class="transformations-list">
+                `;
+                item.transformations.forEach(transform => {
+                    const statusClass = transform.type === 'unicode_skipped' ? 'border-secondary' : 'border-secondary';
+                    const statusBadge = transform.type === 'unicode_skipped' ? 'bg-secondary' : 'bg-secondary';
+                    
+                    content += `
+                        <div class="transformation-item mb-3 p-3 border rounded ${statusClass}">
+                            <div class="transformation-header mb-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <strong class="text-secondary">${transform.category}</strong>
+                                    <span class="badge ${statusBadge}">${transform.field}</span>
+                                </div>
+                            </div>
+                            <div class="transformation-content">
+                                <div class="row">
+                                    <div class="col-5">
+                                        <div class="mb-1">
+                                            <small class="fw-bold text-muted">Original:</small>
+                                        </div>
+                                        <code class="text-dark bg-light px-2 py-1 rounded border d-block">${transform.original}</code>
+                                    </div>
+                                    <div class="col-2 d-flex align-items-center">
+                                        <div class="transformation-arrow w-100 text-center">
+                                            <div class="text-secondary" style="font-size: 2rem;">→</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-5">
+                                        <div class="mb-1">
+                                            <small class="fw-bold text-muted">Transformed:</small>
+                                        </div>
+                                        <code class="text-dark bg-light px-2 py-1 rounded border d-block">${transform.transformed}</code>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                content += `
+                        </div>
+                    </div>
+                `;
+            }
+
+            content += `
+                </div>
+            `;
+        });
+
+        content += `</div>`;
+        return content;
+    }
 }
 
 /**
@@ -1497,6 +1852,26 @@ class BadgeModalManager {
         }
         
         modal.show(tableIndex, displayValue, { ruleCount, ruleTypes });
+    }
+
+    static openSupportingInformationModal(tableIndex, displayValue) {
+        const modal = BadgeModalFactory.createSupportingInformationModal();
+        
+        // Fail fast if no supporting information data is registered at all
+        if (!window.BADGE_MODAL_DATA.supportingInformation) {
+            throw new Error('No supporting information data registered - ensure BadgeModal.registerData("supportingInformation", ...) calls have executed');
+        }
+        
+        const registeredData = window.BADGE_MODAL_DATA.supportingInformation[tableIndex]; // No optional chaining - fail fast
+        if (!registeredData) {
+            throw new Error(`No supporting information data registered for key '${tableIndex}' - check BadgeModal.registerData() calls`);
+        }
+        
+        // Calculate counts for header display
+        const totalItems = registeredData.summary ? registeredData.summary.total_items : 0;
+        const categories = registeredData.summary ? registeredData.summary.categories : [];
+        
+        modal.show(tableIndex, displayValue, { totalItems, categories });
     }
 
     static openJsonGenerationRulesModal(tableIndex, displayValue) {

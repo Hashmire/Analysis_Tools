@@ -181,22 +181,11 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
 
     if platform_format_type == 'cveAffectsNoVersions':
         danger_badges.append(f'<span class="badge bg-danger" title="{version_tooltip}">{readable_format_type}</span> ')
-    else:
-        info_badges.append(f'<span class="badge bg-info" title="{version_tooltip}">{readable_format_type}</span> ')
+    # Note: Platform Format Type for other cases is now handled in Supporting Information modal
 
     # ===== 🔵 INFO BADGES (Blue) =====
     
-    # 4. CVE Affected CPES Data
-    cpes_array = []
-    has_cpe_array = platform_metadata.get('hasCPEArray', False)
-    if has_cpe_array and 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
-        cpes_array = [cpe for cpe in raw_platform_data['cpes'] if cpe and isinstance(cpe, str) and cpe.startswith('cpe:')]
-        if cpes_array:
-            cpe_count = len(cpes_array)
-            cpe_tooltip = f"Versions array contains {cpe_count} CPEs from affected entry: " + ", ".join(cpes_array)
-            info_badges.append(f'<span class="badge bg-info" title="{cpe_tooltip}">CVE Affected CPES Data: {cpe_count}</span> ')
-
-    # 5. CVE Affects Version Range(s) - Already handled above in Platform Format Type badge
+    # Note: CVE Affected CPES Data is now handled in Supporting Information modal
 
     # ===== 🟡 WARNING BADGES (Yellow) =====
     
@@ -207,7 +196,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         changes_tooltip = 'Versions array contains change history information requiring special handling'
         warning_badges.append(f'<span class="badge bg-warning" title="{changes_tooltip}">Has Version Changes</span> ')
 
-    # 8. JSON Generation Rules badge (replaces old Wildcard Patterns badge)
+    # 8. JSON Generation Rules badge 
     if characteristics['has_wildcards']:
         # Analyze wildcard generation patterns following JavaScript wildcardExpansion rule
         wildcard_info = analyze_wildcard_generation(raw_platform_data)
@@ -329,121 +318,10 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
 
     # ===== ⚫ STANDARD BADGES (Gray) =====
     
-    # 10. CPE API Error Detection Badge
-    sorted_cpe_query_data = row.get('sortedCPEsQueryData', {})
-    if sorted_cpe_query_data:
-        cpe_error_messages = []
-        invalid_cpe_count = 0
-        
-        for cpe_string, query_data in sorted_cpe_query_data.items():
-            if isinstance(query_data, dict):
-                # Check for error status
-                if query_data.get('status') == 'invalid_cpe' or query_data.get('status') == 'error':
-                    invalid_cpe_count += 1
-                    error_msg = query_data.get('error_message', 'Unknown CPE API error')
-                    cpe_error_messages.append(f"CPE: {cpe_string}&#013;Error: {error_msg}")
-        
-        if invalid_cpe_count > 0:
-            error_tooltip = f"NVD CPE API returned errors for {invalid_cpe_count} CPE strings:&#013;" + "&#013;&#013;".join(cpe_error_messages)
-            standard_badges.append(f'<span class="badge bg-secondary" title="{error_tooltip}">CPE API Errors</span> ')
-
-    # 11. CPE Base String Searches badge (Enhanced)
-    cpe_base_strings = platform_metadata.get('cpeBaseStrings', [])
-    culled_cpe_strings = platform_metadata.get('culledCpeBaseStrings', [])
-    
-    if cpe_base_strings or culled_cpe_strings:
-        # Build enhanced tooltip showing used and culled CPE strings
-        tooltip_parts = []
-        
-        # Summary line
-        used_count = len(cpe_base_strings)
-        culled_count = len(culled_cpe_strings)
-        if culled_count > 0:
-            tooltip_parts.append(f"CPE Base Strings: {used_count} used, {culled_count} culled")
-        else:
-            tooltip_parts.append(f"CPE Base Strings: {used_count} used")
-        
-        # Show used CPE strings
-        if cpe_base_strings:
-            tooltip_parts.append("Used:")
-            sorted_cpe_base_strings = sort_cpe_strings_for_tooltip(cpe_base_strings)
-            for cpe_string in sorted_cpe_base_strings:
-                tooltip_parts.append(f"  {cpe_string}")
-        
-        # Show culled CPE strings with reasons
-        if culled_cpe_strings:
-            tooltip_parts.append("Culled:")
-            for culled_info in culled_cpe_strings:
-                cpe_string = culled_info['cpe_string']
-                reason = culled_info['reason']
-                # Truncate long CPE strings for display
-                display_cpe = cpe_string if len(cpe_string) <= 50 else cpe_string[:47] + "..."
-                tooltip_parts.append(f"  {display_cpe} ({reason})")
-        
-        enhanced_tooltip = "&#013;".join(tooltip_parts)
-        
-        # Always use standard gray color regardless of culled CPEs
-        badge_color = "bg-secondary"
-        badge_text = f"CPE Base String Searches"
-        
-        # Always add to standard badges
-        standard_badges.append(f'<span class="badge {badge_color}" title="{enhanced_tooltip}">{badge_text}</span> ')
-
-    # 12. Source to CPE Transformations Applied badge
-    curation_tracking = platform_metadata.get('cpeCurationTracking', {})
-    unicode_normalization_details = platform_metadata.get('unicodeNormalizationDetails', {})
-    # Keep legacy flag check for backward compatibility
-    unicode_normalization_used = platform_metadata.get('unicodeNormalizationApplied', False)
-
-    # Determine if we have any transformations or normalization to report
-    has_curation = bool(curation_tracking)
-    has_unicode_details = bool(unicode_normalization_details.get('transformations') or unicode_normalization_details.get('skipped_fields'))
-    has_legacy_unicode = unicode_normalization_used and not has_unicode_details
-
-    if has_curation or has_unicode_details or has_legacy_unicode:
-        # Build enhanced tooltip with both curation and normalization info
-        curation_tooltip = 'Source to CPE transformations applied:&#013;'
-        
-        # Add detailed Unicode normalization info if present
-        if has_unicode_details:
-            transformations = unicode_normalization_details.get('transformations', [])
-            skipped_fields = unicode_normalization_details.get('skipped_fields', [])
-            
-            for transform in transformations:
-                field = transform['field'].replace('_', ' ').title()
-                curation_tooltip += f"{field}: '{transform['original']}' → '{transform['normalized']}'&#013;"
-            
-            for skipped in skipped_fields:
-                field = skipped['field'].replace('_', ' ').title()
-                curation_tooltip += f"{field}: '{skipped['original']}' → [SKIPPED - {skipped['reason']}]&#013;"
-        
-        # Add legacy Unicode normalization info if present
-        elif has_legacy_unicode:
-            curation_tooltip += 'Unicode characters normalized to ASCII&#013;'
-        
-        # Add existing curation info
-        if has_curation:
-            # List vendor modifications
-            for mod in curation_tracking.get('vendor', []):
-                curation_tooltip += f"Vendor: {mod['original']} → {mod['curated']}&#013;"
-            
-            # List product modifications  
-            for mod in curation_tracking.get('product', []):
-                curation_tooltip += f"Product: {mod['original']} → {mod['curated']}&#013;"
-                
-            # List platform modifications
-            for mod in curation_tracking.get('platform', []):
-                curation_tooltip += f"Platform: {mod['original']} → {mod['curated']}&#013;"
-            
-            # List vendor+product combinations
-            for mod in curation_tracking.get('vendor_product', []):
-                curation_tooltip += f"Vendor+Product: {mod['original']} → {mod['curated']}&#013;"
-            
-            # List vendor+packageName combinations
-            for mod in curation_tracking.get('vendor_package', []):
-                curation_tooltip += f"Vendor+Package: {mod['original']} → {mod['curated']}&#013;"
-        
-        standard_badges.append(f'<span class="badge bg-secondary" title="{curation_tooltip}">Source to CPE Transformations Applied</span> ')
+    # Note: The following badges are now consolidated into the Supporting Information modal:
+    # - CPE API Error Detection Badge
+    # - CPE Base String Searches badge
+    # - Source to CPE Transformations Applied badge
 
     # ===== 🟪 SOURCE DATA CONCERN BADGES (Purple) =====
     
@@ -494,7 +372,27 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         platform_tooltip = 'Unexpected Platforms data detected in affected entry'
         sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{platform_tooltip}">Platforms Data Concern</span> ')
 
-    # Add badges in priority order: Danger -> Warning -> Info -> Standard
+    # ===== 🔍 SUPPORTING INFORMATION MODAL =====
+    
+    # Create the unified Supporting Information badge to replace Standard and Info badges
+    supporting_info_badge = create_supporting_information_badge(
+        table_index=tableIndex,
+        row=row,
+        platform_metadata=platform_metadata,
+        raw_platform_data=raw_platform_data,
+        characteristics=characteristics,
+        platform_format_type=platform_format_type,
+        readable_format_type=readable_format_type,
+        vendor=vendor,
+        product=product,
+        nvd_source_data=nvdSourceData
+    )
+    
+    # If we have supporting information, add it to the standard badges category
+    if supporting_info_badge:
+        standard_badges.append(supporting_info_badge)
+
+    # Add badges in priority order: Danger -> Warning -> Data Concern -> Info -> Standard
     html += ''.join(danger_badges)
     html += ''.join(warning_badges)
     html += ''.join(sourceDataConcern_badges)
