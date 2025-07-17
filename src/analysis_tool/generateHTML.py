@@ -196,123 +196,13 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         changes_tooltip = 'Versions array contains change history information requiring special handling'
         warning_badges.append(f'<span class="badge bg-warning" title="{changes_tooltip}">Has Version Changes</span> ')
 
-    # 8. JSON Generation Rules badge 
-    if characteristics['has_wildcards']:
-        # Analyze wildcard generation patterns following JavaScript wildcardExpansion rule
-        wildcard_info = analyze_wildcard_generation(raw_platform_data)
-        
-        if wildcard_info['has_wildcards'] and wildcard_info['wildcard_transformations']:
-            # Create a simple tooltip for the basic badge
-            wildcard_count = len(wildcard_info['wildcard_transformations'])
-            simple_tooltip = f'JSON Generation Rules detected - {wildcard_count} wildcard transformation(s) will be applied. Click for detailed processing examples and complete affected entries context.'
-            
-            # Create a unique identifier for this badge's modal data
-            badge_key_safe = f"wildcard_{tableIndex}_{vendor}_{product}".replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_").replace("*", "star")
-            
-            # Build detailed modal content showing input → output JSON transformations
-            modal_content = {
-                "wildcardGeneration": {
-                    "transformations": [],
-                    "summary": {
-                        "total_patterns": wildcard_count,
-                        "fields_affected": list(set(t['field'] for t in wildcard_info['wildcard_transformations']))
-                    }
-                }
-            }
-            
-            # Collect all version entries for context matching
-            versions = raw_platform_data.get('versions', [])
-            
-            # Group transformations by field for better organization
-            field_groups = {}
-            for transformation in wildcard_info['wildcard_transformations']:
-                field = transformation['field']
-                if field not in field_groups:
-                    field_groups[field] = []
-                field_groups[field].append(transformation)
-            
-            # Process each field group for the modal
-            for field in sorted(field_groups.keys()):
-                transformations = field_groups[field]
-                
-                field_name = field.replace('lessThanOrEqual', 'Upper Bound (≤)').replace('lessThan', 'Upper Bound (<)').replace('version', 'Version')
-                
-                for transformation in transformations:
-                    original = transformation['original']
-                    start_version = transformation['start_version']
-                    end_version = transformation['end_version']
-                    field_key = transformation['field']
-                    
-                    # Find the complete version entry that contains this wildcard pattern
-                    complete_entry = None
-                    for version in versions:
-                        if not version or not isinstance(version, dict):
-                            continue
-                        if field_key in version and version[field_key] == original:
-                            complete_entry = version
-                            break
-                    
-                    # Determine the derivation description based on field type
-                    if field_key == 'lessThanOrEqual':
-                        derivation_desc = "Derive Upper Bound (excluding)"
-                    elif field_key == 'lessThan':
-                        derivation_desc = "Derive Upper Bound (excluding)"
-                    elif field_key == 'version':
-                        derivation_desc = "Derive Version Range"
-                    else:
-                        derivation_desc = "Derive Range"
-                    
-                    # Create realistic CPE match object transformations
-                    if original == "*":
-                        # Global wildcard transformation
-                        input_json = complete_entry if complete_entry else {field_key: original}
-                        if end_version == '∞':
-                            output_json = {"versionStartIncluding": complete_entry.get('version', '0') if complete_entry else '0'}
-                        else:
-                            output_json = {
-                                "versionStartIncluding": complete_entry.get('version', '0') if complete_entry else '0',
-                                "versionEndExcluding": end_version
-                            }
-                        explanation = f"Global wildcard '*' uses version '{complete_entry.get('version', '0') if complete_entry else '0'}' as start, expands to unbounded or bounded range"
-                    else:
-                        # Specific wildcard pattern transformation
-                        input_json = complete_entry if complete_entry else {field_key: original}
-                        version_value = complete_entry.get('version') if complete_entry else 'unknown'
-                        
-                        # For lessThan/lessThanOrEqual fields, the actual transformation uses the version field as the start
-                        if field_key in ['lessThanOrEqual', 'lessThan']:
-                            output_json = {
-                                "versionStartIncluding": version_value,
-                                "versionEndExcluding": end_version
-                            }
-                            explanation = f"Uses version '{version_value}' as range start, wildcard pattern '{original}' expands upper bound to '{end_version}'"
-                        else:  # version field with wildcard
-                            # For version field wildcards, use the calculated range
-                            output_json = {"versionStartIncluding": start_version, "versionEndExcluding": end_version}
-                            explanation = f"Version wildcard pattern '{original}' expands to range [{start_version}, {end_version})"
-                    
-                    modal_content["wildcardGeneration"]["transformations"].append({
-                        "field": field_key,
-                        "field_display": field_name,
-                        "derivation_desc": derivation_desc,
-                        "input": input_json,
-                        "output": output_json,
-                        "explanation": explanation
-                    })
-            
-            # Register the modal content for later use
-            register_platform_notification_data(tableIndex, 'jsonGenerationRules', modal_content)
-            
-            # Create the modal badge instead of a simple tooltip badge  
-            # Get source role and vendor/product for display
-            source_role = row.get('sourceRole', 'Unknown')
-            platform_identifier = f"Platform Entry {tableIndex} ({source_role}, {vendor}/{product})"
-            warning_badges.append(f'<span class="badge modal-badge bg-warning" onclick="BadgeModalManager.openWildcardGenerationModal(\'{tableIndex}\', \'{platform_identifier}\')" title="{simple_tooltip}">⚙️ JSON Generation Rules</span> ')
-        
-    # 9. Update Patterns Detected badge - now integrated into JSON Generation Rules
-    if characteristics['has_update_patterns'] and characteristics['update_patterns']:
-        # Use the unified JSON Generation Rules badge system
-        json_rules_badge = create_json_generation_rules_badge(tableIndex, raw_platform_data, vendor, product)
+    # 8. JSON Generation Rules badge (unified wildcards + update patterns)
+    has_wildcards = characteristics['has_wildcards']
+    has_update_patterns = characteristics['has_update_patterns'] and characteristics['update_patterns']
+    
+    if has_wildcards or has_update_patterns:
+        # Use the unified JSON Generation Rules badge system that handles both wildcards and update patterns
+        json_rules_badge = create_json_generation_rules_badge(tableIndex, raw_platform_data, vendor, product, row)
         if json_rules_badge:
             warning_badges.append(json_rules_badge)
 
@@ -583,6 +473,12 @@ def create_empty_matches_table(tableIndex=0) -> str:
                         </tbody>
                     </table>
                 </div>
+                
+                <!-- JSON Generation Settings Container -->
+                <div id="jsonSettings_matchesTable_{tableIndex}" class="json-settings-container mb-3" style="display: none;">
+                    <!-- Settings content will be populated by initializeJsonSettings() -->
+                </div>
+                
             </div>
         </div>
     </div>
@@ -1109,10 +1005,16 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
         </tbody>
         </table>
         </div>
+                
+                <!-- JSON Generation Settings Container -->
+                <div id="jsonSettings_""" + f"matchesTable_{tableIndex}" + """" class="json-settings-container mb-3" style="display: none;">
+                    <!-- Settings content will be populated by initializeJsonSettings() -->
                 </div>
+                
             </div>
         </div>
-        """
+    </div>
+    """
         return html_content.replace('\n', '')
     except Exception as e:
         logger.error(f"HTML conversion failed: Unable to convert CPE query data to HTML at table index {tableIndex} - {e}", group="page_generation")
@@ -1153,16 +1055,72 @@ def getCPEJsonScript() -> str:
             js_content += f"// Error loading {js_file}\n\n"
     # Add JSON settings HTML injection with defensive checking
     safe_json_settings = JSON_SETTINGS_HTML if 'JSON_SETTINGS_HTML' in globals() and JSON_SETTINGS_HTML else {}
-    json_settings_injection = f"""
+    
+    # Implement deduplication for JSON_SETTINGS_HTML to prevent bloat
+    # Check if all settings are identical and use a template approach
+    if safe_json_settings:
+        # Get a sample key to check if all settings are identical
+        sample_key = next(iter(safe_json_settings.keys()))
+        sample_content = safe_json_settings[sample_key]
+        
+        # Check if all settings are identical (common case)
+        all_identical = all(content == sample_content for content in safe_json_settings.values())
+        
+        if all_identical and len(safe_json_settings) > 1:
+            # Use a template approach to reduce size
+            logger.debug(f"Deduplicating JSON_SETTINGS_HTML - found {len(safe_json_settings)} identical entries", group="page_generation")
+            json_settings_injection = f"""
+    // JSON Settings HTML template (deduplicated for efficiency)
+    window.JSON_SETTINGS_TEMPLATE = {json.dumps(sample_content, cls=CustomJSONEncoder)};
+    window.JSON_SETTINGS_KEYS = {json.dumps(list(safe_json_settings.keys()), cls=CustomJSONEncoder)};
+    // Create JSON_SETTINGS_HTML from template
+    window.JSON_SETTINGS_HTML = {{}};
+    window.JSON_SETTINGS_KEYS.forEach(key => {{
+        window.JSON_SETTINGS_HTML[key] = window.JSON_SETTINGS_TEMPLATE.replace(/matchesTable_0/g, key);
+    }});
+    """
+        else:
+            json_settings_injection = f"""
     // JSON Settings HTML generated by Python and injected on page load
     window.JSON_SETTINGS_HTML = {json.dumps(safe_json_settings, cls=CustomJSONEncoder)};
+    """
+    else:
+        json_settings_injection = """
+    // No JSON Settings HTML data
+    window.JSON_SETTINGS_HTML = {};
     """
     
     # Add intelligent settings injection with defensive checking
     safe_intelligent_settings = INTELLIGENT_SETTINGS if 'INTELLIGENT_SETTINGS' in globals() and INTELLIGENT_SETTINGS else {}
     intelligent_settings_js = ""
     if safe_intelligent_settings:
-        intelligent_settings_js = f"""
+        # Check if all intelligent settings are identical
+        if len(safe_intelligent_settings) > 1:
+            sample_key = next(iter(safe_intelligent_settings.keys()))
+            sample_settings = safe_intelligent_settings[sample_key]
+            
+            all_identical = all(settings == sample_settings for settings in safe_intelligent_settings.values())
+            
+            if all_identical:
+                # Use template approach for identical settings
+                logger.debug(f"Deduplicating INTELLIGENT_SETTINGS - found {len(safe_intelligent_settings)} identical entries", group="page_generation")
+                intelligent_settings_js = f"""
+        // Intelligent settings template (deduplicated for efficiency)
+        window.INTELLIGENT_SETTINGS_TEMPLATE = {json.dumps(sample_settings, cls=CustomJSONEncoder)};
+        window.INTELLIGENT_SETTINGS_KEYS = {json.dumps(list(safe_intelligent_settings.keys()), cls=CustomJSONEncoder)};
+        // Create INTELLIGENT_SETTINGS from template
+        window.INTELLIGENT_SETTINGS = {{}};
+        window.INTELLIGENT_SETTINGS_KEYS.forEach(key => {{
+            window.INTELLIGENT_SETTINGS[key] = window.INTELLIGENT_SETTINGS_TEMPLATE;
+        }});
+        """
+            else:
+                intelligent_settings_js = f"""
+        // Intelligent settings computed by Python
+        window.INTELLIGENT_SETTINGS = {json.dumps(safe_intelligent_settings, cls=CustomJSONEncoder)};
+        """
+        else:
+            intelligent_settings_js = f"""
         // Intelligent settings computed by Python
         window.INTELLIGENT_SETTINGS = {json.dumps(safe_intelligent_settings, cls=CustomJSONEncoder)};
         """
@@ -1177,6 +1135,13 @@ def getCPEJsonScript() -> str:
     # Get consolidated registrations from badge_modal_system
     consolidated_cpe_registrations = get_consolidated_cpe_registration_script()
     consolidated_platform_registrations = get_consolidated_platform_notification_script()
+    
+    # Log summary statistics for debugging bloat issues
+    total_settings_keys = len(safe_json_settings)
+    total_intelligent_keys = len(safe_intelligent_settings)
+    
+    if total_settings_keys > 10 or total_intelligent_keys > 10:
+        logger.info(f"Large dataset detected - {total_settings_keys} JSON settings entries, {total_intelligent_keys} intelligent settings entries", group="page_generation")
 
     js_content += (json_settings_injection + intelligent_settings_js + 
                   non_specific_versions_js + consolidated_cpe_registrations + 
@@ -1394,6 +1359,13 @@ def buildHTMLPage(affectedHtml, targetCve, globalCVEMetadata=None, vdbIntelHtml=
     
     fullHtml = (pageStartHTML + getCPEJsonScript() + pageBodyHeaderHTML + pageBodyTabsHTML + cveIdIndicatorHTML + 
                 pageBodyCPESuggesterHTML + pageEndHTML)
+    
+    # Log file size information to help detect bloat
+    html_size = len(fullHtml)
+    if html_size > 1000000:  # 1MB threshold
+        logger.warning(f"Large HTML file generated for {targetCve}: {html_size:,} bytes ({html_size/1024/1024:.1f}MB)", group="page_generation")
+    elif html_size > 500000:  # 500KB threshold
+        logger.info(f"Medium HTML file generated for {targetCve}: {html_size:,} bytes ({html_size/1024:.1f}KB)", group="page_generation")
     
     return fullHtml
 
@@ -1688,6 +1660,10 @@ def clear_global_html_state():
     """Clear global HTML generation state to prevent accumulation between CVE processing runs"""
     global JSON_SETTINGS_HTML, INTELLIGENT_SETTINGS
     
+    # Log statistics before clearing (for debugging bloat issues)
+    if JSON_SETTINGS_HTML:
+        logger.debug(f"Clearing HTML state: {len(JSON_SETTINGS_HTML)} JSON settings entries", group="page_generation")
+    
     # Clear badge and modal registries (now handled by external module)
     clear_all_registries()
     
@@ -1709,6 +1685,14 @@ def store_json_settings_html(table_id, raw_platform_data=None):
     
     # Analyze data to determine which checkboxes should be checked
     settings = analyze_data_for_smart_defaults(raw_platform_data) if raw_platform_data else {}
+    
+    # Check if we already have identical settings registered to prevent bloat
+    settings_json = json.dumps(settings, sort_keys=True)
+    for existing_table_id, existing_settings in INTELLIGENT_SETTINGS.items():
+        if json.dumps(existing_settings, sort_keys=True) == settings_json:
+            # Settings are identical, skip HTML generation to reduce bloat
+            logger.debug(f"Skipping identical settings HTML for {table_id} (matches {existing_table_id})", group="page_generation")
+            return
     
     # Store the HTML
     JSON_SETTINGS_HTML[table_id] = create_json_generation_settings_html(table_id, settings)

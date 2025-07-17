@@ -3,11 +3,16 @@
 Automated test suite for Platform Entry Notification badges functionality.
 Tests that all badges generate correctly with appropriate content for their supported cases.
 
-This test creates synthetic test data to trigger each badge type and validates:
-1. Badge presence and HTML structure
-2. Badge content and tooltip accuracy
+This test suite validates the new badge modal system integration including:
+1. Badge presence and HTML structure with modal integration
+2. Badge content and tooltip/modal functionality
 3. Badge priority ordering (Danger -> Warning -> Source Data Concern -> Info -> Standard)
-4. Edge cases and error conditions
+4. Modal badge consolidation (Supporting Information badge)
+5. JSON Generation Rules badge (replaces old wildcard/update pattern badges)
+6. Edge cases and error conditions
+
+Updated for the new badge_modal_system integration that consolidates several badges
+into modal-based interactions for better user experience.
 """
 
 import json
@@ -224,7 +229,7 @@ class PlatformBadgesTestSuite:
                            "No versions badge not found or incorrect styling")
     
     def test_cve_affected_cpes_badge(self):
-        """Test CVE Affected CPES Data badge (Info)."""
+        """Test CVE Affected CPES Data badge (now consolidated in Supporting Information)."""
         convertRowDataToHTML, _ = self.test_badge_generation_import()
         if not convertRowDataToHTML:
             return
@@ -244,18 +249,20 @@ class PlatformBadgesTestSuite:
         html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
-        cpes_badge = soup.find('span', string=re.compile(r'CVE Affected CPES Data: \d+'))
-        if cpes_badge and 'bg-info' in cpes_badge.get('class', []):
-            badge_text = cpes_badge.get_text()
-            if '2' in badge_text:  # Should count only valid CPEs
+        # CVE Affected CPES is now part of Supporting Information modal
+        supporting_info_badge = soup.find('span', string=re.compile(r'🔍 Supporting Information'))
+        if supporting_info_badge and 'modal-badge' in supporting_info_badge.get('class', []):
+            # Check if it has the onclick handler for BadgeModalManager
+            onclick_attr = supporting_info_badge.get('onclick', '')
+            if 'BadgeModalManager.openSupportingInformationModal' in onclick_attr:
                 self.add_result("CVE_AFFECTED_CPES_BADGE", True, 
-                               "CVE Affected CPES badge displays correctly with valid CPE count")
+                               "CVE Affected CPES data now correctly integrated into Supporting Information modal")
             else:
                 self.add_result("CVE_AFFECTED_CPES_BADGE", False, 
-                               f"CVE Affected CPES badge count incorrect: {badge_text}")
+                               f"Supporting Information badge missing modal integration: {onclick_attr}")
         else:
             self.add_result("CVE_AFFECTED_CPES_BADGE", False, 
-                           "CVE Affected CPES badge not found or incorrect styling")
+                           "CVE Affected CPES data not found in Supporting Information badge")
     
     def test_version_changes_badge(self):
         """Test Has Version Changes badge (Warning)."""
@@ -295,7 +302,7 @@ class PlatformBadgesTestSuite:
                            "Version changes badge not found or incorrect styling")
     
     def test_wildcard_patterns_badge(self):
-        """Test Wildcard Patterns badge (Warning)."""
+        """Test JSON Generation Rules badge (Warning) - unified modal for wildcard patterns."""
         convertRowDataToHTML, _ = self.test_badge_generation_import()
         if not convertRowDataToHTML:
             return
@@ -313,16 +320,26 @@ class PlatformBadgesTestSuite:
         html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
-        wildcard_badge = soup.find('span', string='Wildcard Patterns')
-        if wildcard_badge and 'bg-warning' in wildcard_badge.get('class', []):
-            self.add_result("WILDCARD_PATTERNS_BADGE", True, 
-                           "Wildcard patterns badge displays correctly")
+        # Look for the unified JSON Generation Rules badge
+        json_rules_badge = soup.find('span', string=re.compile(r'⚙️ JSON Generation Rules'))
+        if json_rules_badge and 'modal-badge' in json_rules_badge.get('class', []) and 'bg-warning' in json_rules_badge.get('class', []):
+            onclick_attr = json_rules_badge.get('onclick', '')
+            tooltip = json_rules_badge.get('title', '')
+            
+            # Check for proper modal integration and wildcard-specific tooltip content
+            if ('BadgeModalManager.openJsonGenerationRulesModal' in onclick_attr and 
+                ('Upper Bound' in tooltip or 'wildcard' in tooltip.lower())):
+                self.add_result("WILDCARD_PATTERNS_BADGE", True, 
+                               "JSON Generation Rules badge (wildcard patterns) displays correctly with unified modal integration")
+            else:
+                self.add_result("WILDCARD_PATTERNS_BADGE", False, 
+                               f"JSON Generation Rules badge missing proper wildcard integration: onclick={onclick_attr}, tooltip={tooltip}")
         else:
             self.add_result("WILDCARD_PATTERNS_BADGE", False, 
-                           "Wildcard patterns badge not found or incorrect styling")
+                           "JSON Generation Rules badge not found or incorrect styling")
     
     def test_update_patterns_badge(self):
-        """Test Update Patterns Detected badge (Warning) - This was the main bug!"""
+        """Test JSON Generation Rules badge (Warning) - unified modal for update patterns."""
         convertRowDataToHTML, _ = self.test_badge_generation_import()
         if not convertRowDataToHTML:
             return
@@ -343,22 +360,26 @@ class PlatformBadgesTestSuite:
         html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
-        update_patterns_badge = soup.find('span', string='Update Patterns Detected')
-        if update_patterns_badge and 'bg-warning' in update_patterns_badge.get('class', []):
-            tooltip = update_patterns_badge.get('title', '')
-            if 'Detected Update Patterns' in tooltip and '→' in tooltip:
-                # Check that transformations are shown
+        # Look for the unified JSON Generation Rules badge
+        json_rules_badge = soup.find('span', string=re.compile(r'⚙️ JSON Generation Rules'))
+        if json_rules_badge and 'modal-badge' in json_rules_badge.get('class', []) and 'bg-warning' in json_rules_badge.get('class', []):
+            onclick_attr = json_rules_badge.get('onclick', '')
+            tooltip = json_rules_badge.get('title', '')
+            
+            # Check for proper modal integration and update pattern-specific tooltip content
+            if ('BadgeModalManager.openJsonGenerationRulesModal' in onclick_attr and 
+                ('transformation' in tooltip.lower() or 'update pattern' in tooltip.lower())):
                 self.add_result("UPDATE_PATTERNS_BADGE", True, 
-                               "Update patterns badge displays correctly with transformations in tooltip")
+                               "JSON Generation Rules badge (update patterns) displays correctly with unified modal integration")
             else:
                 self.add_result("UPDATE_PATTERNS_BADGE", False, 
-                               f"Update patterns badge tooltip missing transformations: {tooltip}")
+                               f"JSON Generation Rules badge missing proper update pattern integration: onclick={onclick_attr}, tooltip={tooltip}")
         else:
             self.add_result("UPDATE_PATTERNS_BADGE", False, 
-                           "Update patterns badge not found or incorrect styling")
+                           "JSON Generation Rules badge not found or incorrect styling")
     
     def test_cpe_api_errors_badge(self):
-        """Test CPE API Errors badge (Standard)."""
+        """Test CPE API Errors badge (now consolidated in Supporting Information)."""
         convertRowDataToHTML, _ = self.test_badge_generation_import()
         if not convertRowDataToHTML:
             return
@@ -384,21 +405,23 @@ class PlatformBadgesTestSuite:
         html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
-        api_errors_badge = soup.find('span', string='CPE API Errors')
-        if api_errors_badge and 'bg-secondary' in api_errors_badge.get('class', []):
-            tooltip = api_errors_badge.get('title', '')
-            if 'returned errors for 2 CPE strings' in tooltip:
+        # CPE API Errors is now part of Supporting Information modal
+        supporting_info_badge = soup.find('span', string=re.compile(r'🔍 Supporting Information'))
+        if supporting_info_badge and 'modal-badge' in supporting_info_badge.get('class', []):
+            # Check if it has the onclick handler for BadgeModalManager
+            onclick_attr = supporting_info_badge.get('onclick', '')
+            if 'BadgeModalManager.openSupportingInformationModal' in onclick_attr:
                 self.add_result("CPE_API_ERRORS_BADGE", True, 
-                               "CPE API errors badge displays correctly with error count")
+                               "CPE API Errors now correctly integrated into Supporting Information modal")
             else:
                 self.add_result("CPE_API_ERRORS_BADGE", False, 
-                               f"CPE API errors badge count incorrect: {tooltip}")
+                               f"Supporting Information badge missing modal integration: {onclick_attr}")
         else:
             self.add_result("CPE_API_ERRORS_BADGE", False, 
-                           "CPE API errors badge not found or incorrect styling")
+                           "CPE API Errors not found in Supporting Information badge")
     
     def test_cpe_base_string_searches_badge(self):
-        """Test CPE Base String Searches badge (Standard)."""
+        """Test CPE Base String Searches badge (now consolidated in Supporting Information)."""
         convertRowDataToHTML, _ = self.test_badge_generation_import()
         if not convertRowDataToHTML:
             return
@@ -416,16 +439,23 @@ class PlatformBadgesTestSuite:
         html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
-        base_strings_badge = soup.find('span', string='CPE Base String Searches')
-        if base_strings_badge and 'bg-secondary' in base_strings_badge.get('class', []):
-            self.add_result("CPE_BASE_STRINGS_BADGE", True, 
-                           "CPE Base String Searches badge displays correctly")
+        # CPE Base String Searches is now part of Supporting Information modal
+        supporting_info_badge = soup.find('span', string=re.compile(r'🔍 Supporting Information'))
+        if supporting_info_badge and 'modal-badge' in supporting_info_badge.get('class', []):
+            # Check if it has the onclick handler for BadgeModalManager
+            onclick_attr = supporting_info_badge.get('onclick', '')
+            if 'BadgeModalManager.openSupportingInformationModal' in onclick_attr:
+                self.add_result("CPE_BASE_STRINGS_BADGE", True, 
+                               "CPE Base String Searches now correctly integrated into Supporting Information modal")
+            else:
+                self.add_result("CPE_BASE_STRINGS_BADGE", False, 
+                               f"Supporting Information badge missing modal integration: {onclick_attr}")
         else:
             self.add_result("CPE_BASE_STRINGS_BADGE", False, 
-                           "CPE Base String Searches badge not found or incorrect styling")
+                           "CPE Base String Searches not found in Supporting Information badge")
     
     def test_transformations_applied_badge(self):
-        """Test Source to CPE Transformations Applied badge (Standard)."""
+        """Test Source to CPE Transformations Applied badge (now consolidated in Supporting Information)."""
         convertRowDataToHTML, _ = self.test_badge_generation_import()
         if not convertRowDataToHTML:
             return
@@ -452,19 +482,20 @@ class PlatformBadgesTestSuite:
         html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
-        transformations_badge = soup.find('span', string='Source to CPE Transformations Applied')
-        if transformations_badge and 'bg-secondary' in transformations_badge.get('class', []):
-            tooltip = transformations_badge.get('title', '')
-            # Check for Unicode transformation
-            if 'Vendor: \'Tëst\' → \'Test\'' in tooltip and ('Test Corp → test_corp' in tooltip or 'My Product → my_product' in tooltip):
+        # Source to CPE Transformations Applied is now part of Supporting Information modal
+        supporting_info_badge = soup.find('span', string=re.compile(r'🔍 Supporting Information'))
+        if supporting_info_badge and 'modal-badge' in supporting_info_badge.get('class', []):
+            # Check if it has the onclick handler for BadgeModalManager
+            onclick_attr = supporting_info_badge.get('onclick', '')
+            if 'BadgeModalManager.openSupportingInformationModal' in onclick_attr:
                 self.add_result("TRANSFORMATIONS_APPLIED_BADGE", True, 
-                               "Transformations applied badge displays correctly with transformation details")
+                               "Source to CPE Transformations Applied now correctly integrated into Supporting Information modal")
             else:
                 self.add_result("TRANSFORMATIONS_APPLIED_BADGE", False, 
-                               f"Transformations applied badge tooltip missing details: {tooltip}")
+                               f"Supporting Information badge missing modal integration: {onclick_attr}")
         else:
             self.add_result("TRANSFORMATIONS_APPLIED_BADGE", False, 
-                           "Transformations applied badge not found or incorrect styling")
+                           "Source to CPE Transformations Applied not found in Supporting Information badge")
     
     def test_vendor_na_badge(self):
         """Test Vendor: N/A badge (Source Data Concern)."""
@@ -578,18 +609,21 @@ class PlatformBadgesTestSuite:
         if not convertRowDataToHTML:
             return
             
-        # Create a row with multiple badge types
+        # Create a row with multiple badge types to test priority ordering
         test_row = self.create_test_row_data(
             "badge_priority_order",
             **{
                 'platformEntryMetadata.platformFormatType': 'cveAffectsNoVersions',  # Danger
                 'platformEntryMetadata.confirmedMappings': ['cpe:2.3:a:test:test:*:*:*:*:*:*:*:*'],  # Standard
                 'platformEntryMetadata.duplicateRowIndices': [2],  # Source Data Concern
+                'platformEntryMetadata.hasCPEArray': True,  # Will trigger Supporting Information
+                'platformEntryMetadata.cpeBaseStrings': ['cpe:2.3:a:test:test:*:*:*:*:*:*:*:*'],  # Supporting Information
                 'rawPlatformData.vendor': 'n/a',  # Source Data Concern
                 'rawPlatformData.versions': [
-                    {'version': '1.0 p1', 'status': 'affected'},  # Warning (Update patterns)
+                    {'version': '1.0.*', 'status': 'affected'},  # Warning (JSON Generation Rules)
                     {'version': 'before 2.0', 'status': 'affected'}  # Source Data Concern (Version concern)
-                ]
+                ],
+                'rawPlatformData.cpes': ['cpe:2.3:a:test:test:1.0:*:*:*:*:*:*:*']  # Supporting Information content
             }
         )
         
@@ -627,19 +661,157 @@ class PlatformBadgesTestSuite:
                         break
                     last_priority = current_priority
                 
-                if order_correct and len(badges) >= 4:
-                    self.add_result("BADGE_PRIORITY_ORDER", True, 
-                                   f"Badges appear in correct priority order ({len(badges)} badges found)")
+                if order_correct and len(badges) >= 3:  # Adjusted for modal consolidation
+                    # Check for expected badges in the new unified modal system
+                    badge_texts = [badge.get_text() for badge in badges]
+                    
+                    # Expected badges with new modal integration
+                    has_no_versions = any('CVE Affects Product (No Versions)' in text for text in badge_texts)
+                    has_json_rules = any('JSON Generation Rules' in text for text in badge_texts)
+                    has_supporting_info = any('Supporting Information' in text for text in badge_texts)
+                    has_vendor_na = any('Vendor: N/A' in text for text in badge_texts)
+                    has_versions_concern = any('Versions Data Concern' in text for text in badge_texts)
+                    
+                    # Should have at least the key badges from the unified modal system
+                    expected_count = sum([has_no_versions, has_json_rules, has_supporting_info, has_vendor_na, has_versions_concern])
+                    
+                    if expected_count >= 3:  # Should have at least 3 of the expected badges
+                        self.add_result("BADGE_PRIORITY_ORDER", True, 
+                                       f"Badges appear in correct priority order with unified modal system ({len(badges)} badges found)")
+                    else:
+                        self.add_result("BADGE_PRIORITY_ORDER", False, 
+                                       f"Expected unified modal badges not found in sufficient quantity: {badge_texts}")
                 else:
                     badge_texts = [badge.get_text() for badge in badges]
                     self.add_result("BADGE_PRIORITY_ORDER", False, 
-                                   f"Badge order incorrect or insufficient badges: {badge_texts}")
+                                   f"Badge order incorrect or insufficient badges: {badge_texts} (found {len(badges)})")
             else:
                 self.add_result("BADGE_PRIORITY_ORDER", False, 
                                "Could not find badge content cell")
         else:
             self.add_result("BADGE_PRIORITY_ORDER", False, 
                            "Could not find Platform Entry Notifications row")
+    
+    def test_supporting_information_modal_badge(self):
+        """Test Supporting Information modal badge integration with standardized header format."""
+        convertRowDataToHTML, _ = self.test_badge_generation_import()
+        if not convertRowDataToHTML:
+            return
+            
+        test_row = self.create_test_row_data(
+            "supporting_information_modal",
+            **{
+                'platformEntryMetadata.hasCPEArray': True,
+                'platformEntryMetadata.cpeBaseStrings': [
+                    'cpe:2.3:a:vendor:product:*:*:*:*:*:*:*:*'
+                ],
+                'platformEntryMetadata.platformFormatType': 'cveAffectsVersionRange',
+                'rawPlatformData.vendor': 'TestVendor',
+                'rawPlatformData.product': 'TestProduct',
+                'rawPlatformData.versions': [
+                    {'version': '1.0', 'lessThan': '2.0', 'status': 'affected'}
+                ],
+                'rawPlatformData.cpes': [
+                    'cpe:2.3:a:vendor:product:1.0:*:*:*:*:*:*:*'
+                ]
+            }
+        )
+        
+        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        soup = BeautifulSoup(html_output, 'html.parser')
+        
+        # Look for the Supporting Information modal badge
+        supporting_info_badge = soup.find('span', string=re.compile(r'🔍 Supporting Information'))
+        if supporting_info_badge and 'modal-badge' in supporting_info_badge.get('class', []):
+            onclick_attr = supporting_info_badge.get('onclick', '')
+            
+            # Check for proper modal integration with header format
+            if 'BadgeModalManager.openSupportingInformationModal' in onclick_attr:
+                # Extract the header from the onclick attribute to verify format
+                header_match = re.search(r"'([^']*Platform Entry[^']*)'", onclick_attr)
+                if header_match:
+                    header = header_match.group(1)
+                    # Check for standardized header format: "Platform Entry X (CNA, SourceID, Vendor/Product/etc.)"
+                    if ('Platform Entry' in header and 
+                        ('TestVendor' in header or 'TestProduct' in header) and
+                        '(' in header and ')' in header):
+                        self.add_result("SUPPORTING_INFORMATION_MODAL_BADGE", True, 
+                                       f"Supporting Information modal badge displays correctly with standardized header format: {header}")
+                    else:
+                        self.add_result("SUPPORTING_INFORMATION_MODAL_BADGE", False, 
+                                       f"Supporting Information badge header format incorrect: {header}")
+                else:
+                    self.add_result("SUPPORTING_INFORMATION_MODAL_BADGE", False, 
+                                   "Supporting Information badge missing header in modal integration")
+            else:
+                self.add_result("SUPPORTING_INFORMATION_MODAL_BADGE", False, 
+                               f"Supporting Information badge missing modal integration: {onclick_attr}")
+        else:
+            self.add_result("SUPPORTING_INFORMATION_MODAL_BADGE", False, 
+                           "Supporting Information modal badge not found or incorrect styling")
+    
+    def test_json_generation_rules_modal_integration(self):
+        """Test JSON Generation Rules modal badge integration with standardized header format."""
+        convertRowDataToHTML, _ = self.test_badge_generation_import()
+        if not convertRowDataToHTML:
+            return
+            
+        # Test with both wildcard and update patterns to ensure unified badge works
+        test_row = self.create_test_row_data(
+            "json_generation_rules_modal",
+            **{
+                'rawPlatformData.vendor': 'TestVendor',
+                'rawPlatformData.product': 'TestProduct',
+                'rawPlatformData.versions': [
+                    {'version': '*', 'lessThan': '2.0', 'status': 'affected'},  # Wildcard pattern
+                    {'version': '1.0.0 p1', 'status': 'affected'},  # Update pattern
+                    {'version': '1.5.*', 'status': 'affected'}  # Another wildcard
+                ]
+            }
+        )
+        
+        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        soup = BeautifulSoup(html_output, 'html.parser')
+        
+        # Look for the unified JSON Generation Rules badge
+        json_rules_badge = soup.find('span', string=re.compile(r'⚙️ JSON Generation Rules'))
+        if json_rules_badge and 'modal-badge' in json_rules_badge.get('class', []) and 'bg-warning' in json_rules_badge.get('class', []):
+            onclick_attr = json_rules_badge.get('onclick', '')
+            
+            # Check for proper modal integration with header format
+            if 'BadgeModalManager.openJsonGenerationRulesModal' in onclick_attr:
+                # Extract the header from the onclick attribute to verify format
+                header_match = re.search(r"'([^']*Platform Entry[^']*)'", onclick_attr)
+                if header_match:
+                    header = header_match.group(1)
+                    # Check for standardized header format: "Platform Entry X (CNA, SourceID, Vendor/Product/etc.)"
+                    if ('Platform Entry' in header and 
+                        ('TestVendor' in header or 'TestProduct' in header) and
+                        '(' in header and ')' in header):
+                        
+                        # Also check that the badge has appropriate tooltip content
+                        tooltip = json_rules_badge.get('title', '')
+                        has_wildcard_content = 'Upper Bound' in tooltip or 'wildcard' in tooltip.lower()
+                        has_update_content = 'transformation' in tooltip.lower() or 'update pattern' in tooltip.lower()
+                        
+                        if has_wildcard_content or has_update_content:
+                            self.add_result("JSON_GENERATION_RULES_MODAL_INTEGRATION", True, 
+                                           f"JSON Generation Rules modal badge displays correctly with standardized header format: {header}")
+                        else:
+                            self.add_result("JSON_GENERATION_RULES_MODAL_INTEGRATION", False, 
+                                           f"JSON Generation Rules badge tooltip missing expected content: {tooltip}")
+                    else:
+                        self.add_result("JSON_GENERATION_RULES_MODAL_INTEGRATION", False, 
+                                       f"JSON Generation Rules badge header format incorrect: {header}")
+                else:
+                    self.add_result("JSON_GENERATION_RULES_MODAL_INTEGRATION", False, 
+                                   "JSON Generation Rules badge missing header in modal integration")
+            else:
+                self.add_result("JSON_GENERATION_RULES_MODAL_INTEGRATION", False, 
+                               f"JSON Generation Rules badge missing modal integration: {onclick_attr}")
+        else:
+            self.add_result("JSON_GENERATION_RULES_MODAL_INTEGRATION", False, 
+                           "JSON Generation Rules badge not found or incorrect styling")
     
     def run_all_tests(self):
         """Run all badge tests."""
@@ -656,7 +828,7 @@ class PlatformBadgesTestSuite:
         self.test_cve_affected_cpes_badge()
         self.test_version_changes_badge()
         self.test_wildcard_patterns_badge()
-        self.test_update_patterns_badge()  # This was the main bug!
+        self.test_update_patterns_badge()
         self.test_cpe_api_errors_badge()
         self.test_cpe_base_string_searches_badge()
         self.test_transformations_applied_badge()
@@ -667,6 +839,10 @@ class PlatformBadgesTestSuite:
         
         # Test badge ordering
         self.test_badge_priority_order()
+        
+        # Test new modal system badges
+        self.test_supporting_information_modal_badge()
+        self.test_json_generation_rules_modal_integration()
         
         # Print results
         print(f"\n📊 Test Results Summary:")

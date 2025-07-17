@@ -117,7 +117,8 @@ def clear_all_registries():
     PLATFORM_ENTRY_NOTIFICATION_REGISTRY = {
         'wildcardGeneration': {},
         'updatePatterns': {},
-        'jsonGenerationRules': {}
+        'jsonGenerationRules': {},
+        'supportingInformation': {}
     }
     
     logger.debug("Cleared all badge and modal registries", group="badge_modal")
@@ -175,6 +176,14 @@ def register_platform_notification_data(table_index: int, data_type: str, data: 
     if table_index in PLATFORM_ENTRY_NOTIFICATION_REGISTRY[data_type]:
         return False  # Already registered
     
+    # Check for identical data already registered with different table indices
+    # This helps prevent bloat from duplicate content
+    data_json = json.dumps(data, sort_keys=True)
+    for existing_index, existing_data in PLATFORM_ENTRY_NOTIFICATION_REGISTRY[data_type].items():
+        if json.dumps(existing_data, sort_keys=True) == data_json:
+            logger.debug(f"Skipping duplicate {data_type} data for table {table_index} (identical to table {existing_index})", group="badge_modal")
+            return False  # Duplicate content
+    
     # Register the data
     PLATFORM_ENTRY_NOTIFICATION_REGISTRY[data_type][table_index] = data
     
@@ -192,16 +201,19 @@ def get_consolidated_cpe_registration_script() -> str:
     script_content = ""
     
     # Register all references data
+    references_count = len(GLOBAL_CPE_DATA_REGISTRY['references'])
     for base_key_safe, ref_data in GLOBAL_CPE_DATA_REGISTRY['references'].items():
         ref_data_js = json.dumps(ref_data)
         script_content += f"    BadgeModal.registerData('references', '{base_key_safe}', {ref_data_js});\n"
     
     # Register all sorting priority data
+    sorting_count = len(GLOBAL_CPE_DATA_REGISTRY['sortingPriority'])
     for base_key_safe, sorting_data in GLOBAL_CPE_DATA_REGISTRY['sortingPriority'].items():
         sorting_data_js = json.dumps(sorting_data)
         script_content += f"    BadgeModal.registerData('sortingPriority', '{base_key_safe}', {sorting_data_js});\n"
     
     if script_content:
+        logger.debug(f"Generated CPE registrations - {references_count} references, {sorting_count} sorting priority entries", group="badge_modal")
         return f"""
 // Consolidated CPE data registrations (deduplicated)
 {script_content}"""
@@ -220,24 +232,36 @@ def get_consolidated_platform_notification_script() -> str:
     script_content = ""
     
     # Register all wildcard generation data
+    wildcard_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['wildcardGeneration'])
     for table_index, wildcard_data in PLATFORM_ENTRY_NOTIFICATION_REGISTRY['wildcardGeneration'].items():
         wildcard_data_js = json.dumps(wildcard_data)
         script_content += f"    BadgeModal.registerData('wildcardGeneration', '{table_index}', {wildcard_data_js});\n"
     
     # Register all update pattern data
+    update_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['updatePatterns'])
     for table_index, update_data in PLATFORM_ENTRY_NOTIFICATION_REGISTRY['updatePatterns'].items():
         update_data_js = json.dumps(update_data)
         script_content += f"    BadgeModal.registerData('updatePatterns', '{table_index}', {update_data_js});\n"
     
     # Register all JSON generation rules data
+    rules_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['jsonGenerationRules'])
     for table_index, rules_data in PLATFORM_ENTRY_NOTIFICATION_REGISTRY['jsonGenerationRules'].items():
         rules_data_js = json.dumps(rules_data)
         script_content += f"    BadgeModal.registerData('jsonGenerationRules', '{table_index}', {rules_data_js});\n"
     
     # Register all supporting information data
+    supporting_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['supportingInformation'])
     for table_index, supporting_data in PLATFORM_ENTRY_NOTIFICATION_REGISTRY['supportingInformation'].items():
         supporting_data_js = json.dumps(supporting_data)
         script_content += f"    BadgeModal.registerData('supportingInformation', '{table_index}', {supporting_data_js});\n"
+    
+    if script_content:
+        logger.debug(f"Generated platform registrations - {wildcard_count} wildcard, {update_count} update patterns, {rules_count} rules, {supporting_count} supporting info", group="badge_modal")
+        return f"""
+// Consolidated platform notification data registrations
+{script_content}"""
+    else:
+        return ""
     
     if script_content:
         return f"""
@@ -329,13 +353,21 @@ def analyze_wildcard_transformation(version_str: str, field: str) -> Optional[Di
             if len(parts) == 2:  # e.g., "5.4.*"
                 major, minor = parts
                 start_version = f"{major}.{minor}.0"
-                next_minor = str(int(minor) + 1)
-                end_version = f"{major}.{next_minor}.0"
+                try:
+                    next_minor = str(int(minor) + 1)
+                    end_version = f"{major}.{next_minor}.0"
+                except ValueError:
+                    # Handle non-numeric version components like "0-beta"
+                    end_version = f"{major}.{minor}.∞"
             elif len(parts) == 3:  # e.g., "5.4.3.*"
                 major, minor, patch = parts
                 start_version = f"{major}.{minor}.{patch}.0"
-                next_patch = str(int(patch) + 1)
-                end_version = f"{major}.{minor}.{next_patch}.0"
+                try:
+                    next_patch = str(int(patch) + 1)
+                    end_version = f"{major}.{minor}.{next_patch}.0"
+                except ValueError:
+                    # Handle non-numeric version components
+                    end_version = f"{major}.{minor}.{patch}.∞"
             else:
                 # Fallback for complex patterns
                 start_version = base_pattern + ".0"
@@ -343,8 +375,12 @@ def analyze_wildcard_transformation(version_str: str, field: str) -> Optional[Di
         else:
             # Single component wildcard (e.g., "5.*")
             start_version = base_pattern + ".0.0"
-            next_major = str(int(base_pattern) + 1)
-            end_version = f"{next_major}.0.0"
+            try:
+                next_major = str(int(base_pattern) + 1)
+                end_version = f"{next_major}.0.0"
+            except ValueError:
+                # Handle non-numeric version components
+                end_version = f"{base_pattern}.∞"
         
         return {
             'field': field,
@@ -937,7 +973,7 @@ def analyze_update_patterns(raw_platform_data: Dict) -> Dict:
 
 # ===== BADGE CREATION FUNCTIONS =====
 
-def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict, vendor: str, product: str) -> Optional[str]:
+def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict, vendor: str, product: str, row: Dict) -> Optional[str]:
     """
     Create a unified JSON Generation Rules badge that combines wildcard generation and update patterns.
     
@@ -946,6 +982,7 @@ def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict
         raw_platform_data: The raw platform data to analyze
         vendor: The vendor name
         product: The product name
+        row: The complete row data for header information
     
     Returns:
         HTML string for the badge, or None if no applicable rules detected
@@ -980,52 +1017,85 @@ def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict
             "transformations": []
         })
         
-        # Process wildcard transformations
+        # Collect all version entries for context matching (legacy logic)
+        versions = raw_platform_data.get('versions', [])
+        
+        # Group transformations by field for better organization (legacy logic)
+        field_groups = {}
         for transformation in wildcard_info['wildcard_transformations']:
-            field_display = transformation['field'].replace('lessThanOrEqual', 'Upper Bound (≤)').replace('lessThan', 'Upper Bound (<)').replace('version', 'Version')
+            field = transformation['field']
+            if field not in field_groups:
+                field_groups[field] = []
+            field_groups[field].append(transformation)
+        
+        # Process each field group for the modal (legacy logic)
+        for field in sorted(field_groups.keys()):
+            transformations = field_groups[field]
             
-            original = transformation['original']
-            start_version = transformation['start_version']
-            end_version = transformation['end_version']
-            field_key = transformation['field']
+            field_name = field.replace('lessThanOrEqual', 'Upper Bound (≤)').replace('lessThan', 'Upper Bound (<)').replace('version', 'Version')
             
-            # Create realistic CPE match object transformations
-            if original == "*":
-                # Global wildcard transformation
-                input_json = {field_key: original}
-                if end_version == '∞':
-                    output_json = {"versionStartIncluding": start_version}
-                else:
-                    output_json = {"versionStartIncluding": start_version, "versionEndExcluding": end_version}
-                explanation = f"Global wildcard expands to unbounded range from {start_version}"
-            else:
-                # Specific wildcard pattern transformation
-                input_json = {field_key: original}
+            for transformation in transformations:
+                original = transformation['original']
+                start_version = transformation['start_version']
+                end_version = transformation['end_version']
+                field_key = transformation['field']
                 
-                # Determine appropriate JSON output based on field type
+                # Find the complete version entry that contains this wildcard pattern (legacy logic)
+                complete_entry = None
+                for version in versions:
+                    if not version or not isinstance(version, dict):
+                        continue
+                    if field_key in version and version[field_key] == original:
+                        complete_entry = version
+                        break
+                
+                # Determine the derivation description based on field type (legacy logic)
                 if field_key == 'lessThanOrEqual':
-                    if start_version != 'unknown':
-                        output_json = {"versionStartIncluding": start_version, "versionEndExcluding": end_version}
-                    else:
-                        output_json = {"versionEndExcluding": end_version}
+                    derivation_desc = "Derive Upper Bound (excluding)"
                 elif field_key == 'lessThan':
-                    if start_version != 'unknown':
-                        output_json = {"versionStartIncluding": start_version, "versionEndExcluding": end_version}
-                    else:
-                        output_json = {"versionEndExcluding": end_version}
-                else:  # version field
-                    output_json = {"versionStartIncluding": start_version, "versionEndExcluding": end_version}
+                    derivation_desc = "Derive Upper Bound (excluding)"
+                elif field_key == 'version':
+                    derivation_desc = "Derive Version Range"
+                else:
+                    derivation_desc = "Derive Range"
                 
-                prefix = original.rstrip('*').rstrip('.')
-                explanation = f"Pattern '{original}' expands {prefix}.x range to [{start_version}, {end_version})"
-            
-            modal_content["rules"][0]["transformations"].append({
-                "field": field_key,
-                "field_display": field_display,
-                "input": input_json,
-                "output": output_json,
-                "explanation": explanation
-            })
+                # Create realistic CPE match object transformations (enhanced legacy logic)
+                if original == "*":
+                    # Global wildcard transformation
+                    input_json = complete_entry if complete_entry else {field_key: original}
+                    if end_version == '∞':
+                        output_json = {"versionStartIncluding": complete_entry.get('version', '0') if complete_entry else '0'}
+                    else:
+                        output_json = {
+                            "versionStartIncluding": complete_entry.get('version', '0') if complete_entry else '0',
+                            "versionEndExcluding": end_version
+                        }
+                    explanation = f"Global wildcard '*' uses version '{complete_entry.get('version', '0') if complete_entry else '0'}' as start, expands to unbounded or bounded range"
+                else:
+                    # Specific wildcard pattern transformation
+                    input_json = complete_entry if complete_entry else {field_key: original}
+                    version_value = complete_entry.get('version') if complete_entry else 'unknown'
+                    
+                    # For lessThan/lessThanOrEqual fields, the actual transformation uses the version field as the start (legacy logic)
+                    if field_key in ['lessThanOrEqual', 'lessThan']:
+                        output_json = {
+                            "versionStartIncluding": version_value,
+                            "versionEndExcluding": end_version
+                        }
+                        explanation = f"Uses version '{version_value}' as range start, wildcard pattern '{original}' expands upper bound to '{end_version}'"
+                    else:  # version field with wildcard
+                        # For version field wildcards, use the calculated range
+                        output_json = {"versionStartIncluding": start_version, "versionEndExcluding": end_version}
+                        explanation = f"Version wildcard pattern '{original}' expands to range [{start_version}, {end_version})"
+                
+                modal_content["rules"][0]["transformations"].append({
+                    "field": field_key,
+                    "field_display": field_name,
+                    "derivation_desc": derivation_desc,
+                    "input": input_json,
+                    "output": output_json,
+                    "explanation": explanation
+                })
         
         modal_content["summary"]["rule_types"].append("Wildcard Generation")
         modal_content["summary"]["total_rules"] += 1
@@ -1046,7 +1116,7 @@ def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict
         
         # Process update pattern transformations
         for transformation in update_info['update_transformations']:
-            field_display = transformation['field'].replace('lessThanOrEqual', 'Upper Bound (≤)').replace('lessThan', 'Upper Bound (<)').replace('version', 'Version')
+            field_display = transformation['field'].replace('version', 'Version').replace('lessThanOrEqual', 'Less Than Or Equal').replace('lessThan', 'Less Than')
             
             input_json = {transformation['field']: transformation['original']}
             output_json = {
@@ -1078,8 +1148,29 @@ def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict
     total_transformations = sum(rule.get("count", 0) for rule in modal_content["rules"])
     tooltip = f'JSON Generation Rules detected - {rule_types} ({total_transformations} transformation(s)). Click for detailed examples.'
     
-    # Create the badge HTML
-    badge_html = f'<span class="badge modal-badge bg-warning" onclick="BadgeModalManager.openJsonGenerationRulesModal(\'{table_index}\', \'{vendor}/{product}\')" title="{tooltip}">⚙️ JSON Generation Rules</span> '
+    # Create the badge HTML with proper header format
+    source_role = row.get('sourceRole', 'Unknown')
+    
+    # Build header components
+    header_parts = []
+    header_parts.append(source_role)
+    
+    # Add vendor/product
+    if vendor and vendor != 'unknown':
+        header_parts.append(vendor)
+    if product and product != 'unknown':
+        header_parts.append(product)
+    
+    # Add other relevant identifiers
+    if 'packageName' in raw_platform_data and raw_platform_data['packageName']:
+        header_parts.append(raw_platform_data['packageName'])
+    elif 'repo' in raw_platform_data and raw_platform_data['repo']:
+        header_parts.append(raw_platform_data['repo'])
+    
+    # Format as: Platform Entry X (CNA, SourceID, Vendor/Product/PackageName/etc.)
+    header_identifier = f"Platform Entry {table_index} ({', '.join(header_parts)})"
+    
+    badge_html = f'<span class="badge modal-badge bg-warning" onclick="BadgeModalManager.openJsonGenerationRulesModal(\'{table_index}\', \'{header_identifier}\')" title="{tooltip}">⚙️ JSON Generation Rules</span> '
     
     return badge_html
 
@@ -1334,10 +1425,27 @@ def create_supporting_information_badge(table_index: int, row: Dict, platform_me
     categories = " + ".join(supporting_info["summary"]["categories"])
     tooltip = f'Supporting Information available - {categories} ({total_items} item(s)). Click for detailed technical insights and debugging information.'
     
-    # Create the badge HTML with gray theme
-    # Create display value in format: "Platform Entry X (sourceRole, vendor/product)"
+    # Create the badge HTML with proper header format
     source_role = row.get('sourceRole', 'Unknown')
-    display_value = f"Platform Entry {table_index} ({source_role}, {vendor}/{product})"
+    
+    # Build header components
+    header_parts = []
+    header_parts.append(source_role)
+    
+    # Add vendor/product
+    if vendor and vendor != 'unknown':
+        header_parts.append(vendor)
+    if product and product != 'unknown':
+        header_parts.append(product)
+    
+    # Add other relevant identifiers
+    if 'packageName' in raw_platform_data and raw_platform_data['packageName']:
+        header_parts.append(raw_platform_data['packageName'])
+    elif 'repo' in raw_platform_data and raw_platform_data['repo']:
+        header_parts.append(raw_platform_data['repo'])
+    
+    # Format as: Platform Entry X (CNA, SourceID, Vendor/Product/PackageName/etc.)
+    display_value = f"Platform Entry {table_index} ({', '.join(header_parts)})"
     
     badge_html = f'<span class="badge modal-badge bg-secondary" onclick="BadgeModalManager.openSupportingInformationModal(\'{table_index}\', \'{display_value}\')" title="{tooltip}">🔍 Supporting Information</span> '
     
