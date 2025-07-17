@@ -739,12 +739,18 @@ def analyze_data_for_smart_defaults(raw_platform_data):
         if has_ranges:
             enable_update_patterns = False
     
+    # When wildcards are present, disable multiple branches processing
+    # to prevent rule conflicts.
+    enable_multiple_branches = characteristics['has_multiple_branches']
+    if characteristics['has_wildcards'] and enable_multiple_branches:
+        enable_multiple_branches = False
+    
     return {
         'enableWildcardExpansion': characteristics['has_wildcards'],
         'enableVersionChanges': characteristics['has_version_changes'],
         'enableSpecialVersionTypes': characteristics['has_special_version_types'],
         'enableInverseStatus': characteristics['has_inverse_status'],
-        'enableMultipleBranches': characteristics['has_multiple_branches'],
+        'enableMultipleBranches': enable_multiple_branches,
         'enableMixedStatus': characteristics['has_mixed_status'],
         'enableGapProcessing': characteristics['needs_gap_processing'],
         'enableUpdatePatterns': enable_update_patterns
