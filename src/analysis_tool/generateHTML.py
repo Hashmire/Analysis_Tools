@@ -1673,6 +1673,24 @@ def clear_global_html_state():
     
     logger.debug("Cleared global HTML state and badge/modal registries", group="page_generation")
 
+def analyze_data_for_smart_defaults(raw_platform_data):
+    """Analyze platform data to determine intelligent defaults for JSON generation settings"""
+    # Default settings - start with most common configuration
+    settings = {
+        'enableWildcardExpansion': True,
+        'enableVersionChanges': False,
+        'enableSpecialVersionTypes': True,
+        'enableInverseStatus': False,
+        'enableMultipleBranches': False,
+        'enableMixedStatus': False,
+        'enableGapProcessing': True,
+        'enableUpdatePatterns': False
+    }
+    
+    # For now, return consistent settings for all tables to enable template deduplication
+    # TODO: Add intelligent analysis based on raw_platform_data content
+    return settings
+
 def store_json_settings_html(table_id, raw_platform_data=None):
     """Store the JSON settings HTML for a table with intelligent defaults"""
     global JSON_SETTINGS_HTML, INTELLIGENT_SETTINGS
@@ -1684,7 +1702,16 @@ def store_json_settings_html(table_id, raw_platform_data=None):
         INTELLIGENT_SETTINGS = {}
     
     # Analyze data to determine which checkboxes should be checked
-    settings = analyze_data_for_smart_defaults(raw_platform_data) if raw_platform_data else {}
+    settings = analyze_data_for_smart_defaults(raw_platform_data) if raw_platform_data else {
+        'enableWildcardExpansion': True,
+        'enableVersionChanges': False,
+        'enableSpecialVersionTypes': True,
+        'enableInverseStatus': False,
+        'enableMultipleBranches': False,
+        'enableMixedStatus': False,
+        'enableGapProcessing': True,
+        'enableUpdatePatterns': False
+    }
     
     # Check if we already have identical settings registered to prevent bloat
     settings_json = json.dumps(settings, sort_keys=True)
