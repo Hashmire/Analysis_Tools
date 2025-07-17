@@ -2347,7 +2347,7 @@ def filter_most_specific_cpes(cpe_list: List[str]) -> List[str]:
 def validate_cpe_specificity(cpe_string):
     """
     Check if a CPE string has enough specificity (requires at least vendor OR product).
-    Also validates against single-character attributes when only one attribute is populated.
+    Also validates against single-character or two-character attributes when only one attribute is populated.
     Returns (is_valid, reason) tuple.
     """
     if not cpe_string or not cpe_string.startswith('cpe:2.3:'):
@@ -2386,10 +2386,19 @@ def validate_cpe_specificity(cpe_string):
     if non_wildcard_count == 0:
         return False, "All components are wildcards"
     
-    # New validation: Check for single-character attributes when only one attribute is populated
+    # Check for single-character or two-character attributes when only one attribute is populated
     if len(populated_attributes) == 1:
         attribute_name, attribute_value = populated_attributes[0]
-        if len(attribute_value) == 1:
-            return False, f"Single character '{attribute_value}' in only populated attribute '{attribute_name}' - too broad"
+        if len(attribute_value) <= 2:
+            # Log detailed information about the culling
+            character_count = len(attribute_value)
+            condition_type = "single character" if character_count == 1 else "two characters"
+            
+            logger.info(f"CPE Base String culled due to {condition_type} restriction: '{cpe_string}' "
+                       f"- attribute '{attribute_name}' contains only '{attribute_value}' "
+                       f"({character_count} character{'s' if character_count != 1 else ''})", 
+                       group="cpe_validation")
+            
+            return False, f"Two characters or less '{attribute_value}' in only populated attribute '{attribute_name}' - too broad"
     
     return True, "Valid specificity"
