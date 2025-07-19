@@ -1383,6 +1383,114 @@ class BadgeModalFactory {
         return content;
     }
 
+    static createSourceDataConcernsModal() {
+        return new BadgeModal({
+            modalType: 'sourceDataConcerns',
+            title: 'Source Data Concerns',
+            icon: '🟪',
+            headerColor: '#9C27B0', // Material Design purple that fits with other modal colors
+            enableTabs: true,
+            generateHeaderContent: (displayValue, additionalData) => {
+                const issueCount = additionalData.issueCount || 0;
+                const concernTypes = additionalData.concernTypes || [];
+                
+                return `
+                    <div class="source-concerns-info-fixed">
+                        <div class="platform-string-compact mb-1">
+                            <code class="text-white bg-dark px-2 py-1 rounded" style="font-size: 0.75rem;">${displayValue}</code>
+                        </div>
+                        <div class="summary-stats-compact">
+                            <span class="badge bg-light text-dark me-1" style="font-size: 0.65rem;">⚠️ ${issueCount} issues</span>
+                            <span class="badge bg-light text-dark me-1" style="font-size: 0.65rem;">🔍 ${concernTypes.length} types</span>
+                            <span class="badge bg-warning text-dark ms-1" style="font-size: 0.6rem;">LINT Analysis</span>
+                        </div>
+                    </div>
+                `;
+            },
+            generateTabsData: (data, displayValue, additionalData) => {
+                const tabs = [];
+                
+                // Extract concerns from the data structure  
+                const concernsData = data.concerns || {};
+                
+                // Generate tabs based on the concern types present in data
+                if (concernsData.placeholderData && concernsData.placeholderData.length > 0) {
+                    tabs.push({
+                        id: 'placeholderData',
+                        label: 'Placeholder Data Detected',
+                        badge: concernsData.placeholderData.length,
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.placeholderData, 'placeholderData')
+                    });
+                }
+                
+                if (concernsData.versionTextPatterns && concernsData.versionTextPatterns.length > 0) {
+                    tabs.push({
+                        id: 'versionTextPatterns',
+                        label: 'Version Text Patterns',
+                        badge: concernsData.versionTextPatterns.length,
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.versionTextPatterns, 'versionTextPatterns')
+                    });
+                }
+                
+                if (concernsData.versionComparators && concernsData.versionComparators.length > 0) {
+                    tabs.push({
+                        id: 'versionComparators',
+                        label: 'Comparator Patterns',
+                        badge: concernsData.versionComparators.length,
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.versionComparators, 'versionComparators')
+                    });
+                }
+                
+                if (concernsData.versionGranularity && concernsData.versionGranularity.length > 0) {
+                    tabs.push({
+                        id: 'versionGranularity',
+                        label: 'Version Granularity',
+                        badge: concernsData.versionGranularity.length,
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.versionGranularity, 'versionGranularity')
+                    });
+                }
+                
+                if (concernsData.wildcardBranches && concernsData.wildcardBranches.length > 0) {
+                    tabs.push({
+                        id: 'wildcardBranches',
+                        label: 'Wildcard Branches',
+                        badge: concernsData.wildcardBranches.length,
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.wildcardBranches, 'wildcardBranches')
+                    });
+                }
+                
+                if (concernsData.cpeArrayConcerns && concernsData.cpeArrayConcerns.length > 0) {
+                    tabs.push({
+                        id: 'cpeArrayConcerns',
+                        label: 'CPE Array Issues',
+                        badge: concernsData.cpeArrayConcerns.length,
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.cpeArrayConcerns, 'cpeArrayConcerns')
+                    });
+                }
+                
+                if (concernsData.duplicateEntries && concernsData.duplicateEntries.length > 0) {
+                    tabs.push({
+                        id: 'duplicateEntries',
+                        label: 'Duplicate Entries',
+                        badge: concernsData.duplicateEntries.length,
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.duplicateEntries, 'duplicateEntries')
+                    });
+                }
+                
+                if (concernsData.platformDataConcerns && concernsData.platformDataConcerns.length > 0) {
+                    tabs.push({
+                        id: 'platformDataConcerns',
+                        label: 'Platform Data Issues',
+                        badge: concernsData.platformDataConcerns.length,
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.platformDataConcerns, 'platformDataConcerns')
+                    });
+                }
+                
+                return tabs;
+            }
+        });
+    }
+
     static createSupportingInformationModal() {
         return new BadgeModal({
             modalType: 'supportingInformation',
@@ -1739,6 +1847,332 @@ class BadgeModalFactory {
         content += `</div>`;
         return content;
     }
+
+    static generateSourceDataConcernTabContent(concerns, concernType) {
+        if (!concerns || concerns.length === 0) {
+            return '<p class="text-muted">No concerns detected</p>';
+        }
+
+        let content = `
+            <div class="source-data-concerns-content">
+                <div class="mb-2 pb-1 border-bottom">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted fw-bold">LINT Analysis Results</small>
+                        <span class="badge bg-danger" style="font-size: 0.65rem;">${concerns.length} issue${concerns.length > 1 ? 's' : ''}</span>
+                    </div>
+                </div>
+        `;
+
+        concerns.forEach((concern, index) => {
+            // Generate issue-specific styling and content
+            const issueNumber = index + 1;
+            
+            content += `
+                <div class="source-concern-item mb-2 p-2 border rounded" style="border-left: 4px solid #9C27B0 !important;">
+                    <div class="concern-header mb-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0 text-danger fw-bold" style="font-size: 0.9rem;">Issue #${issueNumber}</h6>
+                            <span class="badge bg-purple text-white" style="background-color: #9C27B0; font-size: 0.65rem;">EXTERNAL SOURCE</span>
+                        </div>
+                    </div>
+            `;
+
+            // Add concern-specific content based on type
+            if (concernType === 'placeholderData') {
+                content += BadgeModalFactory.generatePlaceholderDataContent(concern);
+            } else if (concernType === 'versionTextPatterns') {
+                content += BadgeModalFactory.generateVersionTextPatternsContent(concern);
+            } else if (concernType === 'versionComparators') {
+                content += BadgeModalFactory.generateVersionComparatorsContent(concern);
+            } else if (concernType === 'versionGranularity') {
+                content += BadgeModalFactory.generateVersionGranularityContent(concern);
+            } else if (concernType === 'wildcardBranches') {
+                content += BadgeModalFactory.generateWildcardBranchesContent(concern);
+            } else if (concernType === 'cpeArrayConcerns') {
+                content += BadgeModalFactory.generateCpeArrayConcernsContent(concern);
+            } else if (concernType === 'duplicateEntries') {
+                content += BadgeModalFactory.generateDuplicateEntriesContent(concern);
+            } else if (concernType === 'platformDataConcerns') {
+                content += BadgeModalFactory.generatePlatformDataConcernsContent(concern);
+            } else {
+                // Generic concern display
+                content += `
+                    <div class="concern-content compact-layout">
+                        <div class="problem-description mb-1">
+                            <strong class="text-danger" style="font-size: 0.85rem;">Problem:</strong>
+                            <p class="mb-1" style="font-size: 0.85rem;">${concern.description || 'Data quality issue detected'}</p>
+                        </div>
+                        <div class="problematic-data mb-1">
+                            <strong class="text-warning" style="font-size: 0.85rem;">Data:</strong>
+                            <code class="text-dark bg-light px-1 py-1 rounded border d-inline-block mt-1" style="font-size: 0.8rem;">${concern.data || 'N/A'}</code>
+                        </div>
+                        <div class="resolution-guidance">
+                            <strong class="text-success" style="font-size: 0.85rem;">Resolution:</strong>
+                            <p class="mb-0 text-muted" style="font-size: 0.8rem;">${concern.guidance || 'Contact source data provider for correction'}</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            content += `</div>`;
+        });
+
+        content += `</div>`;
+        return content;
+    }
+
+    static generatePlaceholderDataContent(concern) {
+        return `
+            <div class="concern-content compact-layout">
+                <div class="problem-description mb-1">
+                    <strong class="text-danger" style="font-size: 0.85rem;">Problem:</strong>
+                    <span class="ms-2" style="font-size: 0.85rem;">Field contains 'n/a' or 'N/A' preventing proper CPE matching</span>
+                </div>
+                <div class="problematic-data mb-1">
+                    <div class="row g-1">
+                        <div class="col-3">
+                            <strong class="text-warning" style="font-size: 0.85rem;">Data:</strong>
+                        </div>
+                        <div class="col-9">
+                            <code class="text-dark bg-light px-1 py-1 rounded border me-2" style="font-size: 0.8rem;">${concern.field}</code>
+                            <code class="text-dark bg-light px-1 py-1 rounded border" style="font-size: 0.8rem;">${concern.value}</code>
+                        </div>
+                    </div>
+                </div>
+                <div class="resolution-guidance">
+                    <strong class="text-success" style="font-size: 0.85rem;">Resolution:</strong>
+                    <span class="text-muted ms-2" style="font-size: 0.8rem;">Replace with actual ${concern.field} name or descriptive identifier</span>
+                </div>
+            </div>
+        `;
+    }
+
+    static generateVersionTextPatternsContent(concern) {
+        return `
+            <div class="concern-content">
+                <div class="problem-description mb-2">
+                    <strong class="text-danger">Problem:</strong>
+                    <p class="mb-2">${concern.issue || 'Version contains text-based comparison patterns that prevent proper version matching'}</p>
+                </div>
+                <div class="problematic-data mb-2">
+                    <strong class="text-warning">Problematic Data:</strong>
+                    <div class="data-display mt-1">
+                        <div class="row">
+                            <div class="col-3"><strong>Issue Details:</strong></div>
+                            <div class="col-9"><code class="text-dark bg-light px-2 py-1 rounded border">${concern.concern}</code></div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-3"><strong>Category:</strong></div>
+                            <div class="col-9"><span class="badge bg-warning text-dark">${concern.category}</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="resolution-guidance">
+                    <strong class="text-success">Resolution:</strong>
+                    <ul class="mb-0 text-muted">
+                        <li>Use structured version ranges with lessThan/lessThanOrEqual fields</li>
+                        <li>Replace text descriptions with specific version numbers</li>
+                        <li>Extract version number from text-based patterns</li>
+                        <li>Use proper version range notation</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    }
+
+    static generateVersionComparatorsContent(concern) {
+        return `
+            <div class="concern-content">
+                <div class="problem-description mb-2">
+                    <strong class="text-danger">Problem:</strong>
+                    <p class="mb-2">Version contains comparison operators that should use structured range fields.</p>
+                </div>
+                <div class="problematic-data mb-2">
+                    <strong class="text-warning">Problematic Data:</strong>
+                    <div class="data-display mt-1">
+                        <div class="row">
+                            <div class="col-3"><strong>Version:</strong></div>
+                            <div class="col-9"><code class="text-dark bg-light px-2 py-1 rounded border">${concern.version}</code></div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-3"><strong>Operator:</strong></div>
+                            <div class="col-9"><span class="badge bg-warning text-dark">${concern.operator}</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="resolution-guidance">
+                    <strong class="text-success">Resolution:</strong>
+                    <ul class="mb-0 text-muted">
+                        <li>Use lessThan, lessThanOrEqual, greaterThan, greaterThanOrEqual fields</li>
+                        <li>Example: "${concern.version}" → use appropriate range field</li>
+                        <li>Separate version number from comparison logic</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    }
+
+    static generateVersionGranularityContent(concern) {
+        return `
+            <div class="concern-content compact-layout">
+                <div class="problem-description mb-1">
+                    <strong class="text-danger" style="font-size: 0.85rem;">Problem:</strong>
+                    <span class="ms-2" style="font-size: 0.85rem;">${concern.issue || 'Version granularity issues may affect matching precision.'}</span>
+                </div>
+                <div class="problematic-data mb-1">
+                    <div class="row g-1">
+                        <div class="col-3">
+                            <strong class="text-warning" style="font-size: 0.85rem;">Data:</strong>
+                        </div>
+                        <div class="col-9">
+                            <code class="text-dark bg-light px-1 py-1 rounded border" style="font-size: 0.8rem;">${concern.concern}</code>
+                            <span class="badge bg-warning text-dark ms-2" style="font-size: 0.65rem;">${concern.category}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="resolution-guidance">
+                    <strong class="text-success" style="font-size: 0.85rem;">Resolution:</strong>
+                    <span class="text-muted ms-2" style="font-size: 0.8rem;">Standardize version format consistency across related versions</span>
+                </div>
+            </div>
+        `;
+    }
+
+    static generateWildcardBranchesContent(concern) {
+        return `
+            <div class="concern-content">
+                <div class="problem-description mb-2">
+                    <strong class="text-danger">Problem:</strong>
+                    <p class="mb-2">Multiple overlapping wildcard version branches create ambiguous range definitions.</p>
+                </div>
+                <div class="problematic-data mb-2">
+                    <strong class="text-warning">Problematic Data:</strong>
+                    <div class="data-display mt-1">
+                        <div class="row">
+                            <div class="col-3"><strong>Branches:</strong></div>
+                            <div class="col-9">
+                                ${concern.branches.map(branch => 
+                                    `<code class="text-dark bg-light px-2 py-1 rounded border me-1">${branch}</code>`
+                                ).join('')}
+                            </div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-3"><strong>Overlap Type:</strong></div>
+                            <div class="col-9"><span class="badge bg-warning text-dark">${concern.overlapType}</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="resolution-guidance">
+                    <strong class="text-success">Resolution:</strong>
+                    <ul class="mb-0 text-muted">
+                        <li>Consolidate overlapping ranges into single, clear range definitions</li>
+                        <li>Use specific version ranges instead of multiple wildcard patterns</li>
+                        <li>Define non-overlapping version branches</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    }
+
+    static generateCpeArrayConcernsContent(concern) {
+        return `
+            <div class="concern-content">
+                <div class="problem-description mb-2">
+                    <strong class="text-danger">Problem:</strong>
+                    <p class="mb-2">CPE string contains improper version text that violates CPE 2.3 specification.</p>
+                </div>
+                <div class="problematic-data mb-2">
+                    <strong class="text-warning">Problematic Data:</strong>
+                    <div class="data-display mt-1">
+                        <div class="row">
+                            <div class="col-3"><strong>CPE String:</strong></div>
+                            <div class="col-9"><code class="text-dark bg-light px-2 py-1 rounded border" style="word-break: break-all;">${concern.cpeString}</code></div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-3"><strong>Issue:</strong></div>
+                            <div class="col-9"><span class="badge bg-warning text-dark">${concern.issueType}</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="resolution-guidance">
+                    <strong class="text-success">Resolution:</strong>
+                    <ul class="mb-0 text-muted">
+                        <li>Use structured version information in versions array instead</li>
+                        <li>CPE version field should contain specific version numbers only</li>
+                        <li>Remove text patterns like "before", "through", etc. from CPE strings</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    }
+
+    static generateDuplicateEntriesContent(concern) {
+        return `
+            <div class="concern-content">
+                <div class="problem-description mb-2">
+                    <strong class="text-danger">Problem:</strong>
+                    <p class="mb-2">Multiple identical platform configurations found, leading to data redundancy.</p>
+                </div>
+                <div class="problematic-data mb-2">
+                    <strong class="text-warning">Problematic Data:</strong>
+                    <div class="data-display mt-1">
+                        <div class="row">
+                            <div class="col-3"><strong>Duplicate Rows:</strong></div>
+                            <div class="col-9">
+                                ${concern.duplicateIndices.map(index => 
+                                    `<span class="badge bg-secondary me-1">${index}</span>`
+                                ).join('')}
+                            </div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-3"><strong>Configuration:</strong></div>
+                            <div class="col-9"><code class="text-dark bg-light px-2 py-1 rounded border">${concern.configuration}</code></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="resolution-guidance">
+                    <strong class="text-success">Resolution:</strong>
+                    <ul class="mb-0 text-muted">
+                        <li>Remove duplicate platform configurations</li>
+                        <li>Consolidate identical entries into single platform definition</li>
+                        <li>Review source data generation process to prevent duplication</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    }
+
+    static generatePlatformDataConcernsContent(concern) {
+        return `
+            <div class="concern-content">
+                <div class="problem-description mb-2">
+                    <strong class="text-danger">Problem:</strong>
+                    <p class="mb-2">Unexpected platform data structure detected that cannot be processed by current logic.</p>
+                </div>
+                <div class="problematic-data mb-2">
+                    <strong class="text-warning">Problematic Data:</strong>
+                    <div class="data-display mt-1">
+                        <div class="row">
+                            <div class="col-3"><strong>Data Type:</strong></div>
+                            <div class="col-9"><span class="badge bg-warning text-dark">${concern.dataType}</span></div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-3"><strong>Issue:</strong></div>
+                            <div class="col-9">${concern.issueDescription}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="resolution-guidance">
+                    <strong class="text-success">Resolution:</strong>
+                    <ul class="mb-0 text-muted">
+                        <li>Review platform data structure for compliance with expected schema</li>
+                        <li>Contact source data provider for schema clarification</li>
+                        <li>May require tool enhancement to support new platform data patterns</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    }
 }
 
 /**
@@ -1872,6 +2306,62 @@ class BadgeModalManager {
         const categories = registeredData.summary ? registeredData.summary.categories : [];
         
         modal.show(tableIndex, displayValue, { totalItems, categories });
+    }
+
+    static openSourceDataConcernsModal(tableIndex, displayValue) {
+        const modal = BadgeModalFactory.createSourceDataConcernsModal();
+        
+        // Fail fast if no source data concerns data is registered at all
+        if (!window.BADGE_MODAL_DATA.sourceDataConcerns) {
+            throw new Error('No source data concerns data registered - ensure BadgeModal.registerData("sourceDataConcerns", ...) calls have executed');
+        }
+        
+        const registeredData = window.BADGE_MODAL_DATA.sourceDataConcerns[tableIndex]; // No optional chaining - fail fast
+        if (!registeredData) {
+            throw new Error(`No source data concerns data registered for key '${tableIndex}' - check BadgeModal.registerData() calls`);
+        }
+        
+        // Extract concerns data from the registered structure
+        const concernsData = registeredData.concerns || {};
+        
+        // Calculate counts for header display
+        let issueCount = 0;
+        const concernTypes = [];
+        
+        if (concernsData.placeholderData && concernsData.placeholderData.length > 0) {
+            issueCount += concernsData.placeholderData.length;
+            concernTypes.push('Placeholder Data');
+        }
+        if (concernsData.versionTextPatterns && concernsData.versionTextPatterns.length > 0) {
+            issueCount += concernsData.versionTextPatterns.length;
+            concernTypes.push('Version Text Patterns');
+        }
+        if (concernsData.versionComparators && concernsData.versionComparators.length > 0) {
+            issueCount += concernsData.versionComparators.length;
+            concernTypes.push('Version Comparators');
+        }
+        if (concernsData.versionGranularity && concernsData.versionGranularity.length > 0) {
+            issueCount += concernsData.versionGranularity.length;
+            concernTypes.push('Version Granularity');
+        }
+        if (concernsData.wildcardBranches && concernsData.wildcardBranches.length > 0) {
+            issueCount += concernsData.wildcardBranches.length;
+            concernTypes.push('Wildcard Branches');
+        }
+        if (concernsData.cpeArrayConcerns && concernsData.cpeArrayConcerns.length > 0) {
+            issueCount += concernsData.cpeArrayConcerns.length;
+            concernTypes.push('CPE Array Issues');
+        }
+        if (concernsData.duplicateEntries && concernsData.duplicateEntries.length > 0) {
+            issueCount += concernsData.duplicateEntries.length;
+            concernTypes.push('Duplicate Entries');
+        }
+        if (concernsData.platformDataConcerns && concernsData.platformDataConcerns.length > 0) {
+            issueCount += concernsData.platformDataConcerns.length;
+            concernTypes.push('Platform Data Issues');
+        }
+        
+        modal.show(tableIndex, displayValue, { issueCount, concernTypes });
     }
 
     static openJsonGenerationRulesModal(tableIndex, displayValue) {

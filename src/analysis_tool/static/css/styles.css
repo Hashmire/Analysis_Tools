@@ -172,30 +172,32 @@ table.dataframe td:last-child {
 
 /* Custom purple badge type for source data concerns */
 .badge.bg-sourceDataConcern {
-    background-color: #8e44ad !important; /* Deep purple color */
+    background-color: #6f42c1 !important; /* Bootstrap purple color */
     color: #fff;
     display: inline-block;
-    padding: 0.25em 0.6em;
-    font-size: 0.75em;
-    font-weight: 700;
+    padding: 0.35em 0.8em; /* Match modal badge padding */
+    font-size: 0.8rem; /* Match modal badge font size */
+    font-weight: 600; /* Match modal badge font weight */
     line-height: 1;
     text-align: center;
     white-space: nowrap;
     vertical-align: baseline;
-    border-radius: 0.25rem;
-    transition: color .15s ease-in-out,background-color .15s ease-in-out,border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+    border-radius: 50rem !important; /* Match modal badge rounded-pill shape */
+    transition: all 0.2s ease;
+    cursor: pointer; /* Match modal badge cursor */
 }
 
 /* Hover effect */
 .badge.bg-sourceDataConcern:hover {
-    background-color: #7d3c98 !important; /* Slightly darker purple on hover */
-    cursor: help;
+    background-color: #5d3499 !important; /* Slightly darker Bootstrap purple on hover */
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(111, 66, 193, 0.3);
 }
 
 /* Focus state for accessibility */
 .badge.bg-sourceDataConcern:focus {
     outline: 0;
-    box-shadow: 0 0 0 0.2rem rgba(142, 68, 173, 0.25);
+    box-shadow: 0 0 0 0.2rem rgba(111, 66, 193, 0.25);
 }
 
 /* Provenance Assistance Styles */
@@ -662,6 +664,106 @@ table.dataframe td:last-child {
 
 .modal-badge.bg-warning:hover {
     background-color: #ffcd39 !important;
+}
+
+/* Source Data Concerns Modal Badge - Purple theme for data quality issues */
+.modal-badge.bg-sourceDataConcern {
+    background-color: #6f42c1 !important; /* Bootstrap purple (bs-purple) */
+    color: white;
+}
+
+.modal-badge.bg-sourceDataConcern:hover {
+    background-color: #5d3499 !important; /* Darker purple on hover - matches regular badge */
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(111, 66, 193, 0.3);
+}
+
+/* ========================================
+ * SOURCE DATA CONCERNS MODAL STYLING
+ * ======================================== */
+
+/* Source concern item containers */
+.source-concern-item {
+    background-color: #fdf2f8;
+    transition: all 0.2s ease;
+    margin-bottom: 0.5rem !important;
+}
+
+.source-concern-item:hover {
+    background-color: #fce7f3;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(156, 39, 176, 0.15);
+}
+
+/* Compact layout class for space efficiency */
+.concern-content.compact-layout .problem-description,
+.concern-content.compact-layout .problematic-data,
+.concern-content.compact-layout .resolution-guidance {
+    padding: 0.3rem 0.5rem;
+    margin-bottom: 0.25rem;
+    border-radius: 0.2rem;
+}
+
+.concern-content.compact-layout .problem-description {
+    border-left: 3px solid #dc3545;
+    background-color: #f8d7da;
+}
+
+.concern-content.compact-layout .problematic-data {
+    border-left: 3px solid #ffc107;
+    background-color: #fff3cd;
+}
+
+.concern-content.compact-layout .resolution-guidance {
+    border-left: 3px solid #198754;
+    background-color: #d1e7dd;
+}
+
+/* LINT-style problem indicators */
+.concern-header h6 {
+    color: #dc3545 !important;
+    font-weight: 700;
+}
+
+/* Legacy styling for non-compact layouts */
+.concern-content:not(.compact-layout) .problem-description {
+    border-left: 3px solid #dc3545;
+    padding-left: 0.75rem;
+    background-color: #f8d7da;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.25rem;
+}
+
+.concern-content:not(.compact-layout) .problematic-data {
+    border-left: 3px solid #ffc107;
+    padding-left: 0.75rem;
+    background-color: #fff3cd;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.25rem;
+}
+
+.concern-content:not(.compact-layout) .resolution-guidance {
+    border-left: 3px solid #198754;
+    padding-left: 0.75rem;
+    background-color: #d1e7dd;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.25rem;
+}
+
+/* Data display tables within concerns */
+.data-display .row {
+    margin-bottom: 0.25rem;
+}
+
+.data-display .col-3 {
+    font-weight: 600;
+    color: #6c757d;
+}
+
+/* Purple theme badges */
+.badge.bg-purple {
+    background-color: #9C27B0 !important;
+    color: white;
 }
 
 /* ========================================

@@ -39,7 +39,8 @@ PLATFORM_ENTRY_NOTIFICATION_REGISTRY = {
     'wildcardGeneration': {},  # table_index -> wildcard transformation data
     'updatePatterns': {},      # table_index -> update pattern data
     'jsonGenerationRules': {}, # table_index -> combined JSON generation rules data
-    'supportingInformation': {} # table_index -> supporting information data
+    'supportingInformation': {}, # table_index -> supporting information data
+    'sourceDataConcerns': {}   # table_index -> source data quality concerns
 }
 
 # ===== CONSTANTS AND PATTERNS =====
@@ -774,7 +775,7 @@ def get_consolidated_platform_notification_script() -> str:
         return ""
     
     script_content = ""
-    all_data_types = ['wildcardGeneration', 'updatePatterns', 'jsonGenerationRules', 'supportingInformation']
+    all_data_types = ['wildcardGeneration', 'updatePatterns', 'jsonGenerationRules', 'supportingInformation', 'sourceDataConcerns']
     
     # Process each platform data type
     for data_type in all_data_types:
@@ -832,7 +833,8 @@ Object.keys(window.{template_var_name}).forEach(templateId => {{
         update_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['updatePatterns'])
         rules_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['jsonGenerationRules'])
         supporting_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['supportingInformation'])
-        logger.debug(f"Platform registrations - {wildcard_count} wildcard, {update_count} update patterns, {rules_count} rules, {supporting_count} supporting info", group="badge_modal")
+        concerns_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'])
+        logger.debug(f"Platform registrations - {wildcard_count} wildcard, {update_count} update patterns, {rules_count} rules, {supporting_count} supporting info, {concerns_count} data concerns", group="badge_modal")
         
         return f"""
 // Consolidated platform notification data registrations with template deduplication
@@ -2822,4 +2824,236 @@ def store_json_settings_html(table_id, raw_platform_data=None):
     INTELLIGENT_SETTINGS[table_id] = settings
     
     logger.debug(f"Generated JSON settings HTML for complex case {table_id}", group="BADGE_GEN")
+
+# ===== SOURCE DATA CONCERNS MODAL SYSTEM =====
+
+def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict, characteristics: Dict, 
+                                     platform_metadata: Dict, row: Dict) -> Optional[str]:
+    """
+    Create a unified Source Data Concerns badge that consolidates all source data quality issues.
+    
+    Args:
+        table_index: The table index for unique identification
+        raw_platform_data: The raw platform data to analyze
+        characteristics: Version characteristics analysis
+        platform_metadata: Platform metadata from the row
+        row: The complete row data for header information
+        
+    Returns:
+        HTML string for the badge, or None if no source data concerns detected
+    """
+    # Collect all source data concerns
+    concerns_data = {
+        "placeholderData": [],
+        "versionTextPatterns": [],
+        "versionComparators": [],
+        "versionGranularity": [],
+        "wildcardBranches": [],
+        "cpeArrayConcerns": [],
+        "duplicateEntries": [],
+        "platformDataConcerns": []
+    }
+    
+    concerns_count = 0
+    concern_types = []
+    
+    # 1. Placeholder Data Detection (Vendor/Product placeholder values)
+    if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str) and raw_platform_data['vendor'].lower() in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]:
+        concerns_data["placeholderData"].append({
+            "field": "vendor",
+            "value": raw_platform_data['vendor'],
+            "issue": f"Vendor field contains placeholder value '{raw_platform_data['vendor']}' which prevents proper CPE matching"
+        })
+        concerns_count += 1
+        
+    if 'product' in raw_platform_data and isinstance(raw_platform_data['product'], str) and raw_platform_data['product'].lower() in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]:
+        concerns_data["placeholderData"].append({
+            "field": "product", 
+            "value": raw_platform_data['product'],
+            "issue": f"Product field contains placeholder value '{raw_platform_data['product']}' which prevents proper CPE matching"
+        })
+        concerns_count += 1
+    
+    if concerns_data["placeholderData"]:
+        concern_types.append("Placeholder Data")
+    
+    # 2. Versions Array Data Concerns
+    if characteristics['version_concerns']:
+        for concern in characteristics['version_concerns']:
+            if "contains text comparators" in concern.lower():
+                concerns_data["versionTextPatterns"].append({
+                    "concern": concern,
+                    "category": "Text Comparators",
+                    "issue": "Version contains text-based comparison patterns that prevent proper version matching"
+                })
+            elif "version granularity" in concern.lower():
+                concerns_data["versionGranularity"].append({
+                    "concern": concern,
+                    "category": "Version Granularity", 
+                    "issue": "Version granularity issues may affect matching precision"
+                })
+            elif "wildcard" in concern.lower():
+                concerns_data["wildcardBranches"].append({
+                    "concern": concern,
+                    "category": "Wildcard Branches",
+                    "issue": "Wildcard patterns detected in version data"
+                })
+            else:
+                # Generic version concerns
+                concerns_data["versionTextPatterns"].append({
+                    "concern": concern,
+                    "category": "Version Data",
+                    "issue": "Version data contains formatting or structural issues"
+                })
+        
+        concerns_count += len(characteristics['version_concerns'])
+        
+        if concerns_data["versionTextPatterns"]:
+            concern_types.append("Version Text Patterns")
+        if concerns_data["versionGranularity"]:
+            concern_types.append("Version Granularity")
+        if concerns_data["wildcardBranches"]:
+            concern_types.append("Wildcard Branches")
+    
+    # 3. CPEs Array Data Concerns
+    if 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
+        cpe_issues = []
+        cpes_list = raw_platform_data['cpes']
+        
+        # Check for empty CPE array
+        if not cpes_list:
+            cpe_issues.append({
+                "issue": "Empty CPE array - no CPE strings provided",
+                "details": "CVE record contains empty cpes array which provides no version information"
+            })
+        else:
+            # Track for duplicate detection
+            seen_cpes = set()
+            
+            for idx, cpe in enumerate(cpes_list):
+                # Check for non-string CPE entries
+                if not isinstance(cpe, str):
+                    cpe_issues.append({
+                        "cpe": str(cpe),
+                        "position": idx,
+                        "issue": "Invalid CPE format - not a string",
+                        "details": f"CPE at position {idx} is {type(cpe).__name__}, expected string"
+                    })
+                    continue
+                
+                # Check for malformed CPE strings
+                if not cpe.startswith('cpe:'):
+                    cpe_issues.append({
+                        "cpe": cpe,
+                        "position": idx,
+                        "issue": "Malformed CPE string - missing 'cpe:' prefix",
+                        "details": "CPE string does not follow standard format"
+                    })
+                    continue
+                
+                # Parse CPE for detailed validation
+                parts = cpe.split(':')
+                if len(parts) < 6 or parts[0] != 'cpe' or parts[1] != '2.3':
+                    cpe_issues.append({
+                        "cpe": cpe,
+                        "position": idx,
+                        "issue": "Invalid CPE 2.3 format",
+                        "details": f"Expected format 'cpe:2.3:part:vendor:product:version:...', got {len(parts)} parts"
+                    })
+                    continue
+                
+                # Check for duplicate CPEs
+                if cpe in seen_cpes:
+                    cpe_issues.append({
+                        "cpe": cpe,
+                        "position": idx,
+                        "issue": "Duplicate CPE string",
+                        "details": "Identical CPE appears multiple times in array"
+                    })
+                seen_cpes.add(cpe)
+                
+                # Check version component for text patterns
+                if len(parts) >= 6:
+                    version = parts[5]
+                    if any(text_comp in version.lower() for text_comp in VERSION_TEXT_PATTERNS):
+                        cpe_issues.append({
+                            "cpe": cpe,
+                            "position": idx,
+                            "version": version,
+                            "issue": "CPE contains improper version text patterns",
+                            "details": f"Version component '{version}' contains descriptive text"
+                        })
+                
+                # Check for placeholder/generic version data
+                if len(parts) >= 6:
+                    version = parts[5]
+                    if version.lower() in ['*', 'any', 'all', 'various', 'multiple', 'unspecified']:
+                        cpe_issues.append({
+                            "cpe": cpe,
+                            "position": idx,
+                            "version": version,
+                            "issue": "CPE uses generic version identifier",
+                            "details": f"Version component '{version}' is too generic for precise matching"
+                        })
+                        
+        if cpe_issues:
+            concerns_data["cpeArrayConcerns"] = cpe_issues
+            concerns_count += len(cpe_issues)
+            concern_types.append("CPE Array Concerns")
+    
+    # 4. Duplicate Entries Detection
+    duplicate_indices = platform_metadata.get('duplicateRowIndices', [])
+    if duplicate_indices:
+        concerns_data["duplicateEntries"].append({
+            "indices": duplicate_indices,
+            "count": len(duplicate_indices),
+            "issue": "Multiple identical platform configurations found"
+        })
+        concerns_count += 1
+        concern_types.append("Duplicate Entries")
+    
+    # 5. Platform Data Concerns
+    if platform_metadata.get('platformDataConcern', False):
+        concerns_data["platformDataConcerns"].append({
+            "issue": "Unexpected Platforms data detected in affected entry",
+            "metadata": platform_metadata
+        })
+        concerns_count += 1
+        concern_types.append("Platform Data Concerns")
+    
+    # If no concerns detected, return None
+    if concerns_count == 0:
+        return None
+    
+    # Register the concerns data for the modal
+    PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'] = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('sourceDataConcerns', {})
+    PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'][table_index] = {
+        "concerns": concerns_data,
+        "summary": {
+            "total_concerns": concerns_count,
+            "concern_types": concern_types
+        }
+    }
+    
+    # Build header identifier for the modal
+    header_parts = []
+    if 'cna' in raw_platform_data:
+        header_parts.append(raw_platform_data['cna'])
+    if 'source_id' in raw_platform_data:
+        header_parts.append(raw_platform_data['source_id'])
+    if 'vendor' in raw_platform_data:
+        header_parts.append(raw_platform_data['vendor'])
+    if 'product' in raw_platform_data:
+        header_parts.append(raw_platform_data['product'])
+    
+    header_identifier = f"Platform Entry {table_index} ({', '.join(header_parts)})"
+    
+    # Create tooltip showing concern summary
+    concern_summary = f"{concerns_count} issues: {', '.join(concern_types)}"
+    tooltip = f"Source data quality issues detected&#013;{concern_summary}&#013;Click to view detailed LINT analysis"
+    
+    # Create the badge HTML with purple theme
+    badge_html = f'<span class="badge modal-badge bg-sourceDataConcern" onclick="BadgeModalManager.openSourceDataConcernsModal(\'{table_index}\', \'{header_identifier}\')" title="{tooltip}">🔍 Source Data Concerns ({concerns_count})</span> '
+    
+    return badge_html
 

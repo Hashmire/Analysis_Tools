@@ -18,11 +18,13 @@ Processes CVE records to generate CPE Applicability Statements:
 
 ### Features
 
-- CPE caching system reduces API calls by caching responses locally
-- Dashboard for monitoring processing progress and performance
-- Rules engine for automated JSON generation
-- Test suites for validating functionality
-- Package repository detection for various platforms
+- **CPE caching system** reduces API calls by caching responses locally
+- **Interactive Modal System** with comprehensive badge/modal integration for data quality analysis
+- **Source Data Concerns Analysis** with 8 specialized tabs for data quality assessment
+- **Dashboard** for monitoring processing progress and performance
+- **Rules engine** for automated JSON generation
+- **Comprehensive test suites** for validating functionality including 100% coverage modal testing
+- **Package repository detection** for various platforms
 
 ## Project Structure
 
@@ -200,14 +202,33 @@ Cache settings in `src/analysis_tool/config.json`:
 
 ### Test Suites
 
-- **Modular Rules** (14 tests) - JSON generation rules and wildcard processing
+- **Platform Badge Tests** (62 tests) - Complete badge system including Source Data Concerns modal integration
+- **Modular Rules** (16 tests) - JSON generation rules and wildcard processing
 - **Provenance Assistance** (10 tests) - Package repository detection
 - **Logging System** (53 tests) - Structured logging validation
 - **Dashboard Scenarios** (29 scenarios) - Dashboard functionality
 
+### Source Data Concerns Modal System
+
+The platform badges include a comprehensive **Source Data Concerns** modal with 8 specialized tabs:
+
+1. **Placeholder Data** - Detects vendor/product placeholder values (n/a, not applicable, etc.)
+2. **Version Text Patterns** - Identifies text-based version indicators (beta, nightly, before, after)
+3. **Version Comparators** - Finds mathematical operators in version strings (>, <, >=)
+4. **Version Granularity** - Spots inconsistent version part counts within same base version
+5. **Wildcard Branches** - Validates wildcard pattern routing (routes to JSON Generation Rules)
+6. **CPE Array Concerns** - Detects empty or malformed CPE arrays
+7. **Duplicate Entries** - Tracks duplicate row consolidation
+8. **Platform Data Concerns** - Identifies misaligned vendor/product data patterns
+
+**Real CVE Pattern Validation**: Detection patterns based on production CVE analysis (CVE-2024-20515, CVE-1337-99997)
+
 ### Running Tests
 
 ```bash
+# Complete integrated test suite (includes Source Data Concerns modal tests)
+python test_files/test_platform_badges.py
+
 # Individual test suites
 python test_files/test_modular_rules.py test_files/testModularRulesEnhanced.json
 python test_files/test_provenance_assistance.py test_files/testProvenanceAssistance.json

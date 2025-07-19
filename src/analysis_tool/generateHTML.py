@@ -216,54 +216,22 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     # - CPE Base String Searches badge
     # - Source to CPE Transformations Applied badge
 
-    # ===== 🟪 SOURCE DATA CONCERN BADGES (Purple) =====
+    # ===== 🟪 SOURCE DATA CONCERN BADGE (Purple) =====
     
-    # 13. Vendor: N/A badge
-    if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str) and raw_platform_data['vendor'].lower() == 'n/a':
-        vendor_na_tooltip = 'Vendor field contains \'n/a\' which prevents proper CPE matching&#013;Original value: \'n/a\''
-        sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{vendor_na_tooltip}">Vendor: N/A</span> ')
-
-    # 14. Product: N/A badge
-    if 'product' in raw_platform_data and isinstance(raw_platform_data['product'], str) and raw_platform_data['product'].lower() == 'n/a':
-        product_na_tooltip = 'Product field contains \'n/a\' which prevents proper CPE matching&#013;Original value: \'n/a\''
-        sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{product_na_tooltip}">Product: N/A</span> ')
-
-    # 15. Versions Data Concern badge
-    if characteristics['version_concerns']:
-        versions_tooltip = 'Versions array contains formatting issues:&#013;' + '&#013;'.join(characteristics['version_concerns'])
-        sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{versions_tooltip}">Versions Data Concern</span> ')
+    # Create the unified Source Data Concerns badge to replace individual purple badges
+    from .badge_modal_system import create_source_data_concerns_badge
     
-    # 16. CPEs Array Data Concern badge
-    # TODO: Enhance this badge with full CPE 2.3 LINT validation checks including:
-    #       - Attribute format validation (alphanumeric, underscore, hyphen only)
-    #       - Proper escaping of special characters
-    #       - Valid enumeration values for part, update, edition, language fields
-    #       - Complete structural validation beyond just version text patterns
-    if 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
-        cpe_concerns = []
-        for cpe in raw_platform_data['cpes']:
-            if isinstance(cpe, str) and cpe.startswith('cpe:'):
-                parts = cpe.split(':')
-                if len(parts) >= 6 and parts[0] == 'cpe' and parts[1] == '2.3':
-                    version = parts[5]
-                    if any(text_comp in version.lower() for text_comp in VERSION_TEXT_PATTERNS):
-                        cpe_concerns.append(f"CPE contains improper version text: {cpe}")
-                        break
-        
-        if cpe_concerns:
-            cpe_tooltip = 'CPEs array contains formatting issues:&#013;' + '&#013;'.join(cpe_concerns)
-            sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{cpe_tooltip}">CPEs Array Data Concern</span> ')
-
-    # 17. Duplicate Entries Detected badge
-    duplicate_indices = platform_metadata.get('duplicateRowIndices', [])
-    if duplicate_indices:
-        duplicate_tooltip = f"This entry has duplicate data at row(s): {', '.join(map(str, duplicate_indices))}&#013;Multiple identical platform configurations found"
-        sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{duplicate_tooltip}">Duplicate Entries Detected</span> ')
-
-    # 18. Platforms Data Concern badge
-    if platform_metadata.get('platformDataConcern', False):
-        platform_tooltip = 'Unexpected Platforms data detected in affected entry'
-        sourceDataConcern_badges.append(f'<span class="badge bg-sourceDataConcern" title="{platform_tooltip}">Platforms Data Concern</span> ')
+    source_data_concerns_badge = create_source_data_concerns_badge(
+        table_index=tableIndex,
+        raw_platform_data=raw_platform_data,
+        characteristics=characteristics,
+        platform_metadata=platform_metadata,
+        row=row
+    )
+    
+    # If we have source data concerns, add it to the sourceDataConcern_badges category
+    if source_data_concerns_badge:
+        sourceDataConcern_badges.append(source_data_concerns_badge)
 
     # ===== 🔍 SUPPORTING INFORMATION MODAL =====
     

@@ -4,6 +4,8 @@
 
 The Modular Badge Modal System provides a fail-fast, reusable modal framework for displaying multiple types of CPE-related data. The system is designed for robustness with strict error handling and no fallback mechanisms to ensure data integrity.
 
+**Major Update**: The system now includes comprehensive **Source Data Concerns** modal integration with 8 specialized tabs for data quality analysis, based on real CVE data patterns from production analysis.
+
 ## Case Classification (Updated)
 
 ### Two-Tier Detection System
@@ -30,24 +32,47 @@ This applies across:
 - Python: `is_vulnerable = default_status == 'affected'`
 - JavaScript: `determineVulnerability(status)` function
 
+## Source Data Concerns Integration
+
+### 8 Specialized Modal Tabs
+
+The Source Data Concerns modal consolidates data quality issues into a unified purple-themed badge with 8 specialized tabs:
+
+1. **Placeholder Data**: Vendor/product fields with placeholder values (n/a, N/A, not applicable)
+2. **Version Text Patterns**: Text-based version indicators (beta, nightly, before, after)
+3. **Version Comparators**: Mathematical operators in version strings (>, <, >=)
+4. **Version Granularity**: Inconsistent version part counts within same base version
+5. **Wildcard Branches**: Wildcard pattern routing validation (routes to JSON Generation Rules)
+6. **CPE Array Concerns**: Empty or malformed CPE arrays
+7. **Duplicate Entries**: Duplicate row tracking and consolidation
+8. **Platform Data Concerns**: Misaligned vendor/product data patterns
+
+### Real CVE Pattern Validation
+
+Detection patterns based on production CVE analysis:
+
+- **CVE-2024-20515**: Version Granularity inconsistencies (2-part vs 3-part versions)
+- **CVE-1337-99997 Test Data**: Version Text Patterns (beta, nightly, pre-release indicators)
+- **Production placeholder data**: Comprehensive NON_SPECIFIC_VERSION_VALUES list
+
 ## Features
 
 - **Fail-Fast Architecture**: Strict error handling with no fallbacks - ensures data integrity
-- **Multi-Modal Support**: Support for References, Sorting Priority Context, and Confirmed Mapping modals
+- **Multi-Modal Support**: Support for References, Sorting Priority Context, Confirmed Mapping, and Source Data Concerns modals
 - **Dynamic Badge Updates**: Automatic badge count updates on page load for accurate UI display
 - **Tabbed Organization**: Automatic sorting and grouping of data types with dynamic tab counting
 - **Global Data Management**: Centralized data registration and access
 - **Manager Pattern**: Clean factory methods for modal operations
-- **Bootstrap Integration**: Seamless integration with Bootstrap 5 modals
+- **Bootstrap Integration**: Seamless integration with Bootstrap 5 modals with purple theming for Source Data Concerns
 
 ## Architecture
 
 ### Core Components
 
 1. **BadgeModal Class**: Core modal class with fail-fast error handling and validation
-2. **BadgeModalFactory**: Factory with specialized modal configurations (primarily for CPE references)
-3. **BadgeModalManager**: Clean management layer with static methods for modal operations
-4. **Global Data Storage**: `window.BADGE_MODAL_DATA` for centralized data registration
+2. **BadgeModalFactory**: Factory with specialized modal configurations (includes Source Data Concerns)
+3. **BadgeModalManager**: Clean management layer with static methods for modal operations including `openSourceDataConcernsModal`
+4. **Global Data Storage**: `window.BADGE_MODAL_DATA` for centralized data registration including `sourceDataConcerns`
 
 ### Key Design Principles
 

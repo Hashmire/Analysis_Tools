@@ -48,6 +48,15 @@ This comprehensive matrix maps all platform entry notification badges and their 
 | **🔵 CVE Affects Version(s) Exact and Range(s)** | Raw version data display from CVE | "version: 3.0.0, status: affected&#013;version: 3.0.0 p1, status: affected&#013;version: 3.0.0 p2, status: affected&#013;...48 more versions" | - | ℹ️ | 👤 |
 | **🔵 NVD Configuration** | Raw version data display from NVD | - | - | ℹ️ | 👤 |
 | **🟡 git versionType** | git versionType detected (without version ranges) | "Versioning based on the git versionType is not advised for CPE Names, consider non-git versioning." | Tool Development | ❌ | 👤🔧 |
+| **🟪 🔍 Source Data Concerns (X)** | **Comprehensive Modal with 8 Tabs** | **Multi-tab consolidation of data quality issues** | **Various** | **ℹ️/❌** | **👤🔧🗃️** |
+| → **Tab 1: Placeholder Data** | Vendor/product fields contain placeholder values | "Vendor field contains placeholder value 'n/a' which prevents proper CPE matching" | Source Data | ❌ | 👤🗃️ |
+| → **Tab 2: Version Text Patterns** | Text-based version indicators detected | "Version '10.*.beta' contains text pattern 'beta' that prevents precise version matching" | Source Data | ❌ | 👤🗃️ |
+| → **Tab 3: Version Comparators** | Mathematical operators in version strings | "Version '> 1.0' contains comparator '>' that prevents exact version matching" | Source Data | ❌ | 👤🗃️ |
+| → **Tab 4: Version Granularity** | Inconsistent version part counts within same base | "Inconsistent version granularity: 3.3: 2-part (3.3 Patch 2, 3.3 Patch 1), 3-part (3.3.0)" | Source Data | ❌ | 👤🗃️ |
+| → **Tab 5: Wildcard Branches** | Wildcard pattern routing validation | **Routes to JSON Generation Rules modal (not Source Data Concerns)** | Tool Development | ✅ | 🔧 |
+| → **Tab 6: CPE Array Concerns** | Empty or malformed CPE arrays | "CPE array is empty or contains invalid entries" | Source Data | ❌ | 👤🗃️ |
+| → **Tab 7: Duplicate Entries** | Duplicate row tracking and consolidation | "Platform data appears in multiple rows: [2, 5, 8]" | Source Data | ℹ️ | 👤🗃️ |
+| → **Tab 8: Platform Data Concerns** | Misaligned vendor/product data patterns | "Platform data concerns detected with vendor/product alignment" | Source Data | ❌ | 👤🗃️ |
 | **🟡 Has Version Changes** | Version changes/fixes processed | "Versions array contains change history information requiring special handling" | Tool Development | ✅ | 👤🔧 |
 | **🟡 Wildcard Patterns** | Wildcard patterns expanded to ranges | "Versions array contains wildcard patterns requiring special handling" | Tool Development | ✅ | 👤🔧 |
 | **🟡 Update Patterns Detected** | Version string format normalization (synced with modular_rules.js) | "Version Range Detected, Update Pattern Rules not applied!&#013;3.3 Patch 1   → 3.3:patch1&#013;3.0.0 p1     → 3.0.0:patch1&#013;2.0.0 sp1    → 2.0.0:sp1&#013;3.1.0.p7     → 3.1.0:patch7" | Tool Development | ✅ | 👤🔧 |
@@ -76,25 +85,45 @@ This comprehensive matrix maps all platform entry notification badges and their 
 
 ### **By Responsibility**
 
-- **External Source (9 checks)**: Issues originating from CVE data providers
-- **Tool Development (20 checks)**: Processing and transformation handled by the tool
+- **External Source/Source Data (16 checks)**: Issues originating from CVE data providers including comprehensive Source Data Concerns tabs
+- **Tool Development (21 checks)**: Processing and transformation handled by the tool
 
 ### **By Color Group**
 
-- **🟪 Purple (9 checks)**: Data quality and source transformation tracking  
+- **🟪 Purple (9 checks)**: Data quality and source transformation tracking including comprehensive Source Data Concerns modal with 8 tabs
 - **🔵 Blue (5 checks)**: Informational display of CVE data
 - **🟢 Green (1 check)**: Confirmed mappings and verified information
 - **🔴 Red (2 checks)**: Critical system warnings
 - **🟡 Yellow (4 checks)**: Important processing advisories
 - **⚫ Gray (8 checks)**: Debug and system-generated information
 
-### **By Audience (Total: 29 unique checks)**
+### **By Audience (Total: 37 unique checks including Source Data Concerns tabs)**
 
-- **👤 Tool Users (21 checks)**: All badges provide user-relevant processing information
-- **🔧 Tool Developers (25 checks)**: Most badges provide debugging and improvement insights
-- **🗃️ Source Data Providers (9 checks)**: External Source badges highlight upstream data quality issues
+- **👤 Tool Users (29 checks)**: All badges provide user-relevant processing information including data quality insights
+- **🔧 Tool Developers (26 checks)**: Most badges provide debugging and improvement insights
+- **🗃️ Source Data Providers (16 checks)**: Source Data badges highlight upstream data quality issues with granular tab-based feedback
+
+### **Source Data Concerns Modal Integration**
+
+The comprehensive **🟪 Source Data Concerns** modal consolidates data quality issues into a unified purple-themed badge with specialized tabs:
+
+- **Real CVE Pattern Validation**: Based on production analysis of CVE-2024-20515 and CVE-1337-99997 test data
+- **Consolidated Badge Display**: Multiple issues consolidated into single badge with count (e.g., "🔍 Source Data Concerns (3)")
+- **Granular Tab Organization**: 8 specialized tabs for different concern types
+- **Wildcard Routing Logic**: Wildcards correctly route to JSON Generation Rules modal, not Source Data Concerns
+- **Multi-issue Consolidation**: Complex cases with multiple concern types properly consolidated
 
 ### **Multi-Audience Badge Examples**
+
+- **🟪 Source Data Concerns - Placeholder Data**:
+  - **Tool Users**: "Vendor field contains 'n/a' - may affect CPE matching accuracy"
+  - **Tool Developers**: "Placeholder detection working correctly with NON_SPECIFIC_VERSION_VALUES"
+  - **Source Data Providers**: "Vendor field contains placeholder 'n/a' - provide specific vendor name"
+
+- **🟪 Source Data Concerns - Version Text Patterns**:
+  - **Tool Users**: "Version contains 'beta' text - may affect version matching precision"
+  - **Tool Developers**: "Text pattern detection working for pre-release indicators"
+  - **Source Data Providers**: "Version '10.*.beta' contains text patterns - consider structured version fields"
 
 - **🟪 Platforms Data Concern**:
   - **Tool Users**: "There's an issue with platform data"
