@@ -41,18 +41,30 @@ function normalizeCpeString(cpeBase) {
 }
 
 /**
+ * Determine vulnerability based on status (mirrors Python logic)
+ * @param {string} status - The status value ('affected', 'unaffected', 'unknown')
+ * @returns {boolean} True if vulnerable (affected), false otherwise
+ */
+function determineVulnerability(status) {
+    // Only 'affected' status means vulnerable
+    // 'unaffected' and 'unknown' both mean not vulnerable
+    return status === 'affected';
+}
+
+/**
  * Creates a CPE match object for a given CPE base string
  * @param {string} cpeBase - The base CPE string
+ * @param {boolean} isVulnerable - Whether this is vulnerable (optional, defaults to true for backward compatibility)
  * @returns {Object} A CPE match object
  */
-function createCpeMatchObject(cpeBase) {
+function createCpeMatchObject(cpeBase, isVulnerable = true) {
     // Normalize the base CPE string if needed
     cpeBase = normalizeCpeString(cpeBase);
     
     return {
         "criteria": cpeBase,
         "matchCriteriaId": generateMatchCriteriaId(),
-        "vulnerable": true
+        "vulnerable": isVulnerable
     };
 }
 
@@ -104,16 +116,22 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData, tableId) {
     
     // Check if we have valid version data (for both custom and standard CPEs)
     if (!rawPlatformData || !rawPlatformData.versions || !Array.isArray(rawPlatformData.versions) || rawPlatformData.versions.length === 0) {
-        console.debug("No version data available, using basic CPE match");
+        console.debug("No version data available, using basic CPE match with defaultStatus");
+        
+        // Determine vulnerability from defaultStatus when no version data exists
+        const defaultStatus = rawPlatformData ? rawPlatformData.defaultStatus || 'unknown' : 'unknown';
+        const isVulnerable = determineVulnerability(defaultStatus);
+        console.debug(`Using defaultStatus '${defaultStatus}' → vulnerable: ${isVulnerable}`);
         
         // For custom CPEs, use their handler to create the basic match
         if (window.customCPEHandlers && window.customCPEHandlers.has(cpeBase)) {
             const handler = window.customCPEHandlers.get(cpeBase);
+            // Note: Custom CPE handlers may have their own vulnerability logic
             return [handler.createMatch()];
         }
         
-        // For standard CPEs, use the standard basic match
-        const basicMatch = createCpeMatchObject(cpeBase);
+        // For standard CPEs, use the standard basic match with proper vulnerability
+        const basicMatch = createCpeMatchObject(cpeBase, isVulnerable);
         return [basicMatch];
     }
     
@@ -141,7 +159,10 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData, tableId) {
                 return [handler.createMatch()];
             }
             
-            const basicMatch = createCpeMatchObject(cpeBase);
+            // Determine vulnerability from defaultStatus for fallback
+            const defaultStatus = rawPlatformData ? rawPlatformData.defaultStatus || 'unknown' : 'unknown';
+            const isVulnerable = determineVulnerability(defaultStatus);
+            const basicMatch = createCpeMatchObject(cpeBase, isVulnerable);
             console.debug("Returning basic CPE match as fallback");
             return [basicMatch];
         }
@@ -155,7 +176,10 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData, tableId) {
             return [handler.createMatch()];
         }
         
-        const basicMatch = createCpeMatchObject(cpeBase);
+        // Determine vulnerability from defaultStatus for fallback
+        const defaultStatus = rawPlatformData ? rawPlatformData.defaultStatus || 'unknown' : 'unknown';
+        const isVulnerable = determineVulnerability(defaultStatus);
+        const basicMatch = createCpeMatchObject(cpeBase, isVulnerable);
         console.debug("Returning basic CPE match due to missing modular rules engine");
         return [basicMatch];    }
 }
@@ -500,6 +524,7 @@ window.consolidatedJsons = window.consolidatedJsons || new Map();
 window.rowSettings = window.rowSettings || new Map();
 
 // Export functions for integration with other modules
+window.determineVulnerability = determineVulnerability;
 window.normalizeCpeString = normalizeCpeString;
 window.createCpeMatchObject = createCpeMatchObject;
 window.processJsonBasedOnSource = processJsonBasedOnSource;

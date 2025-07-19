@@ -134,6 +134,13 @@ This comprehensive matrix maps all platform entry notification badges and their 
 - Consider user preference toggles for developer-focused badges
 - Add badge frequency statistics to dashboard
 
+### **Updated Architecture (PROJECT_2)**
+
+- **Two-Tier Case Classification**: Now uses `Modal-Only Cases` and `Complex Cases` (previously: Simple → All Versions → Complex)
+- **File Size Optimization**: Modal-only cases skip JSON Generation Settings HTML generation for significant space savings
+- **Unified Function**: `is_modal_only_case()` replaces separate `is_simple_all_versions_case()` and `is_all_versions_case()` functions
+- **Vulnerable Flag Logic**: Consistent `'affected'` → `vulnerable: true`, others → `false` across all badge types
+
 ---
 
 *This matrix reflects the actual badge system implementation as of the latest code review and validates against real-world HTML output examples.*

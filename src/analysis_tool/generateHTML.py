@@ -179,9 +179,13 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
             version_lines.append(check_str)
         version_tooltip = "&#013;".join(version_lines)
 
-    if platform_format_type == 'cveAffectsNoVersions':
+    # Check if this will be handled by modal-only cases in JSON Generation Rules
+    from .badge_modal_system import is_modal_only_case
+    
+    if platform_format_type == 'cveAffectsNoVersions' and not is_modal_only_case(raw_platform_data):
         danger_badges.append(f'<span class="badge bg-danger" title="{version_tooltip}">{readable_format_type}</span> ')
     # Note: Platform Format Type for other cases is now handled in Supporting Information modal
+    # Note: Simple cases (defaultStatus 'affected' + no versions) are now handled in JSON Generation Rules All Versions modal
 
     # ===== 🔵 INFO BADGES (Blue) =====
     
@@ -196,15 +200,14 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         changes_tooltip = 'Versions array contains change history information requiring special handling'
         warning_badges.append(f'<span class="badge bg-warning" title="{changes_tooltip}">Has Version Changes</span> ')
 
-    # 8. JSON Generation Rules badge (unified wildcards + update patterns)
+    # 8. JSON Generation Rules badge (unified wildcards + update patterns + all versions)
     has_wildcards = characteristics['has_wildcards']
     has_update_patterns = characteristics['has_update_patterns'] and characteristics['update_patterns']
     
-    if has_wildcards or has_update_patterns:
-        # Use the unified JSON Generation Rules badge system that handles both wildcards and update patterns
-        json_rules_badge = create_json_generation_rules_badge(tableIndex, raw_platform_data, vendor, product, row)
-        if json_rules_badge:
-            warning_badges.append(json_rules_badge)
+    # Always call the unified JSON Generation Rules badge system - it handles simple cases, all versions, and complex cases
+    json_rules_badge = create_json_generation_rules_badge(tableIndex, raw_platform_data, vendor, product, row)
+    if json_rules_badge:
+        warning_badges.append(json_rules_badge)
 
     # ===== ⚫ STANDARD BADGES (Gray) =====
     
@@ -1222,10 +1225,17 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
             html_content += "</div>"  # Close the container div
             result_df.at[index, 'cpeQueryHTML'] = html_content
         
-        # Store settings HTML for this table
+        # Store settings HTML for this table - ONLY if it needs JSON generation settings
         table_id = f"matchesTable_{index}"
         raw_platform_data = row.get('rawPlatformData', {})
-        store_json_settings_html(table_id, raw_platform_data)
+        
+        # Import the modal-only case detection function
+        from .badge_modal_system import is_modal_only_case
+        
+        # Only create JSON settings HTML for complex cases that need interactive settings
+        # Skip modal-only cases - they only need modal content, no settings
+        if not is_modal_only_case(raw_platform_data):
+            store_json_settings_html(table_id, raw_platform_data)
     
     return result_df
 

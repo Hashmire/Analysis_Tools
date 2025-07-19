@@ -36,7 +36,9 @@ const JSON_GENERATION_RULES = {
             for (const versionInfo of versionData.versions) {
                 if (!versionInfo) continue;
                 
-                const isVulnerable = versionInfo.status === "affected";
+                // Use centralized vulnerability determination (mirrors Python logic)
+                const status = versionInfo.status || 'unknown';
+                const isVulnerable = window.determineVulnerability(status);
                 let wildcardProcessed = false;
                 
                 // Handle wildcards in the version field directly
@@ -153,7 +155,9 @@ const JSON_GENERATION_RULES = {
                 
                 // Process each non-wildcard version individually
                 for (const versionInfo of nonWildcardVersions) {
-                    const isVulnerable = versionInfo.status === "affected";
+                    // Use centralized vulnerability determination (mirrors Python logic)
+                    const status = versionInfo.status || 'unknown';
+                    const isVulnerable = window.determineVulnerability(status);
                     const otherRulesResult = context.applyOtherRules(cpeBase, versionInfo, isVulnerable, ['wildcardExpansion']);
                     
                     if (otherRulesResult.processed) {
@@ -558,7 +562,9 @@ const JSON_GENERATION_RULES = {
             // Process each branch separately
             for (const [branch, versions] of branchMap) {
                 for (const versionInfo of versions) {
-                    const isVulnerable = versionInfo.status === "affected";
+                    // Use centralized vulnerability determination (mirrors Python logic)
+                    const status = versionInfo.status || 'unknown';
+                    const isVulnerable = window.determineVulnerability(status);
                     const otherRulesResult = context.applyOtherRules(cpeBase, versionInfo, isVulnerable, ['multipleBranches']);
                       if (otherRulesResult.processed) {
                         matches.push(...otherRulesResult.matches);
@@ -828,7 +834,9 @@ class ModularRuleEngine {
             
             // Process each version in this branch
             for (const versionInfo of versions) {
-                const isVulnerable = versionInfo.status === "affected";
+                // Use centralized vulnerability determination (mirrors Python logic)
+                const status = versionInfo.status || 'unknown';
+                const isVulnerable = window.determineVulnerability(status);
                 const otherRulesResult = this.applyOtherRules(cpeBase, versionInfo, isVulnerable, ['multipleBranches', 'mixedStatus']);
                 
                 if (otherRulesResult.processed) {
@@ -966,7 +974,9 @@ class ModularRuleEngine {
         for (const versionInfo of this.versionData.versions) {
             if (!versionInfo) continue;
             
-            const isVulnerable = versionInfo.status === "affected";
+            // Use centralized vulnerability determination (mirrors Python logic)
+            const status = versionInfo.status || 'unknown';
+            const isVulnerable = window.determineVulnerability(status);
             const versionMatches = this.processVersion(cpeBase, versionInfo, isVulnerable);
             matches.push(...versionMatches);
         }
@@ -1062,7 +1072,9 @@ class ModularRuleEngine {
                 continue;
             }
             
-            const isVulnerable = versionInfo.status === "affected";
+            // Use centralized vulnerability determination (mirrors Python logic)
+            const status = versionInfo.status || 'unknown';
+            const isVulnerable = window.determineVulnerability(status);
             
             for (const { id, rule } of perVersionRules) {
                 // Check if this rule is appropriate for this version

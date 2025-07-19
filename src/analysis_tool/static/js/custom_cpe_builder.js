@@ -639,8 +639,8 @@ function registerCustomCpeHandler(cpeBaseString, tableId) {
                 for (const versionInfo of rawPlatformData.versions) {
                     if (!versionInfo) continue;
                     
-                    // Determine if this version is vulnerable based on status
-                    const isVulnerable = versionInfo.status === "affected";
+                    // Determine if this version is vulnerable based on status using centralized function
+                    const isVulnerable = window.determineVulnerability(versionInfo.status);
                     
                     // Create cpeMatch using the consolidated function
                     const cpeMatch = createCpeMatchFromVersionInfo(cpeBaseString, versionInfo, isVulnerable);
@@ -648,13 +648,18 @@ function registerCustomCpeHandler(cpeBaseString, tableId) {
                 }
                 
                 if (cpeMatches.length === 0) {
-                    return [createCpeMatchObject(cpeBaseString)];
+                    // No version matches - use defaultStatus to determine vulnerability
+                    const defaultStatus = rawPlatformData.defaultStatus || 'unknown';
+                    const isVulnerable = window.determineVulnerability(defaultStatus);
+                    return [createCpeMatchObject(cpeBaseString, isVulnerable)];
                 }
                 
                 return cpeMatches;
             } else {
-                // Fallback to basic match if no version info
-                return [createCpeMatchObject(cpeBaseString)];
+                // Basic match if no version info - use defaultStatus to determine vulnerability
+                const defaultStatus = rawPlatformData ? rawPlatformData.defaultStatus || 'unknown' : 'unknown';
+                const isVulnerable = window.determineVulnerability(defaultStatus);
+                return [createCpeMatchObject(cpeBaseString, isVulnerable)];
             }
         }
     });

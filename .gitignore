@@ -30,3 +30,4 @@ src/analysis_tool/utilities/__pycache__/*
 test_output/*
 src/__pycache__/*
 datasets/*
+.github/copilot-instructions.md

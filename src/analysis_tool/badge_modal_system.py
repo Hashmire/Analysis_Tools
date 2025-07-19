@@ -270,6 +270,79 @@ def get_consolidated_platform_notification_script() -> str:
     else:
         return ""
 
+# ===== SIMPLE CASE DETECTION =====
+
+def is_modal_only_case(raw_platform_data: Dict) -> bool:
+    """
+    Detect cases that should get modal content only (no JSON Generation Settings).
+    
+    This unified function combines what were previously "simple" and "all versions" cases
+    since they both have the same behavior: modal content only, no interactive settings.
+    
+    Args:
+        raw_platform_data: The raw platform data from CVE/NVD APIs
+        
+    Returns:
+        bool: True if this case should get modal only (no JSON settings)
+    """
+    if not raw_platform_data or not isinstance(raw_platform_data, dict):
+        return True  # No data = modal only
+    
+    versions = raw_platform_data.get('versions', [])
+    default_status = raw_platform_data.get('defaultStatus', 'unknown')
+    
+    # CASE 1: Simple cases - defaultStatus with no version constraints
+    # (implies all versions have that status)
+    if not versions and default_status in ['affected', 'unaffected', 'unknown']:
+        logger.debug(f"Modal-only case detected: Simple defaultStatus '{default_status}' with no versions", group="DATA_PROC")
+        return True
+    
+    # CASE 2: Basic version patterns with no constraints
+    if len(versions) <= 2:
+        all_versions_patterns = 0
+        for version in versions:
+            if not isinstance(version, dict):
+                continue
+                
+            if (version.get('status') in ['affected', 'unaffected', 'unknown'] and 
+                version.get('version') in ['*', '0'] and
+                not version.get('changes') and  # No complex version.changes
+                not version.get('lessThanOrEqual') and  # No range constraints
+                not version.get('lessThan') and  # No range constraints
+                not version.get('greaterThan') and  # No range constraints
+                not version.get('greaterThanOrEqual') and  # No range constraints
+                version.get('versionType', 'semver') in ['custom', 'semver']):
+                all_versions_patterns += 1
+        
+        # If all versions are basic patterns, this is modal-only
+        if all_versions_patterns == len(versions) and all_versions_patterns > 0:
+            logger.debug(f"Modal-only case detected: {all_versions_patterns} basic all-versions patterns", group="DATA_PROC")
+            return True
+    
+    # CASE 3: Complex "All Versions" patterns that still only need modal content
+    for version in versions:
+        if not isinstance(version, dict):
+            continue
+            
+        status = version.get('status', 'unknown')
+        # Process ALL statuses (affected, unaffected, unknown)
+        if status not in ['affected', 'unaffected', 'unknown']:
+            continue
+            
+        # lessThanOrEqual: "*" alone (all versions up to infinity) - without specific start version
+        if version.get('lessThanOrEqual') == '*' and not version.get('version'):
+            logger.debug("Modal-only case detected: lessThanOrEqual '*' pattern with no start version", group="DATA_PROC")
+            return True
+        
+        # version: "*" with additional constraints (needs wildcard processing but still modal-only)
+        if (version.get('version') == '*' and 
+            (version.get('lessThanOrEqual') or version.get('lessThan') or 
+             version.get('greaterThan') or version.get('greaterThanOrEqual'))):
+            logger.debug("Modal-only case detected: version '*' with additional constraints", group="DATA_PROC")
+            return True
+    
+    return False
+
 # ===== WILDCARD ANALYSIS FUNCTIONS =====
 
 def analyze_wildcard_generation(raw_platform_data: Dict) -> Dict:
@@ -366,12 +439,11 @@ def analyze_wildcard_transformation(version_str: str, field: str) -> Optional[Di
                     next_patch = str(int(patch) + 1)
                     end_version = f"{major}.{minor}.{next_patch}.0"
                 except ValueError:
-                    # Handle non-numeric version components
+                    # Handle non-numeric version components like "0-beta"
                     end_version = f"{major}.{minor}.{patch}.∞"
             else:
-                # Fallback for complex patterns
-                start_version = base_pattern + ".0"
-                end_version = "unknown"
+                # Complex patterns - fail with clear error rather than guessing
+                raise ValueError(f"Unsupported complex wildcard pattern: {base_pattern}")
         else:
             # Single component wildcard (e.g., "5.*")
             start_version = base_pattern + ".0.0"
@@ -568,32 +640,8 @@ def analyze_version_characteristics(raw_platform_data):
                         concern = f"Update pattern for {field}: {field_value} → {transformed_version}"
                         processed_update_patterns.add(html.escape(concern))
                     else:
-                        # Fallback for patterns that match but don't transform (shouldn't happen)
-                        matching_update_patterns = [pattern.pattern for pattern in compiled_update_patterns if pattern.match(field_value)]
-                        pattern_names = []
-                        for pattern in matching_update_patterns[:3]:  # Limit to 3
-                            if 'patch' in pattern:
-                                pattern_names.append('patch')
-                            elif 'sp|service' in pattern:
-                                pattern_names.append('service pack')
-                            elif 'alpha' in pattern:
-                                pattern_names.append('alpha')
-                            elif 'beta' in pattern:
-                                pattern_names.append('beta')
-                            elif 'rc|release' in pattern:
-                                pattern_names.append('release candidate')
-                            elif 'hotfix|hf' in pattern:
-                                pattern_names.append('hotfix')
-                            elif 'update|upd' in pattern:
-                                pattern_names.append('update')
-                            elif 'fix' in pattern:
-                                pattern_names.append('fix')
-                            elif 'revision|rev' in pattern:
-                                pattern_names.append('revision')
-                        
-                        if pattern_names:
-                            concern = f"Update attribute content in {field}: {field_value} ({', '.join(set(pattern_names))})"
-                            processed_update_patterns.add(html.escape(concern))
+                        # This should not happen - fail with clear error instead of masking
+                        raise ValueError(f"Update pattern matched but failed to transform: {field}={field_value}")
             
             # Handle dictionary values (nested version objects)
             elif isinstance(field_value, dict):
@@ -727,6 +775,19 @@ def analyze_version_characteristics(raw_platform_data):
     return characteristics
 
 def analyze_data_for_smart_defaults(raw_platform_data):
+    """
+    Analyze platform data to determine intelligent defaults for JSON generation settings.
+    Returns None for simple cases to skip JSON generation entirely.
+    """
+    # NEW: Check for simple cases first
+    if not raw_platform_data:
+        return None  # No data = no JSON generation needed
+    
+    if is_modal_only_case(raw_platform_data):
+        logger.debug("Skipping settings analysis for modal-only case", group="BADGE_GEN")
+        return None  # Modal-only case = no JSON generation needed
+    
+    # EXISTING: Continue with existing settings analysis for complex cases
     """Generate intelligent settings using centralized analysis"""
     characteristics = analyze_version_characteristics(raw_platform_data)
     
@@ -744,6 +805,10 @@ def analyze_data_for_smart_defaults(raw_platform_data):
     enable_multiple_branches = characteristics['has_multiple_branches']
     if characteristics['has_wildcards'] and enable_multiple_branches:
         enable_multiple_branches = False
+
+    # Analyze CPE base generation needs
+    cpe_base_info = analyze_cpe_base_string_generation(raw_platform_data)
+    enable_cpe_base_generation = cpe_base_info['has_cpe_base_generation']
     
     return {
         'enableWildcardExpansion': characteristics['has_wildcards'],
@@ -753,7 +818,8 @@ def analyze_data_for_smart_defaults(raw_platform_data):
         'enableMultipleBranches': enable_multiple_branches,
         'enableMixedStatus': characteristics['has_mixed_status'],
         'enableGapProcessing': characteristics['needs_gap_processing'],
-        'enableUpdatePatterns': enable_update_patterns
+        'enableUpdatePatterns': enable_update_patterns,
+        'enableCpeBaseGeneration': enable_cpe_base_generation
     }
 
 def has_update_related_content(raw_platform_data):
@@ -977,11 +1043,86 @@ def analyze_update_patterns(raw_platform_data: Dict) -> Dict:
     
     return update_info
 
+def analyze_cpe_base_string_generation(raw_platform_data: Dict) -> Dict:
+    """
+    Analyze if this platform entry represents "all versions" cases that need special JSON generation.
+    
+    This handles cases where version constraints represent "all versions" scenarios:
+    - defaultStatus: "affected" with no version constraints (implies all versions)
+    - version: "*" (explicitly all versions)  
+    - lessThanOrEqual: "*" (all versions up to infinity)
+    - version: "0" with lessThanOrEqual: "*" (range covering all versions)
+    
+    Args:
+        raw_platform_data: The raw platform data from CVE/NVD APIs
+        
+    Returns:
+        Dict with information about CPE base string generation needs
+    """
+    cpe_base_info = {
+        'has_cpe_base_generation': False,
+        'transformations': []
+    }
+    
+    if not raw_platform_data or not isinstance(raw_platform_data, dict):
+        return cpe_base_info
+    
+    versions = raw_platform_data.get('versions', [])
+    default_status = raw_platform_data.get('defaultStatus', 'unknown')
+    
+    # Case 1: defaultStatus with no version constraints (implies all versions)
+    if not versions:  # No versions array means defaultStatus applies to all versions
+        cpe_base_info['has_cpe_base_generation'] = True
+        cpe_base_info['transformations'].append({
+            'type': 'defaultStatusAllVersions',
+            'description': f'defaultStatus: "{default_status}" with no version constraints implies all versions are {default_status}',
+            'pattern': f'defaultStatus: {default_status}',
+            'status': default_status,  # Pass the status for vulnerability determination
+            'cpe_generation_need': f'Generate CPE base string with wildcard version (*) to represent all versions as {default_status}'
+        })
+    
+    # Case 2-4: Explicit "all versions" patterns in version constraints
+    for version in versions:
+        if not isinstance(version, dict):
+            continue
+            
+        status = version.get('status', 'unknown')
+        # Process ALL statuses (affected, unaffected, unknown) for CPE generation
+        
+        # Case 2: version: "*" (explicitly all versions)
+        if version.get('version') == '*':
+            cpe_base_info['has_cpe_base_generation'] = True
+            cpe_base_info['transformations'].append({
+                'type': 'explicitWildcard',
+                'description': f'version: "*" explicitly represents all versions with status "{status}"',
+                'pattern': 'version: "*"',
+                'status': status,  # Pass the status for vulnerability determination
+                'cpe_generation_need': f'Generate CPE base string with wildcard version (*) to match all versions as {status}'
+            })
+        
+        # Case 3: lessThanOrEqual: "*" alone (all versions up to infinity) - but only without a specific start version
+        if version.get('lessThanOrEqual') == '*' and not version.get('version'):
+            cpe_base_info['has_cpe_base_generation'] = True
+            cpe_base_info['transformations'].append({
+                'type': 'lessThanOrEqualWildcard',
+                'description': f'lessThanOrEqual: "*" with no start version represents all versions up to infinity with status "{status}"',
+                'pattern': 'lessThanOrEqual: "*" (no start version)',
+                'status': status,  # Pass the status for vulnerability determination
+                'cpe_generation_need': f'Generate CPE base string with wildcard version (*) to cover infinite version range as {status}'
+            })
+    
+    return cpe_base_info
+
 # ===== BADGE CREATION FUNCTIONS =====
 
 def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict, vendor: str, product: str, row: Dict) -> Optional[str]:
     """
-    Create a unified JSON Generation Rules badge that combines wildcard generation and update patterns.
+    Create a unified JSON Generation Rules badge with optimized detection logic.
+    
+    Detection hierarchy:
+    1. Simple cases: Skip all processing (no badge)
+    2. All Versions cases: Badge with modal but no JSON settings HTML
+    3. Complex cases: Badge with modal and full JSON settings HTML
     
     Args:
         table_index: The table index for unique identification
@@ -993,15 +1134,91 @@ def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict
     Returns:
         HTML string for the badge, or None if no applicable rules detected
     """
-    # Analyze both wildcard generation and update patterns
+    # STEP 1: Check for modal-only cases - include them in All Versions modal
+    if is_modal_only_case(raw_platform_data):
+        logger.debug(f"Modal-only case detected for table {table_index} - creating All Versions badge with modal content only", group="BADGE_GEN")
+        
+        # Create modal content for simple case
+        modal_content = {
+            "rules": [],
+            "summary": {
+                "total_rules": 1,
+                "rule_types": ["All Versions Pattern"]
+            }
+        }
+        
+        # Determine vulnerability based on defaultStatus
+        default_status = raw_platform_data.get('defaultStatus', 'unknown')
+        is_vulnerable = default_status == 'affected'
+        
+        # Add simple case tab content
+        simple_case_rule = {
+            "type": "allVersionsPattern",
+            "title": "All Versions",
+            "count": 1,
+            "setting_key": "enableCpeBaseGeneration",
+            "table_id": f"matchesTable_{table_index}",
+            "description": f"Simple 'CVE Affects Product (No Versions)' case - defaultStatus '{default_status}' with no version constraints implies all versions are {default_status}.",
+            "transformations": [
+                {
+                    "type": "defaultStatusAllVersions",
+                    "description": f"defaultStatus: '{default_status}' with no version constraints implies all versions are {default_status}",
+                    "input": {
+                        "defaultStatus": default_status
+                        # No versions array present
+                    },
+                    "output": {
+                        "cpeMatch": [
+                            [
+                                {
+                                    "criteria": "cpe:2.3:a:{vendor}:{product}:*:*:*:*:*:*:*:*",
+                                    "matchCriteriaId": "generated_RVFOW3S3G",
+                                    "vulnerable": is_vulnerable
+                                }
+                            ]
+                        ]
+                    },
+                    "explanation": f"Simple case where no version constraints means all versions are {default_status} - creates basic CPE base string match with vulnerable={is_vulnerable}",
+                    "pattern": f"defaultStatus: '{default_status}', no versions array"
+                }
+            ]
+        }
+        modal_content["rules"].append(simple_case_rule)
+        
+        # Register the modal content
+        register_platform_notification_data(table_index, 'jsonGenerationRules', modal_content)
+        
+        # Create badge with simple case tooltip
+        tooltip = f"Simple case: CVE Affects Product (No Versions) - defaultStatus '{default_status}' with no versions implies all versions are {default_status}."
+        
+        # Create the badge HTML
+        source_role = row.get('sourceRole', 'Unknown')
+        header_parts = [source_role]
+        if vendor and vendor != 'unknown':
+            header_parts.append(vendor)
+        if product and product != 'unknown':
+            header_parts.append(product)
+        
+        header_identifier = f"Platform Entry {table_index} ({', '.join(header_parts)})"
+        badge_html = f'<span class="badge modal-badge bg-warning" onclick="BadgeModalManager.openJsonGenerationRulesModal(\'{table_index}\', \'{header_identifier}\')" title="{tooltip}">⚙️ JSON Generation Rules</span> '
+        
+        return badge_html
+    
+    # STEP 2: Complex cases need full analysis with wildcard generation, update patterns, and CPE base generation
+    logger.debug(f"Complex case detected for table {table_index} - full JSON generation processing", group="BADGE_GEN")
+    
+    # EXISTING: Continue with existing badge creation logic for complex cases
+    # Analyze wildcard generation, update patterns, and CPE base generation
     wildcard_info = analyze_wildcard_generation(raw_platform_data)
     update_info = analyze_update_patterns(raw_platform_data)
+    cpe_base_info = analyze_cpe_base_string_generation(raw_platform_data)
     
     # Check if any rules apply
     has_wildcards = wildcard_info['has_wildcards']
     has_update_patterns = update_info['has_update_patterns']
+    has_cpe_base_generation = cpe_base_info['has_cpe_base_generation']
     
-    if not has_wildcards and not has_update_patterns:
+    if not has_wildcards and not has_update_patterns and not has_cpe_base_generation:
         return None
     
     # Build modal content with tabs for each rule type
@@ -1144,6 +1361,36 @@ def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict
             })
         
         modal_content["summary"]["rule_types"].append("Update Pattern Detection")
+        modal_content["summary"]["total_rules"] += 1
+    
+    # Add CPE base generation tab if applicable
+    if has_cpe_base_generation and cpe_base_info['transformations']:
+        cpe_count = len(cpe_base_info['transformations'])
+        cpe_base_rule = {
+            "type": "allVersionsPattern",
+            "title": "All Versions Pattern",
+            "count": cpe_count,
+            "setting_key": "enableCpeBaseGeneration",
+            "table_id": f"matchesTable_{table_index}",
+            "description": "Handles 'all versions' cases with appropriate JSON generation. Processes scenarios like defaultStatus: 'affected' or version: '*' that represent broad version coverage.",
+            "transformations": []
+        }
+        modal_content["rules"].append(cpe_base_rule)
+        
+        # Get the index of the CPE base rule we just added
+        cpe_base_index = len(modal_content["rules"]) - 1
+        
+        # Process CPE base generation transformations
+        for transformation in cpe_base_info['transformations']:
+            modal_content["rules"][cpe_base_index]["transformations"].append({
+                "type": transformation['type'],
+                "description": transformation['description'],
+                "pattern": transformation['pattern'],
+                "cpe_generation_need": transformation['cpe_generation_need'],
+                "json_implication": "Requires generating CPE base string with wildcard version for comprehensive coverage"
+            })
+        
+        modal_content["summary"]["rule_types"].append("All Versions Pattern")
         modal_content["summary"]["total_rules"] += 1
     
     # Register the modal content
@@ -1635,6 +1882,22 @@ def create_json_generation_settings_html(table_id, settings=None):
                                 </small>
                             </label>
                         </div>
+                        <div class="form-check mb-1">
+                            <input class="form-check-input row-setting" type="checkbox" 
+                                   id="enableCpeBaseGeneration_{table_id}" 
+                                   data-setting="enableCpeBaseGeneration"
+                                   data-table-id="{table_id}" 
+                                   {checked('enableCpeBaseGeneration')}>
+                            <label class="form-check-label" for="enableCpeBaseGeneration_{table_id}"
+                                   data-bs-toggle="tooltip" data-bs-placement="top" 
+                                   title="Handles 'all versions' cases that need CPE base string generation. Processes scenarios like defaultStatus: 'affected' with no versions, or explicit wildcard patterns (version: '*', lessThanOrEqual: '*') that represent broad version coverage requiring wildcard CPE generation.">
+                                <small>All Versions Pattern Processing 
+                                    <span class="text-muted">(CPE base string generation)</span>
+                                    <span class="feature-indicator" data-feature="hasCpeBaseGeneration"></span>
+                                    <i class="fas fa-info-circle text-muted ms-1"></i>
+                                </small>
+                            </label>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <h6 class="text-muted mb-2">Status Processing</h6>
@@ -1821,7 +2084,10 @@ def clear_global_html_state():
     logger.debug("Cleared global HTML state and badge/modal registries", group="page_generation")
 
 def store_json_settings_html(table_id, raw_platform_data=None):
-    """Store the JSON settings HTML for a table with intelligent defaults"""
+    """
+    Store JSON settings HTML for complex cases only.
+    Simple cases and All Versions cases skip storage entirely to save file space.
+    """
     global JSON_SETTINGS_HTML, INTELLIGENT_SETTINGS
     
     # Ensure global dictionaries exist and are initialized
@@ -1830,12 +2096,22 @@ def store_json_settings_html(table_id, raw_platform_data=None):
     if 'INTELLIGENT_SETTINGS' not in globals() or INTELLIGENT_SETTINGS is None:
         INTELLIGENT_SETTINGS = {}
     
-    # Analyze data to determine which checkboxes should be checked
-    settings = analyze_data_for_smart_defaults(raw_platform_data) if raw_platform_data else {}
+    # STEP 1: Check for modal-only cases - these don't need JSON generation settings
+    if not raw_platform_data or is_modal_only_case(raw_platform_data):
+        logger.debug(f"Skipping JSON generation for {table_id} - modal-only case detected", group="BADGE_GEN")
+        return  # Don't store anything, no JSON generation needed
     
-    # Store the HTML
+    # STEP 2: Complex cases - generate full settings analysis and HTML
+    settings = analyze_data_for_smart_defaults(raw_platform_data)
+    
+    # If settings is None (shouldn't happen for complex cases, but safety check)
+    if settings is None:
+        logger.debug(f"Unexpected: Complex case returned None settings for {table_id}", group="BADGE_GEN")
+        return
+    
+    # Store the HTML and settings for complex cases
     JSON_SETTINGS_HTML[table_id] = create_json_generation_settings_html(table_id, settings)
-    
-    # Store intelligent settings for JavaScript
     INTELLIGENT_SETTINGS[table_id] = settings
+    
+    logger.debug(f"Generated JSON settings HTML for complex case {table_id}", group="BADGE_GEN")
 

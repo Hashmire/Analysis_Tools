@@ -4,6 +4,32 @@
 
 The Modular Badge Modal System provides a fail-fast, reusable modal framework for displaying multiple types of CPE-related data. The system is designed for robustness with strict error handling and no fallback mechanisms to ensure data integrity.
 
+## Case Classification (Updated)
+
+### Two-Tier Detection System
+
+1. **Modal-Only Cases**: Get badge with modal content only (no JSON Generation Settings)
+   - Simple cases: `defaultStatus` with no versions
+   - Basic patterns: Simple wildcard/version patterns that don't need interactive settings
+   - Detection: `is_modal_only_case(raw_platform_data)`
+
+2. **Complex Cases**: Get badge with modal content + JSON Generation Settings
+   - Range processing, complex wildcards, update patterns
+   - Need interactive transformation controls
+   - Detection: `not is_modal_only_case(raw_platform_data)`
+
+### PROJECT_2: Vulnerable Flag Determination
+
+All JSON generation now includes consistent vulnerable flag logic:
+
+- **`'affected'` status** → `vulnerable: true`
+- **All other statuses** (`'unaffected'`, `'unknown'`, etc.) → `vulnerable: false`
+
+This applies across:
+
+- Python: `is_vulnerable = default_status == 'affected'`
+- JavaScript: `determineVulnerability(status)` function
+
 ## Features
 
 - **Fail-Fast Architecture**: Strict error handling with no fallbacks - ensures data integrity
