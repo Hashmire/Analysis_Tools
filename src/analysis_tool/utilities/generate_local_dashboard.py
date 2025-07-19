@@ -736,6 +736,9 @@ def generate_dashboard_html(data, output_file):
         <div id="file-analysis" class="progress-section">
             <h3>📁 Generated Files Analysis</h3>
             {detailed_files}
+            
+            <!-- Template Deduplication Effectiveness -->
+            {deduplication_analysis}
         </div>
 
         <!-- Log Activity Summary -->
@@ -1220,6 +1223,194 @@ def generate_dashboard_html(data, output_file):
         <p style="color: #6c757d; text-align: center;">No detailed file data available</p>
         '''
 
+    # Generate deduplication analysis HTML
+    deduplication_stats = data.get("deduplication_stats", {})
+    deduplication_analysis_html = ""
+    
+    if deduplication_stats.get("total_entries", 0) > 0:
+        # Summary cards
+        overall_savings = deduplication_stats.get("overall_space_savings", 0)
+        templates_generated = deduplication_stats.get("templates_generated", 0)
+        most_effective_type = deduplication_stats.get("most_effective_type", "N/A")
+        most_effective_savings = deduplication_stats.get("most_effective_savings", 0)
+        performance_boost = deduplication_stats.get("performance_boost_estimate", 0)
+        
+        # Calculate templating efficiency rate
+        total_entries = deduplication_stats.get("total_entries", 0)
+        templated_entries = deduplication_stats.get("templated_entries", 0)
+        templating_efficiency = (templated_entries / total_entries * 100) if total_entries > 0 else 0
+        
+        # Calculate average space savings across all data types
+        data_types = deduplication_stats.get("data_types", {})
+        avg_space_savings = sum(dt.get("space_savings", 0) for dt in data_types.values()) / len(data_types) if data_types else 0
+        
+        deduplication_analysis_html = f'''
+        <h4 style="margin: 30px 0 15px 0; color: #2c3e50;">� HTML Generation Efficiency Analysis</h4>
+        
+        <!-- Summary Statistics -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0;">
+            <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #3498db;">
+                <div style="font-size: 1.3em; font-weight: bold; color: #2c3e50;">{templating_efficiency:.1f}%</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Data Reused via Templates</div>
+                <div style="font-size: 0.8em; color: #6c757d;">({templated_entries:,} of {total_entries:,} entries)</div>
+            </div>
+            <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #27ae60;">
+                <div style="font-size: 1.3em; font-weight: bold; color: #2c3e50;">{avg_space_savings:.1f}%</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Average Space Reduction</div>
+                <div style="font-size: 0.8em; color: #6c757d;">Across all data types</div>
+            </div>
+            <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #8e44ad;">
+                <div style="font-size: 1.3em; font-weight: bold; color: #2c3e50;">{templates_generated}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Unique Templates Created</div>
+                <div style="font-size: 0.8em; color: #6c757d;">Reusable patterns identified</div>
+            </div>
+            <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #f39c12;">
+                <div style="font-size: 1.1em; font-weight: bold; color: #2c3e50;">{most_effective_type}</div>
+                <div style="color: #6c757d; font-size: 0.9em;">Best Compression Type</div>
+                <div style="font-size: 0.85em; color: #f39c12; font-weight: 600;">({most_effective_savings:.1f}% reduction)</div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 15px; padding: 12px; background: #e8f4fd; border-left: 4px solid #3498db; border-radius: 4px;">
+            <p style="margin: 0; font-size: 0.9em; color: #2c3e50;">
+                <strong>📊 What This Means:</strong> Higher templating efficiency indicates the system is effectively identifying and reusing common patterns 
+                in vulnerability data, reducing redundant HTML generation. Space reduction shows how much file size is saved through template compression.
+                <br><strong>Impact:</strong> Better templating leads to faster page generation, smaller files, and more consistent formatting across CVE reports.
+            </p>
+        </div>
+        '''
+        
+        # Data type breakdown table
+        data_types = deduplication_stats.get("data_types", {})
+        if data_types:
+            deduplication_analysis_html += '''
+        <div style="overflow-x: auto; margin: 20px 0;">
+            <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; border: 1px solid #dee2e6;">
+                <thead style="background: #f8f9fa; color: #2c3e50; border-bottom: 2px solid #dee2e6;">
+                    <tr>
+                        <th style="padding: 12px; text-align: left; font-weight: 600;">Data Type</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600;">Total Entries</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600;">Reuse Rate</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600;">Size Reduction</th>
+                        <th style="padding: 12px; text-align: center; font-weight: 600;">Efficiency</th>
+                    </tr>
+                </thead>
+                <tbody>
+            '''
+            
+            # Sort data types by effectiveness (space savings)
+            sorted_types = sorted(data_types.items(), key=lambda x: x[1]['space_savings'], reverse=True)
+            
+            for data_type, type_stats in sorted_types:
+                total = type_stats['total_entries']
+                templated = type_stats['templated_entries']
+                direct = type_stats['direct_entries']
+                savings = type_stats['space_savings']
+                effectiveness = type_stats['effectiveness_rating']
+                
+                # Calculate reuse rate percentage
+                reuse_rate = (templated / total * 100) if total > 0 else 0
+                
+                # Calculate progress bar styling - high contrast, no gradients
+                progress_width = min(savings, 100)
+                if savings >= 80:
+                    progress_color = "#e74c3c"  # Red for excellent
+                    row_bg = "white"
+                    text_color = "#e74c3c"
+                elif savings >= 60:
+                    progress_color = "#f39c12"  # Orange for very good  
+                    row_bg = "white"
+                    text_color = "#f39c12"
+                elif savings >= 40:
+                    progress_color = "#27ae60"  # Green for good
+                    row_bg = "white" 
+                    text_color = "#27ae60"
+                else:
+                    progress_color = "#6c757d"  # Gray for low
+                    row_bg = "white"
+                    text_color = "#6c757d"
+                
+                deduplication_analysis_html += f'''
+                    <tr style="background: {row_bg}; border-bottom: 1px solid #dee2e6;">
+                        <td style="padding: 12px; font-weight: 600; color: #2c3e50;">
+                            <code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; color: #495057;">{data_type}</code>
+                        </td>
+                        <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">{total:,}</td>
+                        <td style="padding: 12px; text-align: center;">
+                            <span style="color: #3498db; font-weight: 600;">{reuse_rate:.1f}%</span>
+                            <div style="font-size: 0.8em; color: #6c757d;">({templated:,} of {total:,})</div>
+                        </td>
+                        <td style="padding: 12px; text-align: center;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                <div style="background: #f8f9fa; border-radius: 4px; height: 16px; width: 60px; border: 1px solid #dee2e6; position: relative;">
+                                    <div style="background: {progress_color}; height: 14px; border-radius: 3px; width: {progress_width}%;"></div>
+                                </div>
+                                <span style="font-size: 0.9em; font-weight: 600; color: {text_color}; min-width: 35px;">{savings:.1f}%</span>
+                            </div>
+                        </td>
+                        <td style="padding: 12px; text-align: center; font-size: 0.9em; color: #2c3e50;">
+                            <span style="background: {progress_color}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 600;">
+                                {effectiveness}
+                            </span>
+                        </td>
+                    </tr>
+                '''
+            
+            deduplication_analysis_html += '''
+                </tbody>
+            </table>
+        </div>
+        '''
+        
+        # Smart insights panel
+        insights = []
+        
+        if templating_efficiency >= 70:
+            insights.append("🎉 Excellent templating efficiency! The system is effectively reusing common patterns.")
+        elif templating_efficiency >= 50:
+            insights.append("✅ Good templating performance. Template consolidation is working well.")
+        elif templating_efficiency >= 30:
+            insights.append("⚡ Moderate template usage. Consider identifying more reusable patterns.")
+        else:
+            insights.append("⚠️ Low templating efficiency. Most data is generated from scratch - optimization opportunity exists.")
+            
+        if avg_space_savings > 60:
+            insights.append(f"📊 High compression rate ({avg_space_savings:.1f}% avg) indicates effective data reduction.")
+        elif avg_space_savings > 40:
+            insights.append(f"📋 Good space optimization ({avg_space_savings:.1f}% avg) across data types.")
+        elif avg_space_savings > 20:
+            insights.append(f"📈 Moderate compression ({avg_space_savings:.1f}% avg) - room for improvement exists.")
+            
+        if templates_generated > 50:
+            insights.append(f"� High template count ({templates_generated}) shows diverse data patterns being captured.")
+        elif templates_generated > 20:
+            insights.append(f"� Balanced template usage ({templates_generated}) indicates good pattern recognition.")
+        else:
+            insights.append(f"📋 Low template count ({templates_generated}) suggests data patterns are highly repetitive.")
+            
+        if most_effective_savings > 80:
+            insights.append(f"🔥 {most_effective_type} data shows exceptional templating success!")
+        elif most_effective_savings > 60:
+            insights.append(f"✨ {most_effective_type} data demonstrates strong templating potential.")
+            
+        if insights:
+            deduplication_analysis_html += f'''
+        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #3498db;">
+            <h5 style="margin: 0 0 10px 0; color: #2c3e50; font-weight: 600;">💡 Performance Insights</h5>
+            <ul style="margin: 0; padding-left: 20px; color: #495057;">
+                {"".join(f"<li style='margin: 5px 0; line-height: 1.4;'>{insight}</li>" for insight in insights)}
+            </ul>
+        </div>
+        '''
+    else:
+        deduplication_analysis_html = '''
+        <h4 style="margin: 30px 0 15px 0; color: #2c3e50;">� HTML Generation Efficiency Analysis</h4>
+        <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
+            <p style="color: #6c757d; margin: 0;">No templating data available - this analysis requires template optimization to be active during CVE processing.</p>
+            <p style="color: #6c757d; margin: 5px 0 0 0; font-size: 0.9em;">Template efficiency data will appear after processing CVEs with the templating system enabled.</p>
+        </div>
+        '''
+
     # Generate resource warnings HTML
     resource_warnings_html = ""
     total_warnings = sum(resource_warnings.values()) if resource_warnings else 0
@@ -1431,7 +1622,8 @@ def generate_dashboard_html(data, output_file):
         stages_progress=stages_html,
         api_breakdown=api_breakdown_html,
         cpe_breakdown=cpe_breakdown_html,
-        detailed_files=detailed_files_html
+        detailed_files=detailed_files_html,
+        deduplication_analysis=deduplication_analysis_html
     )
 
     # Write HTML file

@@ -58,6 +58,19 @@ class LogAnalyzer:
             return f"{size_bytes / 1024:.1f} KB"
         else:  # Bytes
             return f"{size_bytes} B"
+    
+    def _get_effectiveness_rating(self, space_savings):
+        """Get effectiveness rating based on space savings percentage"""
+        if space_savings >= 80:
+            return "🔥 Excellent"
+        elif space_savings >= 60:
+            return "⚡ Very Good"
+        elif space_savings >= 40:
+            return "📊 Good"
+        elif space_savings >= 20:
+            return "📋 Moderate"
+        else:
+            return "⚠️ Low"
         
     def find_latest_log(self):
         """Find the most recent log file"""
@@ -136,6 +149,17 @@ class LogAnalyzer:
                 "total_file_size": 0,
                 "average_file_size": 0,
                 "detailed_files": []  # List of detailed file info for top files table
+            },
+            "deduplication_stats": {
+                "total_entries": 0,
+                "templated_entries": 0,
+                "direct_entries": 0,
+                "overall_space_savings": 0.0,
+                "templates_generated": 0,
+                "data_types": {},  # Per data type breakdown
+                "most_effective_type": "",
+                "most_effective_savings": 0.0,
+                "performance_boost_estimate": 0.0
             },
             "speed_stats": {
                 "fastest_cve_time": None,
@@ -661,8 +685,10 @@ class LogAnalyzer:
                 self.data["file_stats"]["files_generated"] += 1
                 self.processed_files.add(file_name)
             
+            file_size = None
+            
             # If size is provided in the message, use it
-            if file_generated_match.group(2):  # Size value exists
+            if len(file_generated_match.groups()) >= 3 and file_generated_match.group(2):  # Size value exists
                 size_str = file_generated_match.group(2)
                 unit = file_generated_match.group(3)
                 
@@ -676,7 +702,17 @@ class LogAnalyzer:
                     file_size = int(size_value * 1024 * 1024 * 1024)
                 else:
                     file_size = int(size_value)  # Assume bytes
-                
+            else:
+                # Size not in log message, try to get it from the actual file
+                try:
+                    if os.path.exists(file_path):
+                        file_size = os.path.getsize(file_path)
+                except (OSError, IOError):
+                    # If we can't get the file size, skip it but continue processing
+                    pass
+            
+            # If we have a valid file size, update statistics
+            if file_size is not None:
                 # Update CVE processing data with file info
                 if cve_id and cve_id in self.cve_processing_data:
                     self.cve_processing_data[cve_id]["file_size"] = file_size
@@ -780,6 +816,42 @@ class LogAnalyzer:
             if "invalid_cpe_warnings" not in self.data["resource_warnings"]:
                 self.data["resource_warnings"]["invalid_cpe_warnings"] = 0
             self.data["resource_warnings"]["invalid_cpe_warnings"] += 1
+        
+        # Parse template deduplication effectiveness logs
+        # Pattern: "Template analysis for {data_type}: {total} total, {templated} templated, {direct} direct, {space_savings}% space savings"
+        dedup_match = re.search(r'Template analysis for ([^:]+): (\d+) total, (\d+) templated, (\d+) direct, ([\d.]+)% space savings', message)
+        if dedup_match:
+            data_type, total_str, templated_str, direct_str, savings_str = dedup_match.groups()
+            
+            total_entries = int(total_str)
+            templated_entries = int(templated_str) 
+            direct_entries = int(direct_str)
+            space_savings = float(savings_str)
+            
+            # Update overall statistics
+            dedup_stats = self.data["deduplication_stats"]
+            dedup_stats["total_entries"] += total_entries
+            dedup_stats["templated_entries"] += templated_entries
+            dedup_stats["direct_entries"] += direct_entries
+            
+            # Track per data type
+            dedup_stats["data_types"][data_type] = {
+                "total_entries": total_entries,
+                "templated_entries": templated_entries,
+                "direct_entries": direct_entries,
+                "space_savings": space_savings,
+                "effectiveness_rating": self._get_effectiveness_rating(space_savings)
+            }
+            
+            # Track most effective type
+            if space_savings > dedup_stats["most_effective_savings"]:
+                dedup_stats["most_effective_type"] = data_type
+                dedup_stats["most_effective_savings"] = space_savings
+        
+        # Count templates generated (look for template creation logs)
+        template_creation_match = re.search(r'([^_]+)_template_\d+', message)
+        if template_creation_match and 'templates' in message.lower():
+            self.data["deduplication_stats"]["templates_generated"] += 1
     
     def _parse_stage_performance(self, action, stage_name, timestamp_str, timestamp_obj):
         """Parse workflow stage performance information"""
@@ -913,6 +985,19 @@ class LogAnalyzer:
             self.data["processing"]["mapping_success_rate"] = 0
         if "avg_processing_speed" not in self.data["processing"]:
             self.data["processing"]["avg_processing_speed"] = 0
+        
+        # Calculate deduplication effectiveness metrics
+        dedup_stats = self.data["deduplication_stats"]
+        if dedup_stats["total_entries"] > 0:
+            # Calculate overall space savings
+            dedup_stats["overall_space_savings"] = (
+                dedup_stats["templated_entries"] / dedup_stats["total_entries"] * 100
+            )
+            
+            # Estimate performance boost (rough estimate: 5-15% boost based on space savings)
+            dedup_stats["performance_boost_estimate"] = (
+                dedup_stats["overall_space_savings"] * 0.15
+            )  # Conservative estimate: 15% of space savings translates to performance boost
     
     def _calculate_derived_metrics(self):
         """Calculate derived metrics from parsed data"""

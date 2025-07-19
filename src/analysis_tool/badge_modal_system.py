@@ -116,7 +116,8 @@ def clear_all_registries():
         'wildcardGeneration': {},
         'updatePatterns': {},
         'jsonGenerationRules': {},
-        'supportingInformation': {}
+        'supportingInformation': {},
+        'sourceDataConcerns': {}
     }
     
     logger.debug("Cleared all badge and modal registries", group="badge_modal")
@@ -828,6 +829,13 @@ Object.keys(window.{template_var_name}).forEach(templateId => {{
             logger.debug(f"{data_type}: {direct_count} direct registrations (patterns not beneficial for templating)", group="badge_modal")
     
     if script_content:
+        # Ensure all required keys exist in the registry
+        PLATFORM_ENTRY_NOTIFICATION_REGISTRY.setdefault('wildcardGeneration', {})
+        PLATFORM_ENTRY_NOTIFICATION_REGISTRY.setdefault('updatePatterns', {})
+        PLATFORM_ENTRY_NOTIFICATION_REGISTRY.setdefault('jsonGenerationRules', {})
+        PLATFORM_ENTRY_NOTIFICATION_REGISTRY.setdefault('supportingInformation', {})
+        PLATFORM_ENTRY_NOTIFICATION_REGISTRY.setdefault('sourceDataConcerns', {})
+        
         # Log individual counts for debugging
         wildcard_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['wildcardGeneration'])
         update_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['updatePatterns'])

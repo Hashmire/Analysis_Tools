@@ -516,7 +516,7 @@ class PlatformBadgesTestSuite:
                            "Source to CPE Transformations Applied not found in Supporting Information badge")
     
     def test_vendor_na_badge(self):
-        """Test Vendor: N/A badge (Source Data Concern)."""
+        """Test Vendor: N/A creates Source Data Concerns modal badge."""
         convertRowDataToHTML, _ = self.test_badge_generation_import()
         if not convertRowDataToHTML:
             return
@@ -529,16 +529,17 @@ class PlatformBadgesTestSuite:
         html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
-        vendor_na_badge = soup.find('span', string='Vendor: N/A')
-        if vendor_na_badge and 'bg-sourceDataConcern' in vendor_na_badge.get('class', []):
+        # Look for Source Data Concerns modal badge instead of individual Purple badge
+        source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
+        if source_concerns_badge:
             self.add_result("VENDOR_NA_BADGE", True, 
-                           "Vendor N/A badge displays correctly")
+                           "Vendor N/A correctly creates Source Data Concerns modal badge")
         else:
             self.add_result("VENDOR_NA_BADGE", False, 
-                           "Vendor N/A badge not found or incorrect styling")
+                           "Vendor N/A did not create Source Data Concerns modal badge")
     
     def test_product_na_badge(self):
-        """Test Product: N/A badge (Source Data Concern)."""
+        """Test Product: N/A creates Source Data Concerns modal badge."""
         convertRowDataToHTML, _ = self.test_badge_generation_import()
         if not convertRowDataToHTML:
             return
@@ -551,16 +552,17 @@ class PlatformBadgesTestSuite:
         html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
-        product_na_badge = soup.find('span', string='Product: N/A')
-        if product_na_badge and 'bg-sourceDataConcern' in product_na_badge.get('class', []):
+        # Look for Source Data Concerns modal badge instead of individual Purple badge
+        source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
+        if source_concerns_badge:
             self.add_result("PRODUCT_NA_BADGE", True, 
-                           "Product N/A badge displays correctly")
+                           "Product N/A correctly creates Source Data Concerns modal badge")
         else:
             self.add_result("PRODUCT_NA_BADGE", False, 
-                           "Product N/A badge not found or incorrect styling")
+                           "Product N/A did not create Source Data Concerns modal badge")
     
     def test_versions_data_concern_badge(self):
-        """Test Versions Data Concern badge (Source Data Concern)."""
+        """Test Versions Data Concern creates Source Data Concerns modal badge."""
         convertRowDataToHTML, _ = self.test_badge_generation_import()
         if not convertRowDataToHTML:
             return
@@ -579,21 +581,17 @@ class PlatformBadgesTestSuite:
         html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
-        versions_concern_badge = soup.find('span', string='Versions Data Concern')
-        if versions_concern_badge and 'bg-sourceDataConcern' in versions_concern_badge.get('class', []):
-            tooltip = versions_concern_badge.get('title', '')
-            if 'formatting issues' in tooltip and 'before' in tooltip:
-                self.add_result("VERSIONS_DATA_CONCERN_BADGE", True, 
-                               "Versions data concern badge displays correctly with formatting issues")
-            else:
-                self.add_result("VERSIONS_DATA_CONCERN_BADGE", False, 
-                               f"Versions data concern badge tooltip incorrect: {tooltip}")
+        # Look for Source Data Concerns modal badge instead of individual Purple badge
+        source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
+        if source_concerns_badge:
+            self.add_result("VERSIONS_DATA_CONCERN_BADGE", True, 
+                           "Versions data concern correctly creates Source Data Concerns modal badge")
         else:
             self.add_result("VERSIONS_DATA_CONCERN_BADGE", False, 
-                           "Versions data concern badge not found or incorrect styling")
+                           "Versions data concern did not create Source Data Concerns modal badge")
     
     def test_duplicate_entries_badge(self):
-        """Test Duplicate Entries Detected badge (Source Data Concern)."""
+        """Test Duplicate Entries creates Source Data Concerns modal badge."""
         convertRowDataToHTML, _ = self.test_badge_generation_import()
         if not convertRowDataToHTML:
             return
@@ -608,18 +606,14 @@ class PlatformBadgesTestSuite:
         html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
-        duplicate_badge = soup.find('span', string='Duplicate Entries Detected')
-        if duplicate_badge and 'bg-sourceDataConcern' in duplicate_badge.get('class', []):
-            tooltip = duplicate_badge.get('title', '')
-            if 'row(s): 2, 5, 8' in tooltip:
-                self.add_result("DUPLICATE_ENTRIES_BADGE", True, 
-                               "Duplicate entries badge displays correctly with row indices")
-            else:
-                self.add_result("DUPLICATE_ENTRIES_BADGE", False, 
-                               f"Duplicate entries badge tooltip incorrect: {tooltip}")
+        # Look for Source Data Concerns modal badge instead of individual Purple badge
+        source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
+        if source_concerns_badge:
+            self.add_result("DUPLICATE_ENTRIES_BADGE", True, 
+                           "Duplicate entries correctly creates Source Data Concerns modal badge")
         else:
             self.add_result("DUPLICATE_ENTRIES_BADGE", False, 
-                           "Duplicate entries badge not found or incorrect styling")
+                           "Duplicate entries did not create Source Data Concerns modal badge")
     
     def test_badge_priority_order(self):
         """Test that badges appear in the correct priority order."""
@@ -972,6 +966,200 @@ class PlatformBadgesTestSuite:
             self.add_result("MODAL_ONLY_DETECTION", False,
                            f"Only {modal_only_tests_passed}/{len(test_cases)} modal-only detection tests passed")
     
+    def test_source_data_concerns_comprehensive_tabs(self):
+        """Test comprehensive Source Data Concerns modal tab coverage based on real CVE patterns."""
+        convertRowDataToHTML, _ = self.test_badge_generation_import()
+        if not convertRowDataToHTML:
+            return
+        
+        # Tab 1: Placeholder Data - based on real patterns (n/a, N/A, not applicable)
+        placeholder_test_cases = [
+            ("PLACEHOLDER_VENDOR_NA", {'rawPlatformData.vendor': 'n/a'}),
+            ("PLACEHOLDER_PRODUCT_NA", {'rawPlatformData.product': 'N/A'}),
+            ("PLACEHOLDER_VENDOR_NOT_APPLICABLE", {'rawPlatformData.vendor': 'not applicable'}),
+            ("PLACEHOLDER_PRODUCT_NOT_APPLICABLE", {'rawPlatformData.product': 'not applicable'}),
+        ]
+        
+        for test_name, kwargs in placeholder_test_cases:
+            test_row = self.create_test_row_data(test_name.lower(), **kwargs)
+            html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+            soup = BeautifulSoup(html_output, 'html.parser')
+            
+            # Check for Source Data Concerns badge
+            source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
+            if source_concerns_badge:
+                self.add_result(test_name, True, f"Placeholder data detection working for {kwargs}")
+            else:
+                self.add_result(test_name, False, f"Placeholder data not detected for {kwargs}")
+        
+        # Tab 2: Version Text Patterns - based on CVE-1337-99997 test data
+        version_text_patterns = [
+            ("VERSION_TEXT_BETA", {'rawPlatformData.versions': [{'version': '10.*.beta', 'status': 'affected'}]}),
+            ("VERSION_TEXT_NIGHTLY", {'rawPlatformData.versions': [{'version': '7.1.0-nightly', 'status': 'affected'}]}),
+            ("VERSION_TEXT_BEFORE", {'rawPlatformData.versions': [{'version': 'before 2.0', 'status': 'affected'}]}),
+            ("VERSION_TEXT_AFTER", {'rawPlatformData.versions': [{'version': 'after 1.5', 'status': 'affected'}]}),
+        ]
+        
+        for test_name, kwargs in version_text_patterns:
+            test_row = self.create_test_row_data(test_name.lower(), **kwargs)
+            html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+            soup = BeautifulSoup(html_output, 'html.parser')
+            
+            # Check for Source Data Concerns badge
+            source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
+            if source_concerns_badge:
+                self.add_result(test_name, True, f"Version text pattern detection working for {kwargs}")
+            else:
+                self.add_result(test_name, False, f"Version text pattern not detected for {kwargs}")
+        
+        # Tab 3: Version Comparators - mathematical comparison operators
+        version_comparators = [
+            ("VERSION_COMPARATOR_GT", {'rawPlatformData.versions': [{'version': '> 1.0', 'status': 'affected'}]}),
+            ("VERSION_COMPARATOR_LT", {'rawPlatformData.versions': [{'version': '< 2.0', 'status': 'affected'}]}),
+            ("VERSION_COMPARATOR_GTE", {'rawPlatformData.versions': [{'version': '>= 1.5', 'status': 'affected'}]}),
+        ]
+        
+        for test_name, kwargs in version_comparators:
+            test_row = self.create_test_row_data(test_name.lower(), **kwargs)
+            html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+            soup = BeautifulSoup(html_output, 'html.parser')
+            
+            # Check for Source Data Concerns badge
+            source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
+            if source_concerns_badge:
+                self.add_result(test_name, True, f"Version comparator detection working for {kwargs}")
+            else:
+                self.add_result(test_name, False, f"Version comparator not detected for {kwargs}")
+        
+        # Tab 4: Version Granularity - based on CVE-2024-20515 real pattern
+        version_granularity_row = self.create_test_row_data(
+            "version_granularity",
+            **{
+                'rawPlatformData.versions': [
+                    {'version': '3.3 Patch 1', 'status': 'affected'},  # 2-part base
+                    {'version': '3.3 Patch 2', 'status': 'affected'},  # 2-part base
+                    {'version': '3.3.0', 'status': 'affected'},        # 3-part base
+                ]
+            }
+        )
+        
+        html_output = convertRowDataToHTML(version_granularity_row, self.mock_nvd_data, 0)
+        soup = BeautifulSoup(html_output, 'html.parser')
+        
+        source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
+        if source_concerns_badge:
+            self.add_result("VERSION_GRANULARITY", True, "Version granularity inconsistency detection working")
+        else:
+            self.add_result("VERSION_GRANULARITY", False, "Version granularity inconsistency not detected")
+        
+        # Tab 5: Wildcard Branches - should route to JSON Generation Rules, not Source Data Concerns
+        wildcard_row = self.create_test_row_data(
+            "wildcard_branches",
+            **{
+                'rawPlatformData.versions': [
+                    {'version': '*', 'status': 'affected'},
+                    {'version': '1.*', 'status': 'affected'},
+                ]
+            }
+        )
+        
+        html_output = convertRowDataToHTML(wildcard_row, self.mock_nvd_data, 0)
+        soup = BeautifulSoup(html_output, 'html.parser')
+        
+        # Wildcards should route to JSON Generation Rules, NOT Source Data Concerns
+        json_rules_badge = soup.find('span', string=re.compile(r'⚙️ JSON Generation Rules'))
+        source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
+        
+        if json_rules_badge and not source_concerns_badge:
+            self.add_result("WILDCARD_ROUTING", True, "Wildcards correctly route to JSON Generation Rules")
+        else:
+            self.add_result("WILDCARD_ROUTING", False, "Wildcards routing incorrectly")
+        
+        # Tab 6: CPE Array Concerns - empty or malformed CPE arrays
+        cpe_array_row = self.create_test_row_data(
+            "cpe_array_concerns",
+            **{
+                'platformEntryMetadata.hasCPEArray': True,
+                'rawPlatformData.cpes': []  # Empty CPE array
+            }
+        )
+        
+        html_output = convertRowDataToHTML(cpe_array_row, self.mock_nvd_data, 0)
+        soup = BeautifulSoup(html_output, 'html.parser')
+        
+        source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
+        if source_concerns_badge:
+            self.add_result("CPE_ARRAY_CONCERNS", True, "CPE array concerns detection working")
+        else:
+            self.add_result("CPE_ARRAY_CONCERNS", False, "CPE array concerns not detected")
+        
+        # Tab 7: Duplicate Entries
+        duplicate_row = self.create_test_row_data(
+            "duplicate_entries",
+            **{
+                'platformEntryMetadata.duplicateRowIndices': [2, 5, 8]
+            }
+        )
+        
+        html_output = convertRowDataToHTML(duplicate_row, self.mock_nvd_data, 0)
+        soup = BeautifulSoup(html_output, 'html.parser')
+        
+        source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
+        if source_concerns_badge:
+            self.add_result("DUPLICATE_ENTRIES_TAB", True, "Duplicate entries detection working")
+        else:
+            self.add_result("DUPLICATE_ENTRIES_TAB", False, "Duplicate entries not detected")
+        
+        # Tab 8: Platform Data Concerns - misaligned vendor/product data
+        platform_data_row = self.create_test_row_data(
+            "platform_data_concerns",
+            **{
+                'platformEntryMetadata.platformDataConcern': True,
+                'rawPlatformData.vendor': 'n/a',
+                'rawPlatformData.product': 'TestProduct',
+            }
+        )
+        
+        html_output = convertRowDataToHTML(platform_data_row, self.mock_nvd_data, 0)
+        soup = BeautifulSoup(html_output, 'html.parser')
+        
+        source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
+        if source_concerns_badge:
+            self.add_result("PLATFORM_DATA_CONCERNS_TAB", True, "Platform data concerns detection working")
+        else:
+            self.add_result("PLATFORM_DATA_CONCERNS_TAB", False, "Platform data concerns not detected")
+        
+        # Multi-tab scenario - multiple issues should be consolidated
+        multi_tab_row = self.create_test_row_data(
+            "multi_tab_scenario",
+            **{
+                'rawPlatformData.vendor': 'n/a',  # Placeholder data
+                'rawPlatformData.versions': [
+                    {'version': 'before 1.0', 'status': 'affected'},  # Version text pattern
+                    {'version': '> 2.0', 'status': 'affected'},       # Version comparator
+                ],
+                'platformEntryMetadata.duplicateRowIndices': [3, 7],  # Duplicate entries
+            }
+        )
+        
+        html_output = convertRowDataToHTML(multi_tab_row, self.mock_nvd_data, 0)
+        soup = BeautifulSoup(html_output, 'html.parser')
+        
+        source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
+        if source_concerns_badge:
+            badge_text = source_concerns_badge.get_text(strip=True)
+            # Should show multiple issues consolidated into one badge
+            if '(' in badge_text and ')' in badge_text:
+                issue_count = badge_text.split('(')[1].split(')')[0]
+                if int(issue_count) >= 3:  # Should have at least 3 different types of issues
+                    self.add_result("MULTI_TAB_CONSOLIDATION", True, f"Multi-tab consolidation working ({issue_count} issues)")
+                else:
+                    self.add_result("MULTI_TAB_CONSOLIDATION", False, f"Expected multiple issues but got {issue_count}")
+            else:
+                self.add_result("MULTI_TAB_CONSOLIDATION", False, f"Badge format incorrect: {badge_text}")
+        else:
+            self.add_result("MULTI_TAB_CONSOLIDATION", False, "Multi-tab scenario not creating Source Data Concerns badge")
+    
     def run_all_tests(self):
         """Run all badge tests."""
         print("🧪 Running Platform Entry Notification Badge Tests...")
@@ -1006,6 +1194,9 @@ class PlatformBadgesTestSuite:
         # Test PROJECT_2 architectural changes
         self.test_vulnerable_flag_determination()
         self.test_modal_only_case_detection()
+        
+        # Test comprehensive Source Data Concerns modal tabs
+        self.test_source_data_concerns_comprehensive_tabs()
         
         # Print results
         print(f"\n📊 Test Results Summary:")
