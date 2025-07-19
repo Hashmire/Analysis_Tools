@@ -15,14 +15,11 @@ for the Analysis Tools HTML generation system. It provides:
 The system supports both CPE-scoped data (for references/sorting priority)
 and row-scoped data (for platform entry notifications like wildcard generation).
 """
-
-import json
-import re
-import html
 from typing import Dict, List, Tuple, Optional, Any, Set
-import re
 import json
+import re
 import html
+from .workflow_logger import get_logger
 from .workflow_logger import get_logger
 
 # Get logger instance
@@ -189,33 +186,574 @@ def register_platform_notification_data(table_index: int, data_type: str, data: 
     
     return True  # Newly registered
 
+# ===== TEMPLATE DEDUPLICATION SYSTEM =====
+
+def classify_count(count: int) -> str:
+    """Classify counts into standard size categories for pattern recognition."""
+    if count == 1:
+        return "single"
+    elif 2 <= count <= 5:
+        return "small"
+    elif 6 <= count <= 15:
+        return "medium"
+    else:  # 16+
+        return "large"
+
+def analyze_reference_patterns(ref_data: Dict) -> str:
+    """
+    Analyze reference data to generate a deterministic pattern key.
+    
+    Args:
+        ref_data: Dictionary containing reference type data (advisor, vendor, patch, etc.)
+        
+    Returns:
+        Pattern key string like "advisor:small|vendor:medium|patch:single|total:medium"
+    """
+    if not ref_data:
+        return "empty"
+    
+    # Count references by type
+    type_counts = {}
+    total_refs = 0
+    
+    for ref_type, refs in ref_data.items():
+        if isinstance(refs, list):
+            count = len(refs)
+            type_counts[ref_type] = count
+            total_refs += count
+        elif isinstance(refs, dict):
+            # Handle nested reference structures
+            count = len(refs)
+            type_counts[ref_type] = count
+            total_refs += count
+    
+    # Generate pattern components
+    pattern_parts = []
+    
+    # Sort by type name for consistency
+    for ref_type in sorted(type_counts.keys()):
+        count = type_counts[ref_type]
+        classification = classify_count(count)
+        pattern_parts.append(f"{ref_type}:{classification}")
+    
+    # Add total count classification
+    total_classification = classify_count(total_refs)
+    pattern_parts.append(f"total:{total_classification}")
+    
+    return "|".join(pattern_parts)
+
+def analyze_sorting_priority_patterns(sorting_data: Dict) -> str:
+    """
+    Analyze sorting priority data to generate a deterministic pattern key.
+    
+    Args:
+        sorting_data: Dictionary containing searches, versions, statistics, confirmedMapping
+        
+    Returns:
+        Pattern key like "searches:snapdragon,generic_wildcard|versions:5|stats:medium|confirmed:true"
+    """
+    if not sorting_data:
+        return "empty"
+    
+    pattern_parts = []
+    
+    # Analyze search patterns
+    if 'searches' in sorting_data and sorting_data['searches']:
+        search_types = []
+        searches = sorting_data['searches']
+        
+        # Detect search pattern types
+        for search_key in searches.keys():
+            if 'snapdragon' in search_key.lower():
+                search_types.append('snapdragon')
+            elif 'wildcard' in search_key.lower() or '*' in str(searches[search_key]):
+                search_types.append('wildcard')
+            elif 'exact' in search_key.lower():
+                search_types.append('exact')
+            else:
+                search_types.append('generic')
+        
+        # Remove duplicates and sort for consistency
+        unique_types = sorted(set(search_types))
+        pattern_parts.append(f"searches:{','.join(unique_types)}")
+    
+    # Analyze version count
+    if 'versions' in sorting_data and sorting_data['versions']:
+        version_count = len(sorting_data['versions'])
+        version_classification = classify_count(version_count)
+        pattern_parts.append(f"versions:{version_classification}")
+    
+    # Analyze statistics
+    if 'statistics' in sorting_data and sorting_data['statistics']:
+        stats = sorting_data['statistics']
+        if 'total_cpe_names' in stats:
+            total_cpe_names = stats['total_cpe_names']
+            stats_classification = classify_count(total_cpe_names)
+            pattern_parts.append(f"stats:{stats_classification}")
+    
+    # Include confirmed mapping boolean
+    has_confirmed = 'confirmedMapping' in sorting_data and sorting_data['confirmedMapping']
+    pattern_parts.append(f"confirmed:{str(has_confirmed).lower()}")
+    
+    return "|".join(pattern_parts)
+
+def analyze_wildcard_generation_patterns(wildcard_data: Dict) -> str:
+    """
+    Analyze wildcard generation data patterns for templating.
+    
+    Args:
+        wildcard_data: Dictionary containing wildcard generation data
+        
+    Returns:
+        Pattern key like "transformations:small|fields:medium|total_patterns:5"
+    """
+    if not wildcard_data:
+        return "empty"
+    
+    pattern_parts = []
+    
+    # Analyze transformations count
+    if 'wildcardGeneration' in wildcard_data and 'transformations' in wildcard_data['wildcardGeneration']:
+        transformation_count = len(wildcard_data['wildcardGeneration']['transformations'])
+        transformation_classification = classify_count(transformation_count)
+        pattern_parts.append(f"transformations:{transformation_classification}")
+    
+    # Analyze summary data if available
+    if 'wildcardGeneration' in wildcard_data and 'summary' in wildcard_data['wildcardGeneration']:
+        summary = wildcard_data['wildcardGeneration']['summary']
+        if 'fields_affected' in summary:
+            fields_count = len(summary['fields_affected'])
+            fields_classification = classify_count(fields_count)
+            pattern_parts.append(f"fields:{fields_classification}")
+        
+        if 'total_patterns' in summary:
+            total_patterns = summary['total_patterns']
+            pattern_parts.append(f"total_patterns:{total_patterns}")
+    
+    # Check for other rule types
+    rule_types = []
+    if 'updatePatterns' in wildcard_data:
+        rule_types.append('update')
+    if 'versionRanges' in wildcard_data:
+        rule_types.append('ranges')
+    
+    if rule_types:
+        pattern_parts.append(f"rule_types:{','.join(sorted(rule_types))}")
+    
+    return "|".join(pattern_parts) if pattern_parts else "basic_wildcard"
+
+def analyze_update_patterns_data_patterns(update_data: Dict) -> str:
+    """
+    Analyze update pattern data patterns for templating.
+    
+    Args:
+        update_data: Dictionary containing update pattern data
+        
+    Returns:
+        Pattern key like "transformations:medium|pattern_types:3|blocked:true"
+    """
+    if not update_data:
+        return "empty"
+    
+    pattern_parts = []
+    
+    # Analyze transformations count
+    if 'transformations' in update_data:
+        transformation_count = len(update_data['transformations'])
+        transformation_classification = classify_count(transformation_count)
+        pattern_parts.append(f"transformations:{transformation_classification}")
+        
+        # Analyze pattern types diversity
+        pattern_types = set()
+        blocked_count = 0
+        for transformation in update_data['transformations']:
+            if 'pattern_type' in transformation:
+                pattern_types.add(transformation['pattern_type'])
+            if transformation.get('blocked_by_ranges', False):
+                blocked_count += 1
+        
+        if pattern_types:
+            pattern_types_count = len(pattern_types)
+            pattern_parts.append(f"pattern_types:{pattern_types_count}")
+        
+        if blocked_count > 0:
+            pattern_parts.append(f"blocked:{blocked_count}")
+    
+    return "|".join(pattern_parts) if pattern_parts else "basic_update"
+
+def analyze_json_rules_patterns(rules_data: Dict) -> str:
+    """
+    Analyze JSON generation rules patterns for templating.
+    
+    Args:
+        rules_data: Dictionary containing JSON generation rules data
+        
+    Returns:
+        Pattern key like "rules:small|types:medium|total_transformations:15"
+    """
+    if not rules_data:
+        return "empty"
+    
+    pattern_parts = []
+    
+    # Analyze rules count and types
+    if 'rules' in rules_data:
+        rules_count = len(rules_data['rules'])
+        rules_classification = classify_count(rules_count)
+        pattern_parts.append(f"rules:{rules_classification}")
+        
+        # Count different rule types
+        rule_types = set()
+        total_transformations = 0
+        for rule in rules_data['rules']:
+            if 'type' in rule:
+                rule_types.add(rule['type'])
+            if 'transformations' in rule:
+                total_transformations += len(rule['transformations'])
+        
+        if rule_types:
+            rule_types_count = len(rule_types)
+            rule_types_classification = classify_count(rule_types_count)
+            pattern_parts.append(f"types:{rule_types_classification}")
+        
+        if total_transformations > 0:
+            pattern_parts.append(f"total_transformations:{total_transformations}")
+    
+    # Analyze summary data if available
+    if 'summary' in rules_data:
+        summary = rules_data['summary']
+        if 'total_rules' in summary:
+            total_rules = summary['total_rules']
+            pattern_parts.append(f"summary_rules:{total_rules}")
+    
+    return "|".join(pattern_parts) if pattern_parts else "basic_rules"
+
+def analyze_supporting_info_patterns(supporting_data: Dict) -> str:
+    """
+    Analyze supporting information patterns for templating.
+    
+    Args:
+        supporting_data: Dictionary containing supporting information data
+        
+    Returns:
+        Pattern key like "categories:small|total_items:medium|tab_count:3"
+    """
+    if not supporting_data:
+        return "empty"
+    
+    pattern_parts = []
+    
+    # Analyze summary data
+    if 'summary' in supporting_data:
+        summary = supporting_data['summary']
+        
+        if 'categories' in summary:
+            categories_count = len(summary['categories'])
+            categories_classification = classify_count(categories_count)
+            pattern_parts.append(f"categories:{categories_classification}")
+        
+        if 'total_items' in summary:
+            total_items = summary['total_items']
+            items_classification = classify_count(total_items)
+            pattern_parts.append(f"total_items:{items_classification}")
+    
+    # Analyze tab structure
+    if 'tabs' in supporting_data:
+        tab_count = len(supporting_data['tabs'])
+        pattern_parts.append(f"tab_count:{tab_count}")
+        
+        # Analyze content types in tabs
+        content_types = set()
+        for tab in supporting_data['tabs']:
+            if 'type' in tab:
+                content_types.add(tab['type'])
+        
+        if content_types:
+            content_types_count = len(content_types)
+            pattern_parts.append(f"content_types:{content_types_count}")
+    
+    return "|".join(pattern_parts) if pattern_parts else "basic_supporting"
+
+def analyze_json_settings_html_patterns(html_content: str) -> str:
+    """
+    Analyze JSON Generation Settings HTML patterns for templating.
+    
+    Args:
+        html_content: The HTML string content for JSON generation settings
+        
+    Returns:
+        Pattern key like "checkboxes:9|tooltips:9|sections:2|collapse:true"
+    """
+    if not html_content:
+        return "empty"
+    
+    pattern_parts = []
+    
+    # Count checkboxes (form-check-input elements)
+    checkbox_count = html_content.count('class="form-check-input row-setting"')
+    checkbox_classification = classify_count(checkbox_count)
+    pattern_parts.append(f"checkboxes:{checkbox_classification}")
+    
+    # Count tooltips (data-bs-toggle="tooltip" elements)
+    tooltip_count = html_content.count('data-bs-toggle="tooltip"')
+    tooltip_classification = classify_count(tooltip_count)
+    pattern_parts.append(f"tooltips:{tooltip_classification}")
+    
+    # Count sections (col-md-6 divisions)
+    section_count = html_content.count('class="col-md-6"')
+    pattern_parts.append(f"sections:{section_count}")
+    
+    # Check for collapse functionality
+    has_collapse = 'data-bs-toggle="collapse"' in html_content
+    pattern_parts.append(f"collapse:{str(has_collapse).lower()}")
+    
+    # Count different feature types by analyzing checkbox IDs
+    feature_types = set()
+    if 'enableWildcards_' in html_content:
+        feature_types.add('wildcards')
+    if 'enablePatches_' in html_content:
+        feature_types.add('patches')
+    if 'enableSpecialTypes_' in html_content:
+        feature_types.add('special_types')
+    if 'enableMultipleBranches_' in html_content:
+        feature_types.add('branches')
+    if 'enableUpdatePatterns_' in html_content:
+        feature_types.add('updates')
+    if 'enableGaps_' in html_content:
+        feature_types.add('gaps')
+    if 'enableInverseStatus_' in html_content:
+        feature_types.add('inverse')
+    if 'enableMixedStatus_' in html_content:
+        feature_types.add('mixed')
+    if 'enableCpeBaseGeneration_' in html_content:
+        feature_types.add('cpe_base')
+    
+    if feature_types:
+        feature_count = len(feature_types)
+        feature_classification = classify_count(feature_count)
+        pattern_parts.append(f"features:{feature_classification}")
+    
+    return "|".join(pattern_parts) if pattern_parts else "basic_html"
+
+def analyze_intelligent_settings_patterns(settings_data: Dict) -> str:
+    """
+    Analyze intelligent settings configuration patterns for templating.
+    
+    Args:
+        settings_data: Dictionary containing intelligent settings configuration
+        
+    Returns:
+        Pattern key like "enabled:small|disabled:medium|total:9"
+    """
+    if not settings_data:
+        return "empty"
+    
+    pattern_parts = []
+    
+    # Count enabled vs disabled settings
+    enabled_count = sum(1 for value in settings_data.values() if value is True)
+    disabled_count = sum(1 for value in settings_data.values() if value is False)
+    total_count = len(settings_data)
+    
+    if enabled_count > 0:
+        enabled_classification = classify_count(enabled_count)
+        pattern_parts.append(f"enabled:{enabled_classification}")
+    
+    if disabled_count > 0:
+        disabled_classification = classify_count(disabled_count)
+        pattern_parts.append(f"disabled:{disabled_classification}")
+    
+    total_classification = classify_count(total_count)
+    pattern_parts.append(f"total:{total_classification}")
+    
+    # Analyze specific feature combinations for common patterns
+    if settings_data.get('enableWildcardExpansion') and settings_data.get('enableGapProcessing'):
+        pattern_parts.append("combo:wildcard_gap")
+    
+    if settings_data.get('enableMultipleBranches') and settings_data.get('enableSpecialVersionTypes'):
+        pattern_parts.append("combo:branches_special")
+    
+    if settings_data.get('enableInverseStatus') and settings_data.get('enableMixedStatus'):
+        pattern_parts.append("combo:status_complex")
+    
+    return "|".join(pattern_parts) if pattern_parts else "basic_settings"
+
+def generate_template_structures(data_registry: Dict, data_type: str) -> Tuple[Dict, Dict]:
+    """
+    Analyze data registry and generate template structures for deduplication.
+    
+    Args:
+        data_registry: Dictionary of key -> data mappings
+        data_type: Type of data ('references', 'sortingPriority', 'wildcardGeneration', 'updatePatterns', 'jsonGenerationRules', 'supportingInformation', 'jsonSettingsHTML', 'intelligentSettings')
+        
+    Returns:
+        Tuple of (templates, mappings) dictionaries
+    """
+    if not data_registry:
+        return {}, {}
+    
+    # Group data by patterns
+    patterns_to_keys = {}
+    patterns_to_data = {}
+    
+    for key, data in data_registry.items():
+        if data_type == 'references':
+            pattern = analyze_reference_patterns(data)
+        elif data_type == 'sortingPriority':
+            pattern = analyze_sorting_priority_patterns(data)
+        elif data_type == 'wildcardGeneration':
+            pattern = analyze_wildcard_generation_patterns(data)
+        elif data_type == 'updatePatterns':
+            pattern = analyze_update_patterns_data_patterns(data)
+        elif data_type == 'jsonGenerationRules':
+            pattern = analyze_json_rules_patterns(data)
+        elif data_type == 'supportingInformation':
+            pattern = analyze_supporting_info_patterns(data)
+        elif data_type == 'jsonSettingsHTML':
+            pattern = analyze_json_settings_html_patterns(data)
+        elif data_type == 'intelligentSettings':
+            pattern = analyze_intelligent_settings_patterns(data)
+        else:
+            # Fallback for unknown types
+            pattern = f"unknown_{len(str(data))}"
+        
+        if pattern not in patterns_to_keys:
+            patterns_to_keys[pattern] = []
+            patterns_to_data[pattern] = data  # Use first occurrence as template
+        
+        patterns_to_keys[pattern].append(key)
+    
+    # Generate templates for patterns with 2+ instances
+    templates = {}
+    mappings = {}
+    template_counter = 0
+    
+    total_entries = len(data_registry)
+    template_entries = 0
+    
+    for pattern, keys in patterns_to_keys.items():
+        pattern_count = len(keys)
+        
+        # Template any pattern with 2+ instances
+        if pattern_count >= 2:
+            template_id = f"{data_type}_template_{template_counter}"
+            templates[template_id] = patterns_to_data[pattern]
+            mappings[template_id] = keys
+            template_entries += pattern_count
+            template_counter += 1
+    
+    # Log deduplication analysis
+    direct_entries = total_entries - template_entries
+    space_savings = (template_entries / total_entries * 100) if total_entries > 0 else 0
+    
+    logger.debug(f"Template analysis for {data_type}: {total_entries} total, {template_entries} templated, {direct_entries} direct, {space_savings:.1f}% space savings", group="badge_modal")
+    
+    return templates, mappings
+
 def get_consolidated_cpe_registration_script() -> str:
     """
     Generate a single consolidated script block with all CPE data registrations.
+    Uses template deduplication when beneficial for space savings.
     
     Returns:
-        str: JavaScript code block with all BadgeModal.registerData calls
+        str: JavaScript code block with BadgeModal.registerData calls or template structures
     """
     global GLOBAL_CPE_DATA_REGISTRY
     
+    if not GLOBAL_CPE_DATA_REGISTRY['references'] and not GLOBAL_CPE_DATA_REGISTRY['sortingPriority']:
+        return ""
+    
     script_content = ""
     
-    # Register all references data
-    references_count = len(GLOBAL_CPE_DATA_REGISTRY['references'])
-    for base_key_safe, ref_data in GLOBAL_CPE_DATA_REGISTRY['references'].items():
-        ref_data_js = json.dumps(ref_data)
-        script_content += f"    BadgeModal.registerData('references', '{base_key_safe}', {ref_data_js});\n"
+    # Process references data
+    if GLOBAL_CPE_DATA_REGISTRY['references']:
+        ref_templates, ref_mappings = generate_template_structures(
+            GLOBAL_CPE_DATA_REGISTRY['references'], 'references')
+        
+        if ref_templates:
+            # Generate template-based registration
+            script_content += "// References templates\n"
+            script_content += f"window.REFERENCES_TEMPLATES = {json.dumps(ref_templates, separators=(',', ':'))};\n"
+            script_content += f"window.REFERENCES_MAPPINGS = {json.dumps(ref_mappings, separators=(',', ':'))};\n"
+            
+            # Generate template expansion code
+            script_content += """
+// Expand references templates
+Object.keys(window.REFERENCES_TEMPLATES).forEach(templateId => {
+    const template = window.REFERENCES_TEMPLATES[templateId];
+    const keys = window.REFERENCES_MAPPINGS[templateId];
     
-    # Register all sorting priority data
-    sorting_count = len(GLOBAL_CPE_DATA_REGISTRY['sortingPriority'])
-    for base_key_safe, sorting_data in GLOBAL_CPE_DATA_REGISTRY['sortingPriority'].items():
-        sorting_data_js = json.dumps(sorting_data)
-        script_content += f"    BadgeModal.registerData('sortingPriority', '{base_key_safe}', {sorting_data_js});\n"
+    keys.forEach(baseKeySafe => {
+        const dataForKey = JSON.parse(JSON.stringify(template));
+        BadgeModal.registerData('references', baseKeySafe, dataForKey);
+    });
+});
+"""
+            
+            # Get templated keys for direct registration exclusion
+            templated_keys = set()
+            for keys in ref_mappings.values():
+                templated_keys.update(keys)
+        else:
+            templated_keys = set()
+        
+        # Handle direct registration for non-templated references
+        direct_ref_count = 0
+        for key, data in GLOBAL_CPE_DATA_REGISTRY['references'].items():
+            if key not in templated_keys:
+                ref_data_js = json.dumps(data, separators=(',', ':'))
+                script_content += f"    BadgeModal.registerData('references', '{key}', {ref_data_js});\n"
+                direct_ref_count += 1
+        
+        if direct_ref_count > 0:
+            logger.debug(f"References: {direct_ref_count} direct registrations (patterns not beneficial for templating)", group="badge_modal")
+    
+    # Process sorting priority data
+    if GLOBAL_CPE_DATA_REGISTRY['sortingPriority']:
+        sort_templates, sort_mappings = generate_template_structures(
+            GLOBAL_CPE_DATA_REGISTRY['sortingPriority'], 'sortingPriority')
+        
+        if sort_templates:
+            # Generate template-based registration
+            script_content += "// Sorting priority templates\n"
+            script_content += f"window.SORTING_TEMPLATES = {json.dumps(sort_templates, separators=(',', ':'))};\n"
+            script_content += f"window.SORTING_MAPPINGS = {json.dumps(sort_mappings, separators=(',', ':'))};\n"
+            
+            # Generate template expansion code
+            script_content += """
+// Expand sorting priority templates
+Object.keys(window.SORTING_TEMPLATES).forEach(templateId => {
+    const template = window.SORTING_TEMPLATES[templateId];
+    const keys = window.SORTING_MAPPINGS[templateId];
+    
+    keys.forEach(baseKeySafe => {
+        const dataForKey = JSON.parse(JSON.stringify(template));
+        BadgeModal.registerData('sortingPriority', baseKeySafe, dataForKey);
+    });
+});
+"""
+            
+            # Get templated keys for direct registration exclusion
+            templated_keys = set()
+            for keys in sort_mappings.values():
+                templated_keys.update(keys)
+        else:
+            templated_keys = set()
+        
+        # Handle direct registration for non-templated sorting priority data
+        direct_sort_count = 0
+        for key, data in GLOBAL_CPE_DATA_REGISTRY['sortingPriority'].items():
+            if key not in templated_keys:
+                sort_data_js = json.dumps(data, separators=(',', ':'))
+                script_content += f"    BadgeModal.registerData('sortingPriority', '{key}', {sort_data_js});\n"
+                direct_sort_count += 1
+        
+        if direct_sort_count > 0:
+            logger.debug(f"SortingPriority: {direct_sort_count} direct registrations (patterns not beneficial for templating)", group="badge_modal")
     
     if script_content:
-        logger.debug(f"Generated CPE registrations - {references_count} references, {sorting_count} sorting priority entries", group="badge_modal")
         return f"""
-// Consolidated CPE data registrations (deduplicated)
+// Consolidated CPE data registrations with template deduplication
 {script_content}"""
     else:
         return ""
@@ -223,49 +761,214 @@ def get_consolidated_cpe_registration_script() -> str:
 def get_consolidated_platform_notification_script() -> str:
     """
     Generate a single consolidated script block with all platform notification data registrations.
+    Uses template deduplication when beneficial for space savings.
     
     Returns:
-        str: JavaScript code block with all platform notification data registrations
+        str: JavaScript code block with BadgeModal.registerData calls or template structures
     """
     global PLATFORM_ENTRY_NOTIFICATION_REGISTRY
     
+    # Check if we have any platform data to process
+    total_data_count = sum(len(registry) for registry in PLATFORM_ENTRY_NOTIFICATION_REGISTRY.values())
+    if total_data_count == 0:
+        return ""
+    
     script_content = ""
+    all_data_types = ['wildcardGeneration', 'updatePatterns', 'jsonGenerationRules', 'supportingInformation']
     
-    # Register all wildcard generation data
-    wildcard_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['wildcardGeneration'])
-    for table_index, wildcard_data in PLATFORM_ENTRY_NOTIFICATION_REGISTRY['wildcardGeneration'].items():
-        wildcard_data_js = json.dumps(wildcard_data)
-        script_content += f"    BadgeModal.registerData('wildcardGeneration', '{table_index}', {wildcard_data_js});\n"
+    # Process each platform data type
+    for data_type in all_data_types:
+        data_registry = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get(data_type, {})
+        if not data_registry:
+            continue
+        
+        # Generate template structures for this data type
+        templates, mappings = generate_template_structures(data_registry, data_type)
+        
+        if templates:
+            # Generate template-based registration
+            template_var_name = f"{data_type.upper()}_TEMPLATES"
+            mapping_var_name = f"{data_type.upper()}_MAPPINGS"
+            
+            script_content += f"// {data_type} templates\n"
+            script_content += f"window.{template_var_name} = {json.dumps(templates, separators=(',', ':'))};\n"
+            script_content += f"window.{mapping_var_name} = {json.dumps(mappings, separators=(',', ':'))};\n"
+            
+            # Generate template expansion code
+            script_content += f"""
+// Expand {data_type} templates
+Object.keys(window.{template_var_name}).forEach(templateId => {{
+    const template = window.{template_var_name}[templateId];
+    const keys = window.{mapping_var_name}[templateId];
     
-    # Register all update pattern data
-    update_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['updatePatterns'])
-    for table_index, update_data in PLATFORM_ENTRY_NOTIFICATION_REGISTRY['updatePatterns'].items():
-        update_data_js = json.dumps(update_data)
-        script_content += f"    BadgeModal.registerData('updatePatterns', '{table_index}', {update_data_js});\n"
-    
-    # Register all JSON generation rules data
-    rules_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['jsonGenerationRules'])
-    for table_index, rules_data in PLATFORM_ENTRY_NOTIFICATION_REGISTRY['jsonGenerationRules'].items():
-        rules_data_js = json.dumps(rules_data)
-        script_content += f"    BadgeModal.registerData('jsonGenerationRules', '{table_index}', {rules_data_js});\n"
-    
-    # Register all supporting information data
-    supporting_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['supportingInformation'])
-    for table_index, supporting_data in PLATFORM_ENTRY_NOTIFICATION_REGISTRY['supportingInformation'].items():
-        supporting_data_js = json.dumps(supporting_data)
-        script_content += f"    BadgeModal.registerData('supportingInformation', '{table_index}', {supporting_data_js});\n"
+    keys.forEach(tableIndex => {{
+        const dataForKey = JSON.parse(JSON.stringify(template));
+        BadgeModal.registerData('{data_type}', tableIndex, dataForKey);
+    }});
+}});
+"""
+            
+            # Get templated keys for direct registration exclusion
+            templated_keys = set()
+            for keys in mappings.values():
+                templated_keys.update(keys)
+        else:
+            templated_keys = set()
+        
+        # Handle direct registration for non-templated data
+        direct_count = 0
+        for table_index, data in data_registry.items():
+            if table_index not in templated_keys:
+                data_js = json.dumps(data, separators=(',', ':'))
+                script_content += f"    BadgeModal.registerData('{data_type}', '{table_index}', {data_js});\n"
+                direct_count += 1
+        
+        if direct_count > 0:
+            logger.debug(f"{data_type}: {direct_count} direct registrations (patterns not beneficial for templating)", group="badge_modal")
     
     if script_content:
-        logger.debug(f"Generated platform registrations - {wildcard_count} wildcard, {update_count} update patterns, {rules_count} rules, {supporting_count} supporting info", group="badge_modal")
+        # Log individual counts for debugging
+        wildcard_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['wildcardGeneration'])
+        update_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['updatePatterns'])
+        rules_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['jsonGenerationRules'])
+        supporting_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['supportingInformation'])
+        logger.debug(f"Platform registrations - {wildcard_count} wildcard, {update_count} update patterns, {rules_count} rules, {supporting_count} supporting info", group="badge_modal")
+        
         return f"""
-// Consolidated platform notification data registrations
+// Consolidated platform notification data registrations with template deduplication
 {script_content}"""
     else:
         return ""
+
+def get_consolidated_json_settings_script() -> str:
+    """
+    Generate a consolidated script block for JSON Generation Settings with template deduplication.
+    Uses pattern analysis to group similar HTML content and settings configurations.
+    
+    Returns:
+        str: JavaScript code block with JSON_SETTINGS_HTML and INTELLIGENT_SETTINGS assignments
+    """
+    # Import the global dictionaries from generateHTML module
+    from . import generateHTML
+    
+    json_settings_html = getattr(generateHTML, 'JSON_SETTINGS_HTML', {})
+    intelligent_settings = getattr(generateHTML, 'INTELLIGENT_SETTINGS', {})
+    
+    if not json_settings_html and not intelligent_settings:
+        return ""
+    
+    script_content = ""
+    
+    # Process JSON Settings HTML
+    if json_settings_html:
+        html_templates, html_mappings = generate_template_structures(
+            json_settings_html, 'jsonSettingsHTML')
+        
+        if html_templates:
+            # Generate template-based registration for HTML
+            script_content += "// JSON Settings HTML templates\n"
+            script_content += f"window.JSON_SETTINGS_HTML_TEMPLATES = {json.dumps(html_templates, separators=(',', ':'))};\n"
+            script_content += f"window.JSON_SETTINGS_HTML_MAPPINGS = {json.dumps(html_mappings, separators=(',', ':'))};\n"
+            
+            # Generate template expansion code for HTML
+            script_content += """
+// Expand JSON Settings HTML templates
+Object.keys(window.JSON_SETTINGS_HTML_TEMPLATES).forEach(templateId => {
+    const template = window.JSON_SETTINGS_HTML_TEMPLATES[templateId];
+    const keys = window.JSON_SETTINGS_HTML_MAPPINGS[templateId];
+    
+    keys.forEach(tableId => {
+        // Replace table ID references in template to match target table
+        const htmlContent = template.replace(/matchesTable_0/g, tableId)
+                                   .replace(/enableWildcards_matchesTable_0/g, `enableWildcards_${tableId}`)
+                                   .replace(/enablePatches_matchesTable_0/g, `enablePatches_${tableId}`)
+                                   .replace(/enableSpecialTypes_matchesTable_0/g, `enableSpecialTypes_${tableId}`)
+                                   .replace(/enableMultipleBranches_matchesTable_0/g, `enableMultipleBranches_${tableId}`)
+                                   .replace(/enableUpdatePatterns_matchesTable_0/g, `enableUpdatePatterns_${tableId}`)
+                                   .replace(/enableGaps_matchesTable_0/g, `enableGaps_${tableId}`)
+                                   .replace(/enableInverseStatus_matchesTable_0/g, `enableInverseStatus_${tableId}`)
+                                   .replace(/enableMixedStatus_matchesTable_0/g, `enableMixedStatus_${tableId}`)
+                                   .replace(/enableCpeBaseGeneration_matchesTable_0/g, `enableCpeBaseGeneration_${tableId}`)
+                                   .replace(/settingsCollapse_matchesTable_0/g, `settingsCollapse_${tableId}`);
+        
+        window.JSON_SETTINGS_HTML = window.JSON_SETTINGS_HTML || {};
+        window.JSON_SETTINGS_HTML[tableId] = htmlContent;
+    });
+});
+"""
+            
+            # Get templated keys for direct registration exclusion
+            templated_keys = set()
+            for keys in html_mappings.values():
+                templated_keys.update(keys)
+        else:
+            templated_keys = set()
+        
+        # Handle direct registration for non-templated HTML
+        direct_html_count = 0
+        for table_id, html_content in json_settings_html.items():
+            if table_id not in templated_keys:
+                # Ensure the global object exists
+                script_content += "window.JSON_SETTINGS_HTML = window.JSON_SETTINGS_HTML || {};\n"
+                script_content += f"window.JSON_SETTINGS_HTML['{table_id}'] = {json.dumps(html_content, separators=(',', ':'))};\n"
+                direct_html_count += 1
+        
+        if direct_html_count > 0:
+            logger.debug(f"JSON Settings HTML: {direct_html_count} direct registrations (patterns not beneficial for templating)", group="badge_modal")
+    
+    # Process Intelligent Settings
+    if intelligent_settings:
+        settings_templates, settings_mappings = generate_template_structures(
+            intelligent_settings, 'intelligentSettings')
+        
+        if settings_templates:
+            # Generate template-based registration for settings
+            script_content += "// Intelligent Settings templates\n"
+            script_content += f"window.INTELLIGENT_SETTINGS_TEMPLATES = {json.dumps(settings_templates, separators=(',', ':'))};\n"
+            script_content += f"window.INTELLIGENT_SETTINGS_MAPPINGS = {json.dumps(settings_mappings, separators=(',', ':'))};\n"
+            
+            # Generate template expansion code for settings
+            script_content += """
+// Expand Intelligent Settings templates
+Object.keys(window.INTELLIGENT_SETTINGS_TEMPLATES).forEach(templateId => {
+    const template = window.INTELLIGENT_SETTINGS_TEMPLATES[templateId];
+    const keys = window.INTELLIGENT_SETTINGS_MAPPINGS[templateId];
+    
+    keys.forEach(tableId => {
+        // Settings data can be used directly (no table ID substitution needed)
+        window.INTELLIGENT_SETTINGS = window.INTELLIGENT_SETTINGS || {};
+        window.INTELLIGENT_SETTINGS[tableId] = JSON.parse(JSON.stringify(template));
+    });
+});
+"""
+            
+            # Get templated keys for direct registration exclusion
+            templated_keys = set()
+            for keys in settings_mappings.values():
+                templated_keys.update(keys)
+        else:
+            templated_keys = set()
+        
+        # Handle direct registration for non-templated settings
+        direct_settings_count = 0
+        for table_id, settings_data in intelligent_settings.items():
+            if table_id not in templated_keys:
+                # Ensure the global object exists
+                script_content += "window.INTELLIGENT_SETTINGS = window.INTELLIGENT_SETTINGS || {};\n"
+                script_content += f"window.INTELLIGENT_SETTINGS['{table_id}'] = {json.dumps(settings_data, separators=(',', ':'))};\n"
+                direct_settings_count += 1
+        
+        if direct_settings_count > 0:
+            logger.debug(f"Intelligent Settings: {direct_settings_count} direct registrations (patterns not beneficial for templating)", group="badge_modal")
     
     if script_content:
+        # Log individual counts for debugging
+        html_count = len(json_settings_html) if json_settings_html else 0
+        settings_count = len(intelligent_settings) if intelligent_settings else 0
+        logger.debug(f"JSON Settings registrations - {html_count} HTML entries, {settings_count} intelligent settings", group="badge_modal")
+        
         return f"""
-// Consolidated Platform Entry Notification data registrations
+// Consolidated JSON Generation Settings registrations with template deduplication
 {script_content}"""
     else:
         return ""
@@ -587,7 +1290,7 @@ def analyze_version_characteristics(raw_platform_data):
                     
                     # Patch patterns
                     r'^(.+?)[\.\-_\s]*patch[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*p[\.\-_\s]*(\d+)[\.\-_\s]*$',
+                    r'^(.+?)[\.\-_\s]*p[\.\-_\s]*(\d+)[\.\-_\s]*$',  # This pattern will match firmware identifiers like QEP8111
                     r'^(.+?)\.p(\d+)$', # Handle 3.1.0.p7
                     
                     # Hotfix patterns
@@ -640,8 +1343,13 @@ def analyze_version_characteristics(raw_platform_data):
                         concern = f"Update pattern for {field}: {field_value} → {transformed_version}"
                         processed_update_patterns.add(html.escape(concern))
                     else:
-                        # This should not happen - fail with clear error instead of masking
-                        raise ValueError(f"Update pattern matched but failed to transform: {field}={field_value}")
+                        # Soft failure: Log warning and skip this transformation
+                        # This happens when regex patterns incorrectly match firmware identifiers, etc.
+                        logger.warning(f"Update pattern matched but transformation failed for {field}={field_value}. Skipping transformation for this field.", group="DATA_PROC")
+                        
+                        # Add a descriptive concern instead of failing
+                        concern = f"Unprocessable update pattern in {field}: {field_value} (transformation skipped)"
+                        processed_concerns.add(html.escape(concern))
             
             # Handle dictionary values (nested version objects)
             elif isinstance(field_value, dict):

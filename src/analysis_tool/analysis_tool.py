@@ -340,8 +340,13 @@ def get_all_cves(nvd_api_key):
     """Get all CVEs from NVD API."""
     return gatherData.gatherAllCVEIDs(nvd_api_key)
 
-def audit_global_state():
-    """Audit global state for potential bloat accumulation"""
+def audit_global_state(warn_on_bloat=True):
+    """Audit global state for potential bloat accumulation
+    
+    Args:
+        warn_on_bloat (bool): Whether to emit warnings for detected bloat. 
+                             Set to False for interim audits, True for final audits.
+    """
     try:
         from .cpe_cache import get_global_cache_manager
         from . import generateHTML
@@ -367,8 +372,11 @@ def audit_global_state():
         if intelligent_settings_size > 1000:  # Very high threshold - indicates potential memory leak
             issues.append(f"Excessive intelligent settings accumulation: {intelligent_settings_size} entries")
               # Report issues or all-clear
-        if issues:            
-            logger.warning(f"Global state bloat detected: {', '.join(issues)}", group="data_processing")
+        if issues:
+            if warn_on_bloat:
+                logger.warning(f"Global state bloat detected: {', '.join(issues)}", group="data_processing")
+            else:
+                logger.debug(f"Global state monitoring: {', '.join(issues)}", group="data_processing")
         else:
             logger.debug("Global state clean", group="data_processing")
             
@@ -625,12 +633,12 @@ def main():
     # Start main initialization stage
     start_initialization("Setting up analysis environment")
       # Initial memory and state audit
-    audit_global_state()
+    audit_global_state(warn_on_bloat=False)
     audit_cache_and_mappings_stats()
     
     # Initial system audit
     start_audit("Baseline system state verification")
-    audit_global_state()
+    audit_global_state(warn_on_bloat=False)
     audit_cache_and_mappings_stats()
     end_audit("System state verified - ready for CVE processing")
 
@@ -721,7 +729,7 @@ def main():
                     logger.debug(f"Timing: Elapsed: {elapsed_str} | ETA: {eta_str} | Remaining: {remaining_str}", group="INIT")
                     logger.debug(f"Performance: Average {avg_time_per_cve:.2f}s per CVE", group="INIT")
                 
-                audit_global_state()
+                audit_global_state(warn_on_bloat=False)
                 audit_cache_and_mappings_stats()
                 
                 # Start dashboard update in parallel (non-blocking)
@@ -735,9 +743,6 @@ def main():
             
             if result and result['success']:
                 generated_files.append(result['filepath'])
-                
-                # Audit file size for bloat detection
-                audit_file_size(result['filepath'])
                 
                 if show_timing:
                     cve_elapsed = time.time() - cve_start_time
@@ -762,7 +767,7 @@ def main():
     
     # Final audit after all processing
     start_audit("Final system state audit")
-    audit_global_state()
+    audit_global_state(warn_on_bloat=True)
     audit_cache_and_mappings_stats()
     end_audit("Processing complete - final audit finished")
     

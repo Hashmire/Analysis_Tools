@@ -70,7 +70,7 @@
         "cache": {
         "enabled": true,
         "directory": "cache",
-        "max_age_hours": 36,
+        "max_age_hours": 12,
         "max_size_mb": 500,
         "compression": false,
         "validation_on_startup": true,
