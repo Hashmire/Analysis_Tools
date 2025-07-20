@@ -188,6 +188,14 @@ class LogAnalyzer:
                 "top_queries": [],             # List of top 10 largest queries with detailed stats (by unique strings)
                 "top_result_queries": []       # List of top 10 individual queries by result count (NEW)
             },
+            "bloat_analysis": {
+                "enabled": True,
+                "files_analyzed": 0,
+                "total_bloat_potential": 0.0,
+                "average_severity": 0.0,
+                "top_bloat_files": [],        # Top 10 files by bloat potential
+                "detailed_reports_generated": []  # List of CVEs with detailed markdown reports
+            },
             "recent_activity": [],
             "errors": [],
             "warnings": [],
@@ -999,6 +1007,119 @@ class LogAnalyzer:
                 dedup_stats["overall_space_savings"] * 0.15
             )  # Conservative estimate: 15% of space savings translates to performance boost
     
+    def _integrate_bloat_analysis(self):
+        """Integrate bloat detection analysis into dashboard data"""
+        bloat_stats = self.data["bloat_analysis"]
+        
+        try:
+            # Import bloat detection framework
+            import sys
+            current_dir = os.path.dirname(__file__)
+            sys.path.insert(0, current_dir)
+            from bloat_detection_framework import BloatDetectionFramework
+            
+            bloat_framework = BloatDetectionFramework()
+            
+            # Use existing detailed_files list - this is already the top 20 files by size
+            # No need for threshold checks, just analyze all files in the detailed list
+            files_to_analyze = self.data["file_stats"]["detailed_files"]
+            
+            bloat_results = []
+            total_severity = 0.0
+            reports_generated = []
+            
+            print(f"Analyzing {len(files_to_analyze)} files from Top Generated Files by Size...")
+            
+            for file_info in files_to_analyze:
+                cve_id = file_info["cve_id"]
+                
+                # Try to find the actual HTML file
+                html_file = None
+                from pathlib import Path
+                for potential_path in [
+                    f"generated_pages/{cve_id}.html",
+                    f"test_output/{cve_id}.html"
+                ]:
+                    path_obj = Path(potential_path)
+                    if path_obj.exists():
+                        html_file = path_obj
+                        break
+                
+                if html_file:
+                    try:
+                        print(f"  Analyzing {cve_id}...")
+                        analysis = bloat_framework.analyze_file(html_file)
+                        if analysis and analysis.severity_score > 0:
+                            # Create summary for dashboard
+                            top_bloat_sources = sorted(
+                                [(name, data) for name, data in analysis.bloat_sources.items()],
+                                key=lambda x: x[1]["total_size"],
+                                reverse=True
+                            )[:5]
+                            
+                            bloat_summary = {
+                                "cve_id": cve_id,
+                                "file_size": file_info["file_size"],
+                                "severity_score": analysis.severity_score,
+                                "top_5_sources": [
+                                    {
+                                        "name": name,
+                                        "type": data.get("description", "Unknown"),
+                                        "reduction_mb": round(data["total_size"] / (1024 * 1024), 2),
+                                        "reduction_percent": round(data["percentage"], 1)
+                                    }
+                                    for name, data in top_bloat_sources
+                                ]
+                            }
+                            bloat_results.append(bloat_summary)
+                            total_severity += analysis.severity_score
+                            
+                            # Generate detailed markdown report
+                            markdown_report_path = f"reports/bloat_analysis_{cve_id}.md"
+                            os.makedirs("reports", exist_ok=True)
+                            
+                            # Create individual JSON report (markdown disabled for now)
+                            single_file_results = {cve_id: analysis}
+                            from pathlib import Path
+                            # Change extension to .json since we're not generating markdown
+                            json_report_path = markdown_report_path.replace('.md', '.json')
+                            bloat_framework._write_report(single_file_results, Path(json_report_path))
+                            
+                            reports_generated.append(cve_id)
+                            print(f"    ✓ Generated report: {json_report_path}")
+                            
+                    except Exception as e:
+                        # Continue processing other files if one fails
+                        print(f"  Warning: Bloat analysis failed for {cve_id}: {e}")
+                        continue
+                else:
+                    print(f"  Warning: HTML file not found for {cve_id}")
+            
+            # Update bloat analysis stats
+            bloat_stats["files_analyzed"] = len(files_to_analyze)
+            bloat_stats["total_bloat_potential"] = sum(result["severity_score"] for result in bloat_results)
+            bloat_stats["average_severity"] = (total_severity / len(bloat_results)) if bloat_results else 0.0
+            bloat_stats["top_bloat_files"] = sorted(bloat_results, key=lambda x: x["severity_score"], reverse=True)[:10]
+            bloat_stats["detailed_reports_generated"] = reports_generated
+            
+            # Add bloat analysis data to file details
+            bloat_lookup = {result["cve_id"]: result for result in bloat_results}
+            for file_info in self.data["file_stats"]["detailed_files"]:
+                cve_id = file_info["cve_id"]
+                if cve_id in bloat_lookup:
+                    file_info["bloat_analysis"] = bloat_lookup[cve_id]
+                else:
+                    file_info["bloat_analysis"] = {"status": "analysis_failed"}
+            
+            print(f"✓ Bloat analysis complete: {len(bloat_results)} files analyzed, {len(reports_generated)} reports generated")
+                    
+        except ImportError as e:
+            print(f"Warning: Bloat detection framework not available: {e}")
+            bloat_stats["enabled"] = False
+        except Exception as e:
+            print(f"Warning: Bloat analysis integration failed: {e}")
+            bloat_stats["enabled"] = False
+    
     def _calculate_derived_metrics(self):
         """Calculate derived metrics from parsed data"""
         
@@ -1175,6 +1296,9 @@ class LogAnalyzer:
         
         # Calculate additional dashboard metrics
         self._calculate_dashboard_metrics()
+        
+        # Integrate bloat analysis
+        self._integrate_bloat_analysis()
         
         # Cache file size calculation
         try:
@@ -1383,6 +1507,7 @@ def main():
             return 1
         
         print(f"Analyzing log file: {log_file}")
+        
         data = analyzer.parse_log_file(log_file)
         
         # Save JSON data
