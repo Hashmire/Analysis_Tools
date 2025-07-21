@@ -1025,7 +1025,7 @@ class LogAnalyzer:
             files_to_analyze = self.data["file_stats"]["detailed_files"]
             
             bloat_results = []
-            total_severity = 0.0
+            total_bloat = 0
             reports_generated = []
             
             print(f"Analyzing {len(files_to_analyze)} files from Top Generated Files by Size...")
@@ -1049,30 +1049,104 @@ class LogAnalyzer:
                     try:
                         print(f"  Analyzing {cve_id}...")
                         analysis = bloat_framework.analyze_file(html_file)
-                        if analysis and analysis.severity_score > 0:
-                            # Create summary for dashboard
-                            top_bloat_sources = sorted(
-                                [(name, data) for name, data in analysis.bloat_sources.items()],
-                                key=lambda x: x[1]["total_size"],
-                                reverse=True
-                            )[:5]
+                        if analysis and analysis.actual_bloat_size > 0:
+                            # Create summary for dashboard - combine bloat_sources AND repetitive_structures
+                            all_bloat_sources = []
+                            
+                            # Add generic bloat patterns from bloat_sources
+                            for name, data in analysis.bloat_sources.items():
+                                all_bloat_sources.append((name, {
+                                    "total_size": data["total_size"],
+                                    "percentage": data["percentage"],
+                                    "description": data.get("description", "Unknown"),
+                                    "source_type": "generic_pattern"
+                                }))
+                            
+                            # Add specific ID patterns from repetitive_structures (these are often more actionable!)
+                            if hasattr(analysis, 'repetitive_structures') and analysis.repetitive_structures:
+                                # ALWAYS INCLUDE: Show ALL ID patterns for top 5 list (no percentage filtering)
+                                all_structures = list(analysis.repetitive_structures.items())
+                                # Sort by total size and take top 10 for inclusion
+                                top_structures = sorted(all_structures, 
+                                                      key=lambda x: x[1].get('total_size', 0), 
+                                                      reverse=True)[:10]  # Get more for potential inclusion
+                                
+                                for structure_name, struct_data in top_structures:
+                                    # Extract clean ID prefix for display
+                                    id_prefix = struct_data.get('id_prefix', structure_name.replace('id_pattern_', ''))
+                                    display_name = f"ID Pattern: {id_prefix}_X"
+                                    
+                                    all_bloat_sources.append((display_name, {
+                                        "total_size": struct_data["total_size"],
+                                        "percentage": struct_data["percentage"],
+                                        "description": f"{struct_data['count']} elements with pattern '{id_prefix}_X' (Range: {struct_data.get('id_range', 'N/A')})",
+                                        "source_type": "id_pattern",
+                                        "savings_potential": struct_data.get("adjusted_potential_savings", 0),
+                                        "element_count": struct_data["count"]
+                                        }))
+                            
+                            # SMART BLOAT DETECTION: Check if ID patterns dominate the bloat
+                            id_pattern_size = sum(data["total_size"] for name, data in all_bloat_sources if data.get("source_type") == "id_pattern")
+                            generic_pattern_size = sum(data["total_size"] for name, data in all_bloat_sources if data.get("source_type") == "generic_pattern")
+                            total_identified_bloat = id_pattern_size + generic_pattern_size
+                            
+                            # If ID patterns account for >70% of identified bloat, simplify generic patterns
+                            id_pattern_dominance = (id_pattern_size / total_identified_bloat) * 100 if total_identified_bloat > 0 else 0
+                            
+                            if id_pattern_dominance > 70:
+                                # Filter out small generic patterns, keep only the largest one as representative
+                                generic_patterns = [(name, data) for name, data in all_bloat_sources if data.get("source_type") == "generic_pattern"]
+                                if generic_patterns:
+                                    largest_generic = max(generic_patterns, key=lambda x: x[1]["total_size"])
+                                    # Replace with a simplified "catch-all" entry
+                                    all_bloat_sources = [(name, data) for name, data in all_bloat_sources if data.get("source_type") != "generic_pattern"]
+                                    all_bloat_sources.append(("Generic HTML Patterns", {
+                                        "total_size": generic_pattern_size,
+                                        "percentage": (generic_pattern_size / analysis.total_size) * 100,
+                                        "description": f"Various generic bloat patterns (largest: {largest_generic[0]})",
+                                        "source_type": "catch_all",
+                                        "savings_potential": generic_pattern_size,
+                                        "element_count": len(generic_patterns)
+                                    }))
+                            
+                            # Add unaccounted bloat tracker if there's significant missing bloat
+                            unaccounted_bloat = analysis.actual_bloat_size - total_identified_bloat
+                            if unaccounted_bloat > (analysis.actual_bloat_size * 0.05):  # If >5% unaccounted
+                                all_bloat_sources.append(("Untracked Bloat", {
+                                    "total_size": unaccounted_bloat,
+                                    "percentage": (unaccounted_bloat / analysis.total_size) * 100,
+                                    "description": f"Bloat not captured by current detection patterns (~{unaccounted_bloat/1024/1024:.1f} MB)",
+                                    "source_type": "untracked",
+                                    "savings_potential": unaccounted_bloat,
+                                    "element_count": 1
+                                }))
+                            
+                            # Sort ALL sources by total size and take top 5
+                            top_bloat_sources = sorted(all_bloat_sources, key=lambda x: x[1]["total_size"], reverse=True)[:5]
+                            
+                            # Calculate bloat percentage of file size for prioritization
+                            bloat_percentage = (analysis.actual_bloat_size / analysis.total_size) * 100 if analysis.total_size > 0 else 0
                             
                             bloat_summary = {
                                 "cve_id": cve_id,
                                 "file_size": file_info["file_size"],
-                                "severity_score": analysis.severity_score,
+                                "bloat_percentage": round(bloat_percentage, 1),
+                                "actual_bloat_size": analysis.actual_bloat_size,
                                 "top_5_sources": [
                                     {
                                         "name": name,
                                         "type": data.get("description", "Unknown"),
                                         "reduction_mb": round(data["total_size"] / (1024 * 1024), 2),
-                                        "reduction_percent": round(data["percentage"], 1)
+                                        "reduction_percent": round(data["percentage"], 1),
+                                        "source_category": data.get("source_type", "unknown"),
+                                        "savings_potential_mb": round(data.get("savings_potential", data["total_size"]) / (1024 * 1024), 2) if data.get("savings_potential") else round(data["total_size"] / (1024 * 1024), 2),
+                                        "element_count": data.get("element_count", 1)
                                     }
                                     for name, data in top_bloat_sources
                                 ]
                             }
                             bloat_results.append(bloat_summary)
-                            total_severity += analysis.severity_score
+                            total_bloat += analysis.actual_bloat_size
                             
                             # Generate detailed markdown report
                             markdown_report_path = f"reports/bloat_analysis_{cve_id}.md"
@@ -1097,9 +1171,9 @@ class LogAnalyzer:
             
             # Update bloat analysis stats
             bloat_stats["files_analyzed"] = len(files_to_analyze)
-            bloat_stats["total_bloat_potential"] = sum(result["severity_score"] for result in bloat_results)
-            bloat_stats["average_severity"] = (total_severity / len(bloat_results)) if bloat_results else 0.0
-            bloat_stats["top_bloat_files"] = sorted(bloat_results, key=lambda x: x["severity_score"], reverse=True)[:10]
+            bloat_stats["total_bloat_size"] = total_bloat
+            bloat_stats["average_bloat_percentage"] = (sum(result["bloat_percentage"] for result in bloat_results) / len(bloat_results)) if bloat_results else 0.0
+            bloat_stats["top_bloat_files"] = sorted(bloat_results, key=lambda x: x["bloat_percentage"], reverse=True)[:10]
             bloat_stats["detailed_reports_generated"] = reports_generated
             
             # Add bloat analysis data to file details

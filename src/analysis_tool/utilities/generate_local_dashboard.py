@@ -1261,16 +1261,6 @@ def generate_dashboard_html(data, output_file):
                 </tbody>
             </table>
         </div>
-        
-        <div style="margin-top: 15px; padding: 10px; background: #eafaf1; border-left: 4px solid #16a085; border-radius: 4px;">
-            <p style="margin: 0; font-size: 0.9em; color: #2c3e50;">
-                <strong>💡 File Analysis:</strong> Larger files typically indicate CVEs with more complex platform data, vendor variations, or extensive version ranges. 
-                Platform entries show the complexity of affected systems, while processing time reflects both data complexity and system performance.
-                <br><strong>Bloat Analysis:</strong> Files exceeding the configurable threshold (default: 3MB) are analyzed for optimization opportunities. 
-                The severity score indicates overall bloat potential, with top reduction sources categorized by type (Templating, Code Structure, Data Processing, UI Components).
-                <br><strong>Note:</strong> File sizes include HTML formatting, styling, and complete vulnerability analysis data.
-            </p>
-        </div>
         '''
     else:
         detailed_files_html = '''
