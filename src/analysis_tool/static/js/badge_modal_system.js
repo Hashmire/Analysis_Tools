@@ -1410,8 +1410,9 @@ class BadgeModalFactory {
             generateTabsData: (data, displayValue, additionalData) => {
                 const tabs = [];
                 
-                // Extract concerns from the data structure  
+                // Extract concerns from the data structure and source role from additional data
                 const concernsData = data.concerns || {};
+                const sourceRole = additionalData?.sourceRole || 'Unknown Source';
                 
                 // Generate tabs based on the concern types present in data
                 if (concernsData.placeholderData && concernsData.placeholderData.length > 0) {
@@ -1419,7 +1420,7 @@ class BadgeModalFactory {
                         id: 'placeholderData',
                         label: 'Placeholder Data Detected',
                         badge: concernsData.placeholderData.length,
-                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.placeholderData, 'placeholderData')
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.placeholderData, 'placeholderData', sourceRole)
                     });
                 }
                 
@@ -1428,7 +1429,7 @@ class BadgeModalFactory {
                         id: 'versionTextPatterns',
                         label: 'Version Text Patterns',
                         badge: concernsData.versionTextPatterns.length,
-                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.versionTextPatterns, 'versionTextPatterns')
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.versionTextPatterns, 'versionTextPatterns', sourceRole)
                     });
                 }
                 
@@ -1437,7 +1438,7 @@ class BadgeModalFactory {
                         id: 'versionComparators',
                         label: 'Comparator Patterns',
                         badge: concernsData.versionComparators.length,
-                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.versionComparators, 'versionComparators')
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.versionComparators, 'versionComparators', sourceRole)
                     });
                 }
                 
@@ -1446,7 +1447,7 @@ class BadgeModalFactory {
                         id: 'versionGranularity',
                         label: 'Version Granularity',
                         badge: concernsData.versionGranularity.length,
-                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.versionGranularity, 'versionGranularity')
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.versionGranularity, 'versionGranularity', sourceRole)
                     });
                 }
                 
@@ -1455,7 +1456,7 @@ class BadgeModalFactory {
                         id: 'wildcardBranches',
                         label: 'Wildcard Branches',
                         badge: concernsData.wildcardBranches.length,
-                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.wildcardBranches, 'wildcardBranches')
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.wildcardBranches, 'wildcardBranches', sourceRole)
                     });
                 }
                 
@@ -1464,7 +1465,7 @@ class BadgeModalFactory {
                         id: 'cpeArrayConcerns',
                         label: 'CPE Array Issues',
                         badge: concernsData.cpeArrayConcerns.length,
-                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.cpeArrayConcerns, 'cpeArrayConcerns')
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.cpeArrayConcerns, 'cpeArrayConcerns', sourceRole)
                     });
                 }
                 
@@ -1473,7 +1474,7 @@ class BadgeModalFactory {
                         id: 'duplicateEntries',
                         label: 'Duplicate Entries',
                         badge: concernsData.duplicateEntries.length,
-                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.duplicateEntries, 'duplicateEntries')
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.duplicateEntries, 'duplicateEntries', sourceRole)
                     });
                 }
                 
@@ -1482,7 +1483,7 @@ class BadgeModalFactory {
                         id: 'platformDataConcerns',
                         label: 'Platform Data Issues',
                         badge: concernsData.platformDataConcerns.length,
-                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.platformDataConcerns, 'platformDataConcerns')
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.platformDataConcerns, 'platformDataConcerns', sourceRole)
                     });
                 }
                 
@@ -1880,7 +1881,7 @@ class BadgeModalFactory {
         return content;
     }
 
-    static generateSourceDataConcernTabContent(concerns, concernType) {
+    static generateSourceDataConcernTabContent(concerns, concernType, sourceRole = 'Unknown Source') {
         if (!concerns || concerns.length === 0) {
             return '<p class="text-muted">No concerns detected</p>';
         }
@@ -1904,7 +1905,7 @@ class BadgeModalFactory {
                     <div class="concern-header mb-2">
                         <div class="d-flex justify-content-between align-items-center">
                             <h6 class="mb-0 text-danger fw-bold" style="font-size: 0.9rem;">Issue #${issueNumber}</h6>
-                            <span class="badge bg-purple text-white" style="background-color: #9C27B0; font-size: 0.65rem;">EXTERNAL SOURCE</span>
+                            <span class="badge bg-purple text-white" style="background-color: #9C27B0; font-size: 0.65rem;">${sourceRole.toUpperCase()}</span>
                         </div>
                     </div>
             `;
@@ -2045,26 +2046,74 @@ class BadgeModalFactory {
     }
 
     static generateVersionGranularityContent(concern) {
+        // Parse the concern text to extract version granularity information
+        const concernText = concern.concern || '';
+        
+        // Create simple columnar display for version comparison
+        let formattedData = '';
+        
+        if (concernText.includes('Inconsistent version granularity:')) {
+            try {
+                // Extract all versions from parentheses and create columnar display
+                const versionMatches = concernText.match(/\([^)]+\)/g);
+                
+                if (versionMatches) {
+                    // Extract all individual versions from the parentheses
+                    const allVersions = [];
+                    versionMatches.forEach(match => {
+                        // Remove parentheses and split by comma
+                        const versions = match.replace(/[()]/g, '').split(',');
+                        versions.forEach(version => {
+                            const cleanVersion = version.trim();
+                            if (cleanVersion && !allVersions.includes(cleanVersion)) {
+                                allVersions.push(cleanVersion);
+                            }
+                        });
+                    });
+                    
+                    // Create columnar display
+                    formattedData = `<div style="font-family: monospace;">`;
+                    
+                    // Display each version on its own line for easy comparison  
+                    allVersions.forEach(version => {
+                        formattedData += `<div style="padding: 1px 0;">${version}</div>`;
+                    });
+                    
+                    formattedData += '</div>';
+                } else {
+                    // Fallback if parsing fails
+                    formattedData = `<code style="background: #f8f9fa; padding: 8px; border-radius: 4px; font-size: 0.85rem; display: block; white-space: pre-wrap;">${concernText}</code>`;
+                }
+            } catch (e) {
+                // If parsing fails, use simple formatted text
+                formattedData = `<code style="background: #f8f9fa; padding: 8px; border-radius: 4px; font-size: 0.85rem; display: block; white-space: pre-wrap;">${concernText}</code>`;
+            }
+        } else {
+            // For non-standard version granularity concerns, display as-is
+            formattedData = `<code style="background: #f8f9fa; padding: 8px; border-radius: 4px; font-size: 0.85rem; display: block; white-space: pre-wrap;">${concernText}</code>`;
+        }
+        
         return `
             <div class="concern-content compact-layout">
-                <div class="problem-description mb-1">
+                <div class="problem-description mb-2">
                     <strong class="text-danger" style="font-size: 0.85rem;">Problem:</strong>
                     <span class="ms-2" style="font-size: 0.85rem;">${concern.issue || 'Version granularity issues may affect matching precision.'}</span>
                 </div>
-                <div class="problematic-data mb-1">
-                    <div class="row g-1">
-                        <div class="col-3">
-                            <strong class="text-warning" style="font-size: 0.85rem;">Data:</strong>
-                        </div>
-                        <div class="col-9">
-                            <code class="text-dark bg-light px-1 py-1 rounded border" style="font-size: 0.8rem;">${concern.concern}</code>
-                            <span class="badge bg-warning text-dark ms-2" style="font-size: 0.65rem;">${concern.category}</span>
-                        </div>
+                <div class="problematic-data mb-2">
+                    <div class="version-data-section">
+                        <strong class="text-warning d-block mb-2" style="font-size: 0.85rem;">Granularity Analysis:</strong>
+                        ${formattedData}
                     </div>
                 </div>
                 <div class="resolution-guidance">
                     <strong class="text-success" style="font-size: 0.85rem;">Resolution:</strong>
-                    <span class="text-muted ms-2" style="font-size: 0.8rem;">Standardize version format consistency across related versions</span>
+                    <div class="text-muted ms-2" style="font-size: 0.8rem;">
+                        <ul class="mb-0 mt-1">
+                            <li>Standardize version format consistency across related versions</li>
+                            <li>Use consistent granularity levels (all 2-part or all 3-part within a base version)</li>
+                            <li>Consider normalizing version patterns to avoid matching ambiguity</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         `;
@@ -2353,8 +2402,9 @@ class BadgeModalManager {
             throw new Error(`No source data concerns data registered for key '${tableIndex}' - check BadgeModal.registerData() calls`);
         }
         
-        // Extract concerns data from the registered structure
+        // Extract concerns data and source role from the registered structure
         const concernsData = registeredData.concerns || {};
+        const sourceRole = registeredData.sourceRole || 'Unknown Source';
         
         // Calculate counts for header display
         let issueCount = 0;
@@ -2393,7 +2443,7 @@ class BadgeModalManager {
             concernTypes.push('Platform Data Issues');
         }
         
-        modal.show(tableIndex, displayValue, { issueCount, concernTypes });
+        modal.show(tableIndex, displayValue, { issueCount, concernTypes, sourceRole });
     }
 
     static openJsonGenerationRulesModal(tableIndex, displayValue) {

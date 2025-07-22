@@ -1756,6 +1756,9 @@ def clear_global_html_state():
 
 def analyze_data_for_smart_defaults(raw_platform_data):
     """Analyze platform data to determine intelligent defaults for JSON generation settings"""
+    # Import here to avoid circular imports
+    from .badge_modal_system import analyze_version_characteristics
+    
     # Default settings - start with most common configuration
     settings = {
         'enableWildcardExpansion': True,
@@ -1768,8 +1771,33 @@ def analyze_data_for_smart_defaults(raw_platform_data):
         'enableUpdatePatterns': False
     }
     
-    # For now, return consistent settings for all tables to enable template deduplication
-    # TODO: Add intelligent analysis based on raw_platform_data content
+    # Use the unified analysis function to set intelligent defaults
+    if raw_platform_data:
+        characteristics = analyze_version_characteristics(raw_platform_data)
+        
+        # Update settings based on actual data characteristics
+        if characteristics.get('has_wildcards'):
+            settings['enableWildcardExpansion'] = True
+            
+        if characteristics.get('has_version_changes'):
+            settings['enableVersionChanges'] = True
+            
+        if characteristics.get('has_special_version_types'):
+            settings['enableSpecialVersionTypes'] = True
+            
+        if characteristics.get('has_multiple_branches'):
+            settings['enableMultipleBranches'] = True
+            
+        if characteristics.get('has_mixed_statuses'):
+            settings['enableMixedStatus'] = True
+            
+        if characteristics.get('has_gaps_for_processing'):
+            settings['enableGapProcessing'] = True
+            
+        # This is the key fix - use actual update patterns detection!
+        if characteristics.get('has_update_patterns') and characteristics.get('update_patterns'):
+            settings['enableUpdatePatterns'] = True
+    
     return settings
 
 def store_json_settings_html(table_id, raw_platform_data=None):

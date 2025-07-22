@@ -3061,10 +3061,22 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     if concerns_count == 0:
         return None
     
+    # Extract source role information from row data
+    # Handle pandas Series safely by checking for empty/non-empty state
+    try:
+        if row is not None and hasattr(row, 'get'):
+            source_role = row.get('sourceRole', 'Unknown Source')
+        else:
+            source_role = 'Unknown Source'
+    except (ValueError, TypeError):
+        # Fallback for pandas Series boolean ambiguity
+        source_role = 'Unknown Source'
+    
     # Register the concerns data for the modal
     PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'] = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('sourceDataConcerns', {})
     PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'][table_index] = {
         "concerns": concerns_data,
+        "sourceRole": source_role,  # Add source role to the registered data
         "summary": {
             "total_concerns": concerns_count,
             "concern_types": concern_types
