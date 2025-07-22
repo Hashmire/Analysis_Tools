@@ -442,9 +442,33 @@ def analyze_supporting_info_patterns(supporting_data: Dict) -> str:
     """
     if not supporting_data:
         return "empty"
-    
+
     pattern_parts = []
     
+    # Check if this data contains version-specific content that should not be templated
+    has_version_data = False
+    if 'tabs' in supporting_data:
+        for tab in supporting_data['tabs']:
+            if 'items' in tab:
+                for item in tab['items']:
+                    # Check if this item contains version array data
+                    if (item.get('type') == 'versions_structure' and 
+                        'versions_array' in item and 
+                        item['versions_array']):
+                        has_version_data = True
+                        break
+            if has_version_data:
+                break
+    
+    # If this supporting information contains version data, make it unique to prevent templating
+    if has_version_data:
+        # Generate a unique pattern that includes the actual version data hash
+        import hashlib
+        import json
+        data_hash = hashlib.md5(json.dumps(supporting_data, sort_keys=True).encode()).hexdigest()[:8]
+        return f"version_specific:{data_hash}"
+    
+    # For non-version data, use the original pattern analysis
     # Analyze summary data
     if 'summary' in supporting_data:
         summary = supporting_data['summary']
@@ -464,11 +488,15 @@ def analyze_supporting_info_patterns(supporting_data: Dict) -> str:
         tab_count = len(supporting_data['tabs'])
         pattern_parts.append(f"tab_count:{tab_count}")
         
-        # Analyze content types in tabs
+        # Analyze content types in tabs (excluding version-specific types)
         content_types = set()
         for tab in supporting_data['tabs']:
-            if 'type' in tab:
-                content_types.add(tab['type'])
+            if 'items' in tab:
+                for item in tab['items']:
+                    item_type = item.get('type', 'unknown')
+                    # Skip version-specific types from pattern analysis
+                    if item_type not in ['versions_structure']:
+                        content_types.add(item_type)
         
         if content_types:
             content_types_count = len(content_types)

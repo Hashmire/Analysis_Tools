@@ -162,7 +162,8 @@ def process_test_file(test_file_path, nvd_source_data):
                                   affectedHtml2)
         
         # Generate page and save HTML
-        allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, cve_id, globalCVEMetadata)
+        external_assets_for_html = config.get('external_assets', {})
+        allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, cve_id, globalCVEMetadata, external_assets_config=external_assets_for_html)
 
         # Save output to test_output directory for test files
         sub_directory = ensure_project_directory("test_output")
@@ -185,6 +186,7 @@ def process_test_file(test_file_path, nvd_source_data):
 
 def process_cve(cve_id, nvd_api_key, nvd_source_data):
     """Process a single CVE using the analysis tool functionality."""
+    global config
     
     # Clear global HTML state to prevent accumulation from previous CVEs
     generateHTML.clear_global_html_state()
@@ -312,7 +314,8 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
                                   affectedHtml2)
 
         # Generate page and save HTML
-        allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, cve_id, globalCVEMetadata)
+        external_assets_for_html = config.get('external_assets', {})
+        allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, cve_id, globalCVEMetadata, external_assets_config=external_assets_for_html)
 
         # Save output to generated_pages directory for main CVE processing
         sub_directory = ensure_project_directory("generated_pages")
@@ -335,10 +338,6 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
             'success': False,
             'error': str(e)
         }
-
-def get_all_cves(nvd_api_key):
-    """Get all CVEs from NVD API."""
-    return gatherData.gatherAllCVEIDs(nvd_api_key)
 
 def audit_global_state(warn_on_bloat=True):
     """Audit global state for potential bloat accumulation
@@ -530,15 +529,10 @@ def main():
     group.add_argument("--cve", nargs="+", help="One or more CVE IDs to process")
     group.add_argument("--file", help="Text file with CVE IDs (one per line)")
     group.add_argument("--test-file", help="JSON file with test CVE data for modular rules testing")
-    group.add_argument("--all", action="store_true", help="Process all CVE records")
     parser.add_argument("--api-key", help="NVD API Key (optional but recommended)")
     parser.add_argument("--no-browser", action="store_true", help="Don't open results in browser")
     parser.add_argument("--no-cache", action="store_true", help="Disable CPE cache for faster testing")
-    parser.add_argument("--debug", action="store_true", help="Debug mode - uses DEFAULT_CVE_MODE setting")
-    parser.add_argument("--save-skipped", help="Save list of skipped CVEs to specified file")
-    
-    # Set to "single" for a single CVE or "all" for all CVEs
-    DEFAULT_CVE_MODE = "single"  # Change this to "all" when needed    DEFAULT_CVE_ID = "CVE-2024-20515"  # Default CVE to process in single mode
+    parser.add_argument("--external-assets", action="store_true", help="Use external asset references instead of inline CSS/JS (reduces file size)")
     
     args = parser.parse_args()
     
@@ -554,11 +548,9 @@ def main():
     elif args.test_file:
         filename = os.path.basename(args.test_file).replace('.json', '').replace('.', '_')
         params = filename
-    elif args.all:
-        params = "all_CVEs"
     else:
-        # Debug mode with default
-        params = "debug_mode"
+        # No arguments provided - use config debug defaults
+        params = "config_defaults"
     
     # Start file logging with generated parameters
     logger.start_file_logging(params)
@@ -566,10 +558,38 @@ def main():
     # Load configuration
     config = processData.load_config()
     
+    # Override external assets setting if CLI argument is provided
+    if args.external_assets:
+        logger.info("External assets enabled via CLI argument - overriding config setting", group="initialization")
+        # Copy the external_assets configuration from api.external_assets and enable it
+        if 'api' in config and 'external_assets' in config['api']:
+            config['external_assets'] = config['api']['external_assets'].copy()
+            config['external_assets']['enabled'] = True
+        else:
+            # Fallback if config structure is missing
+            if 'external_assets' not in config:
+                config['external_assets'] = {}
+            config['external_assets']['enabled'] = True
+        
+        # Update the global config as well so process_cve function can access it
+        import sys
+        current_module = sys.modules[__name__]
+        current_module.config = config
+        
+        # Update the generateHTML module's config
+        from . import generateHTML
+        generateHTML.config = config
+    
     # Get API key (shared by both test file and CVE processing)
     nvd_api_key = ""
-    if not args.test_file:  # Only prompt for API key if not processing test files
-        nvd_api_key = args.api_key or config['debug']['default_api_key'] or input("Enter NVD API Key (optional, but processing will be slower without it): ").strip()
+    if not args.test_file:  # Only check for API key if not processing test files
+        nvd_api_key = args.api_key or config['defaults']['default_api_key'] or ""
+        
+        if nvd_api_key:
+            logger.info(f"Using NVD API key for faster processing", group="initialization")
+        else:
+            logger.warning("No NVD API key provided - processing will be MUCH slower due to rate limiting", group="initialization")
+            logger.info("Consider using --api-key parameter or setting default_api_key in config.json for better performance", group="initialization")
     else:
         nvd_api_key = args.api_key or ""  # API key is optional for test files
     
@@ -621,14 +641,10 @@ def main():
         logger.stop_file_logging()
         
         return
-      # Debug mode - set default options based on config
-    if args.debug or not (args.cve or args.file or args.all):
-        if config['debug']['default_cve_mode'].lower() == "all":
-            logger.info("Debug mode: Processing all CVEs by default", group="initialization")
-            args.all = True
-        else:
-            logger.info(f"Debug mode: Processing single CVE {config['debug']['default_cve_id']}", group="initialization")
-            args.cve = [config['debug']['default_cve_id']]    
+    # No arguments provided - use config debug defaults
+    if not (args.cve or args.file or args.test_file):
+        logger.info(f"No arguments provided: Processing single CVE {config['defaults']['default_cve_id']} per config defaults", group="initialization")
+        args.cve = [config['defaults']['default_cve_id']]    
     
     # Start main initialization stage
     start_initialization("Setting up analysis environment")
@@ -654,8 +670,6 @@ def main():
         except Exception as e:
             logger.error(f"CVE list file reading failed: Unable to read file '{args.file}' - {e}", group="data_processing")
             sys.exit(1)
-    elif args.all:
-        cves_to_process = get_all_cves(nvd_api_key)
       # Reverse the order of CVEs to process newer ones first (typically higher CVE numbers)
     cves_to_process.sort(reverse=True)
     
@@ -797,23 +811,13 @@ def main():
         avg_time = total_time / success_count
         logger.info(f"Average time per CVE: {avg_time:.2f}s", group="completion")
     
-    # Save skipped CVEs if requested
-    if args.save_skipped and skipped_cves:
-        try:
-            # If user provided a relative path, save to logs directory, otherwise use their absolute path
-            if os.path.isabs(args.save_skipped):
-                save_path = args.save_skipped
-            else:
-                logs_dir = ensure_project_directory("logs")
-                save_path = logs_dir / args.save_skipped
-            
-            with open(save_path, 'w') as f:
-                for cve in skipped_cves:
-                    reason = skipped_reasons.get(cve, "Unknown reason")
-                    f.write(f"{cve}\t{reason}\n")
-            logger.info(f"Skipped CVEs saved to {save_path}", group="completion")
-        except Exception as e:
-            logger.error(f"Failed to save skipped CVEs: {e}", group="data_processing")
+    # Log skipped CVEs details for debugging
+    if skipped_cves:
+        logger.warning(f"Processing completed with {len(skipped_cves)} skipped CVEs", group="completion")
+        logger.info("Skipped CVE details:", group="completion")
+        for cve in skipped_cves:
+            reason = skipped_reasons.get(cve, "Unknown reason")
+            logger.error(f"SKIPPED: {cve} - {reason}", group="data_processing")
     
     # Display generated files
     if generated_files:

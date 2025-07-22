@@ -1517,6 +1517,13 @@ class BadgeModalFactory {
             generateTabsData: (data, displayValue, additionalData) => {
                 const tabs = [];
                 
+                // Extract table index from displayValue (e.g., "Platform Entry 1 (...)" -> 1)
+                let tableIndex = null;
+                const indexMatch = displayValue.match(/Platform Entry (\d+)/);
+                if (indexMatch) {
+                    tableIndex = indexMatch[1];
+                }
+                
                 // Create tabs for each category in the data
                 if (data.tabs && Array.isArray(data.tabs)) {
                     data.tabs.forEach(tab => {
@@ -1524,7 +1531,7 @@ class BadgeModalFactory {
                             id: tab.id,
                             label: tab.title,
                             badge: tab.items ? tab.items.length : 0,
-                            content: BadgeModalFactory.generateSupportingInfoTabContent(tab)
+                            content: BadgeModalFactory.generateSupportingInfoTabContent(tab, tableIndex)
                         });
                     });
                 }
@@ -1534,7 +1541,7 @@ class BadgeModalFactory {
         });
     }
 
-    static generateSupportingInfoTabContent(tab) {
+    static generateSupportingInfoTabContent(tab, tableIndex = null) {
         if (!tab.items || tab.items.length === 0) {
             return '<p class="text-muted">No information available</p>';
         }
@@ -1572,13 +1579,38 @@ class BadgeModalFactory {
                         </div>
                     </div>
                 `;
-            } else if (item.type === 'versions_structure' && item.versions_array) {
+            } else if (item.type === 'versions_structure') {
+                // DYNAMIC VERSION DATA RETRIEVAL - Get actual version data from table instead of template
+                let versionsArray = [];
+                let entryCount = 0;
+                
+                if (tableIndex !== null) {
+                    try {
+                        // Use extractDataFromTable function to get platform-specific version data
+                        const extractedData = extractDataFromTable(tableIndex);
+                        if (extractedData && extractedData.rawPlatformData && extractedData.rawPlatformData.versions) {
+                            versionsArray = extractedData.rawPlatformData.versions;
+                            entryCount = versionsArray.length;
+                        }
+                    } catch (error) {
+                        console.warn(`Could not extract version data for table ${tableIndex}:`, error);
+                        // Fallback to template data if extraction fails
+                        versionsArray = item.versions_array || [];
+                        entryCount = versionsArray.length;
+                    }
+                } else {
+                    // Fallback to template data if no tableIndex provided
+                    versionsArray = item.versions_array || [];
+                    entryCount = versionsArray.length;
+                }
+                
                 // Special handling for versions - merge table directly under header (no separate content/details)
                 content += `
                     <div class="item-header mb-3">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h6 class="mb-0 text-secondary fw-bold">Versions Array Details</h6>
-                            <span class="badge bg-secondary">${item.versions_array.length} entries</span>
+                            <span class="badge bg-secondary">${entryCount} entries</span>
+                            ${tableIndex !== null ? `<small class="text-muted">Data from Platform Entry ${tableIndex}</small>` : ''}
                         </div>
                         <div class="item-description">
                             <small class="text-muted">${item.details}</small>
@@ -1599,7 +1631,7 @@ class BadgeModalFactory {
                             </thead>
                             <tbody>
                 `;
-                item.versions_array.forEach((version, index) => {
+                versionsArray.forEach((version, index) => {
                     const versionValue = version.version || '';
                     const status = version.status || '';
                     const lessThan = version.lessThan || '';
