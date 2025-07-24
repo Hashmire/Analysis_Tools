@@ -2,52 +2,33 @@
 
 ## Overview
 
-The `testProvenanceAssistance.json` file contains comprehensive test cases designed to validate the provenance assistance functionality in the Analysis Tool. This test file covers various package repository types, Maven detection scenarios, edge cases, complex overlapping situations, **description assistance**, and **reference assistance** with different tags and sources.
+Validates provenance assistance functionality including package repository detection, Maven detection scenarios, description assistance, and reference assistance with different tags and sources.
 
-### Test Suite Components
+## How to Run
 
-**Core Files:**  
+```bash
+python test_files\test_provenance_assistance.py test_files\testProvenanceAssistance.json
+```
 
-- **`testProvenanceAssistance.json`** - Comprehensive test data with 20 platform entries
-- **`test_provenance_assistance.py`** - Automated test script with 10 validation categories (self-contained)
-- **`provenance_assistance_test_suite.md`** - This documentation file
-- **Generated Output**: `../test_output/CVE-1337-99998.html` (auto-generated)
+## What It Tests
 
-**Key Features:**  
+**10 tests across multiple categories** validating:
 
-- **Self-Contained**: Test script automatically generates HTML from test data
-- **Comprehensive**: 10 test categories covering Maven detection, description/reference assistance, Unicode handling
-- **Migration-Ready**: Perfect baseline for JavaScript → Python conversion
-- **CI/CD Friendly**: Single command execution with exit codes for automation
+- **Maven Detection**: Identifies Maven packages from artifact patterns and coordinates
+- **Description Assistance**: Multi-language CNA descriptions and ADP source handling
+- **Reference Assistance**: Various reference types (advisory, report, vendor, third-party) with proper tagging
+- **Unicode Handling**: International character support in descriptions and references
+- **Package Repository Types**: npm, PyPI, Maven, generic detection scenarios
+- **Edge Cases**: Empty data, complex overlapping situations, malformed entries
 
-## Test Cases Covered
+## Key Validation Points
 
-### 1. Description Assistance Testing
-
-**Test Case D1: Multi-Language CNA Descriptions**  
-
-- **Source**: CNA (ProvenanceTestOrg)
-- **Languages**: English (en), Spanish (es), French (fr), German (de)
-- **Expected Behavior**: Should create description buttons for each language with proper language labels
-- **Validation Points**:
-  - Each language should appear as a separate button
-  - Button text should show the language code
-  - Clicking buttons should toggle description content display
-
-**Test Case D2: ADP Source Descriptions (TechSecurityCorp)**  
-
-- **Source**: ADP (TechSecurityCorp)
-- **Languages**: English (en), Japanese (ja)
-- **Expected Behavior**: Should create a separate description card for the ADP source
-- **Validation Points**:
-  - Should appear as separate card from CNA descriptions
-  - Should be labeled with source role "ADP"
-  - Should show provider short name in card header
-
-**Test Case D3: ADP Source Descriptions (WordFence)**  
-
-- **Source**: ADP (WordFence - b15e7b5b-3da4-40ae-a43c-f7aa60e62599)
-- **Languages**: English (en) only
+- Maven package detection from group:artifact patterns
+- Multi-language description buttons generated correctly
+- Reference cards created with proper source attribution and tags
+- HTML structure contains all required elements (20+ platform entries)
+- Badge/modal system functions correctly for provenance data
+- Generated file output saved to test_output/CVE-1337-99998.html
 - **Expected Behavior**: Should create another ADP description card
 - **Validation Points**:
   - Should appear as third description source

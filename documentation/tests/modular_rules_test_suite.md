@@ -2,52 +2,32 @@
 
 ## Overview
 
-The modular rules test suite provides comprehensive validation for the modular JSON generation rules system in the Analysis Tool. This test suite covers all 8 modular rules, edge cases, complex interactions, and ensures the JavaScript-based rule system functions correctly before and after any refactoring efforts.
+Validates the modular JSON generation rules system covering all 8 modular rules, edge cases, and complex interactions to ensure the JavaScript-based rule system functions correctly.
 
-## Test Suite Components
+## How to Run
 
-### Core Files
+```bash
+python test_files\test_modular_rules.py testModularRulesEnhanced.json
+```
 
-- **`testModularRulesEnhanced.json`** - Comprehensive test data with 120 data rows covering all rule scenarios
-- **`test_modular_rules.py`** - Automated test script with 14 validation categories (self-contained)
-- **`modular_rules_test_suite.md`** - This documentation file
-- **Generated Output**: `../test_output/CVE-1337-99997.html` (auto-generated)
+## What It Tests
 
-### Key Features
+**16 tests across 14 categories** validating:
 
-- **Self-Contained**: Test script automatically generates HTML from test data
-- **Comprehensive**: 14 test categories covering all 8 modular rules plus edge cases
-- **Migration-Ready**: Perfect baseline for JavaScript → Python conversion
-- **CI/CD Friendly**: Single command execution with exit codes for automation
+- **HTML Structure**: Generated HTML contains required elements and proper structure (120+ data rows)
+- **Rule Application**: All 8 modular rules properly defined in JavaScript code
+- **Rule Processing**: Each rule correctly processes test data and generates expected output
+- **Badge Generation**: Platform badges generated correctly with proper formatting
+- **Edge Cases**: Complex scenarios, missing data, and boundary conditions
+- **Data Integrity**: Consistent data flow from JSON input to HTML output
 
-## Test Categories Overview
+## Key Validation Points
 
-The test suite validates **14 comprehensive categories** with 100% pass rate:
-
-### 1. HTML Structure Validation (`HTML_STRUCTURE`)
-
-**Purpose**: Validates that generated HTML contains all required elements and proper structure.
-
-**Validation Points**:  
-
-- Main header presence and formatting
-- CVE title element with correct ID
-- Platform data table with proper structure
-- Minimum data row count verification
-
-**Expected Outcome**: Valid HTML structure with 120+ data rows
-
----
-
-### 2. Rule Application Detection (`RULE_APPLICATION`)
-
-**Purpose**: Confirms all 8 modular rules are properly defined in the JavaScript code.
-
-**Rules Tested**:  
-
-- `wildcardExpansion` - Converts wildcard patterns to version ranges
-- `versionChanges` - Processes version timeline changes
-- `inverseStatus` - Handles unaffected-to-affected logic inversion
+- All 8 modular rules active and functioning (wildcardExpansion, versionChanges, inverseStatus, etc.)
+- HTML output matches expected structure with minimum 120 data rows
+- Badge/modal system generates correctly for platform entries
+- JavaScript execution completes without errors
+- Generated file output saved to test_output/CVE-1337-99997.html
 - `mixedStatus` - Processes mixed affected/unaffected scenarios
 - `gapProcessing` - Detects and handles version gaps
 - `specialVersionTypes` - Handles beta, rc, dev, alpha versions

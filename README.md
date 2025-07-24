@@ -80,8 +80,12 @@ All generated datasets are automatically tracked in `datasets/dataset_tracker.js
 - [Dashboard Usage](documentation/dashboard_usage.md) - Dashboard setup and usage
 - [CPE Caching System](documentation/cpes_api_caching_system.md) - Cache configuration
 - [Logging System](documentation/logging_system.md) - Logging configuration
-- [Modular Rules Test Suite](documentation/modular_rules_test_suite.md) - JSON generation testing
-- [Provenance Assistance Test Suite](documentation/provenance_assistance_test_suite.md) - Platform detection testing
+
+### Test Documentation
+
+- [Test Suites Overview](documentation/tests/README.md) - Comprehensive test documentation
+- [Modular Rules Test Suite](documentation/tests/modular_rules_test_suite.md) - JSON generation testing
+- [Provenance Assistance Test Suite](documentation/tests/provenance_assistance_test_suite.md) - Platform detection testing
 
 ## Examples
 

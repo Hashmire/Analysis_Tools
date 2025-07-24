@@ -1,0 +1,324 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1",
+  "cveMetadata": {
+    "cveId": "CVE-1337-99999",
+    "assignerOrgId": "source-data-concerns-test-org-12345",
+    "state": "PUBLISHED",
+    "assignerShortName": "SourceDataTestOrg",
+    "datePublished": "2024-01-15T10:00:00.000Z",
+    "dateUpdated": "2024-01-15T12:30:00.000Z",
+    "dateReserved": "2024-01-10T08:00:00.000Z",
+    "serial": 1
+  },
+  "containers": {
+    "cna": {
+      "providerMetadata": {
+        "orgId": "source-data-concerns-test-org-12345",
+        "shortName": "SourceDataTestOrg",
+        "dateUpdated": "2024-01-15T12:30:00.000Z"
+      },
+      "dateAssigned": "2024-01-10T08:00:00.000Z",
+      "datePublic": "2024-01-15T10:00:00.000Z",
+      "title": "Comprehensive Source Data Concerns Test Cases",
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "This CVE record is designed to test all Source Data Concerns categories including placeholder data, version patterns, CPE array concerns, and various edge cases for data quality validation."
+        }
+      ],
+      "affected": [
+        {
+          "vendor": "PlaceholderData-Test1",
+          "product": "TBD-Product",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "PlaceholderData-Test2", 
+          "product": "placeholder-software",
+          "versions": [
+            {
+              "version": "unspecified",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "VersionTextPatterns-Test1",
+          "product": "software-with-version-text",
+          "versions": [
+            {
+              "version": "before 2.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "VersionTextPatterns-Test2",
+          "product": "legacy-application",
+          "versions": [
+            {
+              "version": "prior to 1.5",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "VersionTextPatterns-Test3",
+          "product": "text-version-app",
+          "versions": [
+            {
+              "version": "up to and including 3.2",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "CPEArrayConcerns-Test1",
+          "product": "single-cpe-product",
+          "cpes": [
+            "cpe:2.3:a:cpearray-test1:single-cpe-product:1.0:*:*:*:*:*:*:*"
+          ],
+          "versions": [
+            {
+              "version": "1.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "CPEArrayConcerns-Test2",
+          "product": "no-cpe-product",
+          "versions": [
+            {
+              "version": "2.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "PlatformSpecificConcerns-Test1",
+          "product": "windows-only-software",
+          "platforms": [
+            "Windows"
+          ],
+          "versions": [
+            {
+              "version": "1.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "PlatformSpecificConcerns-Test2",
+          "product": "linux-specific-tool",
+          "platforms": [
+            "Linux",
+            "Unix"
+          ],
+          "versions": [
+            {
+              "version": "2.1",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "IncompleteVersionInfo-Test1",
+          "product": "missing-version-data",
+          "versions": [
+            {
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "IncompleteVersionInfo-Test2",
+          "product": "empty-version-string",
+          "versions": [
+            {
+              "version": "",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "CriticalityMismatch-Test1",
+          "product": "high-severity-product",
+          "versions": [
+            {
+              "version": "1.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "CriticalityMismatch-Test2",
+          "product": "low-impact-utility",
+          "versions": [
+            {
+              "version": "2.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "AmbiguousConfiguration-Test1",
+          "product": "configuration-dependent-app",
+          "versions": [
+            {
+              "version": "1.5",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "AmbiguousConfiguration-Test2",
+          "product": "multi-config-software",
+          "versions": [
+            {
+              "version": "3.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "ThirdPartyDependencies-Test1",
+          "product": "app-with-dependencies",
+          "versions": [
+            {
+              "version": "1.2.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "ThirdPartyDependencies-Test2", 
+          "product": "library-dependent-tool",
+          "versions": [
+            {
+              "version": "2.1.3",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "UnclearScopeDefinition-Test1",
+          "product": "scope-ambiguous-software",
+          "versions": [
+            {
+              "version": "1.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "UnclearScopeDefinition-Test2",
+          "product": "boundary-unclear-app",
+          "versions": [
+            {
+              "version": "4.5",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "MultipleEdgeCases-Test1",
+          "product": "n/a",
+          "versions": [
+            {
+              "version": "unknown",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "EdgeCase-Special",
+          "product": "product_with_underscores",
+          "versions": [
+            {
+              "version": "v1.0-beta",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "EdgeCase-Numeric",
+          "product": "123-product",
+          "versions": [
+            {
+              "version": "1.0.0-SNAPSHOT",
+              "status": "affected"
+            }
+          ]
+        }
+      ],
+      "references": [
+        {
+          "url": "https://example.com/source-data-concerns-advisory",
+          "name": "Source Data Concerns Advisory"
+        },
+        {
+          "url": "https://github.com/test/source-data-concerns",
+          "name": "Test Repository"
+        }
+      ],
+      "credits": [
+        {
+          "lang": "en",
+          "value": "Source Data Concerns Test Suite - Automated Testing Framework"
+        }
+      ],
+      "impacts": [
+        {
+          "descriptions": [
+            {
+              "lang": "en",
+              "value": "Various impacts depending on specific source data concern being tested"
+            }
+          ]
+        }
+      ],
+      "problemTypes": [
+        {
+          "descriptions": [
+            {
+              "lang": "en",
+              "value": "CWE-20: Improper Input Validation",
+              "cweId": "CWE-20"
+            }
+          ]
+        }
+      ],
+      "solutions": [
+        {
+          "lang": "en",
+          "value": "Implement proper data validation and quality checks for source data concerns"
+        }
+      ],
+      "exploits": [
+        {
+          "lang": "en",
+          "value": "No known exploits - this is test data for source data quality validation"
+        }
+      ],
+      "timeline": [
+        {
+          "lang": "en",
+          "time": "2024-01-10T00:00:00.000Z",
+          "value": "Source data concerns test case created"
+        },
+        {
+          "lang": "en", 
+          "time": "2024-01-15T10:00:00.000Z",
+          "value": "Test case published for validation"
+        }
+      ]
+    }
+  }
+}

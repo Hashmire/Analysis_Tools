@@ -1,53 +1,29 @@
-# Logging System Test Suite Documentation
+# Logging System Test Suite
 
 ## Overview
 
-The standardized logging system includes a comprehensive **consolidated test suite** with **53 total test cases** that validates every aspect of logging behavior, terminology, formatting, and audit boundary enforcement. All tests run in **sub-second time** with **100% success rate** and **no external dependencies**.
+Validates structured logging across all workflow phases with **53 test cases** in `test_files\test_logging_system.py`.
 
-## 🧪 Test Suite Architecture
+## Run Test
 
-### Consolidated Structure
+```bash
+python test_files\test_logging_system.py
+```
 
-| **Test File** | **Tests** | **Purpose** | **Execution Time** |
-|---------------|-----------|-------------|-------------------|
-| `test_logging_system.py` | 53 tests | Complete logging validation | ~0.05 seconds |
-| `run_all_logging_tests.py` | Master runner | Executes consolidated suite | ~0.05 seconds |
+## What It Tests
 
-### Total Coverage: **53 Test Cases** (Fully Consolidated)
+- **Terminology**: Consistent use of "CVE records", "CPE names", "CPE base strings"
+- **Message Formats**: Standardized progress, error, and completion message patterns  
+- **Log Groups**: Proper categorization (INIT, CVE_QUERY, UNIQUE_CPE, etc.)
+- **Audit Boundaries**: start_*/end_* function enforcement for workflow phases
+- **Performance**: All logging operations complete in sub-second time
 
-## 📋 Comprehensive Test Suite (`test_logging_system.py`)
+## Key Validation
 
-**53 comprehensive test cases** covering all logging scenarios across **22 test classes**:
-
-### Test Classes and Coverage
-
-**1. TestTerminologyStandardization (4 tests)**  
-
-- `test_cpe_terminology` - Validates "CPE names", "CPE match strings", "CPE base strings"
-- `test_cve_terminology` - Validates "CVE records", collection terminology
-- `test_collection_terminology` - Validates "gathering", "collecting", "processing" terms
-- `test_api_terminology` - Validates "NVD CVE API", "MITRE CVE API" references
-
-**2. TestProgressReportingFormats (2 tests)**  
-
-- `test_progress_format_structure` - Validates "Processing X: current/total (percentage%) - context"
-- `test_completion_format` - Validates completion message patterns
-
-**3. TestErrorMessageFormats (2 tests)**  
-
-- `test_error_format_structure` - Validates "Component operation failed: reason - context"
-- `test_warning_format_structure` - Validates recoverable issue formatting
-
-**4. TestLogLevelAssignments (4 tests)**  
-
-- `test_info_level_usage` - Progress and workflow status
-- `test_debug_level_usage` - Technical diagnostics
-- `test_warning_level_usage` - Recoverable issues and retries
-- `test_error_level_usage` - Critical failures
-
-**5. TestLogGroupOrganization (3 tests)**  
-
-- `test_cve_queries_group` - CVE data collection grouping
+- All 53 tests must pass with 100% success rate
+- No external dependencies required
+- Validates logging behavior across entire system workflow
+- Ensures consistent terminology and formatting standards
 - `test_cpe_queries_group` - CPE data collection grouping
 - `test_unique_cpe_group` - CPE generation grouping
 

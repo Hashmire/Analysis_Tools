@@ -1487,6 +1487,15 @@ class BadgeModalFactory {
                     });
                 }
                 
+                if (concernsData.missingAffectedProducts && concernsData.missingAffectedProducts.length > 0) {
+                    tabs.push({
+                        id: 'missingAffectedProducts',
+                        label: 'Missing Affected Products',
+                        badge: concernsData.missingAffectedProducts.length,
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.missingAffectedProducts, 'missingAffectedProducts', sourceRole)
+                    });
+                }
+                
                 return tabs;
             }
         });
@@ -1927,6 +1936,8 @@ class BadgeModalFactory {
                 content += BadgeModalFactory.generateDuplicateEntriesContent(concern);
             } else if (concernType === 'platformDataConcerns') {
                 content += BadgeModalFactory.generatePlatformDataConcernsContent(concern);
+            } else if (concernType === 'missingAffectedProducts') {
+                content += BadgeModalFactory.generateMissingAffectedProductsContent(concern);
             } else {
                 // Generic concern display
                 content += `
@@ -2254,6 +2265,38 @@ class BadgeModalFactory {
             </div>
         `;
     }
+
+    static generateMissingAffectedProductsContent(concern) {
+        return `
+            <div class="concern-content">
+                <div class="problem-description mb-2">
+                    <strong class="text-danger">Problem:</strong>
+                    <p class="mb-2">CVE record appears to lack explicit affected product information in containers/affected.</p>
+                </div>
+                <div class="problematic-data mb-2">
+                    <strong class="text-warning">Missing Information:</strong>
+                    <div class="data-display mt-1">
+                        <div class="row">
+                            <div class="col-3"><strong>Issue Type:</strong></div>
+                            <div class="col-9"><span class="badge bg-warning text-dark">Missing Affected Products</span></div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-3"><strong>Description:</strong></div>
+                            <div class="col-9">${concern.description || 'No affected products explicitly listed'}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="resolution-guidance">
+                    <strong class="text-success">Resolution:</strong>
+                    <ul class="mb-0 text-muted">
+                        <li>Verify CVE record contains containers/affected with product information</li>
+                        <li>Check if affected products are implied through other fields</li>
+                        <li>May require CNA coordination to add missing affected product data</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    }
 }
 
 /**
@@ -2441,6 +2484,10 @@ class BadgeModalManager {
         if (concernsData.platformDataConcerns && concernsData.platformDataConcerns.length > 0) {
             issueCount += concernsData.platformDataConcerns.length;
             concernTypes.push('Platform Data Issues');
+        }
+        if (concernsData.missingAffectedProducts && concernsData.missingAffectedProducts.length > 0) {
+            issueCount += concernsData.missingAffectedProducts.length;
+            concernTypes.push('Missing Affected Products');
         }
         
         modal.show(tableIndex, displayValue, { issueCount, concernTypes, sourceRole });

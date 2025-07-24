@@ -2887,28 +2887,41 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         "wildcardBranches": [],
         "cpeArrayConcerns": [],
         "duplicateEntries": [],
-        "platformDataConcerns": []
+        "platformDataConcerns": [],
+        "missingAffectedProducts": []
     }
     
     concerns_count = 0
     concern_types = []
     
     # 1. Placeholder Data Detection (Vendor/Product placeholder values)
-    if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str) and raw_platform_data['vendor'].lower() in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]:
-        concerns_data["placeholderData"].append({
-            "field": "vendor",
-            "value": raw_platform_data['vendor'],
-            "issue": f"Vendor field contains placeholder value '{raw_platform_data['vendor']}' which prevents proper CPE matching"
-        })
-        concerns_count += 1
+    if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str):
+        vendor_lower = raw_platform_data['vendor'].lower()
+        is_placeholder = vendor_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+        is_single_dash = raw_platform_data['vendor'].strip() == '-'
         
-    if 'product' in raw_platform_data and isinstance(raw_platform_data['product'], str) and raw_platform_data['product'].lower() in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]:
-        concerns_data["placeholderData"].append({
-            "field": "product", 
-            "value": raw_platform_data['product'],
-            "issue": f"Product field contains placeholder value '{raw_platform_data['product']}' which prevents proper CPE matching"
-        })
-        concerns_count += 1
+        if is_placeholder or is_single_dash:
+            issue_type = "single dash placeholder" if is_single_dash else "placeholder value"
+            concerns_data["placeholderData"].append({
+                "field": "vendor",
+                "value": raw_platform_data['vendor'],
+                "issue": f"Vendor field contains {issue_type} '{raw_platform_data['vendor']}' which prevents proper CPE matching"
+            })
+            concerns_count += 1
+        
+    if 'product' in raw_platform_data and isinstance(raw_platform_data['product'], str):
+        product_lower = raw_platform_data['product'].lower()
+        is_placeholder = product_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+        is_single_dash = raw_platform_data['product'].strip() == '-'
+        
+        if is_placeholder or is_single_dash:
+            issue_type = "single dash placeholder" if is_single_dash else "placeholder value"
+            concerns_data["placeholderData"].append({
+                "field": "product", 
+                "value": raw_platform_data['product'],
+                "issue": f"Product field contains {issue_type} '{raw_platform_data['product']}' which prevents proper CPE matching"
+            })
+            concerns_count += 1
     
     if concerns_data["placeholderData"]:
         concern_types.append("Placeholder Data")
@@ -2950,6 +2963,42 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             concern_types.append("Version Granularity")
         if concerns_data["wildcardBranches"]:
             concern_types.append("Wildcard Branches")
+    
+    # 2a. Enhanced Version Character Validation
+    # Check for invalid characters in version fields beyond text patterns
+    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
+        import re
+        # Pattern for clearly invalid characters (not spaces or common version chars)
+        invalid_char_pattern = r'[<>,;|\\"`\'{}[\]()&$#@!%^*+=?~]'
+        
+        for version_entry in raw_platform_data['versions']:
+            if isinstance(version_entry, dict):
+                version_fields = ['version', 'lessThan', 'lessThanOrEqual', 'greaterThan', 'greaterThanOrEqual']
+                for field in version_fields:
+                    field_value = version_entry.get(field)
+                    if isinstance(field_value, str) and field_value.strip():
+                        # Check for invalid characters
+                        if re.search(invalid_char_pattern, field_value):
+                            invalid_chars = list(set(re.findall(invalid_char_pattern, field_value)))
+                            concerns_data["versionTextPatterns"].append({
+                                "concern": f"Invalid characters in {field}: {field_value} (chars: {', '.join(invalid_chars)})",
+                                "category": "Character Validation",
+                                "issue": "Version field contains invalid characters that prevent proper processing"
+                            })
+                            concerns_count += 1
+                        
+                        # Check for excessive whitespace issues
+                        if field_value != field_value.strip() or '  ' in field_value:
+                            concerns_data["versionTextPatterns"].append({
+                                "concern": f"Whitespace issues in {field}: '{field_value}'",
+                                "category": "Character Validation", 
+                                "issue": "Version field has leading/trailing/excessive whitespace"
+                            })
+                            concerns_count += 1
+        
+        # Update concern types if we added new character validation issues
+        if concerns_data["versionTextPatterns"] and "Version Text Patterns" not in concern_types:
+            concern_types.append("Version Text Patterns")
     
     # 3. CPEs Array Data Concerns
     if 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
@@ -3056,6 +3105,36 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         })
         concerns_count += 1
         concern_types.append("Platform Data Concerns")
+    
+    # 6. Missing Affected Products Check
+    if 'versions' in raw_platform_data or 'defaultStatus' in raw_platform_data:
+        has_affected_product = False
+        
+        # Check defaultStatus first
+        if raw_platform_data.get('defaultStatus') in ['affected', 'unknown']:
+            has_affected_product = True
+        
+        # Check individual version statuses
+        versions = raw_platform_data.get('versions', [])
+        if isinstance(versions, list):
+            for version in versions:
+                if isinstance(version, dict):
+                    version_status = version.get('status')
+                    if version_status in ['affected', 'unknown']:
+                        has_affected_product = True
+                        break
+        
+        # If no affected products found, flag as concern
+        if not has_affected_product:
+            concerns_data["missingAffectedProducts"].append({
+                "issue": "No affected product found",
+                "details": "CVE record contains no products marked as 'affected' or 'unknown'",
+                "defaultStatus": raw_platform_data.get('defaultStatus', 'Not specified'),
+                "versionCount": len(versions) if isinstance(versions, list) else 0,
+                "guidance": "Verify that at least one product version should be marked as affected or unknown"
+            })
+            concerns_count += 1
+            concern_types.append("Missing Affected Products")
     
     # If no concerns detected, return None
     if concerns_count == 0:
