@@ -2,11 +2,37 @@
     "cnaId": "9a959283-ebb5-44b6-b705-dcc2bbced522",
     "confirmedMappings": [
         {
-            "cpeBaseString": "cpe:2.3:a:vendor:product:*:*:*:*:*:*:*:* ",
+            "cpeBaseString": "cpe:2.3:a:ibm:websphere_application_server:*:*:*:*:liberty:*:*:*",
             "aliases": [
                 {
-                    "vendor": "exampleVendor",
-                    "product": "exampleProduct"
+                    "vendor": "IBM",
+                    "product": "WebSphere Application Server Liberty"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:ibm:guardium_data_encryption:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "IBM",
+                    "product": "Security Guardium Data Encryption"
+                },
+                {
+                    "vendor": "IBM",
+                    "product": "Guardium Data Encryption"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:ibm:qradar_security_information_and_event_manager:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "IBM",
+                    "product": "QRadar SIEM"
+                },
+                {
+                    "vendor": "IBM",
+                    "product": "Security QRadar SIEM"
                 }
             ]
         }
