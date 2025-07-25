@@ -32,10 +32,6 @@
                 },
                 {
                     "vendor": "IBM",
-                    "product": "IBM QRadar SIEM"
-                },
-                {
-                    "vendor": "IBM",
                     "product": "Security QRadar SIEM"
                 }
             ]
