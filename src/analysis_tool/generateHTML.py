@@ -383,7 +383,8 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     # ===== 🟪 SOURCE DATA CONCERN BADGE (Purple) =====
     
     # Create the unified Source Data Concerns badge to replace individual purple badges
-    from .badge_modal_system import create_source_data_concerns_badge
+    from .badge_modal_system import create_source_data_concerns_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+    from .badge_contents_collector import get_badge_contents_collector
     
     source_data_concerns_badge = create_source_data_concerns_badge(
         table_index=tableIndex,
@@ -393,9 +394,29 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         row=row
     )
     
-    # If we have source data concerns, add it to the sourceDataConcern_badges category
+    # If we have source data concerns, add it to the sourceDataConcern_badges category and collect the data
     if source_data_concerns_badge:
         sourceDataConcern_badges.append(source_data_concerns_badge)
+        
+        # Collect badge contents for report generation
+        registry_data = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('sourceDataConcerns', {}).get(tableIndex, {})
+        if registry_data:
+            source_id = row.get('sourceID', 'Unknown')
+            concerns_data = registry_data.get('concerns', {})
+            concerns_summary = registry_data.get('summary', {})
+            concerns_count = concerns_summary.get('total_concerns', 0)
+            concern_types = concerns_summary.get('concern_types', [])
+            
+            collector = get_badge_contents_collector()
+            collector.collect_source_data_concern(
+                table_index=tableIndex,
+                source_id=source_id,
+                vendor=vendor,
+                product=product,
+                concerns_data=concerns_data,
+                concerns_count=concerns_count,
+                concern_types=concern_types
+            )
 
     # ===== 🔍 SUPPORTING INFORMATION MODAL =====
     
@@ -475,6 +496,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
     if badge_details:
         vendor = row.get('rawPlatformData', {}).get('vendor', 'Unknown')
         product = row.get('rawPlatformData', {}).get('product', 'Unknown')
+        source_id = row.get('sourceID', 'Unknown')
         source_role = row.get('sourceRole', 'Unknown')
         
         # Format badge details for logging
@@ -485,12 +507,13 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
             else:
                 badge_summary.append(f"{badge_type}: [{', '.join(badge_names)}]")
         
-        logger.info(f"Badges added for row {tableIndex} ({source_role}): {vendor}/{product} ({' | '.join(badge_summary)})", group="badge_gen")
+        logger.info(f"Badges added for row {tableIndex} ({source_id}): {vendor}/{product} ({' | '.join(badge_summary)})", group="badge_gen")
     else:
         vendor = row.get('rawPlatformData', {}).get('vendor', 'Unknown')
         product = row.get('rawPlatformData', {}).get('product', 'Unknown')
+        source_id = row.get('sourceID', 'Unknown')
         source_role = row.get('sourceRole', 'Unknown')
-        logger.debug(f"No badges added for row {tableIndex} ({source_role}): {vendor}/{product}", group="badge_gen")
+        logger.debug(f"No badges added for row {tableIndex} ({source_id}): {vendor}/{product}", group="badge_gen")
 
     html += "</td></tr>"
 

@@ -86,6 +86,10 @@ def process_test_file(test_file_path, nvd_source_data):
         cve_id = cve_id.strip().upper()
         processData.integrityCheckCVE("cveIdFormat", cve_id)
         
+        # Initialize badge contents collection for this test CVE
+        from .badge_contents_collector import start_cve_collection, complete_cve_collection
+        start_cve_collection(cve_id)
+        
         # Create Primary Datasets from external sources
         primaryDataframe = gatherData.gatherPrimaryDataframe()        # Use test data as CVE record data (instead of API call)
         cveRecordData = test_data
@@ -175,11 +179,19 @@ def process_test_file(test_file_path, nvd_source_data):
         
         logger.file_operation("Generated", str(filepath), "test file", group="PAGE_GEN")
         end_page_generation("HTML file created")
+        
+        # Complete badge contents collection for this test CVE
+        complete_cve_collection()
+        
         return filepath
         
     except Exception as e:
         logger.error(f"Test file processing failed: Unable to process test file '{test_file_path}' - {str(e)}", group="initialization")
         logger.debug(f"Error type: {type(e).__name__}", group="initialization")
+        
+        # Still complete badge contents collection even if processing failed
+        complete_cve_collection()
+        
         import traceback
         traceback.print_exc()
         return None
@@ -193,6 +205,10 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
     
     # Audit: Verify global state is properly cleared before processing
     audit_global_state_cleared()
+    
+    # Initialize badge contents collection for this CVE
+    from .badge_contents_collector import start_cve_collection, complete_cve_collection
+    start_cve_collection(cve_id)
     
     try:
         # Make sure the string is formatted well
@@ -327,6 +343,10 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
         
         logger.file_operation("Generated", str(filepath), group="page_generation")
         end_page_generation("HTML file created")
+        
+        # Complete badge contents collection for this CVE
+        complete_cve_collection()
+        
         return {
             'success': True,
             'filepath': str(filepath)
@@ -334,6 +354,10 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
         
     except Exception as e:
         logger.error(f"CVE processing failed for {cve_id}: Unable to complete analysis workflow - {str(e)}", group="data_processing")
+        
+        # Still complete badge contents collection even if processing failed
+        complete_cve_collection()
+        
         return {
             'success': False,
             'error': str(e)
@@ -609,6 +633,21 @@ def main():
         cache_manager.initialize(cache_config)
     else:
         cache_manager.initialize(config.get('cache', {}))
+    
+    # Initialize badge contents collector for source data concerns reporting
+    from .badge_contents_collector import initialize_badge_contents_report, clear_badge_contents_collector
+    from .workflow_logger import get_logger
+    logger_instance = get_logger()
+    logs_directory = logger_instance.log_directory
+    
+    # Clear any previous collector state
+    clear_badge_contents_collector()
+    
+    # Initialize the badge contents report file
+    if initialize_badge_contents_report(logs_directory):
+        logger.info("Badge contents collector initialized for source data concerns reporting", group="initialization")
+    else:
+        logger.warning("Failed to initialize badge contents collector", group="initialization")
 
     # Handle test file processing
     if args.test_file:
@@ -636,6 +675,12 @@ def main():
         
         # Save and cleanup global CPE cache
         cache_manager.save_and_cleanup()
+        
+        # Finalize badge contents report for test file processing
+        from .badge_contents_collector import finalize_badge_contents_report
+        badge_report_path = finalize_badge_contents_report()
+        if badge_report_path:
+            logger.info(f"Badge contents report finalized: {badge_report_path}", group="completion")
         
         # Stop file logging before returning
         logger.stop_file_logging()
@@ -826,6 +871,12 @@ def main():
             logger.info(f"  {filepath}", group="completion")
         if len(generated_files) > 10:
             logger.info(f"  ... and {len(generated_files) - 10} more files", group="completion")
+    
+    # Finalize badge contents report
+    from .badge_contents_collector import finalize_badge_contents_report
+    badge_report_path = finalize_badge_contents_report()
+    if badge_report_path:
+        logger.info(f"Badge contents report finalized: {badge_report_path}", group="completion")
     
     # Stop file logging
     logger.stop_file_logging()
