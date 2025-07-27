@@ -26,6 +26,7 @@ SCHEMA STRUCTURE:
           "platform_entry_id": "entry_N",
           "table_index": int,
           "source_id": "uuid",
+          "source_name": "Human Readable Name",
           "total_concerns": int,
           "concern_types": ["concernKey1", "concernKey2"],
           "concern_breakdown": {"concernKey": count},
@@ -61,6 +62,12 @@ try:
 except ImportError:
     # Fallback for testing environments
     logger = None
+
+# Import the global source manager for UUID to name resolution
+try:
+    from .nvd_source_manager import get_source_name
+except ImportError:
+    get_source_name = None
 
 class BadgeContentsCollector:
     """
@@ -238,12 +245,20 @@ class BadgeContentsCollector:
             # Convert concerns_data to array format
             concerns_detail_array = self._convert_concerns_to_array(concerns_data)
             
+            # Resolve source ID to human-readable name
+            source_name = 'Unknown Source'
+            if get_source_name and source_id:
+                resolved_name = get_source_name(source_id)
+                if resolved_name:
+                    source_name = resolved_name
+            
             # Create platform entry object with normalized concern type keys
             concern_type_keys = [self._concern_type_to_key(ct) for ct in concern_types]
             platform_entry = {
                 'platform_entry_id': f"entry_{table_index}",
                 'table_index': table_index,
                 'source_id': source_id,
+                'source_name': source_name,  # Add human-readable name
                 'vendor': vendor,
                 'product': product,
                 'total_concerns': concerns_count,

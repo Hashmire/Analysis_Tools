@@ -64,7 +64,7 @@ def load_config():
 
 config = load_config()
 
-def process_test_file(test_file_path, nvd_source_data):
+def process_test_file(test_file_path):
     """Process a test file containing CVE data for testing modular rules."""
     log_init(f"Processing test file: {test_file_path}")
     
@@ -110,7 +110,7 @@ def process_test_file(test_file_path, nvd_source_data):
         
         start_cve_queries("Processing test CVE data")
           # Process the vulnerability record data
-        primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData, nvd_source_data)             
+        primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData)             
         primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
         
         end_cve_queries("Test CVE data processed")
@@ -135,7 +135,7 @@ def process_test_file(test_file_path, nvd_source_data):
         start_page_generation("Generating HTML output")
         
         # Generate HTML
-        primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe, nvd_source_data)
+        primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe)
         
         # Clean up dataframe
         columns_to_drop = ['sourceID', 'sourceRole', 'rawPlatformData', 'rawCPEsQueryData', 
@@ -196,7 +196,7 @@ def process_test_file(test_file_path, nvd_source_data):
         traceback.print_exc()
         return None
 
-def process_cve(cve_id, nvd_api_key, nvd_source_data):
+def process_cve(cve_id, nvd_api_key):
     """Process a single CVE using the analysis tool functionality."""
     global config
     
@@ -269,7 +269,7 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
         start_unique_cpe_generation("Processing CVE and NVD data")
         
         # Process the vulnerability record data
-        primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData, nvd_source_data)
+        primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData)
         primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
 
         # Suggest CPE data based on collected information (includes internal CPE generation and query stages)
@@ -298,7 +298,7 @@ def process_cve(cve_id, nvd_api_key, nvd_source_data):
         start_page_generation("Generating HTML output")
         
         # Generate HTML
-        primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe, nvd_source_data)
+        primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe)
         
         # Clean up dataframe
         columns_to_drop = ['sourceID', 'sourceRole', 'rawPlatformData', 'rawCPEsQueryData', 
@@ -621,6 +621,11 @@ def main():
     logger.info("Gathering NVD source entries...", group="initialization")
     nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
     
+    # Initialize global NVD source manager (done once per session, shared by both paths)
+    from .nvd_source_manager import get_global_source_manager
+    source_manager = get_global_source_manager()
+    source_manager.initialize(nvd_source_data)
+    
     # Initialize global CPE cache (done once per session, shared by both paths)
     from .cpe_cache import get_global_cache_manager
     cache_manager = get_global_cache_manager()
@@ -657,8 +662,8 @@ def main():
             logger.error(f"Test file '{args.test_file}' not found", group="data_processing")
             sys.exit(1)
         
-        # Process the test file (using shared nvd_source_data and cache_manager)
-        filepath = process_test_file(args.test_file, nvd_source_data)
+        # Process the test file (using global source manager)
+        filepath = process_test_file(args.test_file)
           # Cleanup cache after test file processing
         cache_manager.save_and_cleanup()
         
@@ -798,7 +803,7 @@ def main():
                 end_audit("Checkpoint audit complete")
             
             # Process the CVE
-            result = process_cve(cve, nvd_api_key, nvd_source_data)
+            result = process_cve(cve, nvd_api_key)
             
             if result and result['success']:
                 generated_files.append(result['filepath'])

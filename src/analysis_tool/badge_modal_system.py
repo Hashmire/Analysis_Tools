@@ -2178,7 +2178,7 @@ def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict
 def create_supporting_information_badge(table_index: int, row: Dict, platform_metadata: Dict, 
                                        raw_platform_data: Dict, characteristics: Dict,
                                        platform_format_type: str, readable_format_type: str,
-                                       vendor: str, product: str, nvd_source_data: Dict) -> Optional[str]:
+                                       vendor: str, product: str) -> Optional[str]:
     """
     Create a unified Supporting Information badge that consolidates Standard and Info badges.
     
@@ -2192,7 +2192,6 @@ def create_supporting_information_badge(table_index: int, row: Dict, platform_me
         readable_format_type: Human-readable format type
         vendor: The vendor name
         product: The product name
-        nvd_source_data: NVD source data for lookups
     
     Returns:
         HTML string for the badge, or None if no supporting information detected

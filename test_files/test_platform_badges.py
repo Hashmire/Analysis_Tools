@@ -104,8 +104,25 @@ class PlatformBadgesTestSuite:
         """Test that we can import the badge generation functions."""
         try:
             from analysis_tool.generateHTML import convertRowDataToHTML, analyze_version_characteristics
+            
+            # Initialize the global source manager for testing
+            from analysis_tool.nvd_source_manager import get_global_source_manager
+            import pandas as pd
+            
+            mock_source_data = pd.DataFrame([
+                {
+                    'orgId': 'test-source-id',
+                    'name': 'Test Source',
+                    'contactEmail': 'test@example.com',
+                    'sourceIdentifiers': ['test@example.com']
+                }
+            ])
+            
+            source_manager = get_global_source_manager()
+            source_manager.initialize(mock_source_data)
+            
             self.mock_nvd_data = self.create_mock_nvd_source_data()
-            self.add_result("IMPORT_FUNCTIONS", True, "Successfully imported badge generation functions")
+            self.add_result("IMPORT_FUNCTIONS", True, "Successfully imported badge generation functions and initialized source manager")
             return convertRowDataToHTML, analyze_version_characteristics
         except ImportError as e:
             self.add_result("IMPORT_FUNCTIONS", False, f"Failed to import functions: {e}")
@@ -128,7 +145,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # Look for Confirmed Mappings badge
@@ -162,7 +179,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         git_badge = soup.find('span', string='git versionType')
@@ -184,7 +201,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output_danger = convertRowDataToHTML(test_row_danger, self.mock_nvd_data, 0)
+        html_output_danger = convertRowDataToHTML(test_row_danger, 0)
         soup_danger = BeautifulSoup(html_output_danger, 'html.parser')
         
         git_badge_danger = soup_danger.find('span', string='git versionType')
@@ -219,7 +236,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(modal_only_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(modal_only_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # Should NOT have a danger badge for "CVE Affects Product (No Versions)"
@@ -257,7 +274,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # CVE Affected CPES is now part of Supporting Information modal
@@ -296,7 +313,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         changes_badge = soup.find('span', string='Has Version Changes')
@@ -335,7 +352,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # Look for the unified JSON Generation Rules badge
@@ -375,7 +392,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # Look for the unified JSON Generation Rules badge
@@ -420,7 +437,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # CPE API Errors is now part of Supporting Information modal
@@ -454,7 +471,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # CPE Base String Searches is now part of Supporting Information modal
@@ -497,7 +514,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # Source to CPE Transformations Applied is now part of Supporting Information modal
@@ -526,7 +543,7 @@ class PlatformBadgesTestSuite:
             **{'rawPlatformData.vendor': 'n/a'}
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # Look for Source Data Concerns modal badge instead of individual Purple badge
@@ -549,7 +566,7 @@ class PlatformBadgesTestSuite:
             **{'rawPlatformData.product': 'N/A'}  # Test case insensitive
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # Look for Source Data Concerns modal badge instead of individual Purple badge
@@ -578,7 +595,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # Look for Source Data Concerns modal badge instead of individual Purple badge
@@ -603,7 +620,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # Look for Source Data Concerns modal badge instead of individual Purple badge
@@ -639,7 +656,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # Find all badges in order
@@ -729,7 +746,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # Look for the Supporting Information modal badge
@@ -787,7 +804,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(test_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # Look for the unified JSON Generation Rules badge
@@ -982,7 +999,7 @@ class PlatformBadgesTestSuite:
         
         for test_name, kwargs in placeholder_test_cases:
             test_row = self.create_test_row_data(test_name.lower(), **kwargs)
-            html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+            html_output = convertRowDataToHTML(test_row, 0)
             soup = BeautifulSoup(html_output, 'html.parser')
             
             # Check for Source Data Concerns badge
@@ -1002,7 +1019,7 @@ class PlatformBadgesTestSuite:
         
         for test_name, kwargs in version_text_patterns:
             test_row = self.create_test_row_data(test_name.lower(), **kwargs)
-            html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+            html_output = convertRowDataToHTML(test_row, 0)
             soup = BeautifulSoup(html_output, 'html.parser')
             
             # Check for Source Data Concerns badge
@@ -1021,7 +1038,7 @@ class PlatformBadgesTestSuite:
         
         for test_name, kwargs in version_comparators:
             test_row = self.create_test_row_data(test_name.lower(), **kwargs)
-            html_output = convertRowDataToHTML(test_row, self.mock_nvd_data, 0)
+            html_output = convertRowDataToHTML(test_row, 0)
             soup = BeautifulSoup(html_output, 'html.parser')
             
             # Check for Source Data Concerns badge
@@ -1043,7 +1060,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(version_granularity_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(version_granularity_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
@@ -1063,7 +1080,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(wildcard_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(wildcard_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         # Wildcards should create JSON Generation Rules badge (wildcards need processing)
@@ -1084,7 +1101,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(cpe_array_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(cpe_array_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
@@ -1101,7 +1118,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(duplicate_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(duplicate_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
@@ -1120,7 +1137,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(platform_data_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(platform_data_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
@@ -1142,7 +1159,7 @@ class PlatformBadgesTestSuite:
             }
         )
         
-        html_output = convertRowDataToHTML(multi_tab_row, self.mock_nvd_data, 0)
+        html_output = convertRowDataToHTML(multi_tab_row, 0)
         soup = BeautifulSoup(html_output, 'html.parser')
         
         source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)

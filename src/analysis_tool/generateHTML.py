@@ -9,6 +9,9 @@ import re
 # Import the new logging system
 from .workflow_logger import get_logger, LogGroup
 
+# Import global source manager functions
+from .nvd_source_manager import get_source_info, get_source_name
+
 # Get logger instance
 logger = get_logger()
 
@@ -172,7 +175,7 @@ def get_dynamic_data_injection():
         window.INTELLIGENT_SETTINGS = {json.dumps(safe_intelligent_settings, cls=CustomJSONEncoder)};
         """
         
-        # Combine fallback injections
+        # Combine consolidated injections
         consolidated_json_settings_registrations = json_settings_injection + intelligent_settings_js
     
     # Inject NON_SPECIFIC_VERSION_VALUES as a global JavaScript variable
@@ -215,7 +218,7 @@ class CustomJSONEncoder(json.JSONEncoder):
             # If we can't encode it normally, convert to string
             return str(obj)
 
-def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
+def convertRowDataToHTML(row, tableIndex=0) -> str:
     # Access platformEntryMetadata for consolidated fields
     platform_metadata = row.get('platformEntryMetadata', {})
     platform_format_type = platform_metadata.get('platformFormatType', '')
@@ -261,7 +264,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         elif key in row:  # Handle direct properties
             value = row[key]
             if key == 'sourceID':
-                source_info = processData.getNVDSourceDataByUUID(value, nvdSourceData)
+                source_info = get_source_info(value)
                 if source_info:
                     name = source_info.get('name', 'N/A')
                     contact_email = source_info.get('contactEmail', 'N/A')
@@ -430,8 +433,7 @@ def convertRowDataToHTML(row, nvdSourceData: pd.DataFrame, tableIndex=0) -> str:
         platform_format_type=platform_format_type,
         readable_format_type=readable_format_type,
         vendor=vendor,
-        product=product,
-        nvd_source_data=nvdSourceData
+        product=product
     )
     
     # If we have supporting information, add it to the standard badges category
@@ -1218,7 +1220,7 @@ def getCPEJsonScript() -> str:
     # Return combined inline script with both static JS and dynamic data
     return f"<script>\n{js_content}\n</script>{dynamic_data}"
 
-def update_cpeQueryHTML_column(dataframe, nvdSourceData):
+def update_cpeQueryHTML_column(dataframe):
     """Updates the dataframe to include a column with HTML for CPE query results"""
     
     # Make a copy to avoid modifying the original
@@ -1253,7 +1255,7 @@ def update_cpeQueryHTML_column(dataframe, nvdSourceData):
         
         collapse_button_html = f'<div class="mb-3 d-flex gap-2" id="buttonContainer_{index}">{buttons_html}</div>'
           # Populate the rowDataHTML column with the HTML content
-        row_html_content = convertRowDataToHTML(row, nvdSourceData, index)
+        row_html_content = convertRowDataToHTML(row, index)
         result_df.at[index, 'rowDataHTML'] = collapse_button_html + row_html_content
         
         # Create the main HTML div with all data attributes and a unique ID

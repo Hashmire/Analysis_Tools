@@ -153,35 +153,16 @@ function processVersionDataToCpeMatches(cpeBase, rawPlatformData, tableId) {
             console.debug("Raw platform data:", JSON.stringify(rawPlatformData, null, 2));
             console.debug("Settings:", JSON.stringify(settings, null, 2));
             
-            // Return basic match as last resort
-            if (window.customCPEHandlers && window.customCPEHandlers.has(cpeBase)) {
-                const handler = window.customCPEHandlers.get(cpeBase);
-                return [handler.createMatch()];
-            }
-            
-            // Determine vulnerability from defaultStatus for fallback
-            const defaultStatus = rawPlatformData ? rawPlatformData.defaultStatus || 'unknown' : 'unknown';
-            const isVulnerable = determineVulnerability(defaultStatus);
-            const basicMatch = createCpeMatchObject(cpeBase, isVulnerable);
-            console.debug("Returning basic CPE match as fallback");
-            return [basicMatch];
+            // Critical error - modular rules engine should always produce results
+            throw new Error(`No matches generated for ${cpeBase} - check version data structure and settings`);
         }
     } else {
-        console.error("Modular rules engine (ModularRuleEngine) is not loaded. This is a critical dependency.");
+        const errorMsg = "Modular rules engine (ModularRuleEngine) is not loaded. This is a critical dependency.";
+        console.error(errorMsg);
         console.error("Please ensure modular_rules.js is properly loaded before cpe_json_handler.js");
         
-        // Return basic match to prevent complete failure
-        if (window.customCPEHandlers && window.customCPEHandlers.has(cpeBase)) {
-            const handler = window.customCPEHandlers.get(cpeBase);
-            return [handler.createMatch()];
-        }
-        
-        // Determine vulnerability from defaultStatus for fallback
-        const defaultStatus = rawPlatformData ? rawPlatformData.defaultStatus || 'unknown' : 'unknown';
-        const isVulnerable = determineVulnerability(defaultStatus);
-        const basicMatch = createCpeMatchObject(cpeBase, isVulnerable);
-        console.debug("Returning basic CPE match due to missing modular rules engine");
-        return [basicMatch];    }
+        throw new Error(errorMsg);
+    }
 }
 
 
@@ -253,7 +234,10 @@ function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata, table
     let configs = [];
     
     try {
-        console.debug(`Processing JSON based on ${metadata.dataResource} source with ${selectedCPEs.size} selected CPEs`);
+        const sourceInfo = metadata.sourceName && metadata.sourceName !== "Unknown" ? 
+            `${metadata.sourceName} (${metadata.sourceId})` : 
+            metadata.sourceId;
+        console.debug(`Processing JSON based on ${metadata.dataResource} source [${sourceInfo}] with ${selectedCPEs.size} selected CPEs`);
         
         // Check if we have embedded configuration (for NVD data)
         if (metadata.dataResource === 'NVDAPI' && rawPlatformData && rawPlatformData.rawConfigData) {
@@ -277,9 +261,7 @@ function processJsonBasedOnSource(selectedCPEs, rawPlatformData, metadata, table
         return configs;
     } catch (e) {
         console.error("Error processing JSON:", e);
-        
-        // Return an empty array as fallback
-        return [];
+        throw e; // Fail fast - do not mask errors with fallbacks
     }
 }
 
@@ -320,7 +302,7 @@ function generateAllConfigurationsJson() {
         return allConfigs;
     } catch(e) {
         console.error("Error generating all configurations JSON:", e);
-        return [];  // Return empty array as fallback
+        throw e; // Fail fast - do not mask errors with fallbacks
     }
 }
 
@@ -336,6 +318,7 @@ function extractDataFromTable(tableIndex) {
         metadata: {
             dataResource: "Unknown",
             sourceId: "Unknown", 
+            sourceName: "Unknown",
             sourceRole: "Unknown"
         },
         rawPlatformData: null
@@ -373,16 +356,30 @@ function extractDataFromTable(tableIndex) {
                         const match = titleText.match(uuidPattern);
                         
                         if (match && match[1]) {
-                            result.metadata.sourceId = match[1];
-                            console.debug(`Found sourceId UUID: ${result.metadata.sourceId}`);
+                            const extractedUuid = match[1];
+                            // Use the unified source system to resolve UUID to human-readable name
+                            // Ensure getSourceById is available (from completion_tracker.js)
+                            let resolvedSourceName = valueCell.textContent.trim(); // current display value
+                            if (typeof window.getSourceById === 'function') {
+                                const sourceInfo = window.getSourceById(extractedUuid);
+                                resolvedSourceName = sourceInfo ? sourceInfo.name : valueCell.textContent.trim();
+                            } else {
+                                console.debug('getSourceById function not yet available, using current display value for source name');
+                            }
+                            
+                            result.metadata.sourceId = extractedUuid; // Keep UUID for compatibility
+                            result.metadata.sourceName = resolvedSourceName;
+                            console.debug(`Found sourceId UUID: ${result.metadata.sourceId}, resolved to: ${result.metadata.sourceName}`);
                         } else {
-                            // If no UUID found, use the text content as fallback
+                            // If no UUID found, use the text content as both ID and name
                             result.metadata.sourceId = valueCell.textContent.trim();
+                            result.metadata.sourceName = valueCell.textContent.trim();
                             console.debug(`UUID not found in title, using text as sourceId: ${result.metadata.sourceId}`);
                         }
                     } else {
                         // No span with title, just use the text content
                         result.metadata.sourceId = valueCell.textContent.trim();
+                        result.metadata.sourceName = valueCell.textContent.trim();
                         console.debug(`No title attribute found, using text as sourceId: ${result.metadata.sourceId}`);
                     }
                 }

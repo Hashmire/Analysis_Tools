@@ -14,6 +14,7 @@ import json
 from . import gatherData
 from . import generateHTML
 from .cpe_cache import CPECache, get_global_cache_manager
+from .nvd_source_manager import get_source_name, get_source_info, get_all_sources_for_cve
 
 # Import the new logging system
 from .workflow_logger import (
@@ -238,16 +239,6 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
 # Takes the processed data from the /cpes/ API and reduces to the top 10 base strings that appear most relevant to the platform entry
 ## We have already sorted each set of results for each individual base string search, this function is responsible for aggregating
 ## the results for each of those searches and performing additional sorting to determine the top 10 most relevant base strings. 
-
-def getNVDSourceDataByUUID(uuid: str, nvdSourceData: pd.DataFrame) -> dict:
-    for index, row in nvdSourceData.iterrows():
-        if uuid in row.get('sourceIdentifiers', []):
-            return {
-                "name": row.get('name'),
-                "contactEmail": row.get('contactEmail'),
-                "sourceIdentifiers": row.get('sourceIdentifiers')
-            }
-    return {}
 
 def sort_cpes_query_data(rawDataset: pd.DataFrame):
     tempDataset = rawDataset.copy()
@@ -1426,93 +1417,9 @@ def analyzeBaseStrings(cpeVersionChecks, json_response: Dict[str, Any]) -> Dict[
     }
 
 
-def processCVEData(dataframe, cveRecordData, nvdSourceData=None):
-    # Initialize source tracking
-    used_source_ids = set()
-    added_sources = set()
-    # Track whether we've added NIST already
-    nist_added = False
-    
-    # Still add nvd@nist.gov to used_source_ids for matching
-    used_source_ids.add('nvd@nist.gov')
-    
-    # Initialize global CVE metadata
-    global_cve_metadata = {
-        'cveId': cveRecordData.get('cveMetadata', {}).get('cveId', ''),
-        'descriptionData': [],
-        'referencesData': [], 
-        'sourceData': []
-    }
-    
-    # Extract source IDs from containers as usual...
-    
-    # Now process the NVD source data with complete used_source_ids
-    if nvdSourceData is not None:
-        # Track which sources we've already added to avoid duplicates
-        added_sources = set()
-        
-        for _, source_row in nvdSourceData.iterrows():
-            source_id = source_row.get('orgId', '')
-            
-            # Skip if we've already added this source
-            if source_id in added_sources:
-                continue
-                
-            # Special handling for NIST/NVD sources
-            if (source_id == '' or source_id == 'nvd@nist.gov' or 
-                ('sourceIdentifiers' in source_row and 
-                 isinstance(source_row['sourceIdentifiers'], list) and 
-                 'nvd@nist.gov' in source_row['sourceIdentifiers'])):
-                
-                if nist_added:
-                    # Skip duplicate NIST entries
-                    continue
-                    
-                # Add standardized NIST entry
-                source_info = {
-                    "sourceId": "nvd@nist.gov",
-                    "name": "NIST",
-                    "contactEmail": "nvd@nist.gov",
-                    "sourceIdentifiers": ["nvd@nist.gov"]
-                }
-                global_cve_metadata['sourceData'].append(source_info)
-                
-                # Mark as added to prevent duplicates
-                added_sources.add('')
-                added_sources.add('nvd@nist.gov')
-                nist_added = True
-                continue
-            
-            # Regular source matching logic for non-NIST sources...
-            # Check if this source ID is in our used sources (direct match by orgId)
-            source_matched = False
-            if source_id in used_source_ids:
-                source_matched = True
-            
-            # Or check if any of our used IDs are in this source's identifiers
-            elif 'sourceIdentifiers' in source_row and isinstance(source_row['sourceIdentifiers'], list):
-                for used_id in used_source_ids:
-                    if used_id in source_row['sourceIdentifiers']:
-                        source_matched = True
-                        break
-            
-            # If we matched this source, add it and mark as added
-            if source_matched:
-                # Create source info object
-                source_info = {
-                    "sourceId": source_id,
-                    "name": source_row.get('name', 'Unknown'),
-                    "contactEmail": source_row.get('contactEmail', ''),
-                    "sourceIdentifiers": source_row.get('sourceIdentifiers', [])
-                }
-                
-                # Add to the array
-                global_cve_metadata['sourceData'].append(source_info)
-                # Mark both the source ID and all its identifiers as added
-                added_sources.add(source_id)
-                for uuid in source_row.get('sourceIdentifiers', []):
-                    added_sources.add(uuid)
-    
+
+
+def processCVEData(dataframe, cveRecordData):
     result_df = dataframe.copy()
     
     # Track products for duplicate identification
@@ -1581,52 +1488,8 @@ def processCVEData(dataframe, cveRecordData, nvdSourceData=None):
                     # Add to global CVE metadata
                     global_cve_metadata['referencesData'].append(references_data)
 
-        # Add NVD as a used source if we're processing NVD data
-        used_source_ids.add('nvd@nist.gov')
-                
-        # Add relevant source information from nvdSourceData to global metadata
-        if nvdSourceData is not None:
-            # Track which sources we've already added to avoid duplicates
-            added_sources = set()
-            
-            for _, source_row in nvdSourceData.iterrows():
-                source_id = source_row.get('orgId', '')
-                
-                # Skip if we've already added this source
-                if source_id in added_sources:
-                    continue
-                    
-                # Check if this source ID is in our used sources (direct match by orgId)
-                source_matched = False
-                if source_id in used_source_ids:
-                    source_matched = True
-                
-                # Or check if any of our used IDs are in this source's identifiers
-                elif 'sourceIdentifiers' in source_row and isinstance(source_row['sourceIdentifiers'], list):
-                    for used_id in used_source_ids:
-                        if used_id in source_row['sourceIdentifiers']:
-                            source_matched = True
-                            break
-                
-                # If we matched this source, add it and mark as added
-                if source_matched:
-                    # Create source info object
-                    source_info = {
-                        "sourceId": source_id,
-                        "name": source_row.get('name', 'Unknown'),
-                        "contactEmail": source_row.get('contactEmail', ''),
-                        "sourceIdentifiers": source_row.get('sourceIdentifiers', [])
-                    }
-                    
-                    # Add to the array
-                    global_cve_metadata['sourceData'].append(source_info)
-                    added_sources.add(source_id)
-                    
-                    # Also add entries with explicit UUIDs that the frontend might check for
-                    for uuid in source_row.get('sourceIdentifiers', []):
-                        uuid_source_info = source_info.copy()
-                        uuid_source_info["sourceId"] = uuid
-                        global_cve_metadata['sourceData'].append(uuid_source_info)
+        # Populate global source metadata using the global source manager
+        global_cve_metadata['sourceData'] = get_all_sources_for_cve(list(used_source_ids))
         
         # Now process affected entries and add rows to dataframe
         for container_type in ['cna', 'adp']:
@@ -1666,11 +1529,19 @@ def processCVEData(dataframe, cveRecordData, nvdSourceData=None):
                             'duplicateRowIndices': []
                         }
                         
+                        # Enrich the affected data with source information
+                        enriched_affected = affected.copy()
+                        enriched_affected['sourceInfo'] = {
+                            'sourceId': source_id,
+                            'sourceName': get_source_name(source_id),
+                            'sourceRole': source_role
+                        }
+                        
                         # Create a new row in the dataframe
                         new_row = {
                             'sourceID': source_id,
                             'sourceRole': source_role,
-                            'rawPlatformData': affected,
+                            'rawPlatformData': enriched_affected,
                             'platformEntryMetadata': platform_entry_metadata,
                             'rawCPEsQueryData': [],
                             'sortedCPEsQueryData': [],
@@ -1698,69 +1569,6 @@ def processCVEData(dataframe, cveRecordData, nvdSourceData=None):
                         # Append to dataframe
                         result_df = pd.concat([result_df, pd.DataFrame([new_row])], ignore_index=True)
                         row_index += 1
-
-    # After processing nvdSourceData, add any missing sources from used_source_ids
-    for source_id in used_source_ids:
-        if source_id not in added_sources:
-            # Skip NIST fallbacks if we already added NIST
-            if (source_id == '' or source_id == 'nvd@nist.gov') and nist_added:
-                continue
-                
-            # Special case for NVD/NIST that wasn't found in source data
-            if source_id == '' or source_id == 'nvd@nist.gov':
-                if not nist_added:
-                    source_info = {
-                        "sourceId": "nvd@nist.gov",
-                        "name": "NIST",
-                        "contactEmail": "nvd@nist.gov", 
-                        "sourceIdentifiers": ["nvd@nist.gov"]
-                    }
-                    global_cve_metadata['sourceData'].append(source_info)
-                    added_sources.add('')
-                    added_sources.add('nvd@nist.gov')
-                    nist_added = True
-                continue
-            
-            # Regular fallback processing for other sources...
-            # First, check if we can find this source in nvdSourceData
-            # This ensures we don't create duplicates with different info
-            source_name = None
-            source_email = None
-            
-            # Special case for NVD/NIST
-            if source_id == 'nvd@nist.gov':
-                source_name = "NIST"
-                source_email = "nvd@nist.gov"
-            else:
-                # Check in NVD source data first if available
-                if nvdSourceData is not None:
-                    for _, source_row in nvdSourceData.iterrows():
-                        # Check if this source matches by ID or identifiers
-                        if source_row.get('orgId') == source_id or (
-                            'sourceIdentifiers' in source_row and
-                            isinstance(source_row['sourceIdentifiers'], list) and
-                            source_id in source_row['sourceIdentifiers']
-                        ):
-                            source_name = source_row.get('name')
-                            source_email = source_row.get('contactEmail')
-                            break
-                
-            
-            # If we still don't have a name, use the ID as fallback
-            if not source_name:
-                source_name = source_id
-            
-            # Create source info object
-            source_info = {
-                "sourceId": source_id,
-                "name": source_name,
-                "contactEmail": source_email or "",
-                "sourceIdentifiers": [source_id]
-            }
-            
-            # Add to the array
-            global_cve_metadata['sourceData'].append(source_info)
-            added_sources.add(source_id)
 
     return result_df, global_cve_metadata
 

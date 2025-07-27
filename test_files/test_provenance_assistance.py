@@ -393,8 +393,10 @@ class ProvenanceAssistanceTestSuite:
         wordfence_found = False
         
         for source in source_data:
-            source_id = source.get('sourceId', '')
-            if source_id == 'b15e7b5b-3da4-40ae-a43c-f7aa60e62599':
+            # Check sourceIdentifiers array for the WordFence UUID
+            source_identifiers = source.get('sourceIdentifiers', [])
+            
+            if isinstance(source_identifiers, list) and 'b15e7b5b-3da4-40ae-a43c-f7aa60e62599' in source_identifiers:
                 wordfence_found = True
                 break
         
