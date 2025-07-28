@@ -77,7 +77,7 @@ Each table uses consistent columns to describe badge/modal functionality:
 
 | **Badge Name** | **Granular Check** | **Tooltip or Tab Content Example** | **Root Cause Owner** | **Dev Handled** | **Audiences** |
 |:---|:---|:---|:---:|:---:|:---:|
-| **🟪 🔍 Source Data Concerns (X)** | **Unified modal with up to 9 tabs** | *Tooltip: "Source data quality issues detected&#013;5 issues: Placeholder Data, Version Text Patterns&#013;Click to view detailed LINT analysis"* | **External Source** | **❌** | **👤🔧🗃️** |
+| **🟪 🔍 Source Data Concerns (X)** | **Unified modal with up to 10 tabs** | *Tooltip: "Source data quality issues detected&#013;5 issues: Placeholder Data, Version Text Patterns&#013;Click to view detailed LINT analysis"* | **External Source** | **❌** | **👤🔧🗃️** |
 | → **Tab 1: Placeholder Data Detected** | Vendor/product placeholder values (n/a, -, etc.) | *Tab Content: Field-by-field analysis showing "Vendor field contains placeholder value 'n/a' which prevents proper CPE matching"* | External Source | ❌ | 👤🗃️ |
 | → **Tab 2: Version Text Patterns** | Text indicators + invalid characters in versions | *Tab Content: Character validation showing "Invalid characters in version: &lt;script&gt; (chars: &lt;, &gt;, /) - prevents proper processing"* | External Source | ❌ | 👤🗃️ |
 | → **Tab 3: Comparator Patterns** | Mathematical operators in version strings | *Tab Content: Version analysis showing "Version '>= 1.0' contains comparator '>=' that prevents exact version matching"* | External Source | ❌ | 👤🗃️ |
@@ -87,6 +87,7 @@ Each table uses consistent columns to describe badge/modal functionality:
 | → **Tab 7: Duplicate Entries** | Duplicate row tracking and consolidation | *Tab Content: Duplicate analysis showing "Identical platform appears at rows: [2, 5, 8]"* | External Source | ℹ️ | 👤🗃️ |
 | → **Tab 8: Platform Data Issues** | Misaligned vendor/product data patterns | *Tab Content: Platform analysis showing "Unexpected Platforms data detected in affected entry"* | External Source | ❌ | 👤🗃️ |
 | → **Tab 9: Missing Affected Products** | No products marked as affected/unknown | *Tab Content: Product analysis showing "No products marked as 'affected' - verify at least one should be affected"* | External Source | ❌ | 👤🗃️ |
+| → **Tab 10: Overlapping Ranges** | Version ranges overlap within same CPE Base String | *Tab Content: Range analysis showing "IDENTICAL overlap: v1.0-v2.0 conflicts with v1.0-v2.0 (Row 5)" with consolidation suggestions* | External Source | ❌ | 👤🗃️ |
 
 #### **Table 4: Individual Platform Entry Badges (Non-Modal)**
 
@@ -246,6 +247,12 @@ The system has been validated against production CVE data:
 - **Patterns Detected:** Beta, nightly, pre-release indicators in version strings
 - **Implementation:** Identifies text-based version qualifiers that affect processing
 - **Modal Tab:** Source Data Concerns → Version Text Patterns
+
+**Overlapping Ranges Detection:**
+
+- **Pattern Detected:** `"IDENTICAL overlap: v1.0-v2.0 conflicts with v1.0-v2.0"` for duplicate ranges within same CPE Base String
+- **Implementation:** Semantic version comparison using `packaging.version.parse()` with field-based CPE grouping (vendor:product:platform:packagename:collectionurl)
+- **Modal Tab:** Source Data Concerns → Overlapping Ranges
 
 ### **System Architecture Files**
 

@@ -20,7 +20,7 @@ Processes CVE records to generate CPE Applicability Statements:
 
 - **CPE caching system** reduces API calls by caching responses locally
 - **Interactive Modal System** with comprehensive badge/modal integration for data quality analysis
-- **Source Data Concerns Analysis** with 8 specialized tabs for data quality assessment
+- **Source Data Concerns Analysis** with 10 specialized tabs for data quality assessment
 - **Dashboard** for monitoring processing progress and performance
 - **Rules engine** for automated JSON generation
 - **Comprehensive test suites** for validating functionality including 100% coverage modal testing
@@ -214,7 +214,7 @@ Cache settings in `src/analysis_tool/config.json`:
 
 ### Source Data Concerns Modal System
 
-The platform badges include a comprehensive **Source Data Concerns** modal with 8 specialized tabs:
+The platform badges include a comprehensive **Source Data Concerns** modal with 10 specialized tabs:
 
 1. **Placeholder Data** - Detects vendor/product placeholder values (n/a, not applicable, etc.)
 2. **Version Text Patterns** - Identifies text-based version indicators (beta, nightly, before, after)
@@ -224,6 +224,8 @@ The platform badges include a comprehensive **Source Data Concerns** modal with 
 6. **CPE Array Concerns** - Detects empty or malformed CPE arrays
 7. **Duplicate Entries** - Tracks duplicate row consolidation
 8. **Platform Data Concerns** - Identifies misaligned vendor/product data patterns
+9. **Missing Affected Products** - Detects CVEs with no products marked as affected
+10. **Overlapping Ranges** - Identifies version ranges that overlap within same CPE Base String
 
 **Real CVE Pattern Validation**: Detection patterns based on production CVE analysis (CVE-2024-20515, CVE-1337-99997)
 

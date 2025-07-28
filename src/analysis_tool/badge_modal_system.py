@@ -3152,14 +3152,43 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     
     # Register the concerns data for the modal
     PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'] = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('sourceDataConcerns', {})
-    PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'][table_index] = {
-        "concerns": concerns_data,
-        "sourceRole": source_role,  # Add source role to the registered data
-        "summary": {
-            "total_concerns": concerns_count,
-            "concern_types": concern_types
+    
+    # Preserve existing registry data (like overlappingRanges) if it exists
+    if table_index in PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns']:
+        existing_entry = PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'][table_index]
+        existing_concerns = existing_entry.get('concerns', {})
+        existing_summary = existing_entry.get('summary', {})
+        
+        # Merge new concerns_data with existing concerns, preserving existing keys
+        merged_concerns = existing_concerns.copy()
+        merged_concerns.update(concerns_data)  # This will overwrite existing keys with new data from analysis
+        
+        # Calculate total concerns including existing data (like overlappingRanges)
+        total_existing_concerns = 0
+        existing_concern_types = existing_summary.get('concern_types', [])
+        for concern_type, concern_list in existing_concerns.items():
+            if isinstance(concern_list, list) and concern_list and concern_type not in concerns_data:
+                total_existing_concerns += len(concern_list)
+        
+        # Update the entry while preserving existing data
+        PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'][table_index] = {
+            "concerns": merged_concerns,
+            "sourceRole": source_role,  # Add source role to the registered data
+            "summary": {
+                "total_concerns": concerns_count + total_existing_concerns,
+                "concern_types": list(set(concern_types + existing_concern_types))  # Merge and deduplicate
+            }
         }
-    }
+    else:
+        # Create new entry if none exists
+        PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'][table_index] = {
+            "concerns": concerns_data,
+            "sourceRole": source_role,  # Add source role to the registered data
+            "summary": {
+                "total_concerns": concerns_count,
+                "concern_types": concern_types
+            }
+        }
     
     # Build header identifier for the modal
     header_parts = []
@@ -3174,12 +3203,17 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     
     header_identifier = f"Platform Entry {table_index} ({', '.join(header_parts)})"
     
+    # Get the final total count and concern types from the registry (includes overlapping ranges)
+    final_entry = PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'][table_index]
+    final_count = final_entry['summary']['total_concerns']
+    final_concern_types = final_entry['summary']['concern_types']
+    
     # Create tooltip showing concern summary
-    concern_summary = f"{concerns_count} issues: {', '.join(concern_types)}"
+    concern_summary = f"{final_count} issues: {', '.join(final_concern_types)}"
     tooltip = f"Source data quality issues detected&#013;{concern_summary}&#013;Click to view detailed LINT analysis"
     
     # Create the badge HTML with purple theme
-    badge_html = f'<span class="badge modal-badge bg-sourceDataConcern" onclick="BadgeModalManager.openSourceDataConcernsModal(\'{table_index}\', \'{header_identifier}\')" title="{tooltip}">🔍 Source Data Concerns ({concerns_count})</span> '
+    badge_html = f'<span class="badge modal-badge bg-sourceDataConcern" onclick="BadgeModalManager.openSourceDataConcernsModal(\'{table_index}\', \'{header_identifier}\')" title="{tooltip}">🔍 Source Data Concerns ({final_count})</span> '
     
     return badge_html
 

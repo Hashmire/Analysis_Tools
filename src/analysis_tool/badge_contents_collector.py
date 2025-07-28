@@ -313,7 +313,8 @@ class BadgeContentsCollector:
             'CPE Array Concerns': 'cpeArrayConcerns',
             'Duplicate Entries': 'duplicateEntries',
             'Platform Data Concerns': 'platformDataConcerns',
-            'Missing Affected Products': 'missingAffectedProducts'
+            'Missing Affected Products': 'missingAffectedProducts',
+            'Overlapping Ranges': 'overlappingRanges'
         }
         return mapping.get(concern_type, concern_type.lower().replace(' ', ''))
     

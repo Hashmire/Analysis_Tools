@@ -1496,6 +1496,15 @@ class BadgeModalFactory {
                     });
                 }
                 
+                if (concernsData.overlappingRanges && concernsData.overlappingRanges.length > 0) {
+                    tabs.push({
+                        id: 'overlappingRanges',
+                        label: 'Overlapping Ranges',
+                        badge: concernsData.overlappingRanges.length,
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.overlappingRanges, 'overlappingRanges', sourceRole)
+                    });
+                }
+                
                 return tabs;
             }
         });
@@ -1938,6 +1947,8 @@ class BadgeModalFactory {
                 content += BadgeModalFactory.generatePlatformDataConcernsContent(concern);
             } else if (concernType === 'missingAffectedProducts') {
                 content += BadgeModalFactory.generateMissingAffectedProductsContent(concern);
+            } else if (concernType === 'overlappingRanges') {
+                content += BadgeModalFactory.generateOverlappingRangesContent(concern);
             } else {
                 // Generic concern display
                 content += `
@@ -2293,6 +2304,75 @@ class BadgeModalFactory {
                         <li>Check if affected products are implied through other fields</li>
                         <li>May require CNA coordination to add missing affected product data</li>
                     </ul>
+                </div>
+            </div>
+        `;
+    }
+
+    static generateOverlappingRangesContent(concern) {
+        // Generate cross-reference links for related table indices
+        const crossRefLinks = concern.related_table_indices && concern.related_table_indices.length > 0 
+            ? concern.related_table_indices.map(index => `<a href="#" onclick="event.preventDefault(); document.querySelector('[id^=\\'rowDataTable_${index}\\']').scrollIntoView({behavior: 'smooth', block: 'center'});" class="badge bg-info text-white me-1" style="font-size: 0.7rem; text-decoration: none;">Row ${index}</a>`).join(' ')
+            : '<span class="text-muted">None</span>';
+
+        // Format range information for visual display
+        const rangeDisplay = concern.affected_ranges && concern.affected_ranges.length > 0
+            ? concern.affected_ranges.map(range => {
+                // Skip non-specific version values like "unspecified"
+                if (range.version) {
+                    const versionStr = String(range.version).toLowerCase().trim();
+                    const nonSpecificValues = ['unspecified', 'unknown', 'na', 'n/a', '*', 'all', 'any'];
+                    if (!nonSpecificValues.includes(versionStr)) {
+                        return `<code class="bg-light px-1 rounded">v${range.version}</code>`;
+                    }
+                }
+                
+                // Build range description from bounds
+                const parts = [];
+                if (range.greaterThan) parts.push(`>${range.greaterThan}`);
+                else if (range.greaterThanOrEqual) parts.push(`>=${range.greaterThanOrEqual}`);
+                
+                if (range.lessThan) parts.push(`<${range.lessThan}`);
+                else if (range.lessThanOrEqual) parts.push(`<=${range.lessThanOrEqual}`);
+                
+                return `<code class="bg-light px-1 rounded">${parts.join(' AND ') || 'unbounded'}</code>`;
+            }).join(' ⇄ ')
+            : '<span class="text-muted">No range details available</span>';
+
+        return `
+            <div class="concern-content">
+                <div class="problem-description mb-2">
+                    <strong class="text-danger">Problem:</strong>
+                    <p class="mb-2">${concern.range_description || 'Version ranges overlap and could potentially be consolidated'}</p>
+                </div>
+                <div class="problematic-data mb-2">
+                    <strong class="text-warning">Overlapping Ranges:</strong>
+                    <div class="data-display mt-1">
+                        <div class="row">
+                            <div class="col-3"><strong>Overlap Type:</strong></div>
+                            <div class="col-9">
+                                <span class="badge ${concern.overlap_type === 'identical' ? 'bg-danger' : concern.overlap_type === 'contains' || concern.overlap_type === 'contained' ? 'bg-warning' : 'bg-info'} text-white" style="font-size: 0.7rem;">
+                                    ${concern.overlap_type ? concern.overlap_type.toUpperCase() : 'OVERLAP'}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-3"><strong>CPE Base:</strong></div>
+                            <div class="col-9"><code class="bg-light px-1 rounded" style="font-size: 0.8rem;">${concern.cpe_base || 'N/A'}</code></div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-3"><strong>Visual Ranges:</strong></div>
+                            <div class="col-9" style="font-size: 0.85rem;">${rangeDisplay}</div>
+                        </div>
+                        <div class="row mt-1">
+                            <div class="col-3"><strong>Cross-References:</strong></div>
+                            <div class="col-9">${crossRefLinks}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="resolution-guidance">
+                    <strong class="text-success">Suggestion:</strong>
+                    <p class="mb-0 text-muted" style="font-size: 0.85rem;">${concern.suggestion || 'Review ranges for potential consolidation'}</p>
                 </div>
             </div>
         `;

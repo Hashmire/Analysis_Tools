@@ -18,6 +18,730 @@ logger = get_logger()
 # Import the new badge and modal system
 from .badge_modal_system import *
 
+def detect_overlapping_ranges(dataframe: pd.DataFrame) -> Dict[int, List[Dict]]:
+    """
+    Detect overlapping version ranges across all platform entries with semantic version comparison.
+    
+    Analyzes all rows in the dataframe to identify cases where multiple platform entries
+    have version ranges that overlap or could be consolidated into a single range.
+    Uses semantic version comparison for accurate overlap detection.
+    
+    Args:
+        dataframe: The complete dataframe with all platform entries
+        
+    Returns:
+        Dictionary mapping table indices to lists of overlapping range findings
+    """
+    import re
+    from packaging import version
+    
+    logger.debug(f"detect_overlapping_ranges called with {len(dataframe)} entries", group="PAGE_GEN")
+    
+    findings = {}  # table_index -> list of findings
+    
+    # Group platform entries by all CPE base string properties that create unique platform identities
+    cpe_groups = {}
+    
+    for index, row in dataframe.iterrows():
+        raw_platform_data = row.get('rawPlatformData', {})
+        
+        # Extract all fields used in Unique CPE Base String generation
+        vendor = raw_platform_data.get('vendor', '').strip().lower()
+        product = raw_platform_data.get('product', '').strip().lower()
+        platforms = raw_platform_data.get('platforms', [])
+        package_name = raw_platform_data.get('packageName', '').strip()
+        collection_url = raw_platform_data.get('collectionURL', '').strip()
+        
+        # Skip entries without proper vendor/product (core requirements)
+        if not vendor or not product or vendor in ['unknown', 'n/a', '-'] or product in ['unknown', 'n/a', '-']:
+            continue
+        
+        # Create comprehensive CPE base string identifier including all distinguishing fields
+        cpe_base_parts = [vendor, product]
+        
+        # Add platforms if present (affects targetHW in CPE generation)
+        if platforms and isinstance(platforms, list):
+            platforms_str = '|'.join(sorted([str(p).lower().strip() for p in platforms if p]))
+            if platforms_str:
+                cpe_base_parts.append(f"platforms:{platforms_str}")
+        
+        # Add packageName if present (creates separate vendor/product combinations for Maven)
+        if package_name:
+            cpe_base_parts.append(f"package:{package_name.lower()}")
+            
+        # Add collectionURL if present (distinguishes package sources)
+        if collection_url:
+            cpe_base_parts.append(f"collection:{collection_url.lower()}")
+        
+        # Create CPE base string identifier
+        cpe_base = '|'.join(cpe_base_parts)
+        
+        if cpe_base not in cpe_groups:
+            cpe_groups[cpe_base] = []
+        
+        cpe_groups[cpe_base].append({
+            'table_index': index,
+            'raw_platform_data': raw_platform_data,
+            'row': row
+        })
+    
+    logger.debug(f"Grouped platform entries: {len(cpe_groups)} CPE groups found", group="PAGE_GEN")
+    for cpe_base, entries in cpe_groups.items():
+        logger.debug(f"CPE group '{cpe_base}': {len(entries)} entries", group="PAGE_GEN")
+    
+    # Analyze each CPE group for overlapping ranges
+    for cpe_base, entries in cpe_groups.items():
+        if len(entries) < 2:
+            logger.debug(f"Skipping CPE group '{cpe_base}': only {len(entries)} entry", group="PAGE_GEN")
+            continue  # Need at least 2 entries to have overlaps
+        
+        logger.debug(f"Analyzing CPE group '{cpe_base}' with {len(entries)} entries for overlaps", group="PAGE_GEN")
+        
+        # Extract version ranges from each entry
+        version_ranges = []
+        for entry in entries:
+            ranges = extract_version_ranges(entry['raw_platform_data'])
+            logger.debug(f"Table {entry['table_index']}: extracted {len(ranges)} version ranges", group="PAGE_GEN")
+            for version_range in ranges:
+                version_ranges.append({
+                    'table_index': entry['table_index'],
+                    'range': version_range,
+                    'vendor': entry['raw_platform_data'].get('vendor', ''),
+                    'product': entry['raw_platform_data'].get('product', ''),
+                    'entry': entry
+                })
+                logger.debug(f"Table {entry['table_index']}: range {version_range}", group="PAGE_GEN")
+        
+        # Check for overlaps between version ranges
+        overlaps = find_range_overlaps(version_ranges)
+        
+        logger.debug(f"CPE group '{cpe_base}': found {len(overlaps)} overlaps from {len(version_ranges)} version ranges", group="PAGE_GEN")
+        
+        # Process overlaps and create findings for affected table indices
+        for overlap in overlaps:
+            logger.debug(f"Processing overlap: {overlap['overlap_type']} affecting tables {overlap['affected_table_indices']}", group="PAGE_GEN")
+            # Create findings for all affected table indices with perspective-based descriptions
+            for table_index in overlap['affected_table_indices']:
+                if table_index not in findings:
+                    findings[table_index] = []
+                
+                # Get cross-references (other table indices involved)
+                cross_refs = [idx for idx in overlap['affected_table_indices'] if idx != table_index]
+                
+                # Create perspective-based description for this table
+                perspective_description = create_perspective_description(
+                    table_index, cross_refs, overlap, version_ranges
+                )
+                
+                finding = {
+                    'overlap_type': overlap['overlap_type'],
+                    'range_description': perspective_description['description'],
+                    'related_table_indices': cross_refs,
+                    'suggestion': perspective_description['suggestion'],
+                    'affected_ranges': overlap['ranges_involved'],
+                    'cpe_base': cpe_base
+                }
+                
+                findings[table_index].append(finding)
+                logger.debug(f"Added finding to table {table_index}: {overlap['overlap_type']} overlap", group="PAGE_GEN")
+    
+    return findings
+
+def create_perspective_description(current_table_index: int, related_table_indices: List[int], 
+                                  overlap_info: Dict, all_version_ranges: List[Dict]) -> Dict:
+    """
+    Create perspective-based description of overlaps from the current table's viewpoint.
+    
+    Args:
+        current_table_index: The table index being described
+        related_table_indices: Other table indices involved in overlaps
+        overlap_info: The overlap information
+        all_version_ranges: All version ranges to look up details
+        
+    Returns:
+        Dictionary with description and suggestion from current table's perspective
+    """
+    # Find the current table's range
+    current_range = None
+    related_ranges = []
+    
+    for version_range in all_version_ranges:
+        if version_range['table_index'] == current_table_index:
+            current_range = version_range['range']
+        elif version_range['table_index'] in related_table_indices:
+            related_ranges.append({
+                'table_index': version_range['table_index'],
+                'range': version_range['range']
+            })
+    
+    if not current_range or not related_ranges:
+        return {
+            'description': "Has overlapping ranges with other platform entries",
+            'suggestion': "Review ranges for potential consolidation or proper bounds definition"
+        }
+    
+    # Format current range
+    current_range_desc = format_range(current_range)
+    
+    # Analyze relationships from current table's perspective
+    complete_overlaps = []
+    partial_overlaps = []
+    
+    for related in related_ranges:
+        relationship = analyze_range_relationship(current_range, related['range'])
+        if relationship['type'] in ['contains', 'contained']:
+            complete_overlaps.append({
+                'table': related['table_index'],
+                'range': format_range(related['range']),
+                'relationship': relationship
+            })
+        else:
+            partial_overlaps.append({
+                'table': related['table_index'], 
+                'range': format_range(related['range']),
+                'relationship': relationship
+            })
+    
+    # Build perspective-based description with elegant language
+    if complete_overlaps:
+        complete_desc = []
+        for overlap in complete_overlaps:
+            if overlap['relationship']['type'] == 'contains':
+                complete_desc.append(f"encompasses the more restrictive range {overlap['range']} from table {overlap['table']}")
+            else:  # contained
+                complete_desc.append(f"falls entirely within the broader range {overlap['range']} from table {overlap['table']}")
+        
+        if len(complete_desc) == 1:
+            description = f"This version range ({current_range_desc}) {complete_desc[0]}."
+        else:
+            description = f"This version range ({current_range_desc}) {' and '.join(complete_desc)}."
+    elif partial_overlaps:
+        partial_desc = []
+        for overlap in partial_overlaps:
+            partial_desc.append(f"overlaps with range {overlap['range']} from table {overlap['table']}")
+        
+        if len(partial_desc) == 1:
+            description = f"This version range ({current_range_desc}) {partial_desc[0]}."
+        else:
+            description = f"This version range ({current_range_desc}) {' and '.join(partial_desc)}."
+    else:
+        description = f"This version range ({current_range_desc}) has overlapping relationships with other platform entries."
+    
+    # Create dual advisement (consolidation AND proper bounds)
+    suggestion_parts = []
+    
+    # Consolidation advisement
+    if complete_overlaps and any(o['relationship']['type'] == 'contains' for o in complete_overlaps):
+        suggestion_parts.append("CONSOLIDATION: Consider using this broader range and removing the narrower overlapping ranges")
+    elif complete_overlaps and any(o['relationship']['type'] == 'contained' for o in complete_overlaps):
+        broader_tables = [str(o['table']) for o in complete_overlaps if o['relationship']['type'] == 'contained']
+        suggestion_parts.append(f"CONSOLIDATION: Consider removing this range in favor of the broader range(s) in table(s) {', '.join(broader_tables)}")
+    elif partial_overlaps:
+        suggestion_parts.append("CONSOLIDATION: Consider consolidating overlapping ranges into a single unified range")
+    
+    # Proper bounds advisement
+    if is_unbounded_range(current_range):
+        suggestion_parts.append("PROPER BOUNDS: Consider adding explicit lower bounds to this range to eliminate ambiguity")
+    else:
+        suggestion_parts.append("PROPER BOUNDS: Consider reviewing and clarifying the exact bounds for this range")
+    
+    suggestion = "<br>".join(suggestion_parts)
+    
+    return {
+        'description': description,
+        'suggestion': suggestion
+    }
+
+def analyze_range_relationship(range1: Dict, range2: Dict) -> Dict:
+    """Analyze the relationship between two ranges."""
+    bounds1 = get_range_bounds(range1)
+    bounds2 = get_range_bounds(range2)
+    
+    if not bounds1 or not bounds2:
+        return {'type': 'partial', 'details': 'Unable to determine precise relationship'}
+    
+    overlap_type = determine_overlap_type(bounds1, bounds2)
+    return {'type': overlap_type or 'partial', 'bounds1': bounds1, 'bounds2': bounds2}
+
+def is_unbounded_range(version_range: Dict) -> bool:
+    """Check if a range is unbounded (has no explicit lower bound)."""
+    from .badge_modal_system import NON_SPECIFIC_VERSION_VALUES
+    
+    # Check if version is a placeholder/unspecified
+    if version_range.get('version'):
+        version_str = str(version_range['version']).lower().strip()
+        if version_str in [val.lower() for val in NON_SPECIFIC_VERSION_VALUES]:
+            # This is a placeholder, only upper bounds are supported in CVE 5.X
+            return True  # Placeholder versions are effectively unbounded below
+    
+    # In CVE 5.X, ranges are defined by version (starting point) + lessThan/lessThanOrEqual
+    # A range is unbounded if version is * or a placeholder
+    version_str = str(version_range.get('version', '')).lower().strip()
+    return version_str == '*' or version_str in [val.lower() for val in NON_SPECIFIC_VERSION_VALUES]
+
+def extract_version_ranges(raw_platform_data: Dict) -> List[Dict]:
+    """
+    Extract version ranges from platform data for overlap analysis.
+    
+    Args:
+        raw_platform_data: Raw platform data containing version information
+        
+    Returns:
+        List of version range dictionaries with start/end bounds
+    """
+    ranges = []
+    versions = raw_platform_data.get('versions', [])
+    
+    if not isinstance(versions, list):
+        return ranges
+    
+    for version_entry in versions:
+        if not isinstance(version_entry, dict):
+            continue
+        
+        # Extract range boundaries (CVE 5.X only supports version + lessThan/lessThanOrEqual)
+        version_range = {
+            'version': version_entry.get('version'),
+            'lessThan': version_entry.get('lessThan'),
+            'lessThanOrEqual': version_entry.get('lessThanOrEqual'),
+            'versionType': version_entry.get('versionType'),
+            'status': version_entry.get('status', 'unknown'),
+            'raw_entry': version_entry
+        }
+        
+        # Skip empty ranges
+        range_fields = [version_range['version'], version_range['lessThan'], 
+                       version_range['lessThanOrEqual']]
+        if not any(field for field in range_fields if field):
+            continue
+        
+        ranges.append(version_range)
+    
+    return ranges
+
+def find_range_overlaps(version_ranges: List[Dict]) -> List[Dict]:
+    """
+    Find overlapping version ranges using semantic version comparison.
+    
+    Args:
+        version_ranges: List of version range entries with table indices
+        
+    Returns:
+        List of overlap findings with suggestions for consolidation
+    """
+    from packaging import version
+    
+    overlaps = []
+    processed_pairs = set()
+    
+    for i, range1 in enumerate(version_ranges):
+        for j, range2 in enumerate(version_ranges[i + 1:], i + 1):
+            # Skip if same table index (internal ranges are handled separately)
+            if range1['table_index'] == range2['table_index']:
+                continue
+            
+            # Create unique pair identifier
+            pair_key = tuple(sorted([range1['table_index'], range2['table_index']]))
+            if pair_key in processed_pairs:
+                continue
+            processed_pairs.add(pair_key)
+            
+            # Check for overlap
+            overlap_result = check_range_overlap(range1['range'], range2['range'])
+            if overlap_result:
+                overlap_info = {
+                    'overlap_type': overlap_result['type'],
+                    'description': f"Ranges {format_range(range1['range'])} and {format_range(range2['range'])} {overlap_result['description']}",
+                    'affected_table_indices': [range1['table_index'], range2['table_index']],
+                    'ranges_involved': [range1['range'], range2['range']],
+                    'suggestion': generate_consolidation_suggestion(range1['range'], range2['range'], overlap_result)
+                }
+                overlaps.append(overlap_info)
+    
+    return overlaps
+
+def check_range_overlap(range1: Dict, range2: Dict) -> Optional[Dict]:
+    """
+    Check if two version ranges overlap using semantic version comparison.
+    
+    Args:
+        range1: First version range
+        range2: Second version range
+        
+    Returns:
+        Dict with overlap information if overlap exists, None otherwise
+    """
+    from packaging import version
+    
+    try:
+        # Extract and normalize version bounds
+        r1_bounds = get_range_bounds(range1)
+        r2_bounds = get_range_bounds(range2)
+        
+        # Both bounds should exist (even if empty for unbounded ranges)
+        if r1_bounds is None or r2_bounds is None:
+            return None
+        
+        # Check for overlap
+        overlap_type = determine_overlap_type(r1_bounds, r2_bounds)
+        if overlap_type:
+            return {
+                'type': overlap_type,
+                'description': get_overlap_description(overlap_type),
+                'bounds1': r1_bounds,
+                'bounds2': r2_bounds
+            }
+    
+    except Exception as e:
+        # Skip ranges with invalid version formats
+        logger.debug(f"Version comparison failed: {e}", group="PAGE_GEN")
+        return None
+    
+    return None
+
+def get_range_bounds(version_range: Dict) -> Optional[Dict]:
+    """
+    Convert version range to normalized bounds.
+    
+    Args:
+        version_range: Version range dictionary
+        
+    Returns:
+        Dictionary with min/max bounds or None if invalid
+    """
+    from packaging import version
+    
+    bounds = {}
+    
+    # Handle single version
+    if version_range.get('version'):
+        version_str = str(version_range['version']).lower().strip()
+        
+        # Import the NON_SPECIFIC_VERSION_VALUES from badge_modal_system
+        from .badge_modal_system import NON_SPECIFIC_VERSION_VALUES
+        
+        # Special handling for * as completely unbounded range
+        if version_str == '*':
+            # * represents a completely unbounded range (all versions)
+            # Don't set any bounds - this will be handled as unbounded
+            pass
+        # Special handling for placeholder values - these should be omitted from range calculation
+        elif version_str in [val.lower() for val in NON_SPECIFIC_VERSION_VALUES]:
+            # These are placeholder values that represent missing/undefined data
+            # Don't set bounds here - let the range bounds logic handle lessThan/greaterThan only
+            pass
+        else:
+            try:
+                v = version.parse(version_str)
+                bounds['min'] = v
+                bounds['max'] = v
+                bounds['min_inclusive'] = True
+                bounds['max_inclusive'] = True
+            except:
+                # If not a valid version and not a placeholder, check if we have range bounds
+                if not (version_range.get('lessThan') or version_range.get('lessThanOrEqual')):
+                    return None
+    
+    # Handle range bounds (CVE 5.X only supports lessThan/lessThanOrEqual for upper bounds)
+    # Lower bounds are established by the 'version' field as the starting point
+    try:
+        if version_range.get('lessThan'):
+            bounds['max'] = version.parse(str(version_range['lessThan']))
+            bounds['max_inclusive'] = False
+        elif version_range.get('lessThanOrEqual'):
+            bounds['max'] = version.parse(str(version_range['lessThanOrEqual']))
+            bounds['max_inclusive'] = True
+            
+        # If we have a version field and it's not a placeholder, set it as lower bound
+        if version_range.get('version'):
+            version_str = str(version_range['version']).lower().strip()
+            # Import the NON_SPECIFIC_VERSION_VALUES from badge_modal_system
+            from .badge_modal_system import NON_SPECIFIC_VERSION_VALUES
+            
+            if version_str != '*' and version_str not in [val.lower() for val in NON_SPECIFIC_VERSION_VALUES]:
+                try:
+                    bounds['min'] = version.parse(version_str)
+                    bounds['min_inclusive'] = True
+                except:
+                    pass  # If version parsing fails, treat as unbounded below
+            
+    except:
+        return None
+    
+    # Ensure we have valid bounds
+    if 'min' not in bounds and 'max' not in bounds:
+        # Check if this is a completely unbounded range (* with no other bounds)
+        if version_range.get('version') == '*' and not any([
+            version_range.get('lessThan'),
+            version_range.get('lessThanOrEqual')
+        ]):
+            # This is a completely unbounded range - return empty bounds to indicate this
+            return {}
+        else:
+            return None
+    
+    # For ranges with only upper bound or only lower bound, this is valid
+    # (represents unbounded ranges where placeholder data was omitted)
+    
+    return bounds
+
+def determine_overlap_type(bounds1: Dict, bounds2: Dict) -> Optional[str]:
+    """
+    Determine the type of overlap between two version ranges.
+    
+    Args:
+        bounds1: First range bounds
+        bounds2: Second range bounds
+        
+    Returns:
+        String describing overlap type or None if no overlap
+    """
+    # Handle completely unbounded ranges (empty bounds or no min/max)
+    bounds1_unbounded = (bounds1 is None or 
+                        len(bounds1) == 0 or 
+                        (not bounds1.get('min') and not bounds1.get('max')))
+    bounds2_unbounded = (bounds2 is None or 
+                        len(bounds2) == 0 or 
+                        (not bounds2.get('min') and not bounds2.get('max')))
+    
+    if bounds1_unbounded and bounds2_unbounded:
+        return "identical"  # Both completely unbounded
+    
+    if bounds1_unbounded:
+        return "contains"  # bounds1 (unbounded) contains bounds2
+    
+    if bounds2_unbounded:
+        return "contained"  # bounds1 is contained in bounds2 (unbounded)
+    
+    # Handle unbounded ranges
+    r1_min = bounds1.get('min')
+    r1_max = bounds1.get('max')
+    r2_min = bounds2.get('min')
+    r2_max = bounds2.get('max')
+    
+    # Check if ranges actually overlap
+    if r1_max and r2_min:
+        if r1_max < r2_min or (r1_max == r2_min and not (bounds1.get('max_inclusive') and bounds2.get('min_inclusive'))):
+            return None
+    
+    if r2_max and r1_min:
+        if r2_max < r1_min or (r2_max == r1_min and not (bounds2.get('max_inclusive') and bounds1.get('min_inclusive'))):
+            return None
+    
+    # Determine overlap type with better logic for unbounded ranges
+    
+    # Case 1: Identical ranges
+    if (r1_min == r2_min and r1_max == r2_max and 
+        bounds1.get('min_inclusive') == bounds2.get('min_inclusive') and
+        bounds1.get('max_inclusive') == bounds2.get('max_inclusive')):
+        return "identical"
+    
+    # Case 2: One range completely contains the other
+    # Range 1 contains Range 2
+    r1_contains_r2 = True
+    if r2_min is not None:
+        if r1_min is None:  # r1 is unbounded below, so it contains r2's lower bound
+            pass
+        elif r1_min > r2_min:  # r1's lower bound is higher than r2's
+            r1_contains_r2 = False
+        elif r1_min == r2_min and not bounds1.get('min_inclusive') and bounds2.get('min_inclusive'):
+            r1_contains_r2 = False
+    
+    if r2_max is not None:
+        if r1_max is None:  # r1 is unbounded above, so it contains r2's upper bound
+            pass
+        elif r1_max < r2_max:  # r1's upper bound is lower than r2's
+            r1_contains_r2 = False
+        elif r1_max == r2_max and not bounds1.get('max_inclusive') and bounds2.get('max_inclusive'):
+            r1_contains_r2 = False
+    
+    # Range 2 contains Range 1
+    r2_contains_r1 = True
+    if r1_min is not None:
+        if r2_min is None:  # r2 is unbounded below, so it contains r1's lower bound
+            pass
+        elif r2_min > r1_min:  # r2's lower bound is higher than r1's
+            r2_contains_r1 = False
+        elif r2_min == r1_min and not bounds2.get('min_inclusive') and bounds1.get('min_inclusive'):
+            r2_contains_r1 = False
+    
+    if r1_max is not None:
+        if r2_max is None:  # r2 is unbounded above, so it contains r1's upper bound
+            pass
+        elif r2_max < r1_max:  # r2's upper bound is lower than r1's
+            r2_contains_r1 = False
+        elif r2_max == r1_max and not bounds2.get('max_inclusive') and bounds1.get('max_inclusive'):
+            r2_contains_r1 = False
+    
+    if r1_contains_r2 and not r2_contains_r1:
+        return "contains"
+    elif r2_contains_r1 and not r1_contains_r2:
+        return "contained"
+    elif r1_contains_r2 and r2_contains_r1:
+        return "identical"  # They contain each other, so they're effectively identical
+    else:
+        return "partial"
+
+def get_overlap_description(overlap_type: str) -> str:
+    """Get human-readable description of overlap type."""
+    descriptions = {
+        "identical": "are identical and should be consolidated",
+        "contains": "has complete overlap - one range contains the other",
+        "contained": "has complete overlap - one range is contained within the other", 
+        "partial": "have partial overlap and could potentially be consolidated"
+    }
+    return descriptions.get(overlap_type, "overlap")
+
+def format_range(version_range: Dict) -> str:
+    """Format version range for display."""
+    # Import the NON_SPECIFIC_VERSION_VALUES from badge_modal_system
+    from .badge_modal_system import NON_SPECIFIC_VERSION_VALUES
+    
+    # Check if we have a version field that's not a placeholder
+    if version_range.get('version'):
+        version_str = str(version_range['version']).lower().strip()
+        
+        # Special handling for * as completely unbounded
+        if version_str == '*':
+            # Check if we have any bounds - if not, it's completely unbounded
+            has_bounds = any([
+                version_range.get('lessThan'),
+                version_range.get('lessThanOrEqual')
+            ])
+            if not has_bounds:
+                return "all versions"
+        elif version_str not in [val.lower() for val in NON_SPECIFIC_VERSION_VALUES]:
+            # Show the version as starting point for CVE 5.X ranges
+            version_part = f"v{version_range['version']}"
+    
+    # Build range description from bounds (CVE 5.X format)
+    parts = []
+    
+    # Add version as starting point if it's not a placeholder
+    if version_range.get('version'):
+        version_str = str(version_range['version']).lower().strip()
+        if version_str != '*' and version_str not in [val.lower() for val in NON_SPECIFIC_VERSION_VALUES]:
+            parts.append(f"v{version_range['version']}")
+    
+    # Add upper bounds
+    if version_range.get('lessThan'):
+        parts.append(f"<{version_range['lessThan']}")
+    elif version_range.get('lessThanOrEqual'):
+        parts.append(f"<={version_range['lessThanOrEqual']}")
+    
+    if parts:
+        return " AND ".join(parts)
+    else:
+        # This is an unbounded range (no specific bounds)
+        return "unbounded"
+
+def generate_consolidation_suggestion(range1: Dict, range2: Dict, overlap_result: Dict) -> str:
+    """Generate consolidation suggestion based on overlap analysis."""
+    overlap_type = overlap_result['type']
+    bounds1 = overlap_result['bounds1']
+    bounds2 = overlap_result['bounds2']
+    
+    if overlap_type == "identical":
+        return "Consider consolidating identical ranges into a single platform entry"
+    elif overlap_type == "contains":
+        # Determine which range is broader
+        range1_broader = is_range_broader(bounds1, bounds2)
+        if range1_broader:
+            broader_range_desc = format_bounds_description(bounds1)
+            return f"Consider using the broader range ({broader_range_desc}) and removing the narrower range"
+        else:
+            broader_range_desc = format_bounds_description(bounds2)
+            return f"Consider using the broader range ({broader_range_desc}) and removing the narrower range"
+    elif overlap_type == "contained":
+        # Same as contains, but phrased differently
+        range1_broader = is_range_broader(bounds1, bounds2)
+        if range1_broader:
+            broader_range_desc = format_bounds_description(bounds1)
+            return f"Consider using the broader range ({broader_range_desc}) and removing the narrower range"
+        else:
+            broader_range_desc = format_bounds_description(bounds2)
+            return f"Consider using the broader range ({broader_range_desc}) and removing the narrower range"
+    elif overlap_type == "partial":
+        # Try to suggest a consolidated range that encompasses both
+        consolidated_bounds = get_consolidated_bounds(bounds1, bounds2)
+        consolidated_desc = format_bounds_description(consolidated_bounds)
+        return f"Consider consolidating to range {consolidated_desc}"
+    
+    return "Review for potential consolidation"
+
+def is_range_broader(bounds1: Dict, bounds2: Dict) -> bool:
+    """Determine if bounds1 is broader than bounds2."""
+    # A range is broader if it has a lower minimum or higher maximum (or is unbounded)
+    
+    # Check lower bound
+    lower_broader = False
+    if bounds1.get('min') is None and bounds2.get('min') is not None:
+        lower_broader = True  # bounds1 is unbounded below
+    elif bounds2.get('min') is None and bounds1.get('min') is not None:
+        lower_broader = False  # bounds2 is unbounded below
+    elif bounds1.get('min') is not None and bounds2.get('min') is not None:
+        lower_broader = bounds1['min'] < bounds2['min']
+    else:
+        lower_broader = False  # Both unbounded or neither has min
+    
+    # Check upper bound
+    upper_broader = False
+    if bounds1.get('max') is None and bounds2.get('max') is not None:
+        upper_broader = True  # bounds1 is unbounded above
+    elif bounds2.get('max') is None and bounds1.get('max') is not None:
+        upper_broader = False  # bounds2 is unbounded above
+    elif bounds1.get('max') is not None and bounds2.get('max') is not None:
+        upper_broader = bounds1['max'] > bounds2['max']
+    else:
+        upper_broader = False  # Both unbounded or neither has max
+    
+    return lower_broader or upper_broader
+
+def get_consolidated_bounds(bounds1: Dict, bounds2: Dict) -> Dict:
+    """Get consolidated bounds that encompass both ranges."""
+    consolidated = {}
+    
+    # Take the lower minimum (or unbounded if either is unbounded)
+    if bounds1.get('min') is None or bounds2.get('min') is None:
+        # One is unbounded below, so consolidated range is unbounded below
+        pass
+    else:
+        consolidated['min'] = min(bounds1['min'], bounds2['min'])
+        consolidated['min_inclusive'] = True  # Use inclusive for simplicity
+    
+    # Take the higher maximum (or unbounded if either is unbounded)
+    if bounds1.get('max') is None or bounds2.get('max') is None:
+        # One is unbounded above, so consolidated range is unbounded above
+        pass
+    else:
+        consolidated['max'] = max(bounds1['max'], bounds2['max'])
+        consolidated['max_inclusive'] = True  # Use inclusive for simplicity
+    
+    return consolidated
+
+def format_bounds_description(bounds: Dict) -> str:
+    """Format bounds for human-readable description."""
+    parts = []
+    
+    if bounds.get('min') is not None:
+        op = ">=" if bounds.get('min_inclusive') else ">"
+        parts.append(f"{op}{bounds['min']}")
+    else:
+        parts.append("unbounded below")
+    
+    if bounds.get('max') is not None:
+        op = "<=" if bounds.get('max_inclusive') else "<"
+        parts.append(f"{op}{bounds['max']}")
+    else:
+        parts.append("unbounded above")
+    
+    if len(parts) == 2 and "unbounded" not in " ".join(parts):
+        return " AND ".join(parts)
+    elif len(parts) == 1:
+        return parts[0]
+    else:
+        return " AND ".join(parts)
+
 # Load configuration
 def load_config():
     """Load configuration from config.json"""
@@ -396,6 +1120,18 @@ def convertRowDataToHTML(row, tableIndex=0) -> str:
         platform_metadata=platform_metadata,
         row=row
     )
+    
+    # Debug: Check what overlapping ranges data exists for this table index
+    from .badge_modal_system import PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+    if tableIndex in [2, 4, 5]:  # macOS entries
+        registry_data = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('sourceDataConcerns', {}).get(tableIndex, {})
+        if registry_data:
+            overlapping_data = registry_data.get('concerns', {}).get('overlappingRanges', [])
+            logger.debug(f"Table {tableIndex} overlapping ranges: {len(overlapping_data)} findings", group="PAGE_GEN")
+            if overlapping_data:
+                logger.debug(f"Table {tableIndex} overlapping ranges data: {overlapping_data[:1]}", group="PAGE_GEN")  # Show first finding
+        else:
+            logger.debug(f"Table {tableIndex} has no registry data", group="PAGE_GEN")
     
     # If we have source data concerns, add it to the sourceDataConcern_badges category and collect the data
     if source_data_concerns_badge:
@@ -1226,6 +1962,65 @@ def update_cpeQueryHTML_column(dataframe):
     # Make a copy to avoid modifying the original
     result_df = dataframe.copy()
     
+    # ===== CONSOLIDATED ANALYSIS: OVERLAPPING RANGES DETECTION =====
+    # Run consolidated analysis before individual row processing to detect overlapping ranges
+    logger.debug(f"Starting overlapping ranges detection for {len(result_df)} platform entries", group="PAGE_GEN")
+    overlapping_ranges_findings = detect_overlapping_ranges(result_df)
+    logger.debug(f"Overlapping ranges detection complete: {len(overlapping_ranges_findings)} entries with findings", group="PAGE_GEN")
+    
+    # Distribute overlapping ranges findings to relevant table indices for badge display
+    for table_index, findings in overlapping_ranges_findings.items():
+        logger.debug(f"Registering {len(findings)} overlapping ranges findings for table {table_index}", group="PAGE_GEN")
+        
+        # Register the findings in the Source Data Concerns registry
+        from .badge_modal_system import PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+        
+        # Ensure sourceDataConcerns registry exists
+        if 'sourceDataConcerns' not in PLATFORM_ENTRY_NOTIFICATION_REGISTRY:
+            PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'] = {}
+        
+        # Add overlapping ranges to existing concerns or create new entry
+        if table_index not in PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns']:
+            logger.debug(f"Creating new registry entry for table {table_index}", group="PAGE_GEN")
+            PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'][table_index] = {
+                "concerns": {
+                    "placeholderData": [],
+                    "versionTextPatterns": [],
+                    "versionComparators": [],
+                    "versionGranularity": [],
+                    "wildcardBranches": [],
+                    "cpeArrayConcerns": [],
+                    "duplicateEntries": [],
+                    "platformDataConcerns": [],
+                    "missingAffectedProducts": [],
+                    "overlappingRanges": []
+                },
+                "sourceRole": "Unknown Source",
+                "summary": {
+                    "total_concerns": 0,
+                    "concern_types": []
+                }
+            }
+        
+        # Ensure overlappingRanges exists in concerns
+        concerns = PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'][table_index]["concerns"]
+        if "overlappingRanges" not in concerns:
+            concerns["overlappingRanges"] = []
+        
+        # Add the findings
+        concerns["overlappingRanges"].extend(findings)
+        logger.debug(f"Added {len(findings)} findings to table {table_index}, total overlapping ranges: {len(concerns['overlappingRanges'])}", group="PAGE_GEN")
+        
+        # Update summary
+        summary = PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'][table_index]["summary"]
+        summary["total_concerns"] += len(findings)
+        if findings and "Overlapping Ranges" not in summary["concern_types"]:
+            summary["concern_types"].append("Overlapping Ranges")
+            
+        logger.debug(f"Table {table_index} summary updated: {summary['total_concerns']} total concerns, types: {summary['concern_types']}", group="PAGE_GEN")
+    
+    # ===== INDIVIDUAL ROW PROCESSING =====
+    # Now process individual rows - badges will include overlapping ranges data registered above
     for index, row in result_df.iterrows():
         # Existing attribute code
         data_attrs = []
