@@ -1,6 +1,6 @@
 # 📚 Analysis Tools Documentation
 
-This directory contains the general documentation for the Analysis Tools CVE analysis system.
+This directory contains comprehensive documentation for the Hashmire/Analysis_Tools system.
 
 ## 📁 Documentation Structure
 
@@ -11,21 +11,43 @@ This directory contains the general documentation for the Analysis Tools CVE ana
 - **API References**
 - **Implementation Details**
 
-### **Test Documentation** (`tests/` subdirectory)
-
-- **Test Suite Specifications**
-- **Testing Procedures**
-- **Validation Protocols**
-- **Quality Assurance**
-
 ---
 
-## 📄 General Documentation Files
+## 📄 Documentation Files
 
 | File | Purpose |
 |------|---------|
-| `cpes_api_caching_system.md` | CPE API caching implementation and performance |
+| `badge_modal_system_reference.md` | Complete badge and modal system implementation reference |
+| `cpes_api_caching_system.md` | CPE API caching implementation and performance optimization |
 | `dashboard_usage.md` | Dashboard features and usage instructions |
-| `enhanced_dataset_generation.md` | Dataset generation methodology and capabilities |
-| `logging_system.md` | Structured logging system architecture |
-| `badge_modal_system_reference.md` | Badge and Modal System features and implementation |
+| `dataset_generation.md` | Dataset generation methodology and capabilities |
+| `logging_system.md` | Structured logging system architecture and patterns |
+
+## 🏗️ Architecture Overview
+
+The Analysis Tools system follows a unified runs structure where all outputs are contained in timestamped run directories:
+
+```text
+runs/[timestamp]_[context]/
+├── generated_pages/    # HTML reports for this run
+├── logs/              # Run-specific logs  
+├── reports/           # Dashboard data for this run
+└── datasets/          # Dataset files for this run
+```
+
+### Key Components
+
+- **Entry Points**: `run_tools.py` (CVE analysis), `generate_dataset.py` (dataset generation)
+- **Core Engine**: `src/analysis_tool/core/analysis_tool.py`
+- **Run Management**: `src/analysis_tool/storage/run_organization.py`
+- **Dashboard**: `src/analysis_tool/local_dashboard/`
+- **Shared Cache**: `cache/` directory for CPE API responses
+
+### Testing
+
+All test suites maintain 100% pass rate requirements:
+
+- **Platform Badge Tests** (62 tests) - Complete badge system validation
+- **Modular Rules** (16 tests) - JSON generation rules
+- **Logging System** (53 tests) - Structured logging validation
+- **Provenance Assistance** (10 tests) - Package repository detection

@@ -1,8 +1,8 @@
-# Standardized Logging and Reporting System Documentation
+# Hashmire/Analysis_Tools implements a comprehensive, standardized logging and reporting system designed to provide consistent terminology, formatting, and severity assignments across all components. This system has been thoroughly tested with a comprehensive 53-test suite that validates all aspects of logging functionality and ensures reliable, professional-grade logging for all tool operations.ndardized Logging and Reporting System Documentation
 
 ## Overview
 
-The Hashmire/Analysis_Tools implements a comprehensive, standardized logging and reporting system designed to provide consistent terminology, formatting, and severity assignments across all components. This system has been thoroughly tested with a comprehensive 53-test suite that validates all aspects of logging functionality and ensures reliable, professional-grade logging for all tool operations.
+The Hashmire/Analysis_Tools system implements a comprehensive, standardized logging and reporting system designed to provide consistent terminology, formatting, and severity assignments across all components. This system has been thoroughly tested with a comprehensive 53-test suite that validates all aspects of logging functionality and ensures reliable, professional-grade logging for all tool operations.
 
 ## 🎯 Core Design Principles
 
@@ -326,7 +326,7 @@ The logging system includes comprehensive file logging capabilities that automat
 
 ### File Logging Features
 
-- **Automatic log file creation** in `logs/` directory
+- **Automatic log file creation** in run-specific `runs/[timestamp]/logs/` directories
 - **Date-based file naming** with run parameters (e.g., `2025.06.25_CVE-2024-1234.log`)
 - **Complete output capture** including all console messages
 - **ANSI color code stripping** for clean file output
@@ -382,7 +382,7 @@ Each log file contains:
 
 File logging is controlled by the workflow logger and doesn't require additional configuration. Log files are automatically:
 
-- Created in `logs/` directory (project root)
+- Created in `runs/[timestamp]/logs/` directory within each run
 - Named with date and run parameters
 - Written with UTF-8 encoding
 - Cleaned up on exit (file handles closed properly)

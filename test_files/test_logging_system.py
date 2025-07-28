@@ -27,7 +27,7 @@ from unittest.mock import Mock, patch, MagicMock
 
 # Direct import of the workflow logger
 sys.path.append(str(Path(__file__).parent.parent / 'src'))
-from analysis_tool.workflow_logger import WorkflowLogger, LogGroup
+from analysis_tool.logging.workflow_logger import WorkflowLogger, LogGroup
 
 class LogCapture:
     """Capture log output from the custom WorkflowLogger."""
@@ -47,7 +47,7 @@ class LogCapture:
         self.current_group = None
           # Set logger to DEBUG level to capture all messages during testing
         self.original_level = logger.level
-        from analysis_tool.workflow_logger import LogLevel
+        from analysis_tool.logging.workflow_logger import LogLevel
         logger.level = LogLevel.DEBUG
         
         def capture_log(level, group, message):

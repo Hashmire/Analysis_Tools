@@ -669,7 +669,7 @@ The provenance assistance test suite consists of several key files:
 **Generated Output:**  
 
 - HTML files for tests are generated in `../test_output/` when running test scripts
-- HTML files for production are generated in `../generated_pages/` when running the analysis tool
+- HTML files for production are generated in `runs/[timestamp]_[context]/generated_pages/` when running the analysis tool
 - The test suite specifically looks for `CVE-1337-99998.html` as the test output
 
 ### Adding New Test Cases

@@ -48,7 +48,7 @@ class OverlappingRangesTestSuite:
     def test_overlapping_ranges_basic_vendor_product(self):
         """Test basic overlapping ranges detection with simple vendor:product grouping."""
         try:
-            from analysis_tool.generateHTML import detect_overlapping_ranges
+            from analysis_tool.core.generateHTML import detect_overlapping_ranges
             import pandas as pd
         except ImportError as e:
             self.add_result("OVERLAP_BASIC_IMPORT", False, f"Failed to import required modules: {e}")
@@ -107,7 +107,7 @@ class OverlappingRangesTestSuite:
     def test_overlapping_ranges_platform_field_grouping(self):
         """Test overlapping ranges detection considers platforms field for grouping."""
         try:
-            from analysis_tool.generateHTML import detect_overlapping_ranges
+            from analysis_tool.core.generateHTML import detect_overlapping_ranges
             import pandas as pd
         except ImportError as e:
             self.add_result("OVERLAP_PLATFORM_IMPORT", False, f"Failed to import required modules: {e}")
@@ -172,7 +172,7 @@ class OverlappingRangesTestSuite:
     def test_overlapping_ranges_package_name_grouping(self):
         """Test overlapping ranges detection considers packageName field for grouping."""
         try:
-            from analysis_tool.generateHTML import detect_overlapping_ranges
+            from analysis_tool.core.generateHTML import detect_overlapping_ranges
             import pandas as pd
         except ImportError as e:
             self.add_result("OVERLAP_PACKAGE_IMPORT", False, f"Failed to import required modules: {e}")
@@ -235,7 +235,7 @@ class OverlappingRangesTestSuite:
     def test_overlapping_ranges_collection_url_grouping(self):
         """Test overlapping ranges detection considers collectionURL field for grouping."""
         try:
-            from analysis_tool.generateHTML import detect_overlapping_ranges
+            from analysis_tool.core.generateHTML import detect_overlapping_ranges
             import pandas as pd
         except ImportError as e:
             self.add_result("OVERLAP_COLLECTION_IMPORT", False, f"Failed to import required modules: {e}")
@@ -297,7 +297,7 @@ class OverlappingRangesTestSuite:
     def test_overlapping_ranges_comprehensive_field_combinations(self):
         """Test overlapping ranges detection with complex field combinations."""
         try:
-            from analysis_tool.generateHTML import detect_overlapping_ranges
+            from analysis_tool.core.generateHTML import detect_overlapping_ranges
             import pandas as pd
         except ImportError as e:
             self.add_result("OVERLAP_COMPREHENSIVE_IMPORT", False, f"Failed to import required modules: {e}")
@@ -366,7 +366,7 @@ class OverlappingRangesTestSuite:
     def test_overlapping_ranges_semantic_version_detection(self):
         """Test semantic version comparison in overlap detection."""
         try:
-            from analysis_tool.generateHTML import detect_overlapping_ranges
+            from analysis_tool.core.generateHTML import detect_overlapping_ranges
             import pandas as pd
         except ImportError as e:
             self.add_result("OVERLAP_SEMANTIC_IMPORT", False, f"Failed to import required modules: {e}")
@@ -425,7 +425,7 @@ class OverlappingRangesTestSuite:
     def test_overlapping_ranges_perspective_descriptions(self):
         """Test perspective-based overlap descriptions."""
         try:
-            from analysis_tool.generateHTML import detect_overlapping_ranges
+            from analysis_tool.core.generateHTML import detect_overlapping_ranges
             import pandas as pd
         except ImportError as e:
             self.add_result("OVERLAP_PERSPECTIVE_IMPORT", False, f"Failed to import required modules: {e}")
@@ -476,7 +476,7 @@ class OverlappingRangesTestSuite:
     def test_overlapping_ranges_consolidation_suggestions(self):
         """Test consolidation suggestions in overlap findings."""
         try:
-            from analysis_tool.generateHTML import detect_overlapping_ranges
+            from analysis_tool.core.generateHTML import detect_overlapping_ranges
             import pandas as pd
         except ImportError as e:
             self.add_result("OVERLAP_CONSOLIDATION_IMPORT", False, f"Failed to import required modules: {e}")
@@ -525,7 +525,7 @@ class OverlappingRangesTestSuite:
     def test_overlapping_ranges_unbounded_range_handling(self):
         """Test handling of unbounded ranges in overlap detection."""
         try:
-            from analysis_tool.generateHTML import detect_overlapping_ranges
+            from analysis_tool.core.generateHTML import detect_overlapping_ranges
             import pandas as pd
         except ImportError as e:
             self.add_result("OVERLAP_UNBOUNDED_IMPORT", False, f"Failed to import required modules: {e}")
@@ -579,7 +579,7 @@ class OverlappingRangesTestSuite:
     def test_overlapping_ranges_edge_cases(self):
         """Test edge cases in overlap detection."""
         try:
-            from analysis_tool.generateHTML import detect_overlapping_ranges
+            from analysis_tool.core.generateHTML import detect_overlapping_ranges
             import pandas as pd
         except ImportError as e:
             self.add_result("OVERLAP_EDGE_IMPORT", False, f"Failed to import required modules: {e}")

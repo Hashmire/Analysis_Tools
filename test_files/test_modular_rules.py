@@ -55,6 +55,8 @@ class ModularRulesTestSuite:
                 cwd=project_root,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=60
             )
             
@@ -65,16 +67,33 @@ class ModularRulesTestSuite:
                 self.add_result("HTML_GENERATION", False, f"Analysis tool failed: {result.stderr}")
                 return False
             
-            # Determine the expected HTML file path - test files go to test_output
+            # Find the HTML file in the most recent test run directory
             cve_id = self.test_data.get('cveMetadata', {}).get('cveId', 'CVE-UNKNOWN')
-            self.html_file_path = project_root / "test_output" / f"{cve_id}.html"
+            
+            # Look for the most recent TEST run directory
+            runs_dir = project_root / "runs"
+            if not runs_dir.exists():
+                self.add_result("HTML_GENERATION", False, f"Runs directory not found: {runs_dir}")
+                return False
+                
+            # Find the most recent TEST directory (newest timestamp first)
+            test_runs = sorted([d for d in runs_dir.iterdir() if d.is_dir() and 'TEST_' in d.name], 
+                             key=lambda x: x.name, reverse=True)
+            
+            if not test_runs:
+                self.add_result("HTML_GENERATION", False, "No test run directories found")
+                return False
+            
+            # Check the most recent test run for the HTML file
+            most_recent_test = test_runs[0]
+            self.html_file_path = most_recent_test / "generated_pages" / f"{cve_id}.html"
             
             if not self.html_file_path.exists():
                 self.add_result("HTML_GENERATION", False, f"Generated HTML file not found: {self.html_file_path}")
                 return False
             
             print(f"✅ HTML generated successfully: {self.html_file_path}")
-            self.add_result("HTML_GENERATION", True, f"Generated {cve_id}.html")
+            self.add_result("HTML_GENERATION", True, f"Generated {cve_id}.html in test run {most_recent_test.name}")
             return True
             
         except subprocess.TimeoutExpired:

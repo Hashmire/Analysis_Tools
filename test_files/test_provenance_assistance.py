@@ -55,6 +55,8 @@ class ProvenanceAssistanceTestSuite:
                 cwd=project_root,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 timeout=60
             )
             
@@ -65,9 +67,20 @@ class ProvenanceAssistanceTestSuite:
                 self.add_result("HTML_GENERATION", False, f"Analysis tool failed: {result.stderr}")
                 return False
             
-            # Determine the expected HTML file path - test files go to test_output
+            # Determine the expected HTML file path - test files go to run directories
             cve_id = self.test_data.get('cveMetadata', {}).get('cveId', 'CVE-UNKNOWN')
-            self.html_file_path = project_root / "test_output" / f"{cve_id}.html"
+            
+            # Find the most recent TEST run directory
+            runs_dir = project_root / "runs"
+            test_run_dirs = [d for d in runs_dir.iterdir() if d.is_dir() and "TEST_testProvenanceAssistance" in d.name]
+            
+            if not test_run_dirs:
+                self.add_result("HTML_GENERATION", False, f"No test run directory found in {runs_dir}")
+                return False
+                
+            # Get the most recent test run directory
+            latest_test_run = max(test_run_dirs, key=lambda x: x.name)
+            self.html_file_path = latest_test_run / "generated_pages" / f"{cve_id}.html"
             
             if not self.html_file_path.exists():
                 self.add_result("HTML_GENERATION", False, f"Generated HTML file not found: {self.html_file_path}")

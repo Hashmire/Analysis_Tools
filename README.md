@@ -25,67 +25,70 @@ Processes CVE records to generate CPE Applicability Statements:
 - **Rules engine** for automated JSON generation
 - **Comprehensive test suites** for validating functionality including 100% coverage modal testing
 - **Package repository detection** for various platforms
+- **Unified runs structure** maintains all output in timestamped run directories
 
 ## Project Structure
 
 ```text
 Analysis_Tools/
-├── run_tools.py                 # Main entry point
+├── run_tools.py                 # Main entry point for all analysis
+├── generate_dataset.py          # Dataset generation entry point
 ├── src/analysis_tool/           # Core application
-│   ├── analysis_tool.py         # Main analysis engine
+│   ├── core/
+│   │   └── analysis_tool.py     # Main analysis engine
+│   ├── storage/
+│   │   └── run_organization.py  # Run directory management
+│   ├── local_dashboard/         # Dashboard utilities
+│   ├── static/js/               # Frontend modules
+│   ├── mappings/                # Vendor-specific mappings
 │   ├── config.json             # Configuration
-│   ├── requirements.txt        # Dependencies
-│   ├── utilities/              # Dataset and dashboard utilities
-│   │   ├── generate_dataset.py            # Enhanced dataset generation
-│   │   └── generate_local_dashboard.py    # Dashboard generation
-│   ├── static/js/              # Frontend modules
-│   └── mappings/               # Vendor-specific mappings
-├── datasets/                   # CVE dataset files and tracking
-├── generated_pages/            # Production HTML reports
-├── test_output/                # Test-generated files
-├── test_files/                 # Test suites and data
+│   └── requirements.txt        # Dependencies
+├── runs/                       # All analysis outputs (unified structure)
+│   └── [timestamp]_[context]/  # Individual run directories
+│       ├── generated_pages/    # HTML reports for this run
+│       ├── logs/              # Run-specific logs
+│       ├── reports/           # Dashboard data for this run
+│       └── datasets/          # Dataset files for this run
+├── test_files/                 # Test suites and test data
 ├── documentation/              # Guides and references
-├── cache/                      # CPE data cache
-├── logs/                       # Analysis logs
-└── reports/                    # Dashboard data
+├── dashboards/                # Global dashboard files
+└── cache/                     # Shared CPE data cache
 ```
 
 ### Generate Dataset Usage Examples
 
 ```bash
-# Traditional status-based generation (existing functionality)
-python -m src.analysis_tool.utilities.generate_dataset --statuses "Received" "Awaiting Analysis"
+# Traditional status-based generation
+python generate_dataset.py --statuses "Received" "Awaiting Analysis"
 
 # Generate dataset for CVEs modified in the last 30 days
-python -m src.analysis_tool.utilities.generate_dataset --last-days 30
+python generate_dataset.py --last-days 30
 
 # Generate dataset for specific date range
-python -m src.analysis_tool.utilities.generate_dataset --start-date 2024-01-01 --end-date 2024-01-31
+python generate_dataset.py --start-date 2024-01-01 --end-date 2024-01-31
 
 # Generate differential dataset since last run
-python -m src.analysis_tool.utilities.generate_dataset --since-last-run
+python generate_dataset.py --since-last-run
 
 # Generate dataset and immediately run analysis
-python -m src.analysis_tool.utilities.generate_dataset --last-days 7 --run-analysis
+python generate_dataset.py --last-days 7 --run-analysis
 
 # Show when the last dataset generation occurred
-python -m src.analysis_tool.utilities.generate_dataset --show-last-run
+python generate_dataset.py --show-last-run
 ```
 
-All generated datasets are automatically tracked in `datasets/dataset_tracker.json` for future differential updates.
+All generated datasets are tracked in run-specific directories under `runs/[timestamp]_[context]/datasets/` with metadata for future differential updates.
 
 ## Documentation
 
-- [Enhanced Dataset Generation](documentation/enhanced_dataset_generation.md) - Dataset management features
+- [Badge and Modal System Reference](documentation/badge_modal_system_reference.md) - Complete badge/modal system documentation
+- [CPE Caching System](documentation/cpes_api_caching_system.md) - Cache configuration and management
+- [Logging System](documentation/logging_system.md) - Structured logging patterns and configuration
 - [Dashboard Usage](documentation/dashboard_usage.md) - Dashboard setup and usage
-- [CPE Caching System](documentation/cpes_api_caching_system.md) - Cache configuration
-- [Logging System](documentation/logging_system.md) - Logging configuration
 
 ### Test Documentation
 
-- [Test Suites Overview](documentation/tests/README.md) - Comprehensive test documentation
-- [Modular Rules Test Suite](documentation/tests/modular_rules_test_suite.md) - JSON generation testing
-- [Provenance Assistance Test Suite](documentation/tests/provenance_assistance_test_suite.md) - Platform detection testing
+- [Test Suites Overview](documentation/README.md) - Comprehensive test documentation
 
 ## Examples
 
@@ -131,7 +134,7 @@ Access specific CVE records using: `https://hashmire.github.io/cpeApplicabilityG
    python run_tools.py --help
    ```
 
-**Important:** Use `run_tools.py` from the project root. Do not run `analysis_tool.py` directly.
+**Important:** Use `run_tools.py` from the project root for CVE analysis. Use `generate_dataset.py` from the project root for dataset generation. Do not run `analysis_tool.py` directly.
 
 ## Usage
 
@@ -153,20 +156,20 @@ python run_tools.py --cve CVE-2024-20515 --no-cache
 
 ### Dataset Generation
 
-Generate CVE datasets for analysis with enhanced capabilities:
+Generate CVE datasets for analysis:
 
 ```bash
 # Traditional status-based generation
-python -m src.analysis_tool.utilities.generate_dataset --statuses "Received" "Awaiting Analysis"
+python generate_dataset.py --statuses "Received" "Awaiting Analysis"
 
 # Generate dataset for recent CVEs and analyze them
-python -m src.analysis_tool.utilities.generate_dataset --last-days 30 --run-analysis
+python generate_dataset.py --last-days 30 --run-analysis
 
 # Generate differential dataset since last run
-python -m src.analysis_tool.utilities.generate_dataset --since-last-run --run-analysis
+python generate_dataset.py --since-last-run --run-analysis
 ```
 
-See [Enhanced Dataset Generation](documentation/enhanced_dataset_generation.md) for complete details.
+All dataset outputs are isolated in run-specific directories under `runs/[timestamp]_[context]/datasets/`.
 
 ### Dashboard
 
@@ -176,10 +179,9 @@ The tool includes a dashboard that updates during processing:
 # Run analysis (dashboard updates automatically)
 python run_tools.py [arguments]
 
-# Open reports/local_dashboard.html in browser for monitoring
+# Open dashboards/index.html in browser for monitoring
 
-# Generate dashboard from existing logs
-python src/analysis_tool/utilities/log_analyzer.py --summary
+# Analysis outputs including logs are contained in runs/[timestamp]_[context]/ directories
 ```
 
 ## Performance

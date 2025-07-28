@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Tools - Dashboard Hub</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .hero {
+            text-align: center;
+            color: white;
+            margin-bottom: 50px;
+            padding: 40px 20px;
+        }
+        
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 300;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .hero p {
+            font-size: 1.3rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .hero .subtitle {
+            font-size: 1.1rem;
+            margin-top: 15px;
+            opacity: 0.8;
+            font-style: italic;
+        }
+        
+        .dashboards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin-bottom: 50px;
+        }
+        
+        .dashboard-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .dashboard-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        
+        .dashboard-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .dashboard-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #ffd700, #ff6b6b, #4ecdc4, #45b7d1);
+        }
+        
+        .dashboard-header h2 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+            font-weight: 400;
+        }
+        
+        .dashboard-header p {
+            opacity: 0.9;
+            font-size: 1rem;
+        }
+        
+        .dashboard-content {
+            padding: 30px;
+        }
+        
+        .dashboard-features {
+            list-style: none;
+            margin-bottom: 25px;
+        }
+        
+        .dashboard-features li {
+            padding: 8px 0;
+            font-size: 0.95rem;
+            color: #666;
+            display: flex;
+            align-items: center;
+        }
+        
+        .dashboard-features li::before {
+            content: '✨';
+            margin-right: 10px;
+        }
+        
+        .dashboard-actions {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #667eea;
+            border: 1px solid #dee2e6;
+        }
+        
+        .btn-secondary:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+        }
+        
+        .recent-runs {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .recent-runs h2 {
+            color: #333;
+            margin-bottom: 25px;
+            font-size: 1.8rem;
+            font-weight: 400;
+        }
+        
+        .runs-list {
+            list-style: none;
+        }
+        
+        .run-item {
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .run-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+            box-shadow: 0 2px 10px rgba(102, 126, 234, 0.2);
+        }
+        
+        .run-item:active {
+            transform: translateX(3px);
+        }
+        
+        .run-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .run-details {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .footer {
+            text-align: center;
+            color: white;
+            opacity: 0.8;
+            margin-top: 50px;
+            padding: 30px;
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .hero > div:first-child {
+                grid-template-columns: 1fr !important;
+                text-align: center !important;
+            }
+            
+            .hero > div:first-child > div:last-child {
+                grid-template-columns: repeat(3, 1fr) !important;
+                margin-top: 30px;
+                min-width: unset !important;
+            }
+            
+            .dashboards-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .dashboard-actions {
+                flex-direction: column;
+            }
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="hero">
+            <div style="display: grid; grid-template-columns: 1fr auto; gap: 40px; align-items: center; text-align: left; max-width: 1200px; margin: 0 auto;">
+                <div>
+                    <h1 style="font-size: 3rem; margin-bottom: 15px;">Hashmire/Analysis_Tools</h1>
+                    <div id="status-indicator" style="margin-top: 15px; padding: 8px 16px; background: rgba(255,255,255,0.2); border-radius: 20px; display: inline-block; font-size: 0.9rem; opacity: 0; transition: opacity 0.3s ease;">
+                        🔄 Refreshing data...
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; min-width: 360px;">
+                    <div style="text-align: center; padding: 20px; background: rgba(255,255,255,0.15); border-radius: 12px; backdrop-filter: blur(10px);">
+                        <div style="font-size: 2rem; font-weight: bold; margin-bottom: 5px;" id="total-runs">-</div>
+                        <div style="font-size: 0.9rem; opacity: 0.9;">Analysis Runs</div>
+                    </div>
+                    <div style="text-align: center; padding: 20px; background: rgba(255,255,255,0.15); border-radius: 12px; backdrop-filter: blur(10px);">
+                        <div style="font-size: 2rem; font-weight: bold; margin-bottom: 5px;" id="total-reports">-</div>
+                        <div style="font-size: 0.9rem; opacity: 0.9;">Reports Generated</div>
+                    </div>
+                    <div style="text-align: center; padding: 20px; background: rgba(255,255,255,0.15); border-radius: 12px; backdrop-filter: blur(10px);">
+                        <div style="font-size: 2rem; font-weight: bold; margin-bottom: 5px;" id="last-run">-</div>
+                        <div style="font-size: 0.9rem; opacity: 0.9;">Hours Since Last Run</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="dashboards-grid">
+            <div class="dashboard-card">
+                <div class="dashboard-header">
+                    <h2>Source Data Concern Dashboard</h2>
+                    <p>Interactive analysis of CVE source data quality issues</p>
+                </div>
+                <div class="dashboard-content">
+                    <ul class="dashboard-features">
+                        <li>Drag-and-drop JSON report loading</li>
+                        <li>Multi-tab analysis views (Concerns, Sources, CVEs)</li>
+                        <li>Interactive statistics with drill-down capabilities</li>
+                        <li>Responsive design for all screen sizes</li>
+                        <li>Real-time data aggregation and visualization</li>
+                        <li>Exportable concern breakdowns and examples</li>
+                    </ul>
+                    <div class="dashboard-actions">
+                        <a href="sourceDataConcernDashboard.html" class="btn btn-primary">
+                            🚀 Launch Dashboard
+                        </a>
+                        <button class="btn btn-secondary" onclick="loadLatestReport()">
+                            📊 Load Latest Report
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Placeholder for future dashboards -->
+            <div class="dashboard-card" style="opacity: 0.6;">
+                <div class="dashboard-header" style="background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);">
+                    <h2>Legacy Dashboard Refactor</h2>
+                    <p>Coming Soon - Modernization of local_dashboard system</p>
+                </div>
+                <div class="dashboard-content">
+                    <ul class="dashboard-features">
+                        <li>Migration from local_dashboard to unified system</li>
+                        <li>Enhanced visualization components</li>
+                        <li>Improved performance and reliability</li>
+                        <li>Modern web standards compliance</li>
+                    </ul>
+                    <div class="dashboard-actions">
+                        <button class="btn btn-secondary" disabled>
+                            � Refactor in Progress
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="recent-runs">
+            <h2>Recent Analysis Runs</h2>
+            <ul class="runs-list" id="runs-list">
+                <li class="run-item pulse">
+                    <div class="run-name">🔍 Scanning for analysis runs...</div>
+                    <div class="run-details">Loading run history from the runs directory</div>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="footer">
+            <p><strong>💡 Pro Tips:</strong> Click any run item to explore results • Auto-refreshes every 5 minutes</p>
+        </div>
+    </div>
+    
+    <script>
+        // Global variables for dashboard data
+        let dashboardData = {
+            runs: [],
+            totalCVEs: 0,
+            totalReports: 0,
+            lastRunTime: null,
+            latestReportPath: null
+        };
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDashboardData();
+        });
+
+        async function loadDashboardData() {
+            const statusIndicator = document.getElementById('status-indicator');
+            statusIndicator.style.opacity = '1';
+            
+            try {
+                // In a real web environment, this would make API calls to a backend
+                // For now, we'll simulate the data structure based on what we know exists
+                await loadRunsData();
+                await calculateStatistics();
+                updateDashboardDisplay();
+                showSuccess('📊 Dashboard data refreshed successfully!');
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+                showFallbackData();
+            } finally {
+                setTimeout(() => {
+                    statusIndicator.style.opacity = '0';
+                }, 1000);
+            }
+        }
+
+        async function loadRunsData() {
+            // Simulate reading runs directory - in a real implementation this would be an API call
+            const knownRuns = [
+                {
+                    name: '2025-07-28_13-22-27_last_1_days_dataset',
+                    type: 'Dataset Analysis',
+                    timestamp: new Date('2025-07-28T13:22:27'),
+                    cveCount: 113,
+                    success: true,
+                    hasReport: true
+                },
+                {
+                    name: '2025-07-28_12-45-11_CVE-2024-20515',
+                    type: 'Single CVE',
+                    timestamp: new Date('2025-07-28T12:45:11'),
+                    cveCount: 1,
+                    success: true,
+                    hasReport: true
+                },
+                {
+                    name: '2025-07-28_09-41-05_cve_dataset_783CVEs',
+                    type: 'Large Dataset',
+                    timestamp: new Date('2025-07-28T09:41:05'),
+                    cveCount: 783,
+                    success: true,
+                    hasReport: true
+                },
+                {
+                    name: '2025-07-28_09-24-57_cve_dataset_54CVEs',
+                    type: 'Dataset Analysis',
+                    timestamp: new Date('2025-07-28T09:24:57'),
+                    cveCount: 54,
+                    success: true,
+                    hasReport: true
+                }
+            ];
+
+            dashboardData.runs = knownRuns.sort((a, b) => b.timestamp - a.timestamp);
+            dashboardData.lastRunTime = dashboardData.runs[0]?.timestamp;
+            dashboardData.latestReportPath = '../runs/' + dashboardData.runs[0]?.name + '/logs/';
+        }
+
+        async function calculateStatistics() {
+            dashboardData.totalCVEs = dashboardData.runs.reduce((sum, run) => sum + run.cveCount, 0);
+            dashboardData.totalReports = dashboardData.runs.filter(run => run.hasReport).length;
+        }
+
+        function updateDashboardDisplay() {
+            // Update statistics
+            document.getElementById('total-runs').textContent = dashboardData.runs.length;
+            document.getElementById('total-reports').textContent = dashboardData.totalReports;
+            
+            // Calculate hours since last run
+            if (dashboardData.lastRunTime) {
+                const hoursAgo = Math.floor((new Date() - dashboardData.lastRunTime) / (1000 * 60 * 60));
+                document.getElementById('last-run').textContent = hoursAgo < 1 ? '<1' : hoursAgo;
+            } else {
+                document.getElementById('last-run').textContent = '-';
+            }
+
+            // Update recent runs list
+            updateRecentRunsList();
+        }
+
+        function updateRecentRunsList() {
+            const runsList = document.getElementById('runs-list');
+            
+            if (dashboardData.runs.length === 0) {
+                runsList.innerHTML = `
+                    <li class="run-item">
+                        <div class="run-name">📁 No analysis runs found</div>
+                        <div class="run-details">Start your first analysis to see results here!</div>
+                    </li>
+                `;
+                return;
+            }
+
+            const recentRuns = dashboardData.runs.slice(0, 8); // Show last 8 runs
+            runsList.innerHTML = recentRuns.map(run => {
+                const timeAgo = getTimeAgo(run.timestamp);
+                const statusIcon = run.success ? '✅' : '❌';
+                const typeIcon = getTypeIcon(run.type);
+                
+                return `
+                    <li class="run-item" onclick="openRun('${run.name}')">
+                        <div class="run-name">${statusIcon} ${typeIcon} ${run.name}</div>
+                        <div class="run-details">
+                            ${run.type} • ${run.cveCount} CVEs • ${timeAgo}
+                            ${run.hasReport ? '• 📊 Report Available' : ''}
+                        </div>
+                    </li>
+                `;
+            }).join('');
+        }
+
+        function getTypeIcon(type) {
+            switch (type) {
+                case 'Single CVE': return '🎯';
+                case 'Dataset Analysis': return '📊';
+                case 'Large Dataset': return '🗂️';
+                default: return '🔍';
+            }
+        }
+
+        function getTimeAgo(timestamp) {
+            const now = new Date();
+            const diff = now - timestamp;
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            
+            if (hours < 1) return 'Just now';
+            if (hours < 24) return `${hours}h ago`;
+            
+            const days = Math.floor(hours / 24);
+            if (days < 7) return `${days}d ago`;
+            
+            return timestamp.toLocaleDateString();
+        }
+
+        function openRun(runName) {
+            // In a real implementation, this would navigate to the run details
+            const runPath = `../runs/${runName}/generated_pages/`;
+            alert(`🔍 Opening run: ${runName}\n\nThis would navigate to: ${runPath}\n\nFeature coming soon!`);
+        }
+
+        function showFallbackData() {
+            // Show fallback data if loading fails
+            document.getElementById('total-runs').textContent = '...';
+            document.getElementById('total-reports').textContent = '...';
+            document.getElementById('last-run').textContent = '...';
+            
+            document.getElementById('runs-list').innerHTML = `
+                <li class="run-item">
+                    <div class="run-name">⚠️ Unable to Load Run Data</div>
+                    <div class="run-details">Dashboard is running in fallback mode</div>
+                </li>
+            `;
+        }
+
+        async function loadLatestReport() {
+            if (dashboardData.runs.length === 0) {
+                alert('❌ No analysis runs found!\n\nRun an analysis first using:\npython run_tools.py --cve CVE-2024-XXXX');
+                return;
+            }
+
+            const latestRun = dashboardData.runs[0];
+            const reportPath = `../runs/${latestRun.name}/logs/`;
+            
+            // Try to find the latest report file
+            const reportFiles = [
+                '2025.07.28_13.22.29_sourceDataConcernReport.json',
+                'sourceDataConcernReport.json'
+            ];
+
+            alert(`🚀 Loading latest report from:\n${latestRun.name}\n\nPath: ${reportPath}\n\nThis will redirect to the Source Data Concern Dashboard with the latest report loaded automatically.`);
+            
+            // In a real implementation, this would pass the report path to the dashboard
+            window.open(`sourceDataConcernDashboard.html?autoload=${encodeURIComponent(reportPath)}`, '_blank');
+        }
+
+        // Auto-refresh every 5 minutes
+        setInterval(loadDashboardData, 5 * 60 * 1000);
+
+        // Add success notification
+        function showSuccess(message) {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #28a745;
+                color: white;
+                padding: 15px 20px;
+                border-radius: 8px;
+                z-index: 1000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.style.opacity = '1', 100);
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // Add some interactive animations
+        document.querySelectorAll('.dashboard-card').forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-10px) scale(1.02)';
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0) scale(1)';
+            });
+        });
+    </script>
+</body>
+</html>

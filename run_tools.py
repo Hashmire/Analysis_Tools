@@ -16,7 +16,7 @@ src_path = project_root / "src"
 sys.path.insert(0, str(src_path))
 
 # Now we can import and run the analysis tool
-from analysis_tool.analysis_tool import main
+from analysis_tool.core.analysis_tool import main
 
 if __name__ == "__main__":
     main()

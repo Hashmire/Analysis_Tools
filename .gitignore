@@ -1,29 +1,14 @@
-# Ignore Most Generated files
-**/generated_pages/*.html
-logs/*
-reports/*
-datasets/*
-
-
-# But track specific CVE IDs from testExamples.txt
-!**/generated_pages/CVE-2024-3371.html
-!**/generated_pages/CVE-2024-2469.html
-!**/generated_pages/CVE-2024-21389.html
-!**/generated_pages/CVE-2024-20698.html
-!**/generated_pages/CVE-2024-20515.html
-!**/generated_pages/CVE-2024-20359.html
-!**/generated_pages/CVE-2024-12355.html
-!**/generated_pages/CVE-2024-0057.html
-!**/generated_pages/CVE-2023-5541.html
-!**/generated_pages/CVE-2023-41842.html
-!**/generated_pages/CVE-2023-33009.html
-!**/generated_pages/CVE-2022-48655.html
+runs/*
+test_output/*
+.github/copilot-instructions.md
 
 # Keep pycaches but ignore their contents
 __pycache__/*
 test_files/__pycache__/*
 src/analysis_tool/__pycache__/*
 src/analysis_tool/utilities/__pycache__/*
-test_output/*
 src/__pycache__/*
-.github/copilot-instructions.md
+src/analysis_tool/storage/__pycache__/*
+src/analysis_tool/core/__pycache__/*
+src/analysis_tool/local_dashboard/__pycache__/*
+src/analysis_tool/logging/__pycache__/*

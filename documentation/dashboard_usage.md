@@ -1,53 +1,48 @@
 # Hashmire/Analysis_Tools Dashboard
 
-A refreshable, real-time dashboard that provides insights and statistics from Hashmire/Analysis_Tools log files.
+A real-time dashboard that provides insights and statistics from Hashmire/Analysis_Tools processing runs.
 
 ## 📋 Overview
 
-The dashboard system consists of several components that work together to provide real-time monitoring of the Hashmire/Analysis_Tools:
+The dashboard system provides real-time monitoring of Hashmire/Analysis_Tools workflows:
 
-- **Log Analyzer** (`src/analysis_tool/utilities/log_analyzer.py`) - Parses log files and extracts metrics
-- **Local Dashboard** (`reports/local_dashboard.html`) - Self-contained HTML with embedded data (works with local files)
-- **Dashboard Generator** (`src/analysis_tool/utilities/generate_local_dashboard.py`) - Creates local dashboard with embedded data
-- **Update Scripts** - Automated scripts to keep the dashboard current
+- **Global Dashboard** (`dashboards/index.html`) - Project-wide monitoring dashboard
+- **Run-specific Reports** - Individual run analysis within `runs/[timestamp]/reports/`
+- **Log Analysis** - Comprehensive log parsing and metrics extraction
+- **Real-time Updates** - Live progress monitoring during processing
 
 ## 🚀 Quick Start
 
 ### Method 1: Automatic Integration (Recommended)
 
-The dashboard is **automatically integrated** into the Hashmire/Analysis_Tools workflow:
+The dashboard updates automatically during Hashmire/Analysis_Tools workflows:
 
 ```bash
-# Run the Hashmire/Analysis_Tools normally - dashboard updates automatically!
-cd src/analysis_tool
-python analysis_tool.py [your normal CVE analysis arguments]
+# Run Hashmire/Analysis_Tools - dashboard updates automatically
+python run_tools.py --cve CVE-2024-20515
 
-# 📊 Open reports/local_dashboard.html to watch real-time progress
-# 🔄 Data refreshes automatically every 100 CVEs during processing
-# ✅ Final update occurs at completion
+# Generate datasets - dashboard updates automatically  
+python generate_dataset.py --last-days 30
+
+# Open dashboards/index.html to monitor system-wide activity
+# Individual run data available in runs/[timestamp]/reports/
 ```
 
 **Real-time Monitoring:**
 
-1. **Start**: Dashboard created with initial data
-2. **During Processing**: JSON updates every 100 CVEs (dashboard auto-refreshes)
-3. **Completion**: Final data update with complete results
+1. **Start**: Dashboard initialized with run data
+2. **During Processing**: Updates consistently as data is processed
+3. **Completion**: Final update with complete results
+4. **Run Isolation**: Each run maintains separate dashboard data
 
-### Method 2: Manual Dashboard Generation
-
-```bash
-# Generate dashboard from existing log data
-python src/analysis_tool/utilities/log_analyzer.py --summary
-
-# The local dashboard (reports/local_dashboard.html) is automatically updated
-# Open reports/local_dashboard.html directly in your browser
-```
-
-### Method 3: JSON Data Only
+### Method 2: Run-specific Analysis
 
 ```bash
-# Generate only JSON data without local dashboard
-python src/analysis_tool/utilities/log_analyzer.py --summary --no-local-dashboard
+# Analyze specific run data
+# Run data automatically contained in runs/[timestamp]/reports/
+
+# Open specific run reports for detailed analysis
+# Each run maintains isolated dashboard data
 ```
 
 ## 📊 Dashboard Features
@@ -76,60 +71,47 @@ python src/analysis_tool/utilities/log_analyzer.py --summary --no-local-dashboar
 
 ```text
 Analysis_Tools/
-├── src/analysis_tool/utilities/
-│   ├── log_analyzer.py          # Main log parsing script
-│   ├── generate_local_dashboard.py # Dashboard HTML generator
-├── generated_pages/             # Main HTML vulnerability reports
-├── test_output/                 # Test-generated HTML files
-├── reports/
-│   ├── local_dashboard.html     # Self-contained local dashboard
-│   ├── dashboard_data.json      # Generated data file
-├── logs/
-│   └── *.log                    # Hashmire/Analysis_Tools log files
-├── cache/                       # CPE cache files
-├── datasets/                    # Generated CVE datasets
-└── temp/                        # Temporary files
+├── run_tools.py                 # Main CVE analysis entry point
+├── generate_dataset.py          # Dataset generation entry point
+├── src/analysis_tool/
+│   └── local_dashboard/         # Dashboard utilities
+├── runs/                       # All analysis outputs (unified structure)
+│   └── [timestamp]_[context]/  # Individual run directories
+│       ├── generated_pages/    # HTML vulnerability reports
+│       ├── logs/              # Run-specific log files
+│       └── reports/           # Dashboard data for this run
+├── dashboards/                 # Global dashboard files
+│   └── index.html             # Project-wide monitoring dashboard
+└── cache/                     # Shared CPE cache
 ```
 
 ## 🔧 Configuration
 
-### Local Dashboard Generator
+### Dashboard Data Structure
 
-The local dashboard generator creates a self-contained HTML file with embedded data, perfect for local file access without CORS issues:
+Dashboard data is maintained within each run directory:
 
-```bash
-python src/analysis_tool/utilities/generate_local_dashboard.py --help
-
-Options:
-  --input FILE, -i FILE    Input JSON data file (default: reports/dashboard_data.json)
-  --output FILE, -o FILE   Output HTML file (default: reports/local_dashboard.html)
+```text
+runs/[timestamp]_[context]/
+├── reports/
+│   ├── dashboard_data.json     # Run-specific dashboard data
+│   └── [other_reports]         # Additional analysis reports
+└── logs/                       # Run-specific logs
 ```
 
-**Benefits of Local Dashboard:**
+**Benefits of Run-isolated Dashboards:**
 
-- 📁 Works directly from local files (no web server needed)
-- 🚀 No CORS or network security restrictions
-- 📱 Fully responsive and mobile-friendly
-- 💾 Self-contained (all data embedded in HTML)
-
-### Log Analyzer Options
-
-```bash
-python src/analysis_tool/utilities/log_analyzer.py --help
-
-Options:
-  --log-dir DIRECTORY     Directory containing log files (default: logs)
-  --log-file FILE         Specific log file to analyze
-  --output FILE           Output JSON file (default: reports/dashboard_data.json)
-  --summary              Print summary to console
-```
+- 📁 Complete run isolation prevents data mixing
+- 🚀 Fast access to specific run results
+- 📱 Self-contained analysis for each workflow
+- 💾 Historical run data preservation
 
 ### Dashboard Data Format
 
-The `dashboard_data.json` file contains structured data including:
+Dashboard data within each run includes:
 
 - Processing metrics (total CVEs, progress, timing)
-- Performance statistics (rates, averages, runtime)
+- Performance statistics (rates, averages, runtime)  
 - Cache information (size, hit rates, efficiency)
 - API usage (call counts, success/failure rates)
 - Log statistics (message counts by level)
@@ -175,20 +157,20 @@ The dashboard now includes several advanced analysis sections:
 
 ## 🔄 Automated Updates
 
-The dashboard is **automatically integrated** into the main CVE analysis workflow:
+The dashboard integrates automatically with all Analysis Tools workflows:
 
-- **At startup**: Dashboard created immediately with initial/existing data  
-- **Every 100 CVEs**: Dashboard JSON data is updated silently in the background
-- **Real-time monitoring**: Open the HTML dashboard to watch progress live
+- **At startup**: Dashboard initialized with run data
+- **Real-time monitoring**: Open dashboards to watch progress live
 - **At completion**: Final dashboard update with complete results
-- **Zero configuration**: Works out of the box with existing CVE analysis runs
+- **Run isolation**: Each run maintains separate dashboard data
 
 **Benefits:**
 
-- 📊 **Immediate feedback**: Dashboard available as soon as CVE processing starts
+- 📊 **Immediate feedback**: Dashboard available as soon as processing starts
 - 📈 **Live updates**: Watch progress in real-time
 - 🚀 **No setup required**: Automatic integration with zero configuration
-- 💾 **Works offline**: Local dashboard requires no web server
+- 💾 **Run isolation**: Complete separation of run data
+- 🔍 **Historical analysis**: Access any previous run's dashboard data
 
 ## 🎯 Use Cases
 
@@ -206,13 +188,15 @@ The dashboard is **automatically integrated** into the main CVE analysis workflo
 ## 📝 Notes
 
 - Dashboard updates automatically every 100 CVEs during processing
-- Log analyzer processes the most recent log file by default
+- All run data is isolated in run-specific directories  
+- Global dashboard provides system-wide monitoring
 - All timestamps are displayed in local time zone
-- Progress calculations are based on the "Processing CVE X/Y" log entries
+- Progress calculations based on processing log entries
 - Cache statistics track CPE dictionary cache performance
-- Error detection includes both explicit ERROR level logs and failed API responses
+- Error detection includes both ERROR level logs and failed API responses
 - Every warning/error event is linked to the relevant CVE file for fast troubleshooting
+- Run-specific dashboards provide detailed analysis for individual workflows
 
 ---
 
-For more information about the Hashmire/Analysis_Tools itself, see the main project documentation.
+For more information about the Hashmire/Analysis_Tools system, see the main project documentation.

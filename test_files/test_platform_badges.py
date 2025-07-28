@@ -103,10 +103,10 @@ class PlatformBadgesTestSuite:
     def test_badge_generation_import(self):
         """Test that we can import the badge generation functions."""
         try:
-            from analysis_tool.generateHTML import convertRowDataToHTML, analyze_version_characteristics
+            from analysis_tool.core.generateHTML import convertRowDataToHTML, analyze_version_characteristics
             
             # Initialize the global source manager for testing
-            from analysis_tool.nvd_source_manager import get_global_source_manager
+            from analysis_tool.storage.nvd_source_manager import get_global_source_manager
             import pandas as pd
             
             mock_source_data = pd.DataFrame([
@@ -883,7 +883,7 @@ class PlatformBadgesTestSuite:
                 import sys
                 import os
                 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-                from analysis_tool.badge_modal_system import is_modal_only_case
+                from analysis_tool.core.badge_modal_system import is_modal_only_case
                 
                 # Check if this is a modal-only case (which determines vulnerable flag internally)
                 is_modal_only = is_modal_only_case(row['rawPlatformData'])
@@ -958,7 +958,7 @@ class PlatformBadgesTestSuite:
                 import sys
                 import os
                 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-                from analysis_tool.badge_modal_system import is_modal_only_case
+                from analysis_tool.core.badge_modal_system import is_modal_only_case
                 
                 actual_modal_only = is_modal_only_case(row['rawPlatformData'])
                 
