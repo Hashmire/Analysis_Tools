@@ -1,6 +1,7 @@
 runs/*
-test_output/*
+*output/*
 .github/copilot-instructions.md
+temp
 
 # Keep pycaches but ignore their contents
 __pycache__/*
