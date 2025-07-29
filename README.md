@@ -104,6 +104,16 @@ _Note: Not all CVEs are currently present in the dataset._
 
 ## Setup
 
+### Docker (Recommended)
+
+```bash
+# Build and run
+docker build -t analysis-tools .
+docker run -it --rm -v $(pwd)/output:/app/runs -v $(pwd)/cache:/app/cache analysis-tools
+```
+
+### Traditional Setup
+
 1. Clone the repository:
 
    ```bash
