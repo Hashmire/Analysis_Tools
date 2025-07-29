@@ -92,24 +92,15 @@ All generated datasets are tracked in run-specific directories under `runs/[time
 
 ## Examples
 
-Examples demonstrating different CVE data patterns:  
+The complete collection of generated pages is maintained at [Hashmire/cpeApplicabilityGeneratorPages](https://github.com/Hashmire/cpeApplicabilityGeneratorPages).  
 
-[Single CPE Match String:  CVE-2024-12355](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-12355)  
-[Many CPE Match Strings:  CVE-2024-20359](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-20359)  
-[MongoDB cpes Array Data:  CVE-2024-3371](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-3371)  
-[Package Name:  CVE-2023-5541](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-5541)  
-[Fortinet + ~Duplicate ADP:  CVE-2023-41842](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-41842)  
-[GitHub + changes Array Data:  CVE-2024-2469](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-2469)  
-[Linux Kernel:  CVE-2022-48655](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2022-48655)  
-[Microsoft Simple:  CVE-2024-21389](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-21389)  
-[Microsoft Many Rows:  CVE-2024-0057](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-0057)  
-[Unhelpful versions Array Data:  CVE-2023-33009](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2023-33009)  
-[Update Attribute Information in versions Array Data:  CVE-2024-20515](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-20515)  
-[Platforms Array Data:  CVE-2024-20698](https://hashmire.github.io/Analysis_Tools/generated_pages/CVE-2024-20698)  
+To access a specific CVE analysis page, use the following URL pattern:
 
-The full dataset of generated pages can be found at [Hashmire/cpeApplicabilityGeneratorPages](https://github.com/Hashmire/cpeApplicabilityGeneratorPages).
+```text
+https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/[CVE-ID].html
+```
 
-Access specific CVE records using: `https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/<CVE-ID>.html`
+_Note: Not all CVEs are currently present in the dataset._
 
 ## Setup
 
@@ -228,8 +219,6 @@ The platform badges include a comprehensive **Source Data Concerns** modal with 
 8. **Platform Data Concerns** - Identifies misaligned vendor/product data patterns
 9. **Missing Affected Products** - Detects CVEs with no products marked as affected
 10. **Overlapping Ranges** - Identifies version ranges that overlap within same CPE Base String
-
-**Real CVE Pattern Validation**: Detection patterns based on production CVE analysis (CVE-2024-20515, CVE-1337-99997)
 
 ### Running Tests
 
