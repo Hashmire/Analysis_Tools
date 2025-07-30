@@ -112,7 +112,13 @@ docker build -t analysis-tools .
 docker run -it --rm -v $(pwd)/output:/app/runs -v $(pwd)/cache:/app/cache analysis-tools
 ```
 
-### Traditional Setup
+```bash
+docker build -t analysis-tools .
+docker run -it --rm analysis-tools python run_tests.py
+docker run -it --rm \
+  -v $(pwd)/output:/app/runs \
+  analysis-tools python run_tools.py --test-file test_files/testModularRulesEnhanced.json
+```
 
 1. Clone the repository:
 

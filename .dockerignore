@@ -29,9 +29,9 @@ ENV/
 # Documentation
 documentation/
 
-# Tests
-test_files/
-test_*.py
+# Tests - commented out to include test files in Docker image
+# test_files/
+# test_*.py
 
 # Logs
 *.log
