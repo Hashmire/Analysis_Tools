@@ -1136,7 +1136,9 @@ def run_logging_tests():
     if result.failures:
         print(f"\n❌ Failures:")
         for test, traceback in result.failures:
-            print(f"   - {test}: {traceback.split('AssertionError: ')[-1].split('\\n')[0]}")
+            # Extract error message without using backslash in f-string
+            error_msg = traceback.split('AssertionError: ')[-1].split('\n')[0]
+            print(f"   - {test}: {error_msg}")
             
     if result.errors:
         print(f"\n💥 Errors:")
