@@ -592,8 +592,7 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
         
         result = subprocess.run(
             cmd,
-            cwd=str(root_path),
-            timeout=7200  # 2 hour timeout for large datasets
+            cwd=str(root_path)
         )
         
         logger.info("-" * 60, group="initialization")
@@ -607,9 +606,6 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
                         group="data_processing")
             return False
             
-    except subprocess.TimeoutExpired:
-        logger.error("Analysis tool timed out after 2 hours", group="data_processing")
-        return False
     except FileNotFoundError:
         logger.error("Python interpreter not found", group="data_processing")
         return False
