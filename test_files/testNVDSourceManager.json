@@ -1,0 +1,151 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1",
+  "cveMetadata": {
+    "cveId": "CVE-2024-20515",
+    "assignerOrgId": "d1c1063e-7a18-46af-9102-31f8928bc633",
+    "assignerShortName": "cisco",
+    "datePublished": "2024-01-15T17:00:00.000Z",
+    "dateUpdated": "2024-01-15T17:00:00.000Z",
+    "state": "PUBLISHED"
+  },
+  "containers": {
+    "cna": {
+      "providerMetadata": {
+        "orgId": "d1c1063e-7a18-46af-9102-31f8928bc633",
+        "shortName": "cisco",
+        "dateUpdated": "2024-01-15T17:00:00.000Z"
+      },
+      "title": "NVD Source Manager Test Case",
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "This is a test case specifically designed to validate NVD Source Manager functionality across the entire codebase. It includes multiple source UUIDs and orgIds to test resolution capabilities."
+        }
+      ],
+      "affected": [
+        {
+          "vendor": "Test Vendor Alpha",
+          "product": "Test Product Alpha",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "2.0.0", 
+              "status": "unaffected"
+            }
+          ]
+        },
+        {
+          "vendor": "Test Vendor Beta",
+          "product": "Test Product Beta",
+          "defaultStatus": "affected",
+          "versions": [
+            {
+              "version": "3.0.0",
+              "status": "affected"
+            }
+          ]
+        }
+      ],
+      "references": [
+        {
+          "url": "https://cisco.com/security/advisory/test-source-manager",
+          "name": "Cisco Security Advisory for Source Manager Testing",
+          "tags": ["vendor-advisory"]
+        },
+        {
+          "url": "https://nvd.nist.gov/vuln/detail/CVE-2024-20515",
+          "name": "NVD CVE Record",
+          "tags": ["third-party-advisory"]
+        },
+        {
+          "url": "https://example.com/test-reference",
+          "name": "Test Reference for Source Manager",
+          "tags": ["technical-description"]
+        }
+      ]
+    },
+    "adp": [
+      {
+        "providerMetadata": {
+          "orgId": "12345678-1234-4567-8901-123456789abc",
+          "shortName": "test-org-alpha",
+          "dateUpdated": "2024-01-16T10:00:00.000Z"
+        },
+        "title": "Additional Analysis from Test Organization Alpha",
+        "descriptions": [
+          {
+            "lang": "en", 
+            "value": "Additional technical analysis provided by Test Organization Alpha to validate multi-source scenarios in the NVD Source Manager."
+          }
+        ],
+        "references": [
+          {
+            "url": "https://test-org-alpha.com/analysis/cve-2024-20515",
+            "name": "Test Organization Alpha Analysis",
+            "tags": ["third-party-advisory"]
+          }
+        ],
+        "affected": [
+          {
+            "vendor": "Test Vendor Alpha",
+            "product": "Test Product Alpha Extended",
+            "versions": [
+              {
+                "version": "1.5.0",
+                "status": "affected"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "providerMetadata": {
+          "orgId": "87654321-4321-7654-9012-987654321fed",
+          "shortName": "test-org-beta",
+          "dateUpdated": "2024-01-17T14:30:00.000Z"
+        },
+        "title": "Secondary Analysis from Test Organization Beta",
+        "descriptions": [
+          {
+            "lang": "en",
+            "value": "Secondary analysis from Test Organization Beta demonstrating how multiple ADP containers work with the NVD Source Manager for UUID resolution and source name display."
+          }
+        ],
+        "references": [
+          {
+            "url": "https://test-org-beta.com/security/cve-2024-20515",
+            "name": "Test Organization Beta Security Report", 
+            "tags": ["third-party-advisory"]
+          },
+          {
+            "url": "https://test-org-beta.com/blog/source-manager-validation",
+            "name": "Source Manager Validation Blog Post",
+            "tags": ["technical-description"]
+          }
+        ],
+        "metrics": [
+          {
+            "cvssV3_1": {
+              "version": "3.1",
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+              "attackVector": "NETWORK",
+              "attackComplexity": "LOW", 
+              "privilegesRequired": "NONE",
+              "userInteraction": "NONE",
+              "scope": "UNCHANGED",
+              "confidentialityImpact": "HIGH",
+              "integrityImpact": "HIGH",
+              "availabilityImpact": "HIGH",
+              "baseScore": 9.8,
+              "baseSeverity": "CRITICAL"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

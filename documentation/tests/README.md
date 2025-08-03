@@ -10,6 +10,7 @@ Test suite documentation for the Analysis Tools CVE analysis system.
 | `modular_rules_test_suite.md` | `python test_files\test_modular_rules.py test_files\testModularRulesEnhanced.json` | 16 | JSON generation rules |
 | `provenance_assistance_test_suite.md` | `python test_files\test_provenance_assistance.py test_files\testProvenanceAssistance.json` | 10 | CPE results functionality |
 | `confirmed_mappings_test_suite.md` | `python test_files\test_confirmed_mappings.py` | 10 | Confirmed mappings pipeline validation |
+| `nvd_source_manager_test_suite.md` | `python test_files\test_nvd_source_manager.py` | 10 | NVD Source Manager integration validation |
 | Platform badges test | `python test_files\test_platform_badges.py` | 62 | Badge/modal system and data quality |
 
 ## Run All Tests
@@ -20,6 +21,7 @@ python test_files\test_modular_rules.py test_files\testModularRulesEnhanced.json
 python test_files\test_platform_badges.py
 python test_files\test_confirmed_mappings.py
 python test_files\test_provenance_assistance.py test_files\testProvenanceAssistance.json
+python test_files\test_nvd_source_manager.py
 ```
 
-**Total: 151 tests** - All must maintain 100% pass rate.
+**Total: 161 tests** - All must maintain 100% pass rate.
