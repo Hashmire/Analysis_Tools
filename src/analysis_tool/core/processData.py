@@ -48,7 +48,7 @@ def load_config():
 def load_mapping_file(cna_id: str) -> dict:
     """Load a mapping file based on CNA ID"""
     config = load_config()
-    mappings_dir = os.path.join(os.path.dirname(__file__), config['confirmed_mappings']['mappings_directory'])
+    mappings_dir = os.path.join(os.path.dirname(__file__), '..', config['confirmed_mappings']['mappings_directory'])
     
     # Search for mapping files that contain this CNA ID
     for filename in os.listdir(mappings_dir):
@@ -2093,13 +2093,32 @@ def parse_cpe_components(cpe_string: str) -> dict:
     }
 
 def is_more_specific_than(cpe1: str, cpe2: str) -> bool:
-    """Check if cpe1 is more specific than cpe2"""
+    """Check if cpe1 is more specific than cpe2 within the same vendor/product scope"""
     components1 = parse_cpe_components(cpe1)
     components2 = parse_cpe_components(cpe2)
     
     if not components1 or not components2:
         return False
     
+    # CPEs are only comparable if they share the same vendor AND product (when both are specified)
+    
+    # Check vendor compatibility
+    vendor1 = components1.get('vendor', '*')
+    vendor2 = components2.get('vendor', '*')
+    
+    # If both have specific vendors, they must match
+    if (vendor1 != '*' and vendor1 != '' and vendor2 != '*' and vendor2 != '' and vendor1 != vendor2):
+        return False
+    
+    # Check product compatibility  
+    product1 = components1.get('product', '*')
+    product2 = components2.get('product', '*')
+    
+    # If both have specific products, they must match
+    if (product1 != '*' and product1 != '' and product2 != '*' and product2 != '' and product1 != product2):
+        return False
+    
+    # Now we can safely compare specificity within the same scope
     # Count non-wildcard attributes for each CPE
     specific_count1 = sum(1 for value in components1.values() if value != '*' and value != '')
     specific_count2 = sum(1 for value in components2.values() if value != '*' and value != '')

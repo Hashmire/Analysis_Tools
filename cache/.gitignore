@@ -1,7 +1,0 @@
-# Cache files - keep directory but ignore cache contents
-*.json
-*.gz
-*.log
-
-# Keep this directory in git but ignore all cache files
-!.gitignore
