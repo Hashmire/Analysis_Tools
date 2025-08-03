@@ -299,40 +299,17 @@ class NVDSourceManagerIntegrationTestSuite:
 
     def print_results(self):
         """Print focused test results."""
-        print("\n" + "="*80)
-        print("📊 NVD SOURCE MANAGER INTEGRATION TEST RESULTS")
-        print("="*80)
+        # Only show failures for debugging
+        if self.failed > 0:
+            failures = [result for result in self.results if not result['passed']]
+            print(f"\nTest Failures ({len(failures)}):")
+            for result in failures:
+                print(f"  - {result['test']}: {result['message']}")
         
-        # Group results by category
-        categories = {
-            "Core Manager": ["SINGLETON_PATTERN", "BASIC_LOOKUP", "SOURCE_IDENTIFIERS_LOOKUP"],
-            "Integration Points": ["BADGE_COLLECTOR_INTEGRATION", "HTML_GENERATION_INTEGRATION", "PROCESS_DATA_INTEGRATION", "ANALYSIS_TOOL_INIT"],
-            "Frontend Integration": ["JAVASCRIPT_INTEGRATION"],
-            "Edge Cases": ["UNKNOWN_UUID_HANDLING", "NIST_SPECIAL_HANDLING"]
-        }
+        # STANDARD OUTPUT FORMAT - Required for unified test runner
+        print(f"TEST_RESULTS: PASSED={self.passed} TOTAL={len(self.results)} SUITE=\"NVD Source Manager\"")
         
-        for category, test_names in categories.items():
-            print(f"\n📂 {category}:")
-            print("-" * 40)
-            
-            category_tests = [r for r in self.results if r['test'] in test_names]
-            for result in category_tests:
-                status = "✅ PASS" if result['passed'] else "❌ FAIL"
-                print(f"  {status} {result['test']}: {result['message']}")
-        
-        # Summary
-        print(f"\n📈 SUMMARY:")
-        print(f"   Total Tests: {len(self.results)}")
-        print(f"   ✅ Passed: {self.passed}")
-        print(f"   ❌ Failed: {self.failed}")
-        print(f"   Success Rate: {(self.passed/len(self.results)*100):.1f}%" if self.results else "N/A")
-        
-        if self.failed == 0:
-            print("\n🎉 ALL INTEGRATION TESTS PASSED! Source manager working correctly across all components.")
-        else:
-            print(f"\n⚠️  {self.failed} INTEGRATION TEST(S) FAILED. Review integration points above.")
-        
-        print("="*80)
+        return self.failed == 0
 
 def main():
     """Main function to run the focused integration test suite."""

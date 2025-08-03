@@ -50,6 +50,10 @@ class ProvenanceAssistanceTestSuite:
                 "--no-cache"
             ]
             
+            # Add --no-browser when running under unified test runner
+            if os.environ.get('UNIFIED_TEST_RUNNER') == '1':
+                cmd.append("--no-browser")
+            
             result = subprocess.run(
                 cmd,
                 cwd=project_root,
@@ -493,28 +497,19 @@ class ProvenanceAssistanceTestSuite:
     
     def print_summary(self):
         """Print test results summary."""
-        print("\n📊 Test Results Summary")
-        print("=" * 60)
-        
-        # Print individual results
-        for result in self.results:
-            status = "✅ PASS" if result['passed'] else "❌ FAIL"
-            print(f"{status} {result['test']}")
-            if result['details']:
-                print(f"    📝 {result['details']}")
-        
-        print("\n" + "=" * 60)
         total_tests = self.passed + self.failed
-        success_rate = (self.passed / total_tests * 100) if total_tests > 0 else 0
         
-        print(f"📈 Overall Results: {self.passed}/{total_tests} tests passed ({success_rate:.1f}%)")
+        # Only show failures for debugging
+        if self.failed > 0:
+            failures = [result for result in self.results if not result['passed']]
+            print(f"\nTest Failures ({len(failures)}):")
+            for result in failures:
+                print(f"  - {result['test']}: {result['details'] or 'No details'}")
         
-        if self.failed == 0:
-            print("🎉 All tests passed! The provenance assistance functionality is working correctly.")
-            return True
-        else:
-            print(f"⚠️  {self.failed} test(s) failed. Review the details above.")
-            return False
+        # STANDARD OUTPUT FORMAT - Required for unified test runner
+        print(f"TEST_RESULTS: PASSED={self.passed} TOTAL={total_tests} SUITE=\"Provenance Assistance\"")
+        
+        return self.failed == 0
 
 def main():
     """Main entry point for the test suite."""

@@ -1,53 +1,58 @@
 # Logging System Test Suite
 
-## Overview
+## **📊 Overview**
 
-Validates structured logging across all workflow phases with **53 test cases** in `test_files\test_logging_system.py`.
+Validates structured logging across all workflow phases with **53 test cases**.
 
-## Run Test
+**Purpose:** Ensures consistent terminology, message formats, and audit boundaries throughout the system.
 
+## **🚀 Execution**
+
+### **Unified Runner (Recommended):**
+```bash
+python test_files\run_all_tests.py
+```
+
+### **Individual Execution:**
 ```bash
 python test_files\test_logging_system.py
 ```
 
-## What It Tests
+## **🎯 Core Validation Areas**
 
-- **Terminology**: Consistent use of "CVE records", "CPE names", "CPE base strings"
-- **Message Formats**: Standardized progress, error, and completion message patterns  
-- **Log Groups**: Proper categorization (INIT, CVE_QUERY, UNIQUE_CPE, etc.)
-- **Audit Boundaries**: start_*/end_* function enforcement for workflow phases
-- **Performance**: All logging operations complete in sub-second time
+### **Terminology Standardization**
+- Consistent use of "CVE records", "CPE names", "CPE base strings"
+- Proper API terminology and data structure references
 
-## Key Validation
+### **Message Format Compliance**
+- Standardized progress reporting patterns
+- Error message format consistency
+- Completion status formatting
 
-- All 53 tests must pass with 100% success rate
-- No external dependencies required
-- Validates logging behavior across entire system workflow
-- Ensures consistent terminology and formatting standards
-- `test_cpe_queries_group` - CPE data collection grouping
-- `test_unique_cpe_group` - CPE generation grouping
+### **Log Group Organization**
+- Proper categorization (INIT, CVE_QUERY, UNIQUE_CPE, CPE_QUERY, etc.)
+- Workflow phase boundaries with start_*/end_* enforcement
+- Audit trail integrity across system components
 
-**6. TestApiLoggingPatterns (2 tests)**  
+### **Advanced Scenarios**
+- Unicode normalization logging
+- Badge generation logging patterns
+- Performance and timing validation
 
-- `test_api_call_logging` - Outgoing API request logging
-- `test_api_response_logging` - API response status logging
+## **✅ Success Criteria**
 
-**7. TestFileOperationLogging (1 test)**  
+- **100% pass rate** required (53/53 tests)
+- **No external dependencies** - self-contained validation
+- **Sub-second execution** for all logging operations
+- **Audit compliance** with proper group boundaries
 
-- `test_file_operation_logging` - File system operation logging
+## **🔧 Implementation Details**
 
-**8. TestWorkflowStageTransitions (1 test)**  
+**Test Framework:** Python unittest with custom LogCapture system
+**Coverage:** Complete workflow logging validation from initialization through completion
+**Dependencies:** Direct import of WorkflowLogger and LogGroup enums
 
-- `test_stage_transition_logging` - Workflow stage boundary logging
-
-**9. TestSpecializedLoggingMethods (1 test)**  
-
-- `test_data_summary_logging` - Structured data summary logging
-
-**10. TestAdvancedLoggingScenarios (5 tests)**  
-
-- `test_badge_generation_logging` - UI badge generation patterns
-- `test_curation_tracking_logging` - Data curation tracking
+For comprehensive test case details and implementation patterns, see the test file source code.
 - `test_data_validation_logging` - Data validation patterns
 - `test_retry_mechanism_logging` - Retry attempt logging
 - `test_unicode_normalization_logging` - Unicode handling
@@ -176,8 +181,8 @@ python test_logging_system.py
 ### Master Test Runner
 
 ```bash
-# Complete Test Suite - All 53 tests
-python run_all_logging_tests.py
+# Complete Test Suite - All 53 tests via unified runner
+python test_files\run_all_tests.py
 ```
 
 **Expected Output:**  
@@ -351,10 +356,10 @@ python test_files/test_logging_system.py
 **Master Test Runner:**  
 
 ```bash
-# Run via master test runner
-python test_files/run_all_logging_tests.py
+# Run via unified test runner
+python test_files\run_all_tests.py
 
-# Provides formatted output with detailed test results
+# Provides formatted output with detailed test results for all suites including logging
 # Includes test count summary and success metrics
 ```
 

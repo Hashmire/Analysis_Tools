@@ -597,28 +597,12 @@ class ConfirmedMappingsTestSuite:
     def print_results(self):
         """Print comprehensive test results."""
         print("\n" + "=" * 60)
-        print("🔍 CONFIRMED MAPPINGS TEST RESULTS")
-        print("=" * 60)
-        
-        # Summary
-        total_tests = self.passed + self.failed
-        success_rate = (self.passed / total_tests * 100) if total_tests > 0 else 0
-        
-        print(f"📊 SUMMARY:")
-        print(f"   Total Tests: {total_tests}")
-        print(f"   ✅ Passed: {self.passed}")
-        print(f"   ❌ Failed: {self.failed}")
-        print(f"   📈 Success Rate: {success_rate:.1f}%")
-        print()
-        
-        # Detailed results
-        print("📋 DETAILED RESULTS:")
-        for result in self.results:
-            status = "✅ PASS" if result['passed'] else "❌ FAIL"
-            print(f"   {status} | {result['test']}")
-            print(f"     └─ {result['message']}")
-            
-        print("=" * 60)
+        # Only show failures for debugging
+        if self.failed > 0:
+            failures = [result for result in self.results if not result['passed']]
+            print(f"\nTest Failures ({len(failures)}):")
+            for result in failures:
+                print(f"  - {result['test']}: {result['message']}")
         
         # Cleanup
         self.cleanup()
@@ -630,12 +614,11 @@ def main():
     test_suite = ConfirmedMappingsTestSuite()
     success = test_suite.run_all_tests()
     
-    if success:
-        print("🎉 All confirmed mappings tests passed!")
-        sys.exit(0)
-    else:
-        print("💥 Some confirmed mappings tests failed!")
-        sys.exit(1)
+    # STANDARD OUTPUT FORMAT - Required for unified test runner
+    total_tests = test_suite.passed + test_suite.failed
+    print(f"TEST_RESULTS: PASSED={test_suite.passed} TOTAL={total_tests} SUITE=\"Confirmed Mappings\"")
+    
+    sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
     main()

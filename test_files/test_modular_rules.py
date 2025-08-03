@@ -50,6 +50,10 @@ class ModularRulesTestSuite:
                 "--no-cache"
             ]
             
+            # Add --no-browser when running under unified test runner
+            if os.environ.get('UNIFIED_TEST_RUNNER') == '1':
+                cmd.append("--no-browser")
+            
             result = subprocess.run(
                 cmd,
                 cwd=project_root,
@@ -733,29 +737,19 @@ class ModularRulesTestSuite:
         for test_method in test_methods:
             test_method()
         
-        # Print results summary
-        print("\n📊 Test Results Summary")
-        print("=" * 60)
-        
-        passed = 0
+        # Calculate results
+        passed = sum(1 for result in self.results if result['passed'])
         total = len(self.results)
         
-        for result in self.results:
-            status = "✅ PASS" if result['passed'] else "❌ FAIL"
-            print(f"{status} {result['test']}")
-            print(f"    📝 {result['message']}")
-            
-            if result['passed']:
-                passed += 1
+        # Only show failures for debugging
+        failures = [result for result in self.results if not result['passed']]
+        if failures:
+            print(f"\nTest Failures ({len(failures)}):")
+            for result in failures:
+                print(f"  - {result['test']}: {result['message']}")
         
-        print("=" * 60)
-        success_rate = (passed / total * 100) if total > 0 else 0
-        print(f"📈 Overall Results: {passed}/{total} tests passed ({success_rate:.1f}%)")
-        
-        if passed == total:
-            print("🎉 All tests passed! The modular rules functionality is working correctly.")
-        else:
-            print(f"⚠️  {total - passed} tests failed. Review the output above for details.")
+        # STANDARD OUTPUT FORMAT - Required for unified test runner
+        print(f"TEST_RESULTS: PASSED={passed} TOTAL={total} SUITE=\"Modular Rules\"")
         
         return passed == total
 

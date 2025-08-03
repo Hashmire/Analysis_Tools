@@ -1,53 +1,66 @@
-# Modular Rules Test Suite Documentation
+# Modular Rules Test Suite
 
-## Overview
+## **📊 Overview**
 
-Validates the modular JSON generation rules system covering all 8 modular rules, edge cases, and complex interactions to ensure the JavaScript-based rule system functions correctly.
+Validates the modular JSON generation rules system with **16 test cases** covering all 8 modular rules, edge cases, and complex interactions.
 
-## How to Run
+**Purpose:** Ensures JavaScript-based rule system correctly processes CVE data and generates proper HTML output.
 
+## **🚀 Execution**
+
+### **Unified Runner (Recommended):**
 ```bash
-python test_files\test_modular_rules.py testModularRulesEnhanced.json
+python test_files\run_all_tests.py
 ```
 
-## What It Tests
+### **Individual Execution:**
+```bash
+python test_files\test_modular_rules.py test_files\testModularRulesEnhanced.json
+```
 
-**16 tests across 14 categories** validating:
+## **🎯 Core Validation Areas**
 
-- **HTML Structure**: Generated HTML contains required elements and proper structure (120+ data rows)
-- **Rule Application**: All 8 modular rules properly defined in JavaScript code
-- **Rule Processing**: Each rule correctly processes test data and generates expected output
-- **Badge Generation**: Platform badges generated correctly with proper formatting
-- **Edge Cases**: Complex scenarios, missing data, and boundary conditions
-- **Data Integrity**: Consistent data flow from JSON input to HTML output
+### **HTML Structure & Generation**
+- Generated HTML contains required elements and proper structure
+- Minimum 120+ data rows with correct table formatting
+- CVE metadata properly embedded in generated output
 
-## Key Validation Points
+### **Modular Rules System**
+- **All 8 modular rules** active and functioning:
+  - `wildcardExpansion` - Wildcard pattern processing (e.g., `5.*`)
+  - `versionChanges` - Version change array processing
+  - `inverseStatus` - Unaffected status handling
+  - `mixedStatus` - Mixed affected/unaffected scenarios
+  - `gapProcessing` - Version gap detection and handling
+  - `specialVersionTypes` - Beta, RC, dev, alpha versions
+  - `updatePatterns` - Update and patch pattern processing
+  - `multipleBranches` - Multiple version branch handling
 
-- All 8 modular rules active and functioning (wildcardExpansion, versionChanges, inverseStatus, etc.)
-- HTML output matches expected structure with minimum 120 data rows
-- Badge/modal system generates correctly for platform entries
-- JavaScript execution completes without errors
-- Generated file output saved to test_output/CVE-1337-99997.html
-- `mixedStatus` - Processes mixed affected/unaffected scenarios
-- `gapProcessing` - Detects and handles version gaps
-- `specialVersionTypes` - Handles beta, rc, dev, alpha versions
-- `updatePatterns` - Processes update and patch patterns
-- `multipleBranches` - Handles multiple version branches
+### **Data Flow & Integration**
+- Consistent data flow from JSON input to HTML output
+- Badge/modal system integration with platform entries
+- JavaScript execution without errors
+- Unicode and international character handling
 
-**Expected Outcome**: All 8 rule definitions detected in JavaScript
+### **Advanced Scenarios**
+- Complex rule interactions and edge cases
+- Missing data and boundary condition handling
+- Multi-language support and special character processing
 
----
+## **✅ Success Criteria**
 
-### 3. Wildcard Expansion Rule (`WILDCARD_EXPANSION`)
+- **100% pass rate** required (16/16 tests)
+- **All 8 modular rules** detected and active in generated JavaScript
+- **HTML structure validation** with proper data row counts
+- **Generated output** saved to appropriate test run directory
 
-**Purpose**: Tests wildcard pattern processing (e.g., `5.*` → version ranges).
+## **🔧 Implementation Details**
 
-**Test Scenarios**:  
+**Test Framework:** Custom HTML analysis with BeautifulSoup parsing
+**Dependencies:** Analysis tool subprocess execution, test JSON data file
+**Output Validation:** Generated HTML structure, JavaScript rule definitions, badge integration
 
-```json
-{
-  "simple_wildcard": {"version": "5.*", "expected": "major_range"},
-  "minor_wildcard": {"version": "6.2.*", "expected": "minor_range"},
+For comprehensive test case details and specific rule validation patterns, see the test file source code and `testModularRulesEnhanced.json`.
   "zero_version": {"version": "0.*", "expected": "zero_major_range"},
   "complex_wildcard": {"version": "2.4.*", "expected": "specific_minor_range"},
   "multi_level": {"version": "3.1.5.*", "expected": "patch_level_range"}

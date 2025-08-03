@@ -1,34 +1,55 @@
-# Provenance Assistance Test Documentation
+# Provenance Assistance Test Suite
 
-## Overview
+## 📊 Overview
 
-Validates provenance assistance functionality including package repository detection, Maven detection scenarios, description assistance, and reference assistance with different tags and sources.
+**10 tests** validating CPE provenance assistance functionality, package repository detection, and HTML generation for CVE analysis pages.
 
-## How to Run
+## 🚀 Execution
 
 ```bash
+# Unified runner (recommended)
+python test_files\run_all_tests.py
+
+# Individual execution
 python test_files\test_provenance_assistance.py test_files\testProvenanceAssistance.json
 ```
 
-## What It Tests
+## 🎯 Core Validation Areas
 
-**10 tests across multiple categories** validating:
+### **Package Repository Detection**
+- Maven artifact pattern recognition from group:artifact coordinates
+- npm, PyPI, and generic package repository type detection
+- Repository URL parsing and classification
 
-- **Maven Detection**: Identifies Maven packages from artifact patterns and coordinates
-- **Description Assistance**: Multi-language CNA descriptions and ADP source handling
-- **Reference Assistance**: Various reference types (advisory, report, vendor, third-party) with proper tagging
-- **Unicode Handling**: International character support in descriptions and references
-- **Package Repository Types**: npm, PyPI, Maven, generic detection scenarios
-- **Edge Cases**: Empty data, complex overlapping situations, malformed entries
+### **Description Assistance**
+- Multi-language CNA description button generation
+- ADP source handling with proper attribution
+- WordPress-specific source detection and centered button layout
 
-## Key Validation Points
+### **Reference Card Generation**
+- Advisory, report, vendor, and third-party reference type processing
+- Proper source attribution and target tag validation
+- HTML structure generation for reference display
 
-- Maven package detection from group:artifact patterns
-- Multi-language description buttons generated correctly
-- Reference cards created with proper source attribution and tags
-- HTML structure contains all required elements (20+ platform entries)
-- Badge/modal system functions correctly for provenance data
-- Generated file output saved to test_output/CVE-1337-99998.html
+### **HTML Integration**
+
+- Generated file output validation (test_output/CVE-1337-99998.html)
+- Badge/modal system integration for provenance data
+- Platform entry structure with 20+ required elements
+
+## ✅ Success Criteria
+
+- **Pass Rate**: 10/10 tests must pass (100% pass rate required)
+- **File Generation**: Valid HTML output created in test_output directory
+- **Content Validation**: All provenance assistance features properly integrated
+- **Unicode Support**: International character handling across all components
+
+## 🔧 Implementation Details
+
+- **Framework**: Python unittest with JSON test case definitions
+- **Test Data**: `testProvenanceAssistance.json` with synthetic CVE data
+- **Dependencies**: HTML generation system, badge/modal integration, CPE processing
+- **Output**: HTML files with embedded provenance assistance features
 - **Expected Behavior**: Should create another ADP description card
 - **Validation Points**:
   - Should appear as third description source

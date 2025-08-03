@@ -1127,28 +1127,28 @@ def run_logging_tests():
     result = runner.run(suite)
     
     # Summary    print("\n" + "=" * 60)
-    print(f"📊 Test Results Summary:")
-    print(f"   ✅ Tests Passed: {result.testsRun - len(result.failures) - len(result.errors)}")
-    print(f"   ❌ Tests Failed: {len(result.failures)}")
-    print(f"   💥 Test Errors: {len(result.errors)}")
-    print(f"   📈 Success Rate: {((result.testsRun - len(result.failures) - len(result.errors)) / result.testsRun * 100):.1f}%")
+    # Print basic summary for manual inspection if needed
+    tests_passed = result.testsRun - len(result.failures) - len(result.errors)
     
-    if result.failures:
-        print(f"\n❌ Failures:")
-        for test, traceback in result.failures:
-            print(f"   - {test}: {traceback.split('AssertionError: ')[-1].split('\\n')[0]}")
-            
-    if result.errors:
-        print(f"\n💥 Errors:")
-        for test, traceback in result.errors:
-            # Extract the error message more safely
-            lines = traceback.split('\n')
-            error_line = "Unknown error"
-            for line in lines:
-                if line.strip() and not line.startswith('  '):
-                    error_line = line.strip()
-                    break
-            print(f"   - {test}: {error_line}")
+    # Only show failures/errors for debugging
+    if result.failures or result.errors:
+        print(f"\nTest Issues Found:")
+        
+        if result.failures:
+            print(f"Failures ({len(result.failures)}):")
+            for test, traceback in result.failures:
+                error_msg = traceback.split('AssertionError: ')[-1].split('\n')[0] if 'AssertionError:' in traceback else "Assertion failed"
+                print(f"  - {test}: {error_msg}")
+                
+        if result.errors:
+            print(f"Errors ({len(result.errors)}):")
+            for test, traceback in result.errors:
+                lines = traceback.split('\n')
+                error_line = next((line.strip() for line in lines if line.strip() and not line.startswith('  ')), "Unknown error")
+                print(f"  - {test}: {error_line}")
+    
+    # STANDARD OUTPUT FORMAT - Required for unified test runner
+    print(f"TEST_RESULTS: PASSED={tests_passed} TOTAL={result.testsRun} SUITE=\"Logging System\"")
     
     return result.wasSuccessful()
 

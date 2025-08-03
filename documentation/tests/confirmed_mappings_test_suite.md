@@ -1,33 +1,60 @@
-# Confirmed Mappings Test Suite Documentation
+# Confirmed Mappings Test Suite
 
-## Overview
+## **📊 Overview**
 
-Validates the complete confirmed mappings data pipeline from mapping file ingestion through HTML generation. Tests alias matching logic, badge generation, modal content creation, and integration with the badge modal system.
+Validates the complete confirmed mappings data pipeline with **10 test cases** from mapping file ingestion through HTML generation.
 
-## How to Run
+**Purpose:** Ensures alias matching logic, badge generation, modal content creation, and integration with the badge modal system.
 
+## **🚀 Execution**
+
+### **Unified Runner (Recommended):**
+```bash
+python test_files\run_all_tests.py
+```
+
+### **Individual Execution:**
 ```bash
 python test_files\test_confirmed_mappings.py
 ```
 
-## What It Tests
+## **🎯 Core Validation Areas**
 
-**10 tests across multiple categories** validating:
+### **Data Ingestion & Processing**
+- Mapping file loading with JSON structure validation
+- Module imports from `analysis_tool.core.processData`
+- End-to-end confirmed mappings detection and dataset processing
 
-- **Data Ingestion**: Mapping file loading, JSON structure validation, and module imports
-- **Alias Matching**: Exact case-insensitive property matching (no partial matching allowed)
-- **Processing Pipeline**: End-to-end confirmed mappings detection and dataset processing
-- **HTML Generation**: Badge creation, modal content, and integration with badge modal system
-- **Edge Cases**: Empty data, malformed entries, non-existent source IDs, and error handling
+### **Alias Matching Logic**
+- **Exact property matching** (vendor/product) with case-insensitive comparison
+- **No partial matching** allowed - prevents false positives
+- CPE culling functionality through end-to-end detection
 
-## Key Validation Points
+### **HTML Generation & Integration**
+- Badge creation with proper styling and tooltips
+- Modal content generation with confirmed mapping tabs
+- Integration with badge modal system
+- Generated confirmed mappings in badge content and modal data
 
-- Confirmed mappings modules import successfully from `analysis_tool.core.processData`
-- Mapping files load with valid JSON structure containing `confirmedMappings` arrays
-- Alias matching requires exact property matches (vendor/product) with case-insensitive comparison
-- CPE culling functionality validated through end-to-end detection and badge tooltip generation
-- HTML output contains proper badge styling, tooltips, and modal integration
-- Generated confirmed mappings appear in badge content and modal data
+### **Edge Cases & Error Handling**
+- Empty data and malformed entries
+- Non-existent source IDs and missing files
+- Error recovery and graceful degradation
+
+## **✅ Success Criteria**
+
+- **100% pass rate** required (10/10 tests)
+- **Critical import test** must pass before other tests execute
+- **Exact alias matching** validation with no false positives
+- **Complete HTML integration** with badge and modal systems
+
+## **🔧 Implementation Details**
+
+**Test Framework:** Custom test suite with NVD source manager integration
+**Dependencies:** Confirmed mappings modules, badge modal system, temporary file management
+**Coverage:** Complete data pipeline from ingestion through HTML output
+
+For comprehensive test case details and mapping file structure requirements, see the test file source code.
 - **Expected Outcome**: 100% test success rate with comprehensive confirmed mappings functionality
 
 ---

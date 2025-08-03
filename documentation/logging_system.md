@@ -521,7 +521,7 @@ python test_files/test_logging_system.py
 
 ```bash
 # Run all logging tests via master runner
-python test_files/run_all_logging_tests.py
+python test_files\run_all_tests.py
 
 # Executes the complete consolidated test suite
 # Provides comprehensive validation with 100% success rate

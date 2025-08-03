@@ -1,52 +1,53 @@
-# NVD Source Manager Integration Test Suite
+# NVD Source Manager Test Suite
 
-## Overview
+## 📊 Overview
 
-The NVD Source Manager Integration Test Suite validates that the NVD Source Manager properly integrates across all system components that require source data resolution. This focused test suite ensures reliable validation of core integration requirements without unnecessary complexity.
+**10 tests** validating NVD Source Manager integration across all system components requiring source data resolution.
 
-## Test Categories
+## 🚀 Execution
 
-### Core Manager Tests
+```bash
+# Unified runner (recommended)
+python test_files\run_all_tests.py
 
-- **SINGLETON_PATTERN**: Validates singleton implementation ensures same instance across calls
-- **BASIC_LOOKUP**: Tests UUID to organization name resolution (e.g., `d1c1063e-7a18-46af-9102-31f8928bc633` → `"Cisco Systems, Inc."`)
-- **SOURCE_IDENTIFIERS_LOOKUP**: Validates lookup through sourceIdentifiers array (e.g., `psirt@cisco.com` → `"Cisco Systems, Inc."`)
+# Individual execution
+python test_files\test_nvd_source_manager.py
+```
 
-### Integration Points Tests
+## 🎯 Core Validation Areas
 
-- **BADGE_COLLECTOR_INTEGRATION**: Confirms badge contents collector can resolve source names for badge generation
-- **HTML_GENERATION_INTEGRATION**: Validates source metadata flows to generated HTML pages
-- **PROCESS_DATA_INTEGRATION**: Ensures process data module can access all source functions
-- **ANALYSIS_TOOL_INIT**: Verifies main analysis tool can access initialized manager
+### **Core Manager Functions**
 
-### Frontend Integration Tests
+- Singleton pattern implementation and instance consistency
+- UUID to organization name resolution (e.g., Cisco Systems lookup)
+- Source identifier array lookup functionality
+- NIST special handling for nvd@nist.gov and empty string cases
 
-- **JAVASCRIPT_INTEGRATION**: Confirms JavaScript completion tracker has source data functionality
+### **System Integration Points**
 
-### Edge Cases Tests
+- Badge contents collector source name resolution
+- HTML generation with source metadata integration
+- Process data module source function access
+- Analysis tool initialization and manager access
 
-- **UNKNOWN_UUID_HANDLING**: Validates unknown UUIDs return as-is (fallback behavior)
-- **NIST_SPECIAL_HANDLING**: Tests special handling for NIST identifiers (`nvd@nist.gov`, empty string)
+### **Frontend Integration**
 
-## Critical Integration Points Validated
+- JavaScript completion tracker source data functionality
+- Source information display in generated HTML pages
+- Tooltip generation with contact email and identifiers
 
-### 1. Badge Contents Collector
+## ✅ Success Criteria
 
-- Source name resolution for badge generation
-- Import: `from analysis_tool.storage.nvd_source_manager import get_source_name`
-- Usage: Direct function calls for source resolution
+- **Pass Rate**: 10/10 tests must pass (100% pass rate required)
+- **Integration Validation**: All import points function correctly across components
+- **Fallback Behavior**: Unknown UUIDs handled gracefully with as-is return
+- **Source Resolution**: Complete source metadata flows to frontend display
 
-### 2. HTML Generation
+## 🔧 Implementation Details
 
-- Source metadata appears in generated pages
-- Import: `from analysis_tool.storage.nvd_source_manager import get_source_info, get_source_name`
-- Output: Tooltip displays contact email and source identifiers
-
-### 3. Process Data
-
-- Source information in CVE processing
-- Import: `from analysis_tool.storage.nvd_source_manager import get_source_name, get_source_info, get_all_sources_for_cve`
-- Usage: Complete source function access for CVE processing
+- **Framework**: Python unittest with direct integration testing
+- **Dependencies**: NVD source data, badge system, HTML generation components
+- **Test Coverage**: Core manager, integration points, frontend display, edge cases
 
 ### 4. Analysis Tool Initialization
 

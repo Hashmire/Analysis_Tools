@@ -1146,6 +1146,10 @@ class PlatformBadgesTestSuite:
         else:
             self.add_result("PLATFORM_DATA_CONCERNS_TAB", False, "Platform data concerns not detected")
         
+        # Tab 9: Overlapping Ranges Detection - comprehensive testing of detect_overlapping_ranges functionality
+        # This tests the algorithm that feeds Source Data Concerns for version range overlaps
+        self.test_overlapping_ranges_detection(convertRowDataToHTML)
+        
         # Multi-tab scenario - multiple issues should be consolidated
         multi_tab_row = self.create_test_row_data(
             "multi_tab_scenario",
@@ -1176,6 +1180,239 @@ class PlatformBadgesTestSuite:
                 self.add_result("MULTI_TAB_CONSOLIDATION", False, f"Badge format incorrect: {badge_text}")
         else:
             self.add_result("MULTI_TAB_CONSOLIDATION", False, "Multi-tab scenario not creating Source Data Concerns badge")
+    
+    def test_overlapping_ranges_detection(self, convertRowDataToHTML):
+        """Test comprehensive overlapping ranges detection that feeds Source Data Concerns badges."""
+        try:
+            from analysis_tool.core.generateHTML import detect_overlapping_ranges
+            import pandas as pd
+        except ImportError as e:
+            self.add_result("OVERLAP_IMPORT_ERROR", False, f"Failed to import overlapping ranges functionality: {e}")
+            return
+        
+        # Test 1: Basic vendor:product overlap detection
+        overlap_basic_data = [
+            self.create_test_row_data(
+                "overlap_basic_1",
+                **{
+                    'rawPlatformData': {
+                        'vendor': 'apache',
+                        'product': 'tomcat',
+                        'versions': [
+                            {'version': '*', 'lessThan': '9.0.0', 'status': 'affected'}
+                        ]
+                    }
+                }
+            ),
+            self.create_test_row_data(
+                "overlap_basic_2", 
+                **{
+                    'rawPlatformData': {
+                        'vendor': 'apache',
+                        'product': 'tomcat',
+                        'versions': [
+                            {'version': '*', 'lessThan': '8.5.50', 'status': 'affected'}
+                        ]
+                    }
+                }
+            )
+        ]
+        
+        df_basic = pd.DataFrame(overlap_basic_data)
+        findings_basic = detect_overlapping_ranges(df_basic)
+        
+        if len(findings_basic) >= 2 and 0 in findings_basic and 1 in findings_basic:
+            # Test that findings create Source Data Concerns badges
+            html_output = convertRowDataToHTML(overlap_basic_data[0], 0)
+            soup = BeautifulSoup(html_output, 'html.parser')
+            
+            source_concerns_badge = soup.find('span', string=lambda text: text and 'Source Data Concerns' in text)
+            if source_concerns_badge:
+                self.add_result("OVERLAP_BASIC_VENDOR_PRODUCT", True, "Basic vendor:product overlap detection creates Source Data Concerns badge")
+            else:
+                self.add_result("OVERLAP_BASIC_VENDOR_PRODUCT", False, "Basic overlap detection not creating badge")
+        else:
+            self.add_result("OVERLAP_BASIC_VENDOR_PRODUCT", False, f"Expected basic overlaps but got: {list(findings_basic.keys())}")
+        
+        # Test 2: Platform field differentiation
+        overlap_platform_data = [
+            self.create_test_row_data(
+                "overlap_platform_1",
+                **{
+                    'rawPlatformData': {
+                        'vendor': 'microsoft',
+                        'product': 'windows',
+                        'platforms': ['x86', 'x64'],
+                        'versions': [
+                            {'version': '*', 'lessThan': '10.0.0', 'status': 'affected'}
+                        ]
+                    }
+                }
+            ),
+            self.create_test_row_data(
+                "overlap_platform_2",
+                **{
+                    'rawPlatformData': {
+                        'vendor': 'microsoft',
+                        'product': 'windows',
+                        'platforms': ['arm64'],  # Different platform
+                        'versions': [
+                            {'version': '*', 'lessThan': '11.0.0', 'status': 'affected'}
+                        ]
+                    }
+                }
+            ),
+            self.create_test_row_data(
+                "overlap_platform_3",
+                **{
+                    'rawPlatformData': {
+                        'vendor': 'microsoft',
+                        'product': 'windows',
+                        'platforms': ['x86', 'x64'],  # Same as entry 0
+                        'versions': [
+                            {'version': '*', 'lessThan': '9.0.0', 'status': 'affected'}
+                        ]
+                    }
+                }
+            )
+        ]
+        
+        df_platform = pd.DataFrame(overlap_platform_data)
+        findings_platform = detect_overlapping_ranges(df_platform)
+        
+        # Should find overlaps between entries 0 and 2 (same platforms), not entry 1
+        if 0 in findings_platform and 2 in findings_platform and 1 not in findings_platform:
+            self.add_result("OVERLAP_PLATFORM_GROUPING", True, "Platform field grouping works correctly - different platforms separated")
+        else:
+            self.add_result("OVERLAP_PLATFORM_GROUPING", False, f"Platform grouping failed, findings: {list(findings_platform.keys())}")
+        
+        # Test 3: Semantic version overlap detection
+        overlap_semantic_data = [
+            self.create_test_row_data(
+                "overlap_semantic_1",
+                **{
+                    'rawPlatformData': {
+                        'vendor': 'test',
+                        'product': 'software',
+                        'versions': [
+                            {'version': '*', 'lessThan': '2.0.0', 'status': 'affected'}  # Covers 1.x.x
+                        ]
+                    }
+                }
+            ),
+            self.create_test_row_data(
+                "overlap_semantic_2",
+                **{
+                    'rawPlatformData': {
+                        'vendor': 'test',
+                        'product': 'software',
+                        'versions': [
+                            {'version': '1.5.0', 'lessThan': '1.9.0', 'status': 'affected', 'versionType': 'semver'}  # Overlaps
+                        ]
+                    }
+                }
+            ),
+            self.create_test_row_data(
+                "overlap_semantic_3",
+                **{
+                    'rawPlatformData': {
+                        'vendor': 'test',
+                        'product': 'software',
+                        'versions': [
+                            {'version': '3.0.0', 'lessThan': '4.0.0', 'status': 'affected', 'versionType': 'semver'}  # No overlap
+                        ]
+                    }
+                }
+            )
+        ]
+        
+        df_semantic = pd.DataFrame(overlap_semantic_data)
+        findings_semantic = detect_overlapping_ranges(df_semantic)
+        
+        # Entries 0 and 1 should overlap, entry 2 should not
+        if 0 in findings_semantic and 1 in findings_semantic and 2 not in findings_semantic:
+            self.add_result("OVERLAP_SEMANTIC_VERSION", True, "Semantic version overlap detection works correctly")
+        else:
+            self.add_result("OVERLAP_SEMANTIC_VERSION", False, f"Semantic version detection failed, findings: {list(findings_semantic.keys())}")
+        
+        # Test 4: Unbounded range handling
+        overlap_unbounded_data = [
+            self.create_test_row_data(
+                "overlap_unbounded_1",
+                **{
+                    'rawPlatformData': {
+                        'vendor': 'test',
+                        'product': 'service',
+                        'versions': [
+                            {'version': '*', 'status': 'affected'}  # Completely unbounded
+                        ]
+                    }
+                }
+            ),
+            self.create_test_row_data(
+                "overlap_unbounded_2",
+                **{
+                    'rawPlatformData': {
+                        'vendor': 'test',
+                        'product': 'service',
+                        'versions': [
+                            {'version': '*', 'lessThan': '2.0.0', 'status': 'affected'}  # Upper bounded
+                        ]
+                    }
+                }
+            )
+        ]
+        
+        df_unbounded = pd.DataFrame(overlap_unbounded_data)
+        findings_unbounded = detect_overlapping_ranges(df_unbounded)
+        
+        if 0 in findings_unbounded and 1 in findings_unbounded:
+            # Check for proper bounds suggestions in findings
+            suggestion_0 = findings_unbounded[0][0]['suggestion'] if findings_unbounded[0] else ""
+            suggestion_1 = findings_unbounded[1][0]['suggestion'] if findings_unbounded[1] else ""
+            
+            if 'PROPER BOUNDS' in suggestion_0 or 'PROPER BOUNDS' in suggestion_1:
+                self.add_result("OVERLAP_UNBOUNDED_HANDLING", True, "Unbounded range handling with proper bounds advisements")
+            else:
+                self.add_result("OVERLAP_UNBOUNDED_HANDLING", False, f"Missing proper bounds advisements: '{suggestion_0}' / '{suggestion_1}'")
+        else:
+            self.add_result("OVERLAP_UNBOUNDED_HANDLING", False, f"Expected unbounded overlap findings but got: {list(findings_unbounded.keys())}")
+        
+        # Test 5: Edge cases - invalid entries should be skipped
+        overlap_edge_data = [
+            self.create_test_row_data(
+                "overlap_edge_1",
+                **{
+                    'rawPlatformData': {
+                        'vendor': '',  # Empty vendor - should be skipped
+                        'product': 'test',
+                        'versions': [{'version': '1.0.0', 'status': 'affected'}]
+                    }
+                }
+            ),
+            self.create_test_row_data(
+                "overlap_edge_2",
+                **{
+                    'rawPlatformData': {
+                        'vendor': 'valid',
+                        'product': 'product',
+                        'versions': [{'version': '1.0.0', 'status': 'affected'}]
+                    }
+                }
+            )
+        ]
+        
+        df_edge = pd.DataFrame(overlap_edge_data)
+        findings_edge = detect_overlapping_ranges(df_edge)
+        
+        # Entry 0 should be skipped (empty vendor), entry 1 should have no overlaps
+        entry_0_skipped = 0 not in findings_edge
+        entry_1_isolated = 1 not in findings_edge
+        
+        if entry_0_skipped and entry_1_isolated:
+            self.add_result("OVERLAP_EDGE_CASES", True, "Edge cases handled correctly - invalid entries skipped")
+        else:
+            self.add_result("OVERLAP_EDGE_CASES", False, f"Edge case handling failed: entry_0_skipped={entry_0_skipped}, entry_1_isolated={entry_1_isolated}")
     
     def run_all_tests(self):
         """Run all badge tests."""
@@ -1215,17 +1452,12 @@ class PlatformBadgesTestSuite:
         # Test comprehensive Source Data Concerns modal tabs
         self.test_source_data_concerns_comprehensive_tabs()
         
-        # Print results
-        print(f"\n📊 Test Results Summary:")
-        print(f"✅ Passed: {self.passed}")
-        print(f"❌ Failed: {self.failed}")
-        print(f"📈 Success Rate: {(self.passed / (self.passed + self.failed) * 100):.1f}%")
-        
+        # Only show failures for debugging
         if self.failed > 0:
-            print(f"\n❌ Failed Tests:")
-            for result in self.results:
-                if not result['passed']:
-                    print(f"  • {result['test']}: {result['message']}")
+            failures = [result for result in self.results if not result['passed']]
+            print(f"\nTest Failures ({len(failures)}):")
+            for result in failures:
+                print(f"  - {result['test']}: {result['message']}")
         
         return self.failed == 0
 
@@ -1234,12 +1466,11 @@ def main():
     test_suite = PlatformBadgesTestSuite()
     success = test_suite.run_all_tests()
     
-    if success:
-        print(f"\n🎉 All badge tests passed!")
-        sys.exit(0)
-    else:
-        print(f"\n💥 Some badge tests failed!")
-        sys.exit(1)
+    # STANDARD OUTPUT FORMAT - Required for unified test runner
+    total_tests = test_suite.passed + test_suite.failed
+    print(f"TEST_RESULTS: PASSED={test_suite.passed} TOTAL={total_tests} SUITE=\"Platform Badges\"")
+    
+    sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
     main()
