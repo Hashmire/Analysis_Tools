@@ -1543,8 +1543,8 @@ class UnifiedDashboardCollector:
             rate_limited: Whether this call hit rate limiting
         """
         try:
-            # Use the unified API recording method
-            self.record_api_call("dataset_api", success=not rate_limited)
+            # Use the unified API recording method with proper NVD CVE API identifier
+            self.record_api_call("NVD CVE API", success=not rate_limited)
             
             # Update dataset-specific tracking
             if self.current_phase:
@@ -1997,7 +1997,40 @@ def initialize_dashboard_collector(logs_directory: str) -> bool:
         output_file = os.path.join(logs_directory, "generateDatasetReport.json")
         collector.output_file_path = output_file
         
-        # Create initial file with unified data structure
+        # Check if existing data exists from dataset generation phase
+        if os.path.exists(output_file):
+            try:
+                with open(output_file, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+                
+                # Preserve dataset generation metrics while transitioning to analysis phase
+                if "api" in existing_data and existing_data["api"].get("nvd_cve_calls", 0) > 0:
+                    # Merge existing API statistics
+                    collector.data["api"]["nvd_cve_calls"] = existing_data["api"].get("nvd_cve_calls", 0)
+                    collector.data["api"]["total_calls"] = existing_data["api"].get("total_calls", 0)
+                    collector.data["api"]["successful_calls"] = existing_data["api"].get("successful_calls", 0)
+                    collector.data["api"]["failed_calls"] = existing_data["api"].get("failed_calls", 0)
+                    
+                    # Preserve call breakdown if it exists
+                    if "call_breakdown" in existing_data["api"]:
+                        collector.data["api"]["call_breakdown"].update(existing_data["api"]["call_breakdown"])
+                    
+                    if logger:
+                        logger.info(f"Preserved dataset generation metrics: {collector.data['api']['nvd_cve_calls']} NVD CVE calls", group="initialization")
+                
+                # Preserve collection phases from dataset generation
+                if "collection_phases" in existing_data:
+                    collector.collection_phases = existing_data["collection_phases"]
+                
+                # Update metadata to indicate transition to analysis phase
+                collector.data["metadata"]["workflow_phase"] = "analysis_processing"
+                collector.data["metadata"]["previous_phase"] = "dataset_generation"
+                
+            except (json.JSONDecodeError, KeyError) as e:
+                if logger:
+                    logger.warning(f"Could not parse existing dashboard data, starting fresh: {e}", group="initialization")
+        
+        # Save the potentially merged data
         result = collector.save_to_file(output_file)
         
         if logger:

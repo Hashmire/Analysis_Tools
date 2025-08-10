@@ -196,7 +196,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                         # Also record in unified dashboard tracking
                         try:
                             from src.analysis_tool.logging.dataset_contents_collector import record_api_call_unified
-                            record_api_call_unified("NVD CVE Dataset API", success=False)
+                            record_api_call_unified("NVD CVE API", success=False)
                         except ImportError:
                             pass
                     break
@@ -212,7 +212,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
             # Also record in unified dashboard tracking
             try:
                 from src.analysis_tool.logging.dataset_contents_collector import record_api_call_unified
-                record_api_call_unified("NVD CVE Dataset API", success=True)
+                record_api_call_unified("NVD CVE API", success=True)
             except ImportError:
                 pass
         
