@@ -1623,19 +1623,6 @@
             }
         }
 
-        function getSourceIcon(source) {
-            switch (source?.toLowerCase()) {
-                case 'api':
-                    return '🌐';
-                case 'cache':
-                    return '💾';
-                case 'both':
-                    return '♻️';
-                default:
-                    return '❓';
-            }
-        }
-
         function formatNumber(value, decimals = 0) {
             if (value === null || value === undefined) return 'N/A';
             return typeof value === 'number' ? value.toFixed(decimals) : value;
@@ -2658,7 +2645,6 @@
                                     <th style="padding: 12px; text-align: center; font-weight: 600;">Results</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 600;" >Query Count</th>
                                     <th style="padding: 12px; text-align: left; font-weight: 600;">CVE IDs</th>
-                                    <th style="padding: 12px; text-align: center; font-weight: 600;">Source</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -2677,8 +2663,6 @@
                         }
                     }
                     
-                    const source = query.source || '🌐 API';
-                    
                     html += `
                         <tr style="${rowClass}">
                             <td style="padding: 12px; font-weight: 600; color: #2c3e50;">#${index + 1}</td>
@@ -2686,7 +2670,6 @@
                             <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">${formatNumber(query.total_results || 0)}</td>
                             <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">${formatNumber(query.query_count || 0)}</td>
                             <td style="padding: 12px; font-size: 0.85em; max-width: 200px;">${cveLinksHtml}</td>
-                            <td style="padding: 12px; text-align: center;">${getSourceIcon(source)} ${source}</td>
                         </tr>
                     `;
                 });

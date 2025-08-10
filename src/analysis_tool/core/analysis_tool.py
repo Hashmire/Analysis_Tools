@@ -390,13 +390,17 @@ def process_cve(cve_id, nvd_api_key):
         
         # Record file generation in dashboard collector
         try:
-            from ..logging.dataset_contents_collector import record_output_file, get_current_cve_processing_time
+            from ..logging.dataset_contents_collector import record_output_file, get_current_cve_processing_time, update_cve_affected_entries_count
             
             # Get processing time for this CVE
             processing_time = get_current_cve_processing_time()
             
             # Count platform entries (dataframe rows)
             dataframe_rows = len(primaryDataframe) if 'primaryDataframe' in locals() else None
+            
+            # Update the final affected entries count for accurate dashboard reporting
+            if dataframe_rows is not None:
+                update_cve_affected_entries_count(cve_id, dataframe_rows)
             
             # Record the generated file with enhanced metadata
             record_output_file(

@@ -417,6 +417,24 @@ class UnifiedDashboardCollector:
             return (datetime.now() - self.current_cve_start_time).total_seconds()
         return None
 
+    def update_cve_affected_entries_count(self, cve_id: str, affected_entries_count: int):
+        """Update the final affected entries count for a CVE after all processing is complete"""
+        try:
+            # Update the temp tracking with the final accurate count
+            if cve_id in self._temp_cve_tracking:
+                self._temp_cve_tracking[cve_id]["affected_entries"] = affected_entries_count
+                
+                if logger:
+                    logger.debug(f"Updated final affected entries count for {cve_id}: {affected_entries_count}", group="data_processing")
+                
+                # Regenerate top lists with updated data
+                self._update_cpe_top_lists_from_temp()
+                self._auto_save()
+                
+        except Exception as e:
+            if logger:
+                logger.error(f"Failed to update affected entries count for {cve_id}: {e}", group="data_processing")
+
     # ========================================================================
     # STREAMLINED EVENT ATTRIBUTION - Direct at Source
     # ========================================================================
@@ -770,8 +788,7 @@ class UnifiedDashboardCollector:
                     "query_count": details["count"],
                     "cve_ids": display_cves,  # Raw CVE list for any non-HTML usage
                     "cve_display": cve_display,  # HTML-formatted CVE links for dashboard
-                    "total_cve_count": len(cve_list),  # Total number of associated CVEs
-                    "source": "API"  # NVD CPE API queries
+                    "total_cve_count": len(cve_list)  # Total number of associated CVEs
                 })
             
             # Sort by total results descending and keep top 20
@@ -1914,6 +1931,11 @@ def start_cve_processing(cve_id: str):
     """Start processing a specific CVE"""
     collector = get_dataset_contents_collector()
     collector.start_cve_processing(cve_id)
+
+def update_cve_affected_entries_count(cve_id: str, affected_entries_count: int):
+    """Update the final affected entries count for a CVE after all processing is complete"""
+    collector = get_dataset_contents_collector()
+    collector.update_cve_affected_entries_count(cve_id, affected_entries_count)
 
 def finish_cve_processing(cve_id: str):
     """Complete processing for a CVE"""
