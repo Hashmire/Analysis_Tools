@@ -232,7 +232,8 @@ class UnifiedDashboardCollector:
                 "largest_file_name": "",
                 "smallest_file_name": "",
                 "total_file_size": 0,
-                "average_file_size": 0.0,
+                "median_file_size": 0.0,
+                "file_sizes": [],  # Store individual file sizes for median calculation
                 "detailed_files": []
             },
             "speed_stats": {
@@ -1698,10 +1699,14 @@ class UnifiedDashboardCollector:
                 self.data["file_stats"]["smallest_file_size"] = file_size
                 self.data["file_stats"]["smallest_file_name"] = filename
             
-            # Calculate average
+            # Store file size for median calculation
+            self.data["file_stats"]["file_sizes"].append(file_size)
+            
+            # Calculate median file size
             files_count = self.data["file_stats"]["files_generated"]
             if files_count > 0:
-                self.data["file_stats"]["average_file_size"] = self.data["file_stats"]["total_file_size"] / files_count
+                import statistics
+                self.data["file_stats"]["median_file_size"] = statistics.median(self.data["file_stats"]["file_sizes"])
             
             # Update consolidated metadata for backward compatibility
             self.consolidated_metadata['unique_cves_count'] = cve_count

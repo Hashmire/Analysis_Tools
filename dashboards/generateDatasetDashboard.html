@@ -1684,7 +1684,7 @@
                 // File Generation Summary Section
                 'Total Files Generated ⓘ': 'Total number of HTML files generated during the dataset creation process',
                 'Total File Size ⓘ': 'Combined size of all generated HTML files',
-                'Average File Size ⓘ': 'Average size per generated HTML file',
+                'Median File Size ⓘ': 'Median size per generated HTML file (less affected by outliers)',
                 
                 // Log Analysis Section
                 'Total Log Lines ⓘ': 'Total number of lines written to the log file during processing',
@@ -2705,8 +2705,8 @@
                             <div class="detail-value success-rate">${formatFileSize(file_stats.total_file_size || 0)}</div>
                         </div>
                         <div class="detail-item">
-                            <div class="detail-label">Average File Size ⓘ</div>
-                            <div class="detail-value failed-calls">${formatFileSize(file_stats.average_file_size || 0)}</div>
+                            <div class="detail-label">Median File Size ⓘ</div>
+                            <div class="detail-value failed-calls">${formatFileSize(file_stats.median_file_size || file_stats.average_file_size || 0)}</div>
                         </div>
                     </div>
                     

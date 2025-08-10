@@ -352,10 +352,16 @@ class WorkflowLogger:
                         collector.data["file_stats"]["smallest_file_size"] = file_size
                         collector.data["file_stats"]["smallest_file_name"] = os.path.basename(filepath)
                     
-                    # Calculate average
+                    # Store file size for median calculation
+                    if "file_sizes" not in collector.data["file_stats"]:
+                        collector.data["file_stats"]["file_sizes"] = []
+                    collector.data["file_stats"]["file_sizes"].append(file_size)
+                    
+                    # Calculate median file size
                     files_count = collector.data["file_stats"]["files_generated"]
                     if files_count > 0:
-                        collector.data["file_stats"]["average_file_size"] = collector.data["file_stats"]["total_file_size"] / files_count
+                        import statistics
+                        collector.data["file_stats"]["median_file_size"] = statistics.median(collector.data["file_stats"]["file_sizes"])
                 
                 collector._auto_save()
                 
