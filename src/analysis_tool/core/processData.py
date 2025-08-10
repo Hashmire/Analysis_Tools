@@ -1272,7 +1272,10 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                         collector = get_dataset_contents_collector()
                         current_cve = collector.data.get("processing", {}).get("current_cve")
                         
-                        record_cpe_query(query_string, result_count, current_cve)
+                        # Get platform entry count for this CVE (number of dataframe rows)
+                        platform_entry_count = len(rawDataSet)
+                        
+                        record_cpe_query(query_string, result_count, current_cve, platform_entry_count)
                     except Exception as e:
                         logger.debug(f"Failed to record CPE query analytics: {e}", group="cpe_queries")
                     

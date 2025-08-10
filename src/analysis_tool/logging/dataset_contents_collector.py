@@ -664,7 +664,7 @@ class UnifiedDashboardCollector:
         except Exception as e:
             logger.error(f"Failed to record mapping activity: {e}", group="data_processing")
 
-    def record_cpe_query(self, base_string: str, result_count: int, cve_id: str = None):
+    def record_cpe_query(self, base_string: str, result_count: int, cve_id: str = None, platform_entry_count: int = None):
         """
         Record CPE query details for analytics - stores only essential data for top lists
         
@@ -672,6 +672,7 @@ class UnifiedDashboardCollector:
             base_string (str): The CPE base string that was queried
             result_count (int): Number of results returned by the query
             cve_id (str): Associated CVE ID (optional)
+            platform_entry_count (int): Number of platform entries for this CVE (optional)
         """
         try:
             # Update basic stats
@@ -712,9 +713,17 @@ class UnifiedDashboardCollector:
             # Track CVE search counts efficiently
             if cve_id:
                 if cve_id not in self._temp_cve_tracking:
-                    self._temp_cve_tracking[cve_id] = {"search_count": 0, "total_results": 0}
+                    self._temp_cve_tracking[cve_id] = {
+                        "search_count": 0, 
+                        "total_results": 0,
+                        "affected_entries": 0
+                    }
                 self._temp_cve_tracking[cve_id]["search_count"] += 1
                 self._temp_cve_tracking[cve_id]["total_results"] += result_count
+                
+                # Track platform entries (affected entries) - only set once per CVE
+                if platform_entry_count is not None and self._temp_cve_tracking[cve_id]["affected_entries"] == 0:
+                    self._temp_cve_tracking[cve_id]["affected_entries"] = platform_entry_count
             
             # Update averages
             total_queries = self.data["cpe_query_stats"]["total_queries"]
@@ -776,7 +785,8 @@ class UnifiedDashboardCollector:
                     top_cves_by_searches.append({
                         "cve_id": cve_id,
                         "search_count": data["search_count"],
-                        "total_results": data["total_results"]
+                        "total_results": data["total_results"],
+                        "affected_entries": data.get("affected_entries", 0)
                     })
                 
                 # Sort by search count descending and keep top 20
@@ -1942,17 +1952,18 @@ def record_mapping_activity(mappings_found: int, platform_entries: int):
     collector = get_dataset_contents_collector()
     collector.record_mapping_activity(mappings_found, platform_entries)
 
-def record_cpe_query(base_string: str, result_count: int, cve_id: str = None):
+def record_cpe_query(base_string: str, result_count: int, cve_id: str = None, platform_entry_count: int = None):
     """
     Record CPE query details for analytics
     
     Args:
         base_string (str): The CPE base string that was queried
         result_count (int): Number of results returned by the query
-        cve_id (str): Associated CVE ID (optional)
+        cve_id (str): Associated CVE ID (optional)  
+        platform_entry_count (int): Number of platform entries for this CVE (optional)
     """
     collector = get_dataset_contents_collector()
-    collector.record_cpe_query(base_string, result_count, cve_id)
+    collector.record_cpe_query(base_string, result_count, cve_id, platform_entry_count)
 
 def finalize_cpe_stats():
     """Finalize CPE statistics at the end of processing"""
