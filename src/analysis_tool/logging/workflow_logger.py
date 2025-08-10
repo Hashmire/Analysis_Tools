@@ -49,6 +49,7 @@ class WorkflowLogger:
         
         # File logging setup
         self.log_file = None
+        self.current_log_path = None  # Track current log file path
         self.log_directory = self._get_logs_directory()
         # Color mapping for console output (if terminal supports colors)
         self.colors = {
@@ -197,6 +198,50 @@ class WorkflowLogger:
     def debug(self, message: str, group: str = "initialization"):
         """Log a debug message"""
         self.log(LogLevel.DEBUG, group, message)
+        
+        # Track cache activity and CPE query statistics
+        try:
+            from .dataset_contents_collector import get_dataset_contents_collector
+            collector = get_dataset_contents_collector()
+            
+            # Track cache hits with result count
+            if "Cache hit for CPE:" in message and "results)" in message:
+                import re
+                match = re.search(r'\((\d+) results\)', message)
+                if match:
+                    result_count = int(match.group(1))
+                    
+                    # Update CPE query statistics for cache hits
+                    collector.data["cpe_query_stats"]["total_queries"] += 1
+                    collector.data["cpe_query_stats"]["total_results"] += result_count
+                    
+                    # Update averages
+                    total_queries = collector.data["cpe_query_stats"]["total_queries"]
+                    total_results = collector.data["cpe_query_stats"]["total_results"]
+                    if total_queries > 0:
+                        collector.data["cpe_query_stats"]["avg_results_per_query"] = total_results / total_queries
+                        
+                    # Update max results
+                    if result_count > collector.data["cpe_query_stats"]["max_results_single_query"]:
+                        collector.data["cpe_query_stats"]["max_results_single_query"] = result_count
+                    
+                    # Record cache activity
+                    collector.record_cache_activity('hit')
+                    collector._auto_save()
+                    
+            # Track cache misses
+            elif "Cache miss for CPE:" in message and "Making API call" in message:
+                collector.record_cache_activity('miss')
+                collector._auto_save()
+                
+            # Track cache expired entries  
+            elif "Cache expired for CPE:" in message and "Making API call" in message:
+                collector.record_cache_activity('expired')
+                collector._auto_save()
+                
+        except Exception as e:
+            # Don't break logging if dashboard collector fails
+            pass
     
     def info(self, message: str, group: str = "initialization"):
         """Log an info message"""
@@ -230,11 +275,47 @@ class WorkflowLogger:
         """Log an API call"""
         params_str = f" with params: {params}" if params else ""
         self.info(f"API Call: {endpoint}{params_str}", group=group)
+        
+        # Also record in dashboard collector for real-time statistics
+        try:
+            from .dataset_contents_collector import record_api_call_unified
+            record_api_call_unified(endpoint, success=True)
+        except Exception as e:
+            # Don't break logging if dashboard collector fails
+            pass
     
     def api_response(self, endpoint: str, status: str, count: int = None, group: str = "cve_queries"):
         """Log an API response"""
         count_str = f" ({count} results)" if count is not None else ""
         self.info(f"API Response: {endpoint} - {status}{count_str}", group=group)
+        
+        # Update dashboard collector with response details
+        try:
+            from .dataset_contents_collector import get_dataset_contents_collector
+            collector = get_dataset_contents_collector()
+            
+            # Record CPE query statistics if this is a CPE API response
+            if "CPE API" in endpoint and count is not None:
+                if "total_queries" not in collector.data["cpe_query_stats"]:
+                    collector.data["cpe_query_stats"]["total_queries"] = 0
+                collector.data["cpe_query_stats"]["total_queries"] += 1
+                collector.data["cpe_query_stats"]["total_results"] += count
+                
+                # Update averages
+                total_queries = collector.data["cpe_query_stats"]["total_queries"]
+                total_results = collector.data["cpe_query_stats"]["total_results"]
+                if total_queries > 0:
+                    collector.data["cpe_query_stats"]["avg_results_per_query"] = total_results / total_queries
+                    
+                # Update max results
+                if count > collector.data["cpe_query_stats"]["max_results_single_query"]:
+                    collector.data["cpe_query_stats"]["max_results_single_query"] = count
+                
+                collector._auto_save()
+                
+        except Exception as e:
+            # Don't break logging if dashboard collector fails
+            pass
     
     def data_summary(self, operation: str, group: str = "data_processing", **kwargs):
         """Log a data operation summary"""
@@ -245,6 +326,42 @@ class WorkflowLogger:
         """Log a file operation"""
         extra = f" - {details}" if details else ""
         self.info(f"File {operation}: {filepath}{extra}", group=group)
+        
+        # Update dashboard collector if this is a file generation
+        if operation.lower() in ['generated', 'created', 'saved'] and filepath.endswith('.html'):
+            try:
+                from .dataset_contents_collector import get_dataset_contents_collector
+                collector = get_dataset_contents_collector()
+                
+                # Update file generation count
+                collector.data["processing"]["files_generated"] += 1
+                collector.data["file_stats"]["files_generated"] += 1
+                
+                # Update file size info if file exists
+                if os.path.exists(filepath):
+                    file_size = os.path.getsize(filepath)
+                    collector.data["file_stats"]["total_file_size"] += file_size
+                    
+                    # Update size tracking
+                    if file_size > collector.data["file_stats"]["largest_file_size"]:
+                        collector.data["file_stats"]["largest_file_size"] = file_size
+                        collector.data["file_stats"]["largest_file_name"] = os.path.basename(filepath)
+                    
+                    if (collector.data["file_stats"]["smallest_file_size"] is None or 
+                        file_size < collector.data["file_stats"]["smallest_file_size"]):
+                        collector.data["file_stats"]["smallest_file_size"] = file_size
+                        collector.data["file_stats"]["smallest_file_name"] = os.path.basename(filepath)
+                    
+                    # Calculate average
+                    files_count = collector.data["file_stats"]["files_generated"]
+                    if files_count > 0:
+                        collector.data["file_stats"]["average_file_size"] = collector.data["file_stats"]["total_file_size"] / files_count
+                
+                collector._auto_save()
+                
+            except Exception as e:
+                # Don't break logging if dashboard collector fails
+                pass
     
     def _print_message(self, message: str):
         """Print a message, using tqdm.write if available to avoid progress bar interference"""
@@ -309,6 +426,9 @@ class WorkflowLogger:
             filename = f"{date_str}_{clean_params}.log"
             log_path = os.path.join(self.log_directory, filename)
             
+            # Store current log path for access by other components
+            self.current_log_path = log_path
+            
             # Open log file for writing
             self.log_file = open(log_path, 'w', encoding='utf-8')
             
@@ -336,6 +456,7 @@ class WorkflowLogger:
                 self.log_file.write(f"# End of log\n")
                 self.log_file.close()
                 self.log_file = None
+                self.current_log_path = None  # Clear log path when stopped
             except Exception as e:
                 print(f"Warning: Failed to close log file properly: {e}")
 

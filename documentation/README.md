@@ -40,7 +40,8 @@ runs/[timestamp]_[context]/
 - **Entry Points**: `run_tools.py` (CVE analysis), `generate_dataset.py` (dataset generation)
 - **Core Engine**: `src/analysis_tool/core/analysis_tool.py`
 - **Run Management**: `src/analysis_tool/storage/run_organization.py`
-- **Dashboard**: `src/analysis_tool/local_dashboard/`
+- **Dashboard**: `dashboards/` (real-time monitoring system)
+- **Dashboard Data Collection**: `src/analysis_tool/logging/dataset_contents_collector.py`
 - **Shared Cache**: `cache/` directory for CPE API responses
 
 ### Testing

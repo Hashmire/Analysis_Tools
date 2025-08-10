@@ -21,6 +21,7 @@ from ..logging.workflow_logger import (
     get_logger, LogGroup,
     end_unique_cpe_generation, start_cpe_queries, end_cpe_queries
 )
+from ..logging.dataset_contents_collector import record_cpe_query, get_dataset_contents_collector
 
 # Get logger instance
 logger = get_logger()
@@ -1258,6 +1259,17 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                         "matches_found": json_response['totalResults'],
                         "is_truncated": json_response["resultsPerPage"] < json_response["totalResults"],
                     }
+                    
+                    # Track CPE query for dashboard analytics
+                    try:
+                        result_count = json_response['totalResults']
+                        # Get current CVE ID from dashboard collector
+                        collector = get_dataset_contents_collector()
+                        current_cve = collector.data.get("processing", {}).get("current_cve")
+                        
+                        record_cpe_query(query_string, result_count, current_cve)
+                    except Exception as e:
+                        logger.debug(f"Failed to record CPE query analytics: {e}", group="cpe_queries")
                     
                     if "products" in json_response:
                         # Find which rows care about this query string

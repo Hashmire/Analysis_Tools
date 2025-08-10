@@ -387,7 +387,58 @@ File logging is controlled by the workflow logger and doesn't require additional
 - Written with UTF-8 encoding
 - Cleaned up on exit (file handles closed properly)
 
-## 📏 Implementation Guidelines for Developers
+## � Real-time Dashboard Integration
+
+The logging system integrates with a real-time dashboard monitoring system that provides live visualization of dataset generation progress and log analysis.
+
+### Dashboard Data Collection
+
+**Dataset Contents Collector** (`dataset_contents_collector.py`):
+
+- Monitors log files in real-time during dataset generation
+- Aggregates warnings and errors by processing stage
+- Calculates progress metrics and ETA estimates
+- Updates dashboard data every 5 seconds using atomic file operations
+
+### Warning and Error Attribution
+
+The dashboard system automatically attributes warnings and errors to specific processing stages:
+
+- **API Operations**: Network timeouts, rate limiting, API errors
+- **Data Processing**: Parsing failures, validation errors, format issues
+- **File Operations**: I/O errors, permission issues, disk space problems
+- **Analysis Pipeline**: Rule processing, mapping failures, output generation
+
+### Live Monitoring Features
+
+**Progress Tracking**:
+
+- Real-time progress updates with accurate completion percentages
+- ETA calculations based on current processing rates
+- Processing speed metrics and performance monitoring
+
+**Error Analysis**:
+
+- Live error and warning counts by category
+- Recent error history with timestamps
+- Processing stage attribution for troubleshooting
+
+**System Status**:
+
+- Current file being processed
+- API usage statistics and rate limiting status
+- Resource utilization and performance metrics
+
+### Dashboard Access
+
+During dataset generation:
+
+1. Open `dashboards/generateDatasetDashboard.html` in a web browser
+2. Dashboard automatically refreshes every 5 seconds
+3. Use refresh button to manually update or switch between different run files
+4. All data persists until the next dataset generation run begins
+
+## �📏 Implementation Guidelines for Developers
 
 ### When Adding New Logging
 

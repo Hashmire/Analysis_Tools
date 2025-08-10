@@ -1,0 +1,3077 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Tools Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(45deg, #2c3e50, #34495e);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .file-selector {
+            background: #3498db;
+            color: white;
+            padding: 25px;
+            text-align: center;
+            transition: all 0.4s ease;
+        }
+
+        .file-selector.collapsed {
+            padding: 15px 25px;
+            background: #2980b9;
+        }
+
+        .file-input-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+            transition: all 0.4s ease;
+        }
+
+        .file-input-container.collapsed {
+            flex-direction: row;
+            justify-content: space-between;
+            max-width: 100%;
+            gap: 15px;
+        }
+
+        .collapsed-info {
+            display: none;
+            flex: 1;
+            text-align: left;
+        }
+
+        .collapsed-info.show {
+            display: block;
+        }
+
+        .collapsed-filename {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .collapsed-details {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .collapsed-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .expand-button {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            display: none;
+        }
+
+        .expand-button.show {
+            display: block;
+        }
+
+        .expand-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .refresh-button {
+            background: rgba(52, 152, 219, 0.8);
+            border: 1px solid rgba(52, 152, 219, 0.9);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            display: none;
+        }
+
+        .refresh-button.show {
+            display: block;
+        }
+
+        .refresh-button:hover {
+            background: rgba(52, 152, 219, 1);
+            border-color: rgba(52, 152, 219, 1);
+            transform: translateY(-1px);
+        }
+
+        .refresh-button:active {
+            transform: translateY(0);
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px dashed rgba(255, 255, 255, 0.5);
+            border-radius: 10px;
+            padding: 30px 40px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 400px;
+        }
+
+        .file-input-wrapper.collapsed {
+            display: none;
+        }
+
+        .file-input-wrapper:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.8);
+        }
+
+        .file-input {
+            position: absolute;
+            left: -9999px;
+            opacity: 0;
+        }
+
+        .file-input-label {
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .file-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        .file-input-text {
+            font-size: 1.2em;
+            font-weight: 600;
+        }
+
+        .file-input-hint {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .load-button {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.2em;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .load-button.collapsed {
+            display: none;
+        }
+
+        .load-button:hover {
+            background: #219a52;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .load-button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status-message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .status-success {
+            background: rgba(39, 174, 96, 0.2);
+            color: #27ae60;
+            border: 1px solid rgba(39, 174, 96, 0.5);
+        }
+
+        .status-error {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+            border: 1px solid rgba(231, 76, 60, 0.5);
+        }
+
+        .dashboard-content {
+            display: none;
+            padding: 30px;
+        }
+
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #27ae60;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            margin: 30px 0;
+        }
+
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            border-left: 5px solid;
+            position: relative;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .metric-card.clickable {
+            cursor: pointer;
+        }
+
+        .metric-card.clickable:hover {
+            transform: translateY(-7px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .metric-card.clickable::after {
+            content: '👆 Click for details';
+            position: absolute;
+            bottom: 8px;
+            right: 12px;
+            font-size: 0.7em;
+            color: #3498db;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 2px 6px;
+            border-radius: 3px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .metric-card.clickable:hover::after {
+            opacity: 1;
+        }
+
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 2em;
+            opacity: 0.3;
+        }
+
+        .metric-card.processing { 
+            border-left-color: #3498db; 
+        }
+        .metric-card.processing::before { content: '📊'; }
+
+        .metric-card.performance { 
+            border-left-color: #2ecc71; 
+        }
+        .metric-card.performance::before { content: '⚡'; }
+
+        .metric-card.api { 
+            border-left-color: #27ae60; 
+        }
+        .metric-card.api::before { content: '🌐'; }
+
+        .metric-card.system { 
+            border-left-color: #1abc9c; 
+        }
+        .metric-card.system::before { content: '⏱️'; }
+
+        .metric-card.speed { 
+            border-left-color: #f39c12; 
+        }
+        .metric-card.speed::before { content: '⚡'; }
+
+        .metric-card.mappings { 
+            border-left-color: #8e44ad; 
+        }
+        .metric-card.mappings::before { content: '🔗'; }
+
+        .metric-card.cache { 
+            border-left-color: #9b59b6; 
+        }
+        .metric-card.cache::before { content: '💾'; }
+
+        .metric-card.files { 
+            border-left-color: #16a085; 
+        }
+        .metric-card.files::before { content: '📄'; }
+
+        .metric-card.cpe { 
+            border-left-color: #e67e22; 
+        }
+        .metric-card.cpe::before { content: '🔍'; }
+
+        .metric-card.warning { 
+            border-left-color: #e67e22; 
+        }
+        .metric-card.warning::before { content: '⚠️'; }
+
+        .metric-card.processing { 
+            border-left-color: #1abc9c; 
+        }
+        .metric-card.processing::before { content: '⚡'; }
+
+        .metric-card.performance { 
+            border-left-color: #27ae60; 
+        }
+        .metric-card.performance::before { content: '🌐'; }
+
+        .metric-card.mappings { 
+            border-left-color: #8e44ad; 
+        }
+        .metric-card.mappings::before { content: '🔗'; }
+
+        .metric-card.files { 
+            border-left-color: #16a085; 
+        }
+        .metric-card.files::before { content: '📄'; }
+
+        .metric-card.speed { 
+            border-left-color: #f39c12; 
+        }
+        .metric-card.speed::before { content: '🏃'; }
+
+        .metric-card.cache { 
+            border-left-color: #9b59b6; 
+        }
+        .metric-card.cache::before { content: '💾'; }
+
+        .metric-card.cpe { 
+            border-left-color: #e67e22; 
+        }
+        .metric-card.cpe::before { content: '🔍'; }
+
+        .metric-card.warning { 
+            border-left-color: #e74c3c; 
+        }
+        .metric-card.warning::before { content: '⚠️'; }
+
+        .metric-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .metric-value {
+            font-size: 2.2em;
+            font-weight: 700;
+            color: #34495e;
+            margin-bottom: 5px;
+        }
+
+        .metric-subtitle {
+            font-size: 0.9em;
+            color: #7f8c8d;
+            line-height: 1.4;
+        }
+
+        .progress-section {
+            background: white;
+            margin: 15px 30px;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .progress-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .progress-percentage {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #27ae60;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #ecf0f1;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #27ae60, #2ecc71);
+            border-radius: 10px;
+            position: relative;
+            transition: width 0.3s ease;
+        }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 10px,
+                rgba(255, 255, 255, 0.1) 10px,
+                rgba(255, 255, 255, 0.1) 20px
+            );
+            animation: float 2s linear infinite;
+        }
+
+        @keyframes float {
+            0% { background-position: 0 0; }
+            100% { background-position: 50px 50px; }
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .detail-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .detail-section h3 {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .detail-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            position: relative;
+            cursor: help;
+        }
+
+        .detail-item[title]:hover {
+            border-color: #3498db;
+            background: #f8f9fa;
+            transform: translateY(-1px);
+            transition: all 0.2s ease;
+        }
+
+        .detail-item[title]::after {
+            content: attr(title);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            line-height: 1.3;
+            white-space: normal;
+            width: 250px;
+            text-align: left;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+            pointer-events: none;
+            z-index: 1000;
+            margin-bottom: 5px;
+        }
+
+        .detail-item[title]:hover::after {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .detail-item[title]::before {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: rgba(0, 0, 0, 0.9);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+            z-index: 1001;
+        }
+
+        .detail-item[title]:hover::before {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .detail-label {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+
+        .detail-value {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .footer {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 0.9em;
+        }
+
+        .loading {
+            display: none;
+            color: #3498db;
+            font-style: italic;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 10px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .metrics-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .file-input-wrapper {
+                min-width: 300px;
+                padding: 20px 30px;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .detail-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Enhanced tooltip system for ⓘ symbols */
+        .detail-label ⓘ {
+            cursor: help;
+            margin-left: 4px;
+            color: #3498db;
+            opacity: 0.8;
+            transition: opacity 0.2s ease;
+        }
+
+        .detail-label ⓘ:hover {
+            opacity: 1;
+        }
+
+        /* Tooltip positioning container */
+        .detail-item {
+            position: relative;
+        }
+
+        /* Tooltip styles */
+        .detail-item[data-tooltip]:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            white-space: normal;
+            max-width: 300px;
+            width: max-content;
+            z-index: 1000;
+            margin-bottom: 5px;
+            line-height: 1.4;
+        }
+
+        .detail-item[data-tooltip]:hover::before {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+        }
+
+        .detail-item {
+            position: relative;
+        }
+
+        /* Tooltip content - hidden by default */
+        .detail-item[data-tooltip]:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(44, 62, 80, 0.95);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.4;
+            white-space: nowrap;
+            max-width: 300px;
+            white-space: normal;
+            word-wrap: break-word;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Tooltip arrow */
+        .detail-item[data-tooltip]:hover::before {
+            content: '';
+            position: absolute;
+            bottom: calc(100% - 6px);
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: rgba(44, 62, 80, 0.95);
+            z-index: 1001;
+        }
+
+        /* Alternative positioning for tooltips that would overflow */
+        .detail-item[data-tooltip].tooltip-bottom:hover::after {
+            bottom: auto;
+            top: 100%;
+            margin-top: 6px;
+        }
+
+        .detail-item[data-tooltip].tooltip-bottom:hover::before {
+            bottom: auto;
+            top: calc(100% - 6px);
+            border-top-color: transparent;
+            border-bottom-color: rgba(44, 62, 80, 0.95);
+        }
+
+        /* Organized Layout Styles */
+        .section-group {
+            margin: 30px 0;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .section-group-title {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin: 0 0 20px 0;
+            padding: 0 0 10px 0;
+            border-bottom: 2px solid #3498db;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin-bottom: 20px;
+        }
+
+        .section-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .detail-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .detail-section:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .detail-section h3 {
+            margin: 0 0 15px 0;
+            font-size: 1.1em;
+            color: #2c3e50;
+            font-weight: 600;
+            border-bottom: 1px solid #ecf0f1;
+            padding-bottom: 8px;
+        }
+
+        .api-summary {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .api-summary .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .api-summary .detail-item {
+            text-align: center;
+            padding: 8px;
+        }
+
+        .api-summary .detail-label {
+            color: #6c757d;
+            font-weight: 500;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .api-summary .detail-value {
+            font-weight: 700;
+            font-size: 1.6em;
+            display: block;
+        }
+
+        /* Specific color themes for API stats */
+        .api-summary .detail-value.total-calls {
+            color: #6c757d;
+        }
+
+        .api-summary .detail-value.success-rate {
+            color: #27ae60;
+        }
+
+        .api-summary .detail-value.failed-calls {
+            color: #e74c3c;
+        }
+
+        .api-service-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .api-service-content {
+            padding: 12px;
+            text-align: center;
+            background: white;
+            margin: 8px;
+            border-radius: 6px;
+        }
+
+        .api-service-content .icon {
+            font-size: 1.5em;
+            margin-bottom: 6px;
+        }
+
+        .api-service-content .service-name {
+            font-size: 0.95em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 4px;
+        }
+
+        .api-service-content .call-count {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 3px;
+            color: #3498db;
+        }
+
+        .api-service-content .description {
+            font-size: 0.8em;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+
+        .api-service-content .breakdown-stats {
+            font-size: 0.75em;
+            color: #666;
+            margin-top: 5px;
+            padding-top: 5px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .detail-grid {
+            background: white;
+            border-radius: 6px;
+        }
+
+        /* Responsive layout */
+        @media (max-width: 768px) {
+            .section-row {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .section-group {
+                margin: 20px 0;
+                padding: 15px;
+            }
+            
+            .section-group-title {
+                font-size: 1.2em;
+            }
+        }
+
+        /* CPE Section Specific Styles */
+        .cve-link {
+            color: #5a6c7d;
+            text-decoration: none;
+            font-weight: 600;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .cve-link:hover {
+            color: #3a4d5d;
+            text-decoration: underline;
+        }
+
+        .cpe-cell code {
+            background: #f5f5f5;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #2c3e50;
+            max-width: 300px;
+            display: inline-block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .rank-cell {
+            color: #7f8c8d;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .number-cell {
+            text-align: center;
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        .cve-list-cell {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85em;
+            color: #5a6c7d;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .status-cell {
+            text-align: center;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .source-cell {
+            text-align: center;
+        }
+
+        .source-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #e9ecef;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            color: #495057;
+            font-weight: 500;
+        }
+
+        /* Log Analysis Styles */
+        .log-analysis-container {
+            margin: 15px 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .log-category-tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            overflow-x: auto;
+        }
+
+        .log-category-tab {
+            padding: 12px 20px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            white-space: nowrap;
+            color: #6c757d;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+        }
+
+        .log-category-tab:hover {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .log-category-tab.active {
+            background: white;
+            color: #2c3e50;
+            border-bottom-color: #3498db;
+            font-weight: 600;
+        }
+
+        .log-category-content {
+            min-height: 200px;
+        }
+
+        .log-category-panel {
+            display: none;
+            padding: 20px;
+        }
+
+        .log-category-panel.active {
+            display: block;
+        }
+
+        .log-entry-item {
+            margin-bottom: 10px;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .log-entry-item:hover {
+            border-color: #3498db;
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.1);
+        }
+
+        .log-entry-header {
+            padding: 12px 16px;
+            background: #f8f9fa;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s ease;
+        }
+
+        .log-entry-header:hover {
+            background: #e9ecef;
+        }
+
+        .log-cve-context {
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+            color: #2c3e50;
+            background: #ecf0f1;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .log-count-badge {
+            background: #3498db;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+        }
+
+        .log-timestamp {
+            color: #6c757d;
+            font-size: 0.85em;
+            font-family: 'Courier New', monospace;
+        }
+
+        .expand-indicator {
+            color: #6c757d;
+            font-size: 0.8em;
+            transition: transform 0.2s ease;
+        }
+
+        .log-entry-item.expanded .expand-indicator {
+            transform: rotate(180deg);
+        }
+
+        .log-entry-details {
+            padding: 16px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+            display: none;
+        }
+
+        .log-entry-item.expanded .log-entry-details {
+            display: block;
+        }
+
+        /* Demo mode enhancements */
+        #demo-mode-indicator {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        /* Enhanced status messages */
+        .status-message {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-size: 0.95em;
+        }
+
+        .status-message .icon {
+            font-size: 1.4em;
+            margin-right: 12px;
+        }
+
+        .status-success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .status-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .log-entry-details {
+            display: none;
+            padding: 16px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .log-entry-details p {
+            margin: 0;
+            color: #495057;
+            line-height: 1.5;
+        }
+
+        .log-entry-details strong {
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 id="dashboard-title">Analysis Tools</h1>
+            <div id="dashboard-subtitle" style="font-size: 1.2em; margin-top: 5px; opacity: 0.9;">Generate Dataset Dashboard</div>
+            <p>Real-time monitoring and analytics for dataset generation</p>
+        </div>
+
+        <div class="file-selector" id="file-selector">
+            <div class="file-input-container" id="file-input-container">
+                <!-- Collapsed view (initially hidden) -->
+                <div class="collapsed-info" id="collapsed-info">
+                    <div class="collapsed-filename" id="collapsed-filename">No file loaded</div>
+                    <div class="collapsed-generation" id="collapsed-generation" style="font-size: 0.85em; opacity: 0.9; margin: 3px 0;"></div>
+                    <div class="collapsed-details" id="collapsed-details">Click "Change File" to select a different dashboard file</div>
+                </div>
+                <div class="collapsed-buttons">
+                    <button class="expand-button" id="expand-button" onclick="expandFileSelector()">Change File</button>
+                    <button class="refresh-button" id="refresh-button" onclick="refreshDashboard()" title="Refresh dashboard data (browsers may clear file selection for security - just re-select the same file)">🔄 Refresh</button>
+                </div>
+                
+                <!-- Full file selection view -->
+                <div class="file-input-wrapper" id="file-input-wrapper">
+                    <input type="file" id="file-input" class="file-input" accept=".json" onchange="handleFileSelect(event)">
+                    <label for="file-input" class="file-input-label">
+                        <div class="file-icon">📊</div>
+                        <div class="file-input-text">Select Dashboard JSON File</div>
+                        <div class="file-input-hint">Click to browse for generateDatasetReport.json</div>
+                    </label>
+                </div>
+                <div style="color: rgba(255, 255, 255, 0.8); font-size: 0.9em;" id="file-status">
+                    Selected: <span id="file-name">No file selected</span>
+                </div>
+                <button id="load-button" class="load-button" onclick="loadFile()" disabled>
+                    Load Dashboard
+                </button>
+                <div id="status-message" class="status-message"></div>
+            </div>
+        </div>
+
+
+
+        <div class="dashboard-content">
+            <!-- Overall Progress -->
+            <div class="progress-section">
+                <div class="progress-header">
+                    <div class="progress-title">Overall Progress</div>
+                    <div class="progress-percentage" id="progress-percent">0%</div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                </div>
+                <div style="margin-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center;">
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #27ae60;" id="processed-cves">0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Processed</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #3498db;" id="remaining-cves">0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Remaining</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #2c3e50;" id="total-cves">0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Total CVEs</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #8e44ad;" id="eta-simple">--</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">ETA</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Key Metrics -->
+            <div class="metrics-grid">
+                <div class="metric-card system clickable" onclick="scrollToSection('runtime-details')">
+                    <div class="metric-title">Runtime</div>
+                    <div class="metric-value" id="wall-clock-time">0s</div>
+                    <div class="metric-subtitle">Total runtime<br>
+                        Delays/overhead: <strong id="overhead-time">--</strong></div>
+                </div>
+
+                <div class="metric-card api clickable" onclick="scrollToSection('api-details')">
+                    <div class="metric-title">API Calls</div>
+                    <div class="metric-value" id="api-calls">0</div>
+                    <div class="metric-subtitle">Total API requests made<br>
+                        Success rate: <strong id="api-success-rate">--</strong></div>
+                </div>
+
+                <div class="metric-card mappings clickable" onclick="scrollToSection('mapping-details')">
+                    <div class="metric-title">Confirmed Mappings</div>
+                    <div class="metric-value" id="mapping-percentage">0%</div>
+                    <div class="metric-subtitle">CVEs with mappings<br>
+                        <strong id="total-mappings">0</strong> mappings found</div>
+                </div>
+
+                <div class="metric-card files clickable" onclick="scrollToSection('file-details')">
+                    <div class="metric-title">Generated Files</div>
+                    <div class="metric-value" id="files-generated">0</div>
+                    <div class="metric-subtitle">HTML pages created<br>
+                        Total size: <strong id="total-file-size">--</strong></div>
+                </div>
+
+                <div class="metric-card speed clickable" onclick="scrollToSection('speed-details')">
+                    <div class="metric-title">Processing Speed</div>
+                    <div class="metric-value" id="processing-rate">0</div>
+                    <div class="metric-subtitle">CVEs per hour<br>
+                        Avg time: <strong id="avg-time-per-cve">0</strong>s</div>
+                </div>
+
+                <div class="metric-card cache clickable" onclick="scrollToSection('cache-details')">
+                    <div class="metric-title">Cache Performance</div>
+                    <div class="metric-value" id="cache-hit-rate">0%</div>
+                    <div class="metric-subtitle">Hit rate<br>
+                        <strong id="cache-entries">0</strong> total entries</div>
+                </div>
+
+                <div class="metric-card cpe clickable" onclick="scrollToSection('cpe-details')">
+                    <div class="metric-title">CPE Base String Queries</div>
+                    <div class="metric-value" id="cpe-queries">0</div>
+                    <div class="metric-subtitle">Total CPE queries made<br>
+                        Results: <strong id="cpe-results">0</strong></div>
+                </div>
+                
+                <div class="metric-card warning clickable" onclick="scrollToSection('log-details')" style="border-left-color: #e67e22;">
+                    <div class="metric-title">Resource Warnings</div>
+                    <div class="metric-value" style="color: #e67e22;" id="warning-count">0</div>
+                    <div class="metric-subtitle">System warnings detected<br>
+                        Errors: <strong id="error-count">0</strong></div>
+                </div>
+            </div>
+
+            <!-- Detailed Sections -->
+            <div id="runtime-details" class="detail-section">
+                <h3>⏱️ Runtime Analysis</h3>
+                <div id="runtime-section"></div>
+            </div>
+
+            <div id="speed-details" class="detail-section">
+                <h3>🏃 Speed Statistics</h3>
+                <div id="speed-section"></div>
+            </div>
+
+            <div id="api-details" class="detail-section">
+                <h3>🌐 API Performance</h3>
+                <div id="api-section"></div>
+            </div>
+
+            <div id="cache-details" class="detail-section">
+                <h3>💾 Cache Analysis</h3>
+                <div id="cache-section"></div>
+            </div>
+
+            <div id="mapping-details" class="detail-section">
+                <h3>🔗 Mapping Statistics</h3>
+                <div id="mapping-section"></div>
+            </div>
+
+            <div id="cpe-details" class="detail-section">
+                <h3>🔍 CPE Query Analysis</h3>
+                <div id="cpe-section"></div>
+            </div>
+
+            <div id="file-details" class="detail-section">
+                <h3>📁 File Generation Analysis</h3>
+                <div id="file-section"></div>
+            </div>
+
+            <div id="log-details" class="detail-section">
+                <h3>📋 Log Analysis</h3>
+                <div id="log-section"></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Analysis Tools Dashboard | Load a generateDatasetReport.json file to view analytics</p>
+        </div>
+    </div>
+
+    <script>
+        let dashboardData = null;
+        let configData = null;
+
+        // Load configuration from injected metadata and update page titles
+        function updatePageTitles(data) {
+            try {
+                const metadata = data.metadata || {};
+                const toolname = metadata.toolname || 'Analysis Tools';
+                const version = metadata.version || '';
+                
+                // Update page title
+                const pageTitle = version ? `${toolname} v${version} - Generate Dataset Dashboard` : `${toolname} - Generate Dataset Dashboard`;
+                document.title = pageTitle;
+                
+                // Update header title (toolname with v prefix for version)
+                const headerTitle = version ? `${toolname} v${version}` : toolname;
+                document.getElementById('dashboard-title').textContent = headerTitle;
+                
+                console.log('Config loaded from metadata:', { toolname, version, headerTitle });
+                
+            } catch (error) {
+                console.error('Could not load config from metadata:', error);
+                // Fallback values
+                const toolname = 'Analysis Tools';
+                const version = 'Unknown';
+                const headerTitle = `${toolname} v${version}`;
+                const pageTitle = `${headerTitle} - Generate Dataset Dashboard`;
+                
+                document.title = pageTitle;
+                document.getElementById('dashboard-title').textContent = headerTitle;
+                
+                console.warn('Using fallback values:', { headerTitle });
+            }
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            const loadButton = document.getElementById('load-button');
+            const statusMessage = document.getElementById('status-message');
+            
+            if (file) {
+                document.getElementById('file-name').textContent = file.name;
+                loadButton.disabled = false;
+                hideStatus();
+            } else {
+                document.getElementById('file-name').textContent = 'No file selected';
+                loadButton.disabled = true;
+            }
+        }
+
+        function refreshDashboard() {
+            // Check if there's currently a file loaded
+            if (dashboardData && dashboardData.metadata && dashboardData.metadata.selected_file_name) {
+                const currentFileName = dashboardData.metadata.selected_file_name;
+                
+                showStatus(`Attempting to refresh ${currentFileName}...`, 'info');
+                
+                // Try to reload the current file
+                const fileInput = document.getElementById('file-input');
+                if (fileInput.files && fileInput.files[0] && fileInput.files[0].name === currentFileName) {
+                    // Current file is still selected, reload it directly
+                    console.log('File still selected, reloading directly...');
+                    loadFile();
+                    return;
+                }
+                
+                // File input was cleared (common browser behavior)
+                // Show user-friendly guidance
+                showStatus(`To refresh, please re-select the file "${currentFileName}" (browsers clear file selection for security)`, 'warning');
+                
+                // Provide helpful guidance
+                setTimeout(() => {
+                    showStatus(`Tip: Bookmark or keep the logs folder open to quickly find "${currentFileName}"`, 'info');
+                }, 2000);
+                
+                // Reset to file selection mode but keep dashboard visible
+                expandFileSelector();
+                
+                // Highlight the file input to draw attention
+                const fileInputWrapper = document.getElementById('file-input-wrapper');
+                if (fileInputWrapper) {
+                    fileInputWrapper.style.border = '2px solid #f39c12';
+                    fileInputWrapper.style.animation = 'pulse 2s infinite';
+                    
+                    // Remove highlight after a few seconds
+                    setTimeout(() => {
+                        fileInputWrapper.style.border = '';
+                        fileInputWrapper.style.animation = '';
+                    }, 5000);
+                }
+                
+                return;
+            } else {
+                // No file currently loaded, use original refresh behavior
+                showStatus('No dashboard data loaded. Please select a JSON file to begin.', 'warning');
+                
+                // Clear any cached dashboard data
+                dashboardData = null;
+                
+                // Clear the file input to force re-selection
+                const fileInput = document.getElementById('file-input');
+                fileInput.value = '';
+                
+                // Reset file selection state
+                document.getElementById('file-name').textContent = 'No file selected';
+                document.getElementById('load-button').disabled = true;
+                
+                // Hide dashboard content
+                document.querySelector('.dashboard-content').style.display = 'none';
+                
+                // Expand file selector
+                expandFileSelector();
+                
+                // Clear any status messages
+                hideStatus();
+                
+                // Show refresh status
+                showStatus('Dashboard refreshed - please select a file to load fresh data', 'info');
+                
+                // Scroll to file selector
+                setTimeout(() => {
+                    document.getElementById('file-selector').scrollIntoView({ 
+                        behavior: 'smooth' 
+                    });
+                }, 100);
+            }
+        }
+
+        function clearBrowserCache() {
+            // Force cache invalidation by adding timestamp to any future requests
+            const timestamp = new Date().getTime();
+            
+            // Clear localStorage if used
+            try {
+                localStorage.removeItem('dashboardCache');
+                localStorage.removeItem('lastLoadedFile');
+            } catch (e) {
+                // Ignore localStorage errors
+            }
+            
+            // Clear sessionStorage if used
+            try {
+                sessionStorage.clear();
+            } catch (e) {
+                // Ignore sessionStorage errors
+            }
+            
+            return timestamp;
+        }
+
+        function loadFile() {
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showStatus('Please select a file first.', 'error');
+                return;
+            }
+
+            if (!file.name.endsWith('.json')) {
+                showStatus('Please select a JSON file.', 'error');
+                return;
+            }
+
+            // Clear browser cache before loading
+            clearBrowserCache();
+            
+            showStatus('Loading dashboard data...', 'info');
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    // Force fresh parse by clearing any existing data first
+                    dashboardData = null;
+                    
+                    dashboardData = JSON.parse(e.target.result);
+                    
+                    // Calculate file size from selected file for dashboard display
+                    if (dashboardData.metadata) {
+                        dashboardData.metadata.selected_file_size = file.size;
+                        dashboardData.metadata.selected_file_name = file.name;
+                        dashboardData.metadata.load_timestamp = new Date().toISOString();
+                    }
+                    
+                    // Update page titles from injected config data
+                    updatePageTitles(dashboardData);
+                    
+                    populateDashboard(dashboardData);
+                    showStatus('Dashboard loaded successfully!', 'success');
+                    
+                    // Collapse the file selector and show dashboard content
+                    collapseFileSelector(file, dashboardData);
+                    
+                    // Show dashboard content
+                    document.querySelector('.dashboard-content').style.display = 'block';
+                    
+                    // Scroll to dashboard content
+                    setTimeout(() => {
+                        document.querySelector('.dashboard-content').scrollIntoView({ 
+                            behavior: 'smooth' 
+                        });
+                    }, 500); // Wait for collapse animation
+                } catch (error) {
+                    showStatus('Error parsing JSON file: ' + error.message, 'error');
+                    console.error('JSON parsing error:', error);
+                }
+            };
+
+            reader.onerror = function() {
+                showStatus('Error reading file. Please try again.', 'error');
+            };
+
+            reader.readAsText(file);
+        }
+
+        function collapseFileSelector(file, dashboardData) {
+            const fileSelector = document.getElementById('file-selector');
+            const fileInputContainer = document.getElementById('file-input-container');
+            const collapsedInfo = document.getElementById('collapsed-info');
+            const expandButton = document.getElementById('expand-button');
+            const fileInputWrapper = document.getElementById('file-input-wrapper');
+            const loadButton = document.getElementById('load-button');
+            const fileStatus = document.getElementById('file-status');
+            const statusMessage = document.getElementById('status-message');
+            
+            // Extract generation time from dashboard data if available
+            let generationText = '';
+            if (dashboardData && dashboardData.metadata && dashboardData.metadata.last_updated) {
+                try {
+                    const genDate = new Date(dashboardData.metadata.last_updated);
+                    const now = new Date();
+                    const diffMs = now - genDate;
+                    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+                    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                    
+                    let timeAgo;
+                    if (diffDays > 0) {
+                        timeAgo = `${diffDays}d ago`;
+                    } else if (diffHours > 0) {
+                        timeAgo = `${diffHours}h ago`;
+                    } else if (diffMinutes > 0) {
+                        timeAgo = `${diffMinutes}m ago`;
+                    } else {
+                        timeAgo = 'just now';
+                    }
+                    
+                    generationText = `Generated: ${genDate.toLocaleString()} (${timeAgo})`;
+                } catch (e) {
+                    console.error('Error formatting generation time:', e);
+                    generationText = 'Generated: [Invalid date format]';
+                }
+            }
+            
+            // Update collapsed info
+            document.getElementById('collapsed-filename').textContent = file.name;
+            document.getElementById('collapsed-generation').textContent = generationText;
+            document.getElementById('collapsed-details').textContent = `${formatFileSize(file.size)} • Loaded ${new Date().toLocaleTimeString()}`;
+            
+            // Apply collapsed classes
+            fileSelector.classList.add('collapsed');
+            fileInputContainer.classList.add('collapsed');
+            fileInputWrapper.classList.add('collapsed');
+            loadButton.classList.add('collapsed');
+            
+            // Show collapsed elements including both buttons
+            collapsedInfo.classList.add('show');
+            expandButton.classList.add('show');
+            document.getElementById('refresh-button').classList.add('show');
+            
+            // Hide expanded elements
+            fileStatus.style.display = 'none';
+            statusMessage.style.display = 'none';
+        }
+
+        function expandFileSelector() {
+            const fileSelector = document.getElementById('file-selector');
+            const fileInputContainer = document.getElementById('file-input-container');
+            const collapsedInfo = document.getElementById('collapsed-info');
+            const expandButton = document.getElementById('expand-button');
+            const fileInputWrapper = document.getElementById('file-input-wrapper');
+            const loadButton = document.getElementById('load-button');
+            const fileStatus = document.getElementById('file-status');
+            
+            // Remove collapsed classes
+            fileSelector.classList.remove('collapsed');
+            fileInputContainer.classList.remove('collapsed');
+            fileInputWrapper.classList.remove('collapsed');
+            loadButton.classList.remove('collapsed');
+            
+            // Hide collapsed elements including both buttons
+            collapsedInfo.classList.remove('show');
+            expandButton.classList.remove('show');
+            document.getElementById('refresh-button').classList.remove('show');
+            
+            // Show expanded elements
+            fileStatus.style.display = 'block';
+            
+            // Scroll to file selector
+            fileSelector.scrollIntoView({ 
+                behavior: 'smooth' 
+            });
+        }
+
+        function showStatus(message, type) {
+            const statusMessage = document.getElementById('status-message');
+            statusMessage.textContent = message;
+            statusMessage.className = 'status-message status-' + type;
+            statusMessage.style.display = 'block';
+        }
+
+        function hideStatus() {
+            document.getElementById('status-message').style.display = 'none';
+        }
+
+        function scrollToSection(sectionId) {
+            const element = document.getElementById(sectionId);
+            if (element) {
+                element.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+                
+                // Add a brief highlight effect
+                element.style.transition = 'background-color 0.5s ease';
+                element.style.backgroundColor = 'rgba(52, 152, 219, 0.1)';
+                setTimeout(() => {
+                    element.style.backgroundColor = '';
+                }, 1000);
+            }
+        }
+
+        function getSourceIcon(source) {
+            switch (source?.toLowerCase()) {
+                case 'api':
+                    return '🌐';
+                case 'cache':
+                    return '💾';
+                case 'both':
+                    return '♻️';
+                default:
+                    return '❓';
+            }
+        }
+
+        function formatNumber(value, decimals = 0) {
+            if (value === null || value === undefined) return 'N/A';
+            return typeof value === 'number' ? value.toFixed(decimals) : value;
+        }
+
+        function formatFileSize(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function formatTime(seconds) {
+            if (!seconds || seconds === 0) return '0s';
+            if (seconds < 60) return seconds.toFixed(1) + 's';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) {
+                const remainingSeconds = seconds % 60;
+                return `${minutes}m ${remainingSeconds.toFixed(0)}s`;
+            }
+            const hours = Math.floor(minutes / 60);
+            const remainingMinutes = minutes % 60;
+            return `${hours}h ${remainingMinutes}m`;
+        }
+
+        // Enhanced tooltip system for ⓘ symbols
+        function initializeTooltips() {
+            const tooltipDefinitions = {
+                // Runtime & Performance Section
+                'Full Runtime ⓘ': 'Total time from start to finish, including all delays, overhead, and active processing',
+                'Active Processing Time ⓘ': 'Time spent actively processing CVE data, excluding waiting for APIs, file I/O, and system overhead',
+                'Delays/Overhead Time ⓘ': 'Time spent on delays, waiting for API responses, file I/O operations, memory management, and system overhead',
+                
+                // Speed & Processing Section
+                'Processing Rate ⓘ': 'Rate of CVE processing measured in CVEs processed per hour',
+                'Average Time per CVE ⓘ': 'Average time spent processing each CVE record',
+                
+                // API Performance Section
+                'Total API Calls ⓘ': 'Total number of API calls made to all external services',
+                'Failed API Calls ⓘ': 'Number of API requests that failed due to errors or timeouts',
+                'API Success Rate ⓘ': 'Percentage of API requests that completed successfully without errors',
+                
+                // Cache Analysis Section
+                'Cache Hit Rate ⓘ': 'Percentage of API requests that were served from cache instead of making new external API calls',
+                'API Calls Saved ⓘ': 'Number of external API calls avoided by using cached data',
+                'Cache File Size ⓘ': 'Size of the local cache file on disk',
+                
+                // Confirmed Mapping Section
+                'Mapping Percentage ⓘ': 'Percentage of platform entries that have confirmed vulnerability mappings available',
+                'Total Mappings Found ⓘ': 'Total number of confirmed vulnerability mappings identified across all platform entries',
+                'Total Platform Entries ⓘ': 'Total number of platform entries processed for mapping analysis',
+                
+                // CPE Query Analysis Section
+                'Total CPE Queries ⓘ': 'Total number of CPE (Common Platform Enumeration) queries made to the NVD CPE API',
+                'Unique Base Strings ⓘ': 'Number of unique CPE base strings queried (same string may be queried multiple times)',
+                'Average Results per Query ⓘ': 'Average number of CPE entries returned per API query',
+
+                // File Generation Summary Section
+                'Total Files Generated ⓘ': 'Total number of HTML files generated during the dataset creation process',
+                'Total File Size ⓘ': 'Combined size of all generated HTML files',
+                'Average File Size ⓘ': 'Average size per generated HTML file',
+                
+                // Log Analysis Section
+                'Total Log Lines ⓘ': 'Total number of lines written to the log file during processing',
+                'Info Messages ⓘ': 'Number of informational log messages recorded',
+                'Debug Messages ⓘ': 'Number of debug-level log messages for troubleshooting',
+                'Warning Messages ⓘ': 'Number of warning messages indicating potential issues',
+                'Error Messages ⓘ': 'Number of error messages indicating processing failures',
+                'Log File Size ⓘ': 'Size of the log file on disk',
+                
+                // Error Summary Section
+                'Total Errors ⓘ': 'Total number of errors encountered during the processing run',
+                
+            };
+
+            // Apply tooltips to elements
+            document.querySelectorAll('.detail-label, .service-name').forEach(label => {
+                const text = label.textContent.trim();
+                if (tooltipDefinitions[text]) {
+                    const detailItem = label.closest('.detail-item') || label.closest('.api-service-item');
+                    if (detailItem) {
+                        detailItem.setAttribute('data-tooltip', tooltipDefinitions[text]);
+                    }
+                } else if (text.includes('ⓘ')) {
+                    console.warn(`[Tooltip System] Missing tooltip definition for: "${text}"`);
+                }
+            });
+            
+            // Log tooltip initialization summary
+            const totalTooltipElements = document.querySelectorAll('[data-tooltip]').length;
+            console.log(`[Tooltip System] Initialized ${totalTooltipElements} tooltips successfully`);
+        }
+
+        function populateDashboard(data) {
+            const processing = data.processing || {};
+            const performance = data.performance || {};
+            const cache = data.cache || {};
+            const api = data.api || {};
+            const mapping_stats = data.mapping_stats || {};
+            const file_stats = data.file_stats || {};
+            const cpe_query_stats = data.cpe_query_stats || {};
+            const log_stats = data.log_stats || {};
+            const deduplication_stats = data.deduplication_stats || {};
+            const speed_stats = data.speed_stats || {};
+            const bloat_analysis = data.bloat_analysis || {};
+
+            // Overall progress
+            const progressPercent = formatNumber(processing.progress_percentage || 100, 1) + '%';
+            document.getElementById('progress-percent').textContent = progressPercent;
+            document.getElementById('progress-fill').style.width = progressPercent;
+
+            // Progress stats
+            document.getElementById('processed-cves').textContent = processing.processed_cves || processing.total_cves || data.summary?.total_cves || 0;
+            document.getElementById('remaining-cves').textContent = processing.remaining_cves || 0;
+            document.getElementById('total-cves').textContent = processing.total_cves || data.summary?.total_cves || 0;
+            
+            // Handle ETA - use same logic as detailed section
+            const etaValue = processing.eta_simple || (processing.remaining_cves > 0 ? 'Calculating...' : 'Completed');
+            document.getElementById('eta-simple').textContent = etaValue;
+
+            // Metric cards - Updated to match legacy format
+            document.getElementById('wall-clock-time').textContent = formatTime(performance.wall_clock_time || performance.total_runtime || 0);
+            
+            // Calculate overhead time if we have both wall clock and active processing time
+            const wallClockTime = performance.wall_clock_time || performance.total_runtime || 0;
+            const activeTime = performance.active_processing_time || performance.total_time || 0;
+            const overheadTime = wallClockTime > activeTime ? wallClockTime - activeTime : 0;
+            document.getElementById('overhead-time').textContent = formatTime(overheadTime);
+            
+            document.getElementById('api-calls').textContent = formatNumber(api.total_calls || data.summary?.api_calls || 0);
+            const successRate = api.total_calls ? formatNumber((api.successful_calls || 0) / api.total_calls * 100, 1) + '%' : 'N/A';
+            document.getElementById('api-success-rate').textContent = successRate;
+            
+            document.getElementById('mapping-percentage').textContent = formatNumber(mapping_stats.mapping_percentage || 0, 1) + '%';
+            document.getElementById('total-mappings').textContent = formatNumber(mapping_stats.total_mappings_found || 0);
+            
+            document.getElementById('files-generated').textContent = formatNumber(processing.files_generated || file_stats.files_generated || data.summary?.files_generated || 0);
+            
+            // Calculate total file size from detailed_files to avoid double counting
+            let calculatedTotalSize = 0;
+            if (file_stats.detailed_files && Array.isArray(file_stats.detailed_files)) {
+                calculatedTotalSize = file_stats.detailed_files.reduce((sum, file) => sum + (file.file_size || 0), 0);
+            }
+            document.getElementById('total-file-size').textContent = formatFileSize(calculatedTotalSize || file_stats.total_file_size || 0);
+            
+            document.getElementById('processing-rate').textContent = formatNumber(performance.processing_rate || 0, 1);
+            document.getElementById('avg-time-per-cve').textContent = formatNumber(performance.average_time || 0, 2);
+            
+            document.getElementById('cache-hit-rate').textContent = formatNumber(cache.hit_rate || 0, 1) + '%';
+            document.getElementById('cache-entries').textContent = formatNumber(cache.total_entries || 0);
+            
+            document.getElementById('cpe-queries').textContent = formatNumber(cpe_query_stats.total_queries || data.summary?.cpe_queries || 0);
+            document.getElementById('cpe-results').textContent = formatNumber(cpe_query_stats.total_results || 0);
+            
+            document.getElementById('warning-count').textContent = formatNumber(log_stats.warning_count || 0);
+            document.getElementById('error-count').textContent = formatNumber(log_stats.error_count || 0);
+
+            // Populate all detailed sections
+            populateRuntimeSection(data);
+            populateSpeedSection(data);
+            populateApiSection(data);
+            populateCacheSection(data);
+            populateMappingSection(data);
+            populateCpeSection(data);
+            populateFileSection(data);
+            populateLogSection(data);
+            
+            // Initialize tooltips after all sections are populated
+            setTimeout(() => {
+                initializeTooltips();
+            }, 100);
+        }
+
+        function populateRuntimeSection(data) {
+            const performance = data.performance || {};
+            const processing = data.processing || {};
+            
+            // Main runtime stats in summary format
+            const wallClockTime = performance.wall_clock_time || performance.total_runtime || 0;
+            const activeTime = performance.active_processing_time || performance.total_time || 0;
+            const overheadTime = wallClockTime > activeTime ? wallClockTime - activeTime : 0;
+            const processedCves = performance.count || processing.processed_cves || 0;
+            const remainingCves = processing.remaining_cves || 0;
+            const etaValue = processing.eta_simple || (remainingCves > 0 ? 'Calculating...' : 'Completed');
+
+            let html = `
+                <div class="api-summary">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Full Runtime ⓘ</div>
+                            <div class="detail-value total-calls">${formatTime(wallClockTime)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Active Processing Time ⓘ</div>
+                            <div class="detail-value success-rate">${formatTime(activeTime)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Delays/Overhead Time ⓘ</div>
+                            <div class="detail-value failed-calls">${formatTime(overheadTime)}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">🌐</div>
+                                <div class="service-name">CVEs Processed</div>
+                                <div class="call-count">${formatNumber(processedCves)} CVEs</div>
+                                <div class="description">Successfully completed</div>
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">📊</div>
+                                <div class="service-name">CVEs Remaining</div>
+                                <div class="call-count">${formatNumber(remainingCves)} CVEs</div>
+                                <div class="description">Still to process</div>
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">⏱️</div>
+                                <div class="service-name">Estimated Time Remaining</div>
+                                <div class="call-count">${etaValue}</div>
+                                <div class="description">Time remaining</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('runtime-section').innerHTML = html;
+        }
+
+        function populateSpeedSection(data) {
+            const speed_stats = data.speed_stats || {};
+            const performance = data.performance || {};
+            
+            // Main speed stats in summary format
+            const processingRate = performance.processing_rate || 0;
+            const avgTime = performance.average_time || 0;
+            
+            let html = `
+                <div class="api-summary">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Processing Rate ⓘ</div>
+                            <div class="detail-value total-calls">${formatNumber(processingRate, 1)} CVEs/hr</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Average Time per CVE ⓘ</div>
+                            <div class="detail-value success-rate">${formatNumber(avgTime, 2)}s</div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">🏃</div>
+                                <div class="service-name">Fastest CVE Time</div>
+                                <div class="call-count">${formatNumber(speed_stats.fastest_cve_time || performance.min_time || 0, 2)}s</div>
+                                <div class="description">${speed_stats.fastest_cve_id || 'N/A'}</div>
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">🐌</div>
+                                <div class="service-name">Slowest CVE Time</div>
+                                <div class="call-count">${formatNumber(speed_stats.slowest_cve_time || performance.max_time || 0, 2)}s</div>
+                                <div class="description">${speed_stats.slowest_cve_id || 'N/A'}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('speed-section').innerHTML = html;
+        }
+
+        function populateCacheSection(data) {
+            const cache = data.cache || {};
+            const cache_stats = data.cache_stats || {};
+            
+            // Calculate key metrics with improved logic including expired entries
+            const totalEntries = cache.total_entries || cache_stats.total_entries || 0;
+            const cacheHits = cache.cache_hits || cache_stats.hits || 0;
+            const cacheMisses = cache.cache_misses || cache_stats.misses || 0;
+            const cacheExpired = cache.cache_expired || cache_stats.expired || 0;
+            const totalRequests = cache.total_requests || (cacheHits + cacheMisses + cacheExpired) || 0;
+            
+            // Fix hit rate calculation - avoid division by zero
+            const hitRate = totalRequests > 0 ? Math.round((cacheHits / totalRequests) * 100) : 0;
+            
+            // API calls saved should equal cache hits (since each hit saves an API call)
+            // Expired entries don't save API calls since they require refresh
+            const apiCallsSaved = cacheHits;
+            
+            const cacheFileSize = cache.cache_file_size_formatted || formatFileSize(cache.cache_file_size || 0);
+            
+            let html = `
+                <div class="api-summary">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Cache Hit Rate ⓘ</div>
+                            <div class="detail-value success-rate">${formatNumber(hitRate, 1)}%</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">API Calls Saved ⓘ</div>
+                            <div class="detail-value total-calls">${formatNumber(apiCallsSaved)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Cache File Size ⓘ</div>
+                            <div class="detail-value failed-calls">${cacheFileSize}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">✅</div>
+                                <div class="service-name">Cache Hits</div>
+                                <div class="call-count">${formatNumber(cacheHits)}</div>
+                                <div class="description">Served from cache</div>
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">❌</div>
+                                <div class="service-name">Cache Misses</div>
+                                <div class="call-count">${formatNumber(cacheMisses)}</div>
+                                <div class="description">No cached data</div>
+                            </div>
+                        </div>
+            `;
+            
+            // Only show expired section if there are expired entries
+            if (cacheExpired > 0) {
+                html += `
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">♻️</div>
+                                <div class="service-name">Cache Expired</div>
+                                <div class="call-count">${formatNumber(cacheExpired)}</div>
+                                <div class="description">Stale data refreshed</div>
+                            </div>
+                        </div>
+                `;
+            }
+            
+            html += `
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('cache-section').innerHTML = html;
+        }
+
+        function populateMappingSection(data) {
+            const mapping_stats = data.mapping_stats || {};
+            
+            // Calculate key metrics
+            const totalMappings = mapping_stats.total_mappings_found || 0;
+            const entriesWithMappings = mapping_stats.platform_entries_with_mappings || 0;
+            const totalPlatformEntries = mapping_stats.total_platform_entries_processed || 0;
+            
+            // Calculate mapping percentage based on platform entries (not CVEs)
+            const mappingPercentage = totalPlatformEntries > 0 
+                ? (entriesWithMappings / totalPlatformEntries) * 100 
+                : 0;
+            
+            const largestMappingCount = mapping_stats.largest_mapping_count || 0;
+            const largestMappingCve = mapping_stats.largest_mapping_cve || 'N/A';
+            
+            let html = `
+                <div class="api-summary">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Mapping Percentage ⓘ</div>
+                            <div class="detail-value success-rate">${formatNumber(mappingPercentage, 1)}%</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Total Mappings Found ⓘ</div>
+                            <div class="detail-value total-calls">${formatNumber(totalMappings)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Total Platform Entries ⓘ</div>
+                            <div class="detail-value failed-calls">${formatNumber(totalPlatformEntries)} entries</div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">✅</div>
+                                <div class="service-name">Platform Entries with Mappings</div>
+                                <div class="call-count">${formatNumber(entriesWithMappings)} entries</div>
+                                <div class="description">Entries with confirmed mappings</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('mapping-section').innerHTML = html;
+        }
+
+        function populateLogSection(data) {
+            const log_stats = data.log_stats || {};
+            const warnings = data.warnings || {};
+            const errors = data.errors || {};
+            
+            // Calculate total categorized warnings and errors with new CVE-grouped structure
+            const totalWarnings = Object.values(warnings).reduce((sum, category) => {
+                if (!category || !Array.isArray(category)) return sum;
+                return sum + category.reduce((catSum, cveGroup) => {
+                    return catSum + (cveGroup.total_count || cveGroup.count || 1);
+                }, 0);
+            }, 0);
+            
+            const totalErrors = Object.values(errors).reduce((sum, category) => {
+                if (!category || !Array.isArray(category)) return sum;
+                return sum + category.reduce((catSum, cveGroup) => {
+                    return catSum + (cveGroup.total_count || cveGroup.count || 1);
+                }, 0);
+            }, 0);
+            
+            let html = `
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <div class="detail-label">Total Log Lines ⓘ</div>
+                        <div class="detail-value">${formatNumber(log_stats.total_lines || 0)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Info Messages ⓘ</div>
+                        <div class="detail-value">${formatNumber(log_stats.info_count || 0)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Debug Messages ⓘ</div>
+                        <div class="detail-value">${formatNumber(log_stats.debug_count || 0)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Warning Messages ⓘ</div>
+                        <div class="detail-value">${formatNumber(totalWarnings || log_stats.warning_count || 0)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Error Messages ⓘ</div>
+                        <div class="detail-value">${formatNumber(totalErrors || log_stats.error_count || 0)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Log File Size ⓘ</div>
+                        <div class="detail-value">${formatFileSize(data.metadata?.file_size || 0)}</div>
+                    </div>
+                </div>
+            `;
+            
+            // Combine warnings and errors into a single Log Analysis section
+            const totalLogIssues = totalWarnings + totalErrors;
+            
+            if (totalLogIssues > 0) {
+                html += `
+                    <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">📋 Log Analysis</h4>
+                    <div class="log-analysis-container">
+                `;
+                
+                // Debug: Log the actual data structure
+                console.log('Warnings data structure:', warnings);
+                console.log('Errors data structure:', errors);
+                
+                // Collect all CVE groups from all categories (both warnings and errors)
+                const allCveGroups = new Map();
+                
+                // Process warnings - handle both old and new data structures
+                Object.keys(warnings).forEach(categoryKey => {
+                    const categoryData = warnings[categoryKey] || [];
+                    console.log(`Processing warning category ${categoryKey}:`, categoryData);
+                    
+                    categoryData.forEach(entry => {
+                        const cveId = entry.cve_id || 'unknown';
+                        
+                        // Check if this is the new CVE-grouped structure or old structure
+                        if (entry.cve_subcategories) {
+                            // New structure: CVE already grouped with subcategories
+                            if (!allCveGroups.has(cveId)) {
+                                allCveGroups.set(cveId, {
+                                    cve_id: cveId,
+                                    total_count: 0,
+                                    first_occurrence: entry.first_occurrence,
+                                    last_occurrence: entry.last_occurrence,
+                                    categories: new Map()
+                                });
+                            }
+                            
+                            const consolidatedCve = allCveGroups.get(cveId);
+                            consolidatedCve.total_count += entry.total_count || 0;
+                            
+                            // Add subcategories
+                            const subcategories = entry.cve_subcategories || {};
+                            Object.values(subcategories).forEach(subcat => {
+                                const catKey = `warnings-${subcat.category}`;
+                                consolidatedCve.categories.set(catKey, {
+                                    type: 'warnings',
+                                    name: subcat.category,
+                                    count: subcat.count,
+                                    messages: subcat.messages || []
+                                });
+                            });
+                        } else {
+                            // Old structure: Individual entries per CVE
+                            if (!allCveGroups.has(cveId)) {
+                                allCveGroups.set(cveId, {
+                                    cve_id: cveId,
+                                    total_count: 0,
+                                    first_occurrence: entry.first_occurrence || entry.timestamp,
+                                    last_occurrence: entry.last_occurrence || entry.timestamp,
+                                    categories: new Map()
+                                });
+                            }
+                            
+                            const consolidatedCve = allCveGroups.get(cveId);
+                            const entryCount = entry.count || 1;
+                            consolidatedCve.total_count += entryCount;
+                            
+                            // Update timestamps
+                            const entryTime = entry.last_occurrence || entry.first_occurrence || entry.timestamp;
+                            if (entryTime) {
+                                if (!consolidatedCve.first_occurrence || entryTime < consolidatedCve.first_occurrence) {
+                                    consolidatedCve.first_occurrence = entryTime;
+                                }
+                                if (!consolidatedCve.last_occurrence || entryTime > consolidatedCve.last_occurrence) {
+                                    consolidatedCve.last_occurrence = entryTime;
+                                }
+                            }
+                            
+                            // Determine category name from the warning category key
+                            const categoryName = categoryKey.replace('_warnings', '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) + ' Issues';
+                            const catKey = `warnings-${categoryName}`;
+                            
+                            if (consolidatedCve.categories.has(catKey)) {
+                                // Merge with existing category
+                                const existingCat = consolidatedCve.categories.get(catKey);
+                                existingCat.count += entryCount;
+                                const messages = entry.messages || [entry.message || entry.sample_message];
+                                if (messages) {
+                                    messages.forEach(msg => {
+                                        if (msg && !existingCat.messages.includes(msg)) {
+                                            existingCat.messages.push(msg);
+                                        }
+                                    });
+                                }
+                            } else {
+                                // Create new category
+                                consolidatedCve.categories.set(catKey, {
+                                    type: 'warnings',
+                                    name: categoryName,
+                                    count: entryCount,
+                                    messages: entry.messages || [entry.message || entry.sample_message].filter(Boolean)
+                                });
+                            }
+                        }
+                    });
+                });
+                
+                // Process errors - same logic as warnings
+                Object.keys(errors).forEach(categoryKey => {
+                    const categoryData = errors[categoryKey] || [];
+                    console.log(`Processing error category ${categoryKey}:`, categoryData);
+                    
+                    categoryData.forEach(entry => {
+                        const cveId = entry.cve_id || 'unknown';
+                        
+                        // Check if this is the new CVE-grouped structure or old structure
+                        if (entry.cve_subcategories) {
+                            // New structure: CVE already grouped with subcategories
+                            if (!allCveGroups.has(cveId)) {
+                                allCveGroups.set(cveId, {
+                                    cve_id: cveId,
+                                    total_count: 0,
+                                    first_occurrence: entry.first_occurrence,
+                                    last_occurrence: entry.last_occurrence,
+                                    categories: new Map()
+                                });
+                            }
+                            
+                            const consolidatedCve = allCveGroups.get(cveId);
+                            consolidatedCve.total_count += entry.total_count || 0;
+                            
+                            // Add subcategories
+                            const subcategories = entry.cve_subcategories || {};
+                            Object.values(subcategories).forEach(subcat => {
+                                const catKey = `errors-${subcat.category}`;
+                                consolidatedCve.categories.set(catKey, {
+                                    type: 'errors',
+                                    name: subcat.category,
+                                    count: subcat.count,
+                                    messages: subcat.messages || []
+                                });
+                            });
+                        } else {
+                            // Old structure: Individual entries per CVE
+                            if (!allCveGroups.has(cveId)) {
+                                allCveGroups.set(cveId, {
+                                    cve_id: cveId,
+                                    total_count: 0,
+                                    first_occurrence: entry.first_occurrence || entry.timestamp,
+                                    last_occurrence: entry.last_occurrence || entry.timestamp,
+                                    categories: new Map()
+                                });
+                            }
+                            
+                            const consolidatedCve = allCveGroups.get(cveId);
+                            const entryCount = entry.count || 1;
+                            consolidatedCve.total_count += entryCount;
+                            
+                            // Update timestamps
+                            const entryTime = entry.last_occurrence || entry.first_occurrence || entry.timestamp;
+                            if (entryTime) {
+                                if (!consolidatedCve.first_occurrence || entryTime < consolidatedCve.first_occurrence) {
+                                    consolidatedCve.first_occurrence = entryTime;
+                                }
+                                if (!consolidatedCve.last_occurrence || entryTime > consolidatedCve.last_occurrence) {
+                                    consolidatedCve.last_occurrence = entryTime;
+                                }
+                            }
+                            
+                            // Determine category name from the error category key
+                            const categoryName = categoryKey.replace('_errors', '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) + ' Issues';
+                            const catKey = `errors-${categoryName}`;
+                            
+                            if (consolidatedCve.categories.has(catKey)) {
+                                // Merge with existing category
+                                const existingCat = consolidatedCve.categories.get(catKey);
+                                existingCat.count += entryCount;
+                                const messages = entry.messages || [entry.message || entry.sample_message];
+                                if (messages) {
+                                    messages.forEach(msg => {
+                                        if (msg && !existingCat.messages.includes(msg)) {
+                                            existingCat.messages.push(msg);
+                                        }
+                                    });
+                                }
+                            } else {
+                                // Create new category
+                                consolidatedCve.categories.set(catKey, {
+                                    type: 'errors',
+                                    name: categoryName,
+                                    count: entryCount,
+                                    messages: entry.messages || [entry.message || entry.sample_message].filter(Boolean)
+                                });
+                            }
+                        }
+                    });
+                });
+                
+                console.log('Final consolidated CVE groups:', Array.from(allCveGroups.entries()));
+                
+                // Sort CVEs by total count (highest first), then by CVE ID
+                const sortedCves = Array.from(allCveGroups.values()).sort((a, b) => {
+                    if (b.total_count !== a.total_count) {
+                        return b.total_count - a.total_count;
+                    }
+                    return a.cve_id.localeCompare(b.cve_id);
+                });
+                
+                console.log('Sorted CVEs:', sortedCves);
+                
+                // Display CVE-first collapsible structure
+                html += `<div class="cve-log-entries">`;
+                
+                sortedCves.forEach((cveData, index) => {
+                    const cveId = cveData.cve_id;
+                    const totalCount = cveData.total_count;
+                    const latestTimestamp = cveData.last_occurrence || cveData.first_occurrence || 'Unknown';
+                    
+                    // Create CVE link
+                    const cveDisplay = (cveId !== 'unknown' && cveId !== 'system-wide') ? 
+                        `<a href="https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/${cveId}.html" target="_blank" style="text-decoration: none;">
+                            <code style="background: rgba(108, 117, 125, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; color: #495057; border: 1px solid rgba(108, 117, 125, 0.2); transition: all 0.2s ease; cursor: pointer;" 
+                                  onmouseover="this.style.background='rgba(108, 117, 125, 0.2)'; this.style.borderColor='#495057';" 
+                                  onmouseout="this.style.background='rgba(108, 117, 125, 0.1)'; this.style.borderColor='rgba(108, 117, 125, 0.2)';"
+                                  title="Click to open CVE page in new tab">${cveId}</code>
+                        </a>` : 
+                        `<code style="background: rgba(108, 117, 125, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; color: #6c757d;">${cveId === 'unknown' ? 'General System Issues' : (cveId === 'system-wide' ? 'System-Wide Issues' : cveId)}</code>`;
+                    
+                    html += `
+                        <div class="cve-log-entry" style="margin-bottom: 15px; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;">
+                            <div class="cve-log-header" onclick="toggleCveLogDetails(this)" style="background: #f8f9fa; padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #dee2e6; display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    ${cveDisplay}
+                                    <span style="color: #6c757d; font-size: 0.9em;">${totalCount} total event${totalCount !== 1 ? 's' : ''}</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span style="color: #6c757d; font-size: 0.85em;">${latestTimestamp}</span>
+                                    <span class="cve-expand-indicator" style="transition: transform 0.2s ease;">▼</span>
+                                </div>
+                            </div>
+                            <div class="cve-log-details" style="display: none; padding: 15px; background: white;">
+                    `;
+                    
+                    // Display categories within this CVE
+                    const sortedCategories = Array.from(cveData.categories.values()).sort((a, b) => b.count - a.count);
+                    
+                    sortedCategories.forEach(category => {
+                        const iconClass = category.type === 'warnings' ? '⚠️' : '❌';
+                        const borderColor = category.type === 'warnings' ? '#ffc107' : '#dc3545';
+                        
+                        html += `
+                            <div style="margin: 10px 0; padding: 12px; background: #f8f9fa; border-left: 4px solid ${borderColor}; border-radius: 4px;">
+                                <div style="font-weight: bold; color: #495057; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                                    <span>${iconClass}</span>
+                                    <span>${category.name} (${category.count} occurrence${category.count !== 1 ? 's' : ''})</span>
+                                </div>
+                        `;
+                        
+                        // Display sample messages for this category
+                        category.messages.forEach((message, msgIndex) => {
+                            if (message) {
+                                html += `<div style="margin: 4px 0; padding: 8px; background: white; border-radius: 3px; font-size: 0.9em; color: #6c757d; border-left: 2px solid #e9ecef;">${message}</div>`;
+                            }
+                        });
+                        
+                        html += `</div>`;
+                    });
+                    
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div></div>`;
+            } else if ((log_stats.warning_count > 0) || (log_stats.error_count > 0)) {
+                // No categorized structure - minimal display
+                html += `
+                    <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                        <div style="display: flex; align-items: center; color: #856404;">
+                            <div style="font-size: 1.2em; margin-right: 10px;">⚠️</div>
+                            <div>
+                                <strong>Log Data Available</strong><br>
+                                <small>Found ${log_stats.warning_count} warnings and ${log_stats.error_count} errors.</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // No warnings or errors found
+                html += `
+                    <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                        <div style="display: flex; align-items: center; color: #495057;">
+                            <div style="font-size: 1.2em; margin-right: 10px;">ℹ️</div>
+                            <div>
+                                <strong>No Issues Found</strong><br>
+                                <small>The processing run completed without any warning or error messages.</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            document.getElementById('log-section').innerHTML = html;
+        }
+
+        function populateApiSection(data) {
+            const api = data.api || {};
+            const api_calls = data.api_calls || {};
+            
+            const total_calls = api.total_calls || api_calls.total || 0;
+            const successful_calls = api.successful_calls || 0;
+            const failed_calls = api.failed_calls || 0;
+            const success_rate = total_calls > 0 ? ((successful_calls / total_calls) * 100) : 100;
+            
+            // Get breakdown data for individual API sections
+            const call_breakdown = api.call_breakdown || {};
+            const nvd_cve_breakdown = call_breakdown["NVD CVE API"] || {};
+            const mitre_cve_breakdown = call_breakdown["MITRE CVE API"] || {};
+            const nvd_cpe_breakdown = call_breakdown["NVD CPE API"] || {};
+
+            // Main API Performance section with integrated summary stats
+            let html = `
+                <div class="api-summary">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Total API Calls ⓘ</div>
+                            <div class="detail-value total-calls">${formatNumber(total_calls)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">API Success Rate ⓘ</div>
+                            <div class="detail-value success-rate">${formatNumber(success_rate, 1)}%</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Failed API Calls ⓘ</div>
+                            <div class="detail-value failed-calls">${formatNumber(failed_calls)}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">🔍</div>
+                                <div class="service-name">NVD CVE API Calls</div>
+                                <div class="call-count">${formatNumber(api.nvd_cve_calls || nvd_cve_breakdown.count || 0)} calls</div>
+                                <div class="description">CVE vulnerability data</div>
+            `;
+            
+            // Add breakdown details if available
+            if (nvd_cve_breakdown.count > 0) {
+                const nvd_success_rate = ((nvd_cve_breakdown.success || 0) / nvd_cve_breakdown.count * 100);
+                html += `
+                                <div class="breakdown-stats">
+                                    ${nvd_cve_breakdown.success || 0}✅ / ${nvd_cve_breakdown.failed || 0}❌ -
+                                    <span style="color: ${nvd_success_rate >= 95 ? '#27ae60' : nvd_success_rate >= 80 ? '#f39c12' : '#e74c3c'};">
+                                        ${formatNumber(nvd_success_rate, 1)}%
+                                    </span>
+                                </div>
+                `;
+            }
+            
+            html += `
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">🔍</div>
+                                <div class="service-name">MITRE CVE API Calls</div>
+                                <div class="call-count">${formatNumber(api.mitre_cve_calls || mitre_cve_breakdown.count || 0)} calls</div>
+                                <div class="description">CVE metadata and references</div>
+            `;
+            
+            // Add breakdown details if available
+            if (mitre_cve_breakdown.count > 0) {
+                const mitre_success_rate = ((mitre_cve_breakdown.success || 0) / mitre_cve_breakdown.count * 100);
+                html += `
+                                <div class="breakdown-stats">
+                                    ${mitre_cve_breakdown.success || 0}✅ / ${mitre_cve_breakdown.failed || 0}❌ -
+                                    <span style="color: ${mitre_success_rate >= 95 ? '#27ae60' : mitre_success_rate >= 80 ? '#f39c12' : '#e74c3c'};">
+                                        ${formatNumber(mitre_success_rate, 1)}%
+                                    </span>
+                                </div>
+                `;
+            }
+            
+            html += `
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">🔍</div>
+                                <div class="service-name">NVD CPE API Calls</div>
+                                <div class="call-count">${formatNumber(api.nvd_cpe_calls || nvd_cpe_breakdown.count || 0)} calls</div>
+                                <div class="description">Common Platform Enumeration</div>
+            `;
+            
+            // Add breakdown details if available
+            if (nvd_cpe_breakdown.count > 0) {
+                const nvd_cpe_success_rate = ((nvd_cpe_breakdown.success || 0) / nvd_cpe_breakdown.count * 100);
+                html += `
+                                <div class="breakdown-stats">
+                                    ${nvd_cpe_breakdown.success || 0}✅ / ${nvd_cpe_breakdown.failed || 0}❌ -
+                                    <span style="color: ${nvd_cpe_success_rate >= 95 ? '#27ae60' : nvd_cpe_success_rate >= 80 ? '#f39c12' : '#e74c3c'};">
+                                        ${formatNumber(nvd_cpe_success_rate, 1)}%
+                                    </span>
+                                </div>
+                `;
+            }
+            
+            html += `
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('api-section').innerHTML = html;
+        }
+
+        function populateCpeSection(data) {
+            const cpe_stats = data.cpe_query_stats || {};
+            const top_queries = cpe_stats.top_queries || [];
+            const top_cves = cpe_stats.top_cves_by_searches || [];
+            const top_result_queries = cpe_stats.top_queries_by_results || [];
+            const query_details = cpe_stats.query_details || {};
+            
+            // Calculate additional metrics for the service items
+            const avgResultsPerQuery = cpe_stats.total_queries > 0 ? 
+                (cpe_stats.total_results || 0) / cpe_stats.total_queries : 0;
+            const maxResultsInQuery = cpe_stats.max_results_in_single_query || 0;
+            
+            let html = `
+                <div class="api-summary">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Total CPE Queries ⓘ</div>
+                            <div class="detail-value total-calls">${formatNumber(cpe_stats.total_queries || 0)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Unique Base Strings ⓘ</div>
+                            <div class="detail-value success-rate">${formatNumber(cpe_stats.unique_base_strings || 0)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Average Results per Query ⓘ</div>
+                            <div class="detail-value failed-calls">${formatNumber(avgResultsPerQuery, 1)}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">🔍</div>
+                                <div class="service-name">Total CPE Results</div>
+                                <div class="call-count">${formatNumber(cpe_stats.total_results || 0)} results</div>
+                                <div class="description">Total CPE entries returned</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Top CVE Records by Number of Search Strings
+            if (top_cves.length > 0) {
+                html += `
+                    <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">📊 Top CVE Records by Number of Search Strings</h4>
+                    <div style="overflow-x: auto; margin-bottom: 30px;">
+                        <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <thead style="background: #34495e; color: white;">
+                                <tr>
+                                    <th style="padding: 12px; text-align: left; font-weight: 600;">Rank</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 600;">CVE ID</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 600;">Unique Strings</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 600;">Affected Entries</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 600;">Strings/Entry</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 600;">Processed</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                top_cves.slice(0, 10).forEach((cve, index) => {
+                    const rowClass = index % 2 === 0 ? 'background: #f8f9fa;' : 'background: white;';
+                    const cveId = cve.cve_id || 'Unknown';
+                    const uniqueStrings = cve.search_count || 0;
+                    const affectedEntries = cve.affected_entries || 1;
+                    
+                    // Log data quality concerns to console
+                    if (!cve.affected_entries) {
+                        console.warn(`[Data Quality] CVE ${cveId}: affected_entries missing, defaulting to 1. This may indicate incomplete data processing.`);
+                    }
+                    
+                    const stringsPerEntry = (uniqueStrings / affectedEntries).toFixed(1);
+                    const processedTimestamp = cve.processed_timestamp || new Date().toISOString();
+                    const processedDate = new Date(processedTimestamp).toLocaleString();
+                    
+                    html += `
+                        <tr style="${rowClass}">
+                            <td style="padding: 12px; font-weight: 600; color: #2c3e50;">#${index + 1}</td>
+                            <td style="padding: 12px;">
+                                <a href="https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/${cveId}.html" 
+                                   target="_blank" style="color: #2c3e50; text-decoration: none; font-weight: 600; font-family: monospace;">${cveId}</a>
+                            </td>
+                            <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">${formatNumber(uniqueStrings)}</td>
+                            <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">${formatNumber(affectedEntries)}</td>
+                            <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">${stringsPerEntry}</td>
+                            <td style="padding: 12px; text-align: center; font-family: monospace; font-size: 0.85em; color: #2c3e50;">${processedDate}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            // Top Queries by Result Count
+            if (top_result_queries.length > 0) {
+                html += `
+                    <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">📊 Top Queries by Result Count</h4>
+                    <div style="overflow-x: auto; margin-bottom: 20px;">
+                        <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <thead style="background: #8e44ad; color: white;">
+                                <tr>
+                                    <th style="padding: 12px; text-align: left; font-weight: 600;">Rank</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 600;">CPE Base String</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 600;">Results</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 600;" >Query Count</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 600;">CVE IDs</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 600;">Source</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                top_result_queries.slice(0, 10).forEach((query, index) => {
+                    const rowClass = index % 2 === 0 ? 'background: #f8f9fa;' : 'background: white;';
+                    // Use the pre-formatted CVE display with NVD links, fallback to empty if not available
+                    const cveLinksHtml = query.cve_display || '<span class="text-muted">No CVEs tracked</span>';
+                    const source = query.source || '🌐 API';
+                    
+                    html += `
+                        <tr style="${rowClass}">
+                            <td style="padding: 12px; font-weight: 600; color: #2c3e50;">#${index + 1}</td>
+                            <td style="padding: 12px; font-family: monospace; font-size: 0.9em; color: #2c3e50; max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${query.base_string || 'Unknown'}</td>
+                            <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">${formatNumber(query.total_results || 0)}</td>
+                            <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">${formatNumber(query.query_count || 0)}</td>
+                            <td style="padding: 12px; font-size: 0.85em; max-width: 200px;">${cveLinksHtml}</td>
+                            <td style="padding: 12px; text-align: center;">${getSourceIcon(source)} ${source}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            document.getElementById('cpe-section').innerHTML = html;
+        }
+
+        function populateFileSection(data) {
+            const file_stats = data.file_stats || {};
+            const detailed_files = file_stats.detailed_files || [];
+            
+            // Sort files by file size in descending order and limit to top 20
+            const sortedFiles = [...detailed_files]
+                .sort((a, b) => (b.file_size || 0) - (a.file_size || 0))
+                .slice(0, 20); // Ensure we never show more than 20 files
+            
+            let html = `
+                <div class="api-summary">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Total Files Generated ⓘ</div>
+                            <div class="detail-value total-calls">${formatNumber(file_stats.files_generated || 0)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Total File Size ⓘ</div>
+                            <div class="detail-value success-rate">${formatFileSize(file_stats.total_file_size || 0)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Average File Size ⓘ</div>
+                            <div class="detail-value failed-calls">${formatFileSize(file_stats.average_file_size || 0)}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">📊</div>
+                                <div class="service-name">Smallest File Size</div>
+                                <div class="call-count">${formatFileSize(file_stats.smallest_file_size || 0)}</div>
+                                <div class="description">Minimum generated file</div>
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">📈</div>
+                                <div class="service-name">Largest File Size</div>
+                                <div class="call-count">${formatFileSize(file_stats.largest_file_size || 0)}</div>
+                                <div class="description">Maximum generated file</div>
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">📁</div>
+                                <div class="service-name">Files Generated</div>
+                                <div class="call-count">${formatNumber(file_stats.files_generated || 0)} files</div>
+                                <div class="description">Total output count</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">📁 Top 20 Generated Files by Size</h4>
+            `;
+
+            if (sortedFiles.length > 0) {
+                html += `
+                    <div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead style="background: #16a085; color: white;">
+                                <tr>
+                                    <th style="padding: 12px 15px; text-align: left; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">Rank</th>
+                                    <th style="padding: 12px 15px; text-align: left; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">CVE ID</th>
+                                    <th style="padding: 12px 15px; text-align: center; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">File Size</th>
+                                    <th style="padding: 12px 15px; text-align: center; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">Platform Entries</th>
+                                    <th style="padding: 12px 15px; text-align: center; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">Processing Time</th>
+                                    <th style="padding: 12px 15px; text-align: left; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">Bloat Analysis</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                sortedFiles.forEach((file, index) => {
+                    const rank = index + 1;
+                    const cveId = file.cve_id || 'Unknown';
+                    const fileSize = formatFileSize(file.file_size || 0);
+                    const platformEntries = file.dataframe_rows || 0;
+                    const processingTime = formatTime(file.processing_time || 0);
+                    const rowStyle = index % 2 === 0 ? 'background: #f8f9fa;' : 'background: #dfdfdf;';
+                    
+                    // Create CVE link to the appropriate URL
+                    const cveLink = cveId !== 'Unknown' ? 
+                        `<a href="https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/${cveId}.html" target="_blank" style="text-decoration: none;">
+                            <code style="background: rgba(22, 160, 133, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; color: #16a085; border: 1px solid rgba(22, 160, 133, 0.2); transition: all 0.2s ease; cursor: pointer;" 
+                                  onmouseover="this.style.background='rgba(22, 160, 133, 0.2)'; this.style.borderColor='#16a085';" 
+                                  onmouseout="this.style.background='rgba(22, 160, 133, 0.1)'; this.style.borderColor='rgba(22, 160, 133, 0.2)';"
+                                  title="Click to open CVE page in new tab">${cveId}</code>
+                        </a>` : 
+                        `<code style="background: rgba(108, 117, 125, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; color: #6c757d;">${cveId}</code>`;
+                    
+                    // Use bloat analysis data if available
+                    const bloatAnalysis = file.bloat_analysis || {};
+                    const bloatSources = bloatAnalysis.top_5_sources || [];
+                    
+                    html += `
+                        <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;">
+                            <td style="padding: 12px; font-weight: bold; color: #2c3e50;">📋 #${rank}</td>
+                            <td style="padding: 12px;">
+                                ${cveLink}
+                            </td>
+                            <td style="padding: 12px; text-align: center; font-weight: bold; color: #16a085;">${fileSize}</td>
+                            <td style="padding: 12px; text-align: center;">${formatNumber(platformEntries)}</td>
+                            <td style="padding: 12px; text-align: center; color: #e67e22;">${processingTime}</td>
+                            <td style="padding: 12px;">
+                                <div style="width: 100%; max-width: 600px;">
+                                    ${bloatSources.length > 0 ? `
+                                        <details style="cursor: pointer;">
+                                            <summary style="font-weight: 600; font-size: 0.95em; color: #2c3e50; padding: 10px 12px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6; transition: all 0.2s ease; list-style: none; display: flex; align-items: center; justify-content: space-between;">
+                                                <span>🔍 Top ${bloatSources.length} Bloat Sources</span>
+                                                <span style="font-size: 0.8em; color: #6c757d;">${bloatSources.length} identified</span>
+                                            </summary>
+                                            <div style="background: #f8f9fa; border-radius: 6px; padding: 12px; border: 1px solid #dee2e6; margin-top: 6px;">
+                                                ${bloatSources.map((source, idx) => `
+                                                    <div style="display: flex; align-items: center; margin: 3px 0; padding: 8px; background: #fff; border-radius: 4px; border-left: 4px solid #6c757d; font-size: 0.9em;">
+                                                        <div style="min-width: 24px; font-weight: bold; color: #495057; margin-right: 12px;">${idx + 1}.</div>
+                                                        <div style="flex: 1; display: flex; justify-content: space-between; align-items: center;">
+                                                            <div style="display: flex; align-items: center; gap: 8px;">
+                                                                <span style="font-weight: 600; color: #2c3e50;">${source.size}</span>
+                                                                <span style="color: #6c757d;">(${source.percentage}%)</span>
+                                                            </div>
+                                                            <span style="background: #6c757d; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.8em; font-weight: 500;">
+                                                                ${source.description}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        </details>
+                                    ` : `
+                                        <div style="padding: 10px 12px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6; color: #6c757d; text-align: center;">
+                                            📊 No bloat analysis available
+                                        </div>
+                                    `}
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div style="background: white; border-radius: 8px; padding: 20px; text-align: center; color: #6c757d;">
+                        <div style="font-size: 1.2em; margin-bottom: 10px;">📂</div>
+                        <div>No detailed file information available</div>
+                    </div>
+                `;
+            }
+
+            document.getElementById('file-section').innerHTML = html;
+        }
+
+        function scrollToSection(sectionId) {
+            const element = document.getElementById(sectionId);
+            if (element) {
+                element.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+                
+                // Add a brief highlight effect
+                element.style.transition = 'background-color 0.5s ease';
+                element.style.backgroundColor = 'rgba(52, 152, 219, 0.1)';
+                setTimeout(() => {
+                    element.style.backgroundColor = '';
+                }, 1000);
+            }
+        }
+
+        // Log analysis tab and interaction functions
+        function switchLogTab(tabElement, categoryId) {
+            // Remove active class from all tabs in the same container
+            const container = tabElement.closest('.log-category-tabs');
+            container.querySelectorAll('.log-category-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Add active class to clicked tab
+            tabElement.classList.add('active');
+            
+            // Hide all panels in the same content container
+            const contentContainer = container.nextElementSibling;
+            contentContainer.querySelectorAll('.log-category-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            
+            // Show the target panel
+            const targetPanel = document.getElementById(categoryId);
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+            }
+        }
+
+        function toggleExpandedDetails(headerElement) {
+            const detailsElement = headerElement.nextElementSibling;
+            const indicator = headerElement.querySelector('.expand-indicator');
+            
+            if (detailsElement.style.display === 'block') {
+                detailsElement.style.display = 'none';
+                indicator.textContent = '▼';
+            } else {
+                detailsElement.style.display = 'block';
+                indicator.textContent = '▲';
+            }
+        }
+
+        function toggleCveLogDetails(headerElement) {
+            const detailsElement = headerElement.nextElementSibling;
+            const indicator = headerElement.querySelector('.cve-expand-indicator');
+            
+            if (detailsElement.style.display === 'block') {
+                detailsElement.style.display = 'none';
+                indicator.style.transform = 'rotate(0deg)';
+            } else {
+                detailsElement.style.display = 'block';
+                indicator.style.transform = 'rotate(180deg)';
+            }
+        }
+
+        // Initialize log analysis after page load
+        function initializeLogTabs() {
+            // Add click handlers to all log category tabs
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('log-category-tab')) {
+                    const categoryId = e.target.getAttribute('data-category');
+                    if (categoryId) {
+                        switchLogTab(e.target, categoryId);
+                    }
+                }
+            });
+        }
+
+        // Enhanced log category tab switching
+        function switchLogCategory(categoryId) {
+            // Hide all panels and deactivate all tabs
+            document.querySelectorAll('.log-category-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            document.querySelectorAll('.log-category-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected panel and activate tab
+            const targetPanel = document.getElementById(categoryId);
+            const targetTab = document.querySelector(`[data-category="${categoryId}"]`);
+            
+            if (targetPanel) targetPanel.classList.add('active');
+            if (targetTab) targetTab.classList.add('active');
+        }
+
+        // Enhanced expand/collapse functionality
+        function toggleExpandedDetails(headerElement) {
+            const logItem = headerElement.closest('.log-entry-item');
+            if (logItem) {
+                logItem.classList.toggle('expanded');
+                
+                // Update expand indicator
+                const indicator = headerElement.querySelector('.expand-indicator');
+                if (indicator) {
+                    indicator.textContent = logItem.classList.contains('expanded') ? '▲' : '▼';
+                }
+            }
+        }
+
+        // Initialize tab click handlers
+        function initializeLogTabs() {
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('log-category-tab')) {
+                    const categoryId = e.target.getAttribute('data-category');
+                    if (categoryId) {
+                        switchLogCategory(categoryId);
+                    }
+                }
+            });
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeLogTabs();
+        });
+    </script>
+</body>
+</html>
+
+
+

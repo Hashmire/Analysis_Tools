@@ -38,7 +38,8 @@ Analysis_Tools/
 │   │   └── analysis_tool.py     # Main analysis engine
 │   ├── storage/
 │   │   └── run_organization.py  # Run directory management
-│   ├── local_dashboard/         # Dashboard utilities
+│   ├── logging/                 # Real-time dashboard data collection
+│   │   └── dataset_contents_collector.py  # Unified dashboard data aggregation
 │   ├── static/js/               # Frontend modules
 │   ├── mappings/                # Vendor-specific mappings
 │   ├── config.json             # Configuration
@@ -47,11 +48,14 @@ Analysis_Tools/
 │   └── [timestamp]_[context]/  # Individual run directories
 │       ├── generated_pages/    # HTML reports for this run
 │       ├── logs/              # Run-specific logs
-│       ├── reports/           # Dashboard data for this run
+│       ├── logs/              # Run-specific logs and real-time dashboard data
 │       └── datasets/          # Dataset files for this run
 ├── test_files/                 # Test suites and test data
 ├── documentation/              # Guides and references
-├── dashboards/                # Global dashboard files
+├── dashboards/                # Real-time dashboard system
+│   ├── index.html             # Dashboard hub and run history
+│   ├── sourceDataConcernDashboard.html    # Source data quality analysis
+│   └── generateDatasetDashboard.html      # Real-time dataset generation monitoring
 └── cache/                     # Shared CPE data cache
 ```
 
@@ -84,7 +88,8 @@ All generated datasets are tracked in run-specific directories under `runs/[time
 - [Badge and Modal System Reference](documentation/badge_modal_system_reference.md) - Complete badge/modal system documentation
 - [CPE Caching System](documentation/cpes_api_caching_system.md) - Cache configuration and management
 - [Logging System](documentation/logging_system.md) - Structured logging patterns and configuration
-- [Dashboard Usage](documentation/dashboard_usage.md) - Dashboard setup and usage
+- [Dashboard Usage](documentation/dashboard_usage.md) - Real-time dashboard system and usage
+- [Dataset Generation](documentation/dataset_generation.md) - Dataset generation methodology and capabilities
 
 ### Test Documentation
 
@@ -162,17 +167,24 @@ python generate_dataset.py --since-last-run --run-analysis
 
 All dataset outputs are isolated in run-specific directories under `runs/[timestamp]_[context]/datasets/`.
 
-### Dashboard
+### Real-time Dashboard System
 
-The tool includes a dashboard that updates during processing:
+The tool features a comprehensive real-time dashboard system with automatic data collection:
 
 ```bash
-# Run analysis (dashboard updates automatically)
+# Run analysis (real-time dashboard data generated automatically)
 python run_tools.py [arguments]
 
-# Open dashboards/index.html in browser for monitoring
+# Generate datasets (real-time progress monitoring)
+python generate_dataset.py [arguments]
 
-# Analysis outputs including logs are contained in runs/[timestamp]_[context]/ directories
+# Open dashboards:
+# - dashboards/index.html - Dashboard hub and run history
+# - dashboards/generateDatasetDashboard.html - Real-time dataset generation monitoring
+# - dashboards/sourceDataConcernDashboard.html - Source data quality analysis
+
+# Real-time dashboard data automatically saved to runs/[timestamp]_[context]/logs/
+# JSON files provide live progress updates during processing
 ```
 
 ## Performance

@@ -39,8 +39,8 @@ class CPECache:
         
         # Use project root cache directory instead of local cache
         current_file = Path(__file__).resolve()
-        project_root = current_file.parent.parent.parent  # Go up from src/analysis_tool/ to Analysis_Tools/
-        self.cache_dir = project_root / "cache"
+        project_root = current_file.parent.parent.parent.parent 
+        self.cache_dir = project_root / "src" / "cache"
         self.cache_file = self.cache_dir / 'cpe_cache.json'
         self.metadata_file = self.cache_dir / 'cache_metadata.json'
         self.cache_data = {}
@@ -154,6 +154,17 @@ class CPECache:
             
             logger.debug(f"/cpes/ cache saved: {len(self.cache_data)} entries in {save_time:.2f}s", group="cpe_queries")
             
+            # Update dashboard collector with current cache file size
+            try:
+                from ..logging.dataset_contents_collector import update_cache_file_size
+                update_cache_file_size(str(self.cache_file))
+                
+                # Also update cache statistics in dashboard collector
+                self._sync_dashboard_statistics()
+            except ImportError:
+                # Handle case where collector might not be available
+                pass
+            
         except Exception as e:
             logger.error(f"/cpes/ cache save error: {e}", group="cpe_queries")
             
@@ -174,6 +185,14 @@ class CPECache:
         if cpe_string not in self.cache_data:
             self.session_stats['misses'] += 1
             self.metadata['miss_count'] += 1
+            
+            # Record cache miss for dashboard tracking
+            try:
+                from ..logging.dataset_contents_collector import record_cache_activity
+                record_cache_activity('miss', cache_size=len(self.cache_data))
+            except ImportError:
+                pass
+            
             return None, 'miss'
             
         entry = self.cache_data[cpe_string]
@@ -183,6 +202,14 @@ class CPECache:
             del self.cache_data[cpe_string]
             self.session_stats['expired'] += 1
             self.metadata['miss_count'] += 1
+            
+            # Record cache expiration for dashboard tracking
+            try:
+                from ..logging.dataset_contents_collector import record_cache_activity
+                record_cache_activity('expired', cache_size=len(self.cache_data))
+            except ImportError:
+                pass
+            
             return None, 'expired'
             
         # Cache hit
@@ -190,6 +217,13 @@ class CPECache:
         self.session_stats['api_calls_saved'] += 1
         self.metadata['hit_count'] += 1
         self.metadata['api_calls_saved'] += 1
+        
+        # Record cache hit for dashboard tracking
+        try:
+            from ..logging.dataset_contents_collector import record_cache_activity
+            record_cache_activity('hit', cache_size=len(self.cache_data), api_calls_saved=1)
+        except ImportError:
+            pass
         
         # Log cache hit with result count for dashboard tracking
         result_count = entry['query_response'].get('totalResults', 0)
@@ -267,6 +301,17 @@ class CPECache:
             'cache_created': self.metadata['created'],
             'last_updated': self.metadata['last_updated']
         }
+    
+    def _sync_dashboard_statistics(self):
+        """Sync current cache statistics with dashboard collector"""
+        try:
+            from ..logging.dataset_contents_collector import get_dataset_contents_collector
+            collector = get_dataset_contents_collector()
+            if collector:
+                collector.update_cache_statistics()
+        except ImportError:
+            # Dashboard collector not available
+            pass
         
     def log_session_stats(self):
         """Log cache performance for current session"""

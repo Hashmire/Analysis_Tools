@@ -53,11 +53,20 @@ def gatherCVEListRecord(targetCve):
         processData.integrityCheckCVE("cveStatusCheck", "REJECTED", cveRecordDict)
         
         logger.api_response("MITRE CVE API", "Success", group="cve_queries")
+        
         return cveRecordDict
     except requests.exceptions.RequestException as e:
         public_ip = get_public_ip()
         logger.error(f"MITRE CVE API request failed: Unable to fetch CVE record for {targetCve} - {e}", group="cve_queries")
         logger.debug(f"Current public IP address: {public_ip}", group="cve_queries")
+        
+        # Record failed API call in unified dashboard tracking
+        try:
+            from ..logging.dataset_contents_collector import record_api_call_unified
+            record_api_call_unified("MITRE CVE API", success=False)
+        except ImportError:
+            pass  # Fallback for testing environments
+        
         return None
 
 # Using provided CVE-ID, get the CVE data from the NVD API 
@@ -79,6 +88,7 @@ def gatherNVDCVERecord(apiKey, targetCve):
             response = requests.get(url, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
             response.raise_for_status()
             logger.api_response("NVD CVE API", "Success", group="cve_queries")
+            
             return response.json()
         except requests.exceptions.RequestException as e:
             public_ip = get_public_ip()
@@ -86,6 +96,14 @@ def gatherNVDCVERecord(apiKey, targetCve):
             logger.debug(f"Current public IP address: {public_ip}", group="cve_queries")            
             if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
                 logger.error(f"NVD API Message: {e.response.headers['message']}", group="cve_queries")
+            
+            # Record failed API call in unified dashboard tracking (only once per final failure)
+            if attempt == max_retries - 1:  # Only on final attempt
+                try:
+                    from ..logging.dataset_contents_collector import record_api_call_unified
+                    record_api_call_unified("NVD CVE API", success=False)
+                except ImportError:
+                    pass  # Fallback for testing environments
             
             if attempt < max_retries - 1:
                 wait_time = config['api']['retry']['delay_without_key'] if not apiKey else config['api']['retry']['delay_with_key']
@@ -220,7 +238,8 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                 # Add products from this page to consolidated results
                                 if "products" in page_data:
                                     consolidated_data["products"].extend(page_data["products"])
-                                 # Update counters
+                                 
+                                # Update counters
                                 results_this_page = len(page_data.get("products", []))
                                 remaining_results -= results_this_page
                                 current_index += results_per_page
@@ -234,6 +253,13 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                 
                                 # Log the failed API response
                                 logger.api_response("NVD CPE API", "Failed", group="cpe_queries")
+                                
+                                # Record failed paginated API call in unified dashboard tracking
+                                try:
+                                    from ..logging.dataset_contents_collector import record_api_call_unified
+                                    record_api_call_unified("NVD CPE API", success=False)
+                                except ImportError:
+                                    pass  # Fallback for testing environments
                                 
                                   # Check for message header and display if present - error response
                                 if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
@@ -275,6 +301,13 @@ def gatherNVDCPEData(apiKey, case, query_string):
                     
                     # Log the failed API response
                     logger.api_response("NVD CPE API", "Failed", group="cpe_queries")
+                    
+                    # Record failed API call in unified dashboard tracking
+                    try:
+                        from ..logging.dataset_contents_collector import record_api_call_unified
+                        record_api_call_unified("NVD CPE API", success=False)
+                    except ImportError:
+                        pass  # Fallback for testing environments
                     
                     # Check for message header and display if present - error response
                     if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:

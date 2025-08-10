@@ -68,7 +68,9 @@ Each cache entry contains:
 
 ## Performance Monitoring
 
-The system provides detailed cache performance logging:
+The system provides detailed cache performance logging and real-time dashboard integration:
+
+### Console Logging
 
 - **Session Performance**: Hit/miss ratios for current run
 - **Lifetime Performance**: Cumulative statistics across all runs
@@ -80,6 +82,17 @@ Example log output:
 [INFO] Cache session performance: 1,847 hits, 423 misses, 81.4% hit rate, 423 new entries
 [INFO] Cache lifetime performance: 78.5% hit rate, 15,234 API calls saved
 ```
+
+### Real-time Dashboard Integration
+
+Cache performance metrics are automatically integrated into the real-time dashboard during dataset generation:
+
+- **API Usage Statistics**: Live tracking of cache hits/misses and API rate limiting
+- **Performance Metrics**: Real-time cache efficiency and processing speed
+- **Resource Monitoring**: API quota usage and rate limiting status
+- **Processing Attribution**: Cache performance linked to specific processing stages
+
+Access live cache monitoring through `dashboards/generateDatasetDashboard.html` during dataset generation.
 
 ## Usage
 

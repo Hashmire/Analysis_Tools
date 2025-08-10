@@ -117,12 +117,27 @@ def process_test_file(test_file_path):
         
         end_initialization("Test file loaded")
         
+        # Record stage in real-time collector
+        try:
+            from ..logging.dataset_contents_collector import record_stage_start, record_stage_end
+            record_stage_start("cve_queries")
+        except Exception as e:
+            logger.debug(f"Real-time collector unavailable for stage tracking: {e}", group="data_processing")
+        
         start_cve_queries("Processing test CVE data")
           # Process the vulnerability record data
         primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData)             
         primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
         
         end_cve_queries("Test CVE data processed")
+        
+        # Record stage completion in real-time collector
+        try:
+            from ..logging.dataset_contents_collector import record_stage_end
+            record_stage_end("cve_queries")
+            record_stage_start("confirmed_mappings")
+        except Exception as e:
+            logger.debug(f"Real-time collector unavailable for stage tracking: {e}", group="data_processing")
         
         start_confirmed_mappings("Processing confirmed mappings")
         
@@ -241,7 +256,22 @@ def process_cve(cve_id, nvd_api_key):
             state = cveRecordData.get('cveMetadata', {}).get('state')
             if state == 'REJECTED':
                 logger.warning(f"{cve_id} is in REJECTED state - skipping processing", group="cve_queries")
-                return None
+                
+                # Complete badge contents collection for this skipped CVE
+                complete_cve_collection(cve_id)
+                
+                # Ensure progress tracking is properly updated for skipped CVEs
+                from ..logging.dataset_contents_collector import finish_cve_processing
+                finish_cve_processing(cve_id)
+                
+                # Return a result indicating the CVE was skipped due to REJECTED status
+                return {
+                    'success': False,
+                    'skipped': True,
+                    'reason': 'REJECTED',
+                    'cve_id': cve_id,
+                    'filepath': None
+                }
         
         # TEMPORARILY DISABLED: NVD /cves/ API calls and processing
         # TODO: Re-enable when NVD configuration data utilization is implemented
@@ -357,6 +387,33 @@ def process_cve(cve_id, nvd_api_key):
             fd.write(allConsoleHTML)
         
         logger.file_operation("Generated", str(filepath), group="page_generation")
+        
+        # Record file generation in dashboard collector
+        try:
+            from ..logging.dataset_contents_collector import record_output_file, get_current_cve_processing_time
+            
+            # Get processing time for this CVE
+            processing_time = get_current_cve_processing_time()
+            
+            # Count platform entries (dataframe rows)
+            dataframe_rows = len(primaryDataframe) if 'primaryDataframe' in locals() else None
+            
+            # Record the generated file with enhanced metadata
+            record_output_file(
+                filename=filename,
+                file_path=str(filepath),
+                cve_count=1,  # Individual CVE files always have 1 CVE
+                cve_id=cve_id,
+                dataframe_rows=dataframe_rows,
+                processing_time=processing_time,
+                bloat_analysis=None  # Bloat analysis could be added later if needed
+            )
+            
+        except Exception as e:
+            # Don't fail file generation if dashboard recording fails
+            if logger:
+                logger.warning(f"Failed to record file generation in dashboard: {e}", group="page_generation")
+        
         end_page_generation("HTML file created")
         
         # Complete badge contents collection for this CVE
@@ -506,9 +563,15 @@ def audit_global_state_cleared():
 def update_dashboard_async(current_cve_num, total_cves):
     """Update dashboard in parallel without blocking main CVE processing"""
     def _update_dashboard():
-        output_args = ["--no-local-dashboard"]  # Skip local dashboard during processing for performance
-        description = f"Dashboard update at checkpoint {current_cve_num}/{total_cves} (background)"
-        update_dashboard_sync(output_args, description)
+        # Use the dataset contents collector for real-time updates
+        try:
+            from ..logging.dataset_contents_collector import get_dataset_contents_collector
+            collector = get_dataset_contents_collector()
+            if collector.output_file_path:
+                collector.save_to_file(collector.output_file_path)
+                logger.debug(f"Dashboard checkpoint update at {current_cve_num}/{total_cves} (background)", group="data_processing")
+        except Exception as e:
+            logger.debug(f"Dashboard checkpoint update error: {e}", group="data_processing")
     
     # Start background thread
     thread = threading.Thread(target=_update_dashboard, daemon=True)
@@ -528,39 +591,29 @@ def wait_for_dashboard_updates():
             thread.join(timeout=30)  # Wait up to 30 seconds
     _dashboard_update_threads.clear()
 
-def update_dashboard_sync(output_args=None, description="Dashboard update"):
-    """Update dashboard synchronously with optional arguments"""
+def finalize_dashboard_data():
+    """Finalize dashboard data using the dataset contents collector"""
     try:
-        project_root = get_analysis_tools_root()
-        log_analyzer_path = project_root / "src" / "analysis_tool" / "local_dashboard" / "log_analyzer.py"
+        from ..logging.dataset_contents_collector import get_dataset_contents_collector, update_cache_statistics
         
-        # Use run-specific reports directory
-        if not current_run_paths:
-            raise RuntimeError("Run paths not initialized - dashboard requires run directory system")
+        # Update cache statistics with actual data from CPE cache
+        update_cache_statistics()
         
-        dashboard_output = current_run_paths["reports"] / "dashboard_data.json"
-        
-        if log_analyzer_path.exists():
-            # Build command arguments
-            cmd_args = [sys.executable, str(log_analyzer_path), "--output", str(dashboard_output)]
-            if output_args:
-                cmd_args.extend(output_args)
-            
-            # Run log analyzer
-            result = subprocess.run(cmd_args, capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=str(project_root))
-            
-            if result.returncode == 0:
-                logger.debug(f"{description} completed successfully", group="INIT")
+        collector = get_dataset_contents_collector()
+        if collector.output_file_path:
+            # Perform final save with enhanced log analysis
+            result = collector.save_to_file(collector.output_file_path)
+            if result:
+                logger.debug("Final dashboard data generated with enhanced log analysis", group="completion")
                 return True
             else:
-                logger.debug(f"{description} warning: {result.stderr.strip()}", group="INIT")
+                logger.debug("Final dashboard generation completed with warnings", group="completion")
                 return False
         else:
-            logger.debug(f"{description} skipped: log_analyzer.py not found", group="INIT")
+            logger.debug("No dashboard output path configured", group="completion")
             return False
-    
     except Exception as e:
-        logger.debug(f"{description} error: {e}", group="INIT")
+        logger.debug(f"Final dashboard generation error: {e}", group="completion")
         return False
 
 def main():
@@ -756,11 +809,28 @@ def main():
     
     # Initialize badge contents collector with run-specific logs directory
     from ..logging.badge_contents_collector import clear_badge_contents_collector, initialize_badge_contents_report
+    from ..logging.dataset_contents_collector import (
+        clear_dataset_contents_collector, 
+        save_dashboard_data,
+        start_processing_run,
+        initialize_dashboard_collector
+    )
+    
+    # Clear any existing state
     clear_badge_contents_collector()
+    clear_dataset_contents_collector()
+    
+    # Initialize badge contents collector
     if initialize_badge_contents_report(str(run_paths["logs"])):
         logger.info("Badge contents collector initialized for source data concerns reporting", group="initialization")
     else:
         logger.warning("Failed to initialize badge contents collector", group="initialization")
+    
+    # Initialize real-time dashboard collector
+    if initialize_dashboard_collector(str(run_paths["logs"])):
+        logger.info("Real-time dashboard collector initialized for live progress tracking", group="initialization")
+    else:
+        logger.warning("Failed to initialize real-time dashboard collector", group="initialization")
     
     # Start main initialization stage
     start_initialization("Setting up analysis environment")
@@ -791,16 +861,22 @@ def main():
     
     logger.info(f"Processing {len(cves_to_process)} CVE records (newest first)...", group="initialization")
     
+    # Start real-time dashboard processing run
+    try:
+        from ..logging.dataset_contents_collector import start_processing_run
+        start_processing_run(len(cves_to_process))
+        logger.info("Real-time dashboard collector configured for processing run", group="initialization")
+    except Exception as e:
+        logger.warning(f"Failed to start real-time dashboard processing run: {e}", group="initialization")
+    
     # Generate initial dashboard for real-time monitoring
     logger.info("Generating initial dashboard for real-time monitoring...", group="initialization")
-    output_args = ["--summary"]  # Generate both JSON and local HTML dashboard
-    if update_dashboard_sync(output_args, "Initial dashboard generation"):
-        if current_run_paths:
-            logger.info(f"Dashboard ready: Open runs/{run_id}/reports/local_dashboard.html to monitor progress", group="initialization")
-        else:
-            logger.info("Dashboard ready: Open reports/local_dashboard.html to monitor progress", group="initialization")
+    # The dataset contents collector automatically handles initial dashboard setup
+    # No legacy log_analyzer.py needed - all data flows through the collector
+    if current_run_paths:
+        logger.info(f"Dashboard ready: Monitor progress at runs/{run_id}/logs/generateDatasetReport.json", group="initialization")
     else:
-        logger.debug("Dashboard initialization completed with warnings", group="initialization")
+        logger.info("Dashboard ready: Monitor progress in logs/generateDatasetReport.json", group="initialization")
     
     end_initialization("Analysis environment ready, CVE list prepared")
     
@@ -844,6 +920,14 @@ def main():
         
         try:
             logger.info(f"Processing {cve}...", group="processing")
+            
+            # Start CVE processing in real-time collector
+            try:
+                from ..logging.dataset_contents_collector import start_cve_processing
+                start_cve_processing(cve)
+            except Exception as e:
+                logger.debug(f"Real-time collector unavailable for CVE tracking: {e}", group="data_processing")
+            
               # Audit global state periodically
             if index > 0 and index % 100 == 0:  # Every 100 CVEs
                 start_audit(f"Mid-processing audit checkpoint (CVE {current_cve_num}/{total_cves})")
@@ -874,24 +958,54 @@ def main():
             # Process the CVE
             result = process_cve(cve, nvd_api_key)
             
-            if result and result['success']:
-                generated_files.append(result['filepath'])
-                
-                if show_timing:
-                    cve_elapsed = time.time() - cve_start_time
-                    logger.info(f"Successfully processed {cve} in {cve_elapsed:.2f}s", group="processing")
+            # Handle results: successful processing, skipped CVEs, or failures
+            if result:
+                if result['success']:
+                    generated_files.append(result['filepath'])
+                    
+                    if show_timing:
+                        cve_elapsed = time.time() - cve_start_time
+                        logger.info(f"Successfully processed {cve} in {cve_elapsed:.2f}s", group="processing")
+                    else:
+                        logger.info(f"Successfully processed {cve}", group="processing")
+                    
+                    # Open in browser if single CVE
+                    if len(cves_to_process) == 1 and not args.no_browser:
+                        import webbrowser
+                        webbrowser.open_new_tab(f"file:///{result['filepath']}")
+                        
+                elif result.get('skipped'):
+                    # CVE was skipped (e.g., REJECTED status)
+                    if show_timing:
+                        cve_elapsed = time.time() - cve_start_time
+                        logger.info(f"Skipped {cve} ({result.get('reason', 'unknown reason')}) in {cve_elapsed:.2f}s", group="processing")
+                    else:
+                        logger.info(f"Skipped {cve} ({result.get('reason', 'unknown reason')})", group="processing")
                 else:
-                    logger.info(f"Successfully processed {cve}", group="processing")
+                    # CVE processing failed with error
+                    error_msg = result.get('error', 'Unknown error')
+                    logger.error(f"Failed to process {cve}: {error_msg}", group="data_processing")
+                    skipped_cves.append(cve)
+                    skipped_reasons[cve] = error_msg
                 
-                # Open in browser if single CVE
-                if len(cves_to_process) == 1 and not args.no_browser:
-                    import webbrowser
-                    webbrowser.open_new_tab(f"file:///{result['filepath']}")
+                # Complete CVE processing in real-time collector for all result types
+                try:
+                    from ..logging.dataset_contents_collector import finish_cve_processing
+                    finish_cve_processing(cve)
+                except Exception as e:
+                    logger.debug(f"Real-time collector unavailable for CVE completion tracking: {e}", group="data_processing")
             else:
-                error_msg = result['error'] if result else "Unknown error"
-                logger.error(f"Failed to process {cve}: {error_msg}", group="data_processing")
+                # CVE processing failed entirely - no result returned
+                logger.error(f"Failed to process {cve}: No result returned", group="data_processing")
                 skipped_cves.append(cve)
-                skipped_reasons[cve] = error_msg
+                skipped_reasons[cve] = "No result returned"
+                
+                # Still complete CVE processing in real-time collector to maintain accurate counts
+                try:
+                    from ..logging.dataset_contents_collector import finish_cve_processing
+                    finish_cve_processing(cve)
+                except Exception as e:
+                    logger.debug(f"Real-time collector unavailable for CVE completion tracking: {e}", group="data_processing")
                 
         except Exception as e:
             logger.error(f"Unexpected error processing {cve}: {e}", group="data_processing")
@@ -921,11 +1035,11 @@ def main():
     wait_for_dashboard_updates()
     
     logger.info("Updating final dashboard...", group="completion")
-    if update_dashboard_sync(None, "Final dashboard update"):
+    if finalize_dashboard_data():
         if current_run_paths:
-            logger.info(f"Dashboard updated with final results: runs/{run_id}/reports/local_dashboard.html", group="completion")
+            logger.info(f"Dashboard updated with final results: runs/{run_id}/logs/generateDatasetReport.json", group="completion")
         else:
-            logger.info("Dashboard updated with final results: reports/local_dashboard.html", group="completion")
+            logger.info("Dashboard updated with final results: logs/generateDatasetReport.json", group="completion")
     else:
         logger.debug("Final dashboard update completed with warnings", group="completion")
     
@@ -954,6 +1068,16 @@ def main():
     badge_report_path = finalize_badge_contents_report()
     if badge_report_path:
         logger.info(f"Badge contents report finalized: {badge_report_path}", group="completion")
+    
+    # Finalize real-time dashboard collector
+    try:
+        from ..logging.dataset_contents_collector import save_dashboard_data
+        dashboard_file_path = str(run_paths["logs"] / "generateDatasetReport.json")
+        dashboard_report_path = save_dashboard_data(dashboard_file_path)
+        if dashboard_report_path:
+            logger.info(f"Real-time dashboard report finalized: {dashboard_report_path}", group="completion")
+    except Exception as e:
+        logger.warning(f"Failed to finalize real-time dashboard collector: {e}", group="completion")
     
     # Stop file logging
     logger.stop_file_logging()

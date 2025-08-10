@@ -124,6 +124,19 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     logger.info(f"Output file: {output_file}", group="initialization")
     logger.info(f"Using API key: {'Yes' if api_key else 'No'}", group="initialization")
     
+    # Initialize dataset contents collector
+    from src.analysis_tool.logging.dataset_contents_collector import (
+        initialize_dataset_contents_report, start_collection_phase, 
+        record_api_call, record_output_file
+    )
+    
+    # Initialize collector with run's logs directory
+    if run_directory:
+        logs_dir = run_directory / "logs"
+        logs_dir.mkdir(exist_ok=True)
+        initialize_dataset_contents_report(str(logs_dir))
+        start_collection_phase("status_based_query", "nvd_api")
+    
     base_url = config['api']['endpoints']['nvd_cves']
     headers = {
         "Accept": "application/json",
@@ -152,6 +165,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         page_data = None
         
         # Retry logic for API calls
+        rate_limited = False
         for attempt in range(max_retries):
             try:
                 response = requests.get(url, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
@@ -165,6 +179,10 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                 if hasattr(e, 'response') and e.response is not None:
                     if 'message' in e.response.headers:                        logger.error(f"NVD API Message: {e.response.headers['message']}", group="data_processing")
                     logger.error(f"Response status code: {e.response.status_code}", group="data_processing")
+                    
+                    # Check for rate limiting
+                    if e.response.status_code == 429:
+                        rate_limited = True
                 
                 if attempt < max_retries - 1:
                     wait_time = config['api']['retry']['delay_without_key'] if not api_key else config['api']['retry']['delay_with_key']
@@ -172,14 +190,31 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                     sleep(wait_time)
                 else:
                     logger.error(f"Dataset generation failed: Maximum retry attempts ({max_retries}) reached for current page - stopping data collection", group="data_processing")
+                    # Record failed API call in unified tracking
+                    if run_directory:
+                        record_api_call(0, rate_limited)
+                        # Also record in unified dashboard tracking
+                        try:
+                            from src.analysis_tool.logging.dataset_contents_collector import record_api_call_unified
+                            record_api_call_unified("NVD CVE Dataset API", success=False)
+                        except ImportError:
+                            pass
                     break
         
         if page_data is None:
             logger.error("Dataset generation failed: Unable to retrieve page data after all retry attempts - stopping data collection", group="data_processing")
             break
         
-        # Process CVEs in this page
+        # Record successful API call
         vulnerabilities = page_data.get('vulnerabilities', [])
+        if run_directory:
+            record_api_call(len(vulnerabilities), rate_limited)
+            # Also record in unified dashboard tracking
+            try:
+                from src.analysis_tool.logging.dataset_contents_collector import record_api_call_unified
+                record_api_call_unified("NVD CVE Dataset API", success=True)
+            except ImportError:
+                pass
         
         if not vulnerabilities:
             logger.info("No more vulnerabilities found. Collection complete.", group="cve_queries")
@@ -235,12 +270,23 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         logger.info(f"File saved: {output_file_resolved}", group="initialization")
         logger.info(f"You can now run: python run_tools.py --file {output_file_resolved}", group="initialization")
         
+        # Record output file in dataset contents collector
+        if run_directory:
+            record_output_file(output_file, str(output_file_resolved), len(matching_cves))
+        
         # Record this run in the tracking system
         record_dataset_run(output_file_resolved, len(matching_cves), run_directory, "status_based")
         
     except Exception as e:
         logger.error(f"Dataset file creation failed: Unable to write dataset output to '{output_file_resolved}' - {e}", group="data_processing")
         return False
+    
+    # Finalize dataset contents report
+    if run_directory:
+        from src.analysis_tool.logging.dataset_contents_collector import finalize_dataset_contents_report
+        report_path = finalize_dataset_contents_report()
+        if report_path:
+            logger.info(f"Dataset generation report finalized: {report_path}", group="completion")
     
     return True
 
@@ -318,6 +364,19 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
     """Query NVD API for CVEs modified within a date range"""
     logger.info(f"Querying CVEs modified between {start_date} and {end_date}", group="initialization")
     
+    # Initialize dataset contents collector for date range queries
+    from src.analysis_tool.logging.dataset_contents_collector import (
+        initialize_dataset_contents_report, start_collection_phase, 
+        record_api_call, record_output_file
+    )
+    
+    # Initialize collector with run's logs directory
+    if run_directory:
+        logs_dir = run_directory / "logs"
+        logs_dir.mkdir(exist_ok=True)
+        initialize_dataset_contents_report(str(logs_dir))
+        start_collection_phase("date_range_query", "nvd_api")
+    
     base_url = config['api']['endpoints']['nvd_cves']
     headers = {
         "Accept": "application/json",
@@ -346,6 +405,7 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
         
         max_retries = config['api']['retry']['max_attempts_nvd']
         page_data = None
+        rate_limited = False
         
         for attempt in range(max_retries):
             try:
@@ -355,15 +415,27 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
                 break
             except requests.exceptions.RequestException as e:
                 logger.error(f"NVD API request failed: {e} (Attempt {attempt + 1}/{max_retries})", group="data_processing")
+                
+                # Check for rate limiting
+                if hasattr(e, 'response') and e.response is not None and e.response.status_code == 429:
+                    rate_limited = True
+                
                 if attempt < max_retries - 1:
                     wait_time = config['api']['retry']['delay_without_key'] if not api_key else config['api']['retry']['delay_with_key']
                     sleep(wait_time)
+                else:
+                    # Record failed API call
+                    if run_directory:
+                        record_api_call(0, rate_limited)
         
         if page_data is None:
             logger.error("Failed to retrieve page data", group="data_processing")
             break
         
+        # Record successful API call
         vulnerabilities = page_data.get('vulnerabilities', [])
+        if run_directory:
+            record_api_call(len(vulnerabilities), rate_limited)
         if not vulnerabilities:
             logger.info("No more vulnerabilities found. Collection complete.", group="cve_queries")
             break
@@ -402,12 +474,24 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
         logger.info(f"Dataset generated successfully: {len(matching_cves)} CVEs", group="initialization")
         logger.info(f"File saved: {output_file_resolved}", group="initialization")
         
+        # Record output file in dataset contents collector
+        if run_directory:
+            record_output_file(output_file, str(output_file_resolved), len(matching_cves))
+        
         # Record this run
         record_dataset_run(output_file_resolved, len(matching_cves), run_directory, "date_range")
+        
+        # Finalize dataset contents report
+        if run_directory:
+            from src.analysis_tool.logging.dataset_contents_collector import finalize_dataset_contents_report
+            report_path = finalize_dataset_contents_report()
+            if report_path:
+                logger.info(f"Dataset generation report finalized: {report_path}", group="completion")
         
         return True
     except Exception as e:
         logger.error(f"Failed to write output file: {e}", group="data_processing")
+        return False
         return False
 
 def main():

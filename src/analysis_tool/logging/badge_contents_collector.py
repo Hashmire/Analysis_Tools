@@ -101,9 +101,7 @@ class BadgeContentsCollector:
             # Ensure logs directory exists
             os.makedirs(logs_directory, exist_ok=True)
             
-            # Generate filename with timestamp
-            timestamp = datetime.now().strftime("%Y.%m.%d_%H.%M.%S")
-            filename = f"{timestamp}_sourceDataConcernReport.json"
+            filename = "sourceDataConcernReport.json"
             self.output_file_path = os.path.join(logs_directory, filename)
             
             # Create initial file structure

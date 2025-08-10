@@ -80,6 +80,31 @@ runs/[timestamp]_[context]/
 └── reports/          # Dashboard data (if analysis enabled)
 ```
 
+## Real-time Monitoring
+
+The dataset generation process provides real-time monitoring through an integrated dashboard system:
+
+### Dashboard Access
+
+When running `generate_dataset.py`, the system automatically:
+
+- Starts real-time data collection in the background
+- Generates a live dashboard accessible at `dashboards/generateDatasetDashboard.html`
+- Updates progress, timing, and statistics every 5 seconds
+
+### Dashboard Features
+
+- **Progress Tracking**: Real-time progress updates with accurate ETA calculations
+- **Warning/Error Attribution**: Links warnings and errors to specific processing stages
+- **Resource Monitoring**: Tracks processing rates, API usage, and system performance
+- **File Status**: Shows current files being processed and completion statistics
+
+### Viewing the Dashboard
+
+1. Open `dashboards/generateDatasetDashboard.html` in your browser during dataset generation
+2. The dashboard automatically refreshes to show current progress
+3. Use the refresh button to manually update the view or switch between different run files
+
 ## Date Range Limitations
 
 - Maximum date range: 120 consecutive days (NVD API limitation)
