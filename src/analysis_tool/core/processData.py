@@ -21,7 +21,7 @@ from ..logging.workflow_logger import (
     get_logger, LogGroup,
     end_unique_cpe_generation, start_cpe_queries, end_cpe_queries
 )
-from ..logging.dataset_contents_collector import record_cpe_query, get_dataset_contents_collector
+from ..logging.dataset_contents_collector import record_cpe_query, get_dataset_contents_collector, record_mapping_activity
 
 # Get logger instance
 logger = get_logger()
@@ -180,9 +180,11 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
             
             # Skip NVD entries since they use different data structure and won't have confirmed mappings
             if source_role == 'NVD':
+                logger.debug(f"Skipping NVD entry for confirmed mappings: {source_id}", group="badge_gen")
                 continue
             
             total_processed += 1
+            logger.debug(f"Processing confirmed mappings for {source_id} (role: {source_role})", group="badge_gen")
             
             # Find confirmed mappings
             result = find_confirmed_mappings(raw_platform_data, source_id)
@@ -220,6 +222,9 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
     # Log confirmed mappings statistics
     hit_rate = (successful_mappings / total_processed * 100) if total_processed > 0 else 0
     logger.info(f"Confirmed mappings statistics: {successful_mappings}/{total_processed} platform entries ({hit_rate:.1f}% hit rate), {total_mappings_found} total mappings found", group="badge_gen")
+    
+    # Record mapping statistics for dashboard tracking
+    record_mapping_activity(total_mappings_found, total_processed)
     
     # Store statistics for audit access
     global confirmed_mappings_stats

@@ -1509,6 +1509,21 @@ class UnifiedDashboardCollector:
         except Exception as e:
             logger.error(f"Failed to start collection phase {phase_name}: {e}", group="collection")
     
+    def update_cve_discovery_progress(self, current_count: int, total_count: int, matched_cves: int = 0):
+        """Update progress during CVE list generation phase"""
+        try:
+            if total_count > 0:
+                progress_pct = (current_count / total_count) * 100
+                self.data["processing"]["progress_percentage"] = round(progress_pct, 1)
+                self.data["processing"]["current_cve"] = f"Discovering CVEs: {matched_cves} found"
+                self.data["processing"]["eta_simple"] = f"Scanning {current_count}/{total_count} CVEs"
+                
+                # Force save for real-time dashboard updates
+                self._auto_save(force=True)
+                
+        except Exception as e:
+            logger.error(f"Failed to update CVE discovery progress: {e}", group="collection")
+    
     def record_api_call_dataset(self, cves_returned: int = 0, rate_limited: bool = False):
         """
         Dataset-specific API call recording (backward compatibility)
@@ -1958,6 +1973,11 @@ def record_stage_end(stage_name: str):
     """Record the end of a processing stage"""
     collector = get_dataset_contents_collector()
     collector.record_stage_end(stage_name)
+
+def update_cve_discovery_progress(current_count: int, total_count: int, matched_cves: int = 0):
+    """Update progress during CVE list generation phase"""
+    collector = get_dataset_contents_collector()
+    collector.update_cve_discovery_progress(current_count, total_count, matched_cves)
 
 def initialize_dashboard_collector(logs_directory: str) -> bool:
     """Initialize the dashboard collector with output directory"""

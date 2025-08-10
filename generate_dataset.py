@@ -127,7 +127,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     # Initialize dataset contents collector
     from src.analysis_tool.logging.dataset_contents_collector import (
         initialize_dataset_contents_report, start_collection_phase, 
-        record_api_call, record_output_file
+        record_api_call, record_output_file, update_cve_discovery_progress
     )
     
     # Initialize collector with run's logs directory
@@ -135,7 +135,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         logs_dir = run_directory / "logs"
         logs_dir.mkdir(exist_ok=True)
         initialize_dataset_contents_report(str(logs_dir))
-        start_collection_phase("status_based_query", "nvd_api")
+        start_collection_phase("cve_list_generation", "nvd_api")
     
     base_url = config['api']['endpoints']['nvd_cves']
     headers = {
@@ -236,6 +236,10 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         current_end = start_index + len(vulnerabilities)
         progress_pct = (current_end / total_results * 100) if total_results > 0 else 0
         logger.info(f"Processing CVE dataset generation: {current_end}/{total_results} ({progress_pct:.1f}%) - {len(matching_cves)} matching CVE records found", group="cve_queries")
+        
+        # Update dashboard progress
+        if run_directory:
+            update_cve_discovery_progress(current_end, total_results, len(matching_cves))
         
         if current_end >= total_results:
             logger.info("Reached end of available CVEs.", group="cve_queries")
@@ -367,7 +371,7 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
     # Initialize dataset contents collector for date range queries
     from src.analysis_tool.logging.dataset_contents_collector import (
         initialize_dataset_contents_report, start_collection_phase, 
-        record_api_call, record_output_file
+        record_api_call, record_output_file, update_cve_discovery_progress
     )
     
     # Initialize collector with run's logs directory
@@ -375,7 +379,7 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
         logs_dir = run_directory / "logs"
         logs_dir.mkdir(exist_ok=True)
         initialize_dataset_contents_report(str(logs_dir))
-        start_collection_phase("date_range_query", "nvd_api")
+        start_collection_phase("cve_list_generation", "nvd_api")
     
     base_url = config['api']['endpoints']['nvd_cves']
     headers = {
@@ -453,6 +457,10 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
         current_end = start_index + len(vulnerabilities)
         progress_pct = (current_end / total_results * 100) if total_results > 0 else 0
         logger.info(f"Progress: {current_end}/{total_results} ({progress_pct:.1f}%) - {len(matching_cves)} CVEs found", group="cve_queries")
+        
+        # Update dashboard progress
+        if run_directory:
+            update_cve_discovery_progress(current_end, total_results, len(matching_cves))
         
         if current_end >= total_results:
             break
@@ -652,10 +660,6 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
             cmd.extend(["--run-id", run_id])
             logger.info(f"Continuing analysis within existing run: {run_id}", group="initialization")
         
-        # Add batch-appropriate configuration based on dataset size
-        if cve_count > 10000:
-            logger.info("Large dataset detected (>10K CVEs) - enabling memory-efficient processing", group="initialization")
-            cmd.extend(["--no-cache"])  # Skip caching for large batches to save memory
         
         if api_key:
             cmd.extend(["--api-key", api_key])

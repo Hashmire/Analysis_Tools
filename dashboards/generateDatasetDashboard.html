@@ -1849,6 +1849,37 @@
             console.log(`[Tooltip System] Initialized ${totalTooltipElements} tooltips successfully`);
         }
 
+        function toggleSectionsForPhase(isListGeneration) {
+            // During CVE list generation, hide complex sections
+            const sectionsToHide = [
+                'cache-details',
+                'cpe-details', 
+                'mapping-details',
+                'file-details'
+            ];
+            
+            const cardsToHide = [
+                '.metric-card.cache',
+                '.metric-card.cpe',
+                '.metric-card.mappings',
+                '.metric-card.files'
+            ];
+            
+            sectionsToHide.forEach(sectionId => {
+                const section = document.getElementById(sectionId);
+                if (section) {
+                    section.style.display = isListGeneration ? 'none' : 'block';
+                }
+            });
+            
+            cardsToHide.forEach(cardSelector => {
+                const card = document.querySelector(cardSelector);
+                if (card) {
+                    card.style.display = isListGeneration ? 'none' : 'block';
+                }
+            });
+        }
+
         function populateDashboard(data) {
             const processing = data.processing || {};
             const performance = data.performance || {};
@@ -1861,6 +1892,13 @@
             const deduplication_stats = data.deduplication_stats || {};
             const speed_stats = data.speed_stats || {};
             const bloat_analysis = data.bloat_analysis || {};
+
+            // Detect CVE list generation phase (simple detection)
+            const isListGeneration = data.metadata?.workflow_phase === 'cve_list_generation' ||
+                                   (processing.total_cves === 0 && api.total_calls > 0);
+
+            // Show/hide sections based on phase
+            toggleSectionsForPhase(isListGeneration);
 
             // Overall progress
             const progressPercent = formatNumber(processing.progress_percentage || 100, 1) + '%';
