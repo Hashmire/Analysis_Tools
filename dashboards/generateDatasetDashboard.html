@@ -124,32 +124,6 @@
             border-color: rgba(255, 255, 255, 0.5);
         }
 
-        .refresh-button {
-            background: rgba(52, 152, 219, 0.8);
-            border: 1px solid rgba(52, 152, 219, 0.9);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.9em;
-            transition: all 0.3s ease;
-            display: none;
-        }
-
-        .refresh-button.show {
-            display: block;
-        }
-
-        .refresh-button:hover {
-            background: rgba(52, 152, 219, 1);
-            border-color: rgba(52, 152, 219, 1);
-            transform: translateY(-1px);
-        }
-
-        .refresh-button:active {
-            transform: translateY(0);
-        }
-
         .file-input-wrapper {
             position: relative;
             overflow: hidden;
@@ -239,18 +213,6 @@
             max-width: 600px;
             margin-left: auto;
             margin-right: auto;
-        }
-
-        .status-success {
-            background: rgba(39, 174, 96, 0.2);
-            color: #27ae60;
-            border: 1px solid rgba(39, 174, 96, 0.5);
-        }
-
-        .status-error {
-            background: rgba(231, 76, 60, 0.2);
-            color: #e74c3c;
-            border: 1px solid rgba(231, 76, 60, 0.5);
         }
 
         .dashboard-content {
@@ -957,90 +919,61 @@
             }
         }
 
-        /* CPE Section Specific Styles */
-        .cve-link {
-            color: #5a6c7d;
-            text-decoration: none;
-            font-weight: 600;
-            font-family: 'Consolas', 'Monaco', monospace;
-        }
-
-        .cve-link:hover {
-            color: #3a4d5d;
-            text-decoration: underline;
-        }
-
-        .cpe-cell code {
-            background: #f5f5f5;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.9em;
-            color: #2c3e50;
-            max-width: 300px;
+        /* Universal CVE-ID Element Styles - High Specificity with Visual Styling */
+        code.cve-id,
+        a.cve-id code.cve-id-inner,
+        .description code.cve-id,
+        .description a.cve-id code.cve-id-inner,
+        .api-service-content code.cve-id,
+        .api-service-content a.cve-id code.cve-id-inner,
+        td code.cve-id,
+        td a.cve-id code.cve-id-inner {
+            background: rgba(44, 62, 80, 0.1) !important;
+            padding: 2px 6px !important;
+            border-radius: 3px !important;
+            font-size: 0.9em !important;
+            color: #2c3e50 !important;
+            border: 1px solid rgba(44, 62, 80, 0.2) !important;
+            transition: all 0.2s ease !important;
+            font-family: monospace !important;
+            font-weight: 600 !important;
+            cursor: pointer;
             display: inline-block;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
         }
 
-        .rank-cell {
-            color: #7f8c8d;
-            font-weight: 600;
-            text-align: center;
+        a.cve-id {
+            text-decoration: none !important;
         }
 
-        .number-cell {
-            text-align: center;
-            font-weight: 500;
-            color: #2c3e50;
+        a.cve-id:hover code.cve-id-inner {
+            background: rgba(44, 62, 80, 0.2) !important;
+            border-color: #2c3e50 !important;
+            color: #1a252f !important;
         }
 
-        .cve-list-cell {
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 0.85em;
-            color: #5a6c7d;
-            max-width: 200px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+        a.cve-id:visited code.cve-id-inner {
+            color: #2c3e50 !important;
         }
 
-        .status-cell {
-            text-align: center;
+        code.cve-id--disabled {
+            background: rgba(108, 117, 125, 0.1) !important;
+            color: #6c757d !important;
+            border-color: rgba(108, 117, 125, 0.2) !important;
+            cursor: default !important;
+            pointer-events: none;
         }
 
-        .status-badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 0.8em;
-            font-weight: 600;
+        .cve-id--compact code,
+        .cve-id--compact code.cve-id-inner {
+            font-size: 0.8em !important;
+            padding: 1px 4px !important;
         }
 
-        .status-success {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .status-pending {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .source-cell {
-            text-align: center;
-        }
-
-        .source-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            background: #e9ecef;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 0.8em;
-            color: #495057;
-            font-weight: 500;
+        /* Special override for performance stats to ensure readable size */
+        .api-service-content .description .cve-id--compact code,
+        .api-service-content .description .cve-id--compact code.cve-id-inner {
+            font-size: 0.9em !important;
+            padding: 2px 5px !important;
         }
 
         /* Log Analysis Styles */
@@ -1249,7 +1182,6 @@
                 </div>
                 <div class="collapsed-buttons">
                     <button class="expand-button" id="expand-button" onclick="expandFileSelector()">Change File</button>
-                    <button class="refresh-button" id="refresh-button" onclick="refreshDashboard()" title="Refresh dashboard data (browsers may clear file selection for security - just re-select the same file)">🔄 Refresh</button>
                 </div>
                 
                 <!-- Full file selection view -->
@@ -1460,81 +1392,32 @@
             }
         }
 
-        function refreshDashboard() {
-            // Check if there's currently a file loaded
-            if (dashboardData && dashboardData.metadata && dashboardData.metadata.selected_file_name) {
-                const currentFileName = dashboardData.metadata.selected_file_name;
-                
-                showStatus(`Attempting to refresh ${currentFileName}...`, 'info');
-                
-                // Try to reload the current file
-                const fileInput = document.getElementById('file-input');
-                if (fileInput.files && fileInput.files[0] && fileInput.files[0].name === currentFileName) {
-                    // Current file is still selected, reload it directly
-                    console.log('File still selected, reloading directly...');
-                    loadFile();
-                    return;
-                }
-                
-                // File input was cleared (common browser behavior)
-                // Show user-friendly guidance
-                showStatus(`To refresh, please re-select the file "${currentFileName}" (browsers clear file selection for security)`, 'warning');
-                
-                // Provide helpful guidance
-                setTimeout(() => {
-                    showStatus(`Tip: Bookmark or keep the logs folder open to quickly find "${currentFileName}"`, 'info');
-                }, 2000);
-                
-                // Reset to file selection mode but keep dashboard visible
-                expandFileSelector();
-                
-                // Highlight the file input to draw attention
-                const fileInputWrapper = document.getElementById('file-input-wrapper');
-                if (fileInputWrapper) {
-                    fileInputWrapper.style.border = '2px solid #f39c12';
-                    fileInputWrapper.style.animation = 'pulse 2s infinite';
-                    
-                    // Remove highlight after a few seconds
-                    setTimeout(() => {
-                        fileInputWrapper.style.border = '';
-                        fileInputWrapper.style.animation = '';
-                    }, 5000);
-                }
-                
-                return;
+        /**
+         * Creates a universal CVE-ID element with consistent styling and behavior
+         * @param {string} cveId - The CVE identifier (e.g., 'CVE-2024-12345' or 'unknown')
+         * @param {Object} options - Configuration options
+         * @param {boolean} options.compact - Use compact size styling (default: false)
+         * @param {boolean} options.disableLink - Disable linking for special cases (default: false)
+         * @returns {string} HTML string for the CVE-ID element
+         */
+        function createCveIdElement(cveId, options = {}) {
+            const { compact = false, disableLink = false } = options;
+            
+            // Handle special cases
+            const isSpecialCase = cveId === 'unknown' || cveId === 'system-wide';
+            const displayText = cveId === 'unknown' ? 'General System Issues' : 
+                               cveId === 'system-wide' ? 'System-Wide Issues' : cveId;
+            
+            // Determine classes
+            let classes = 'cve-id';
+            if (compact) classes += ' cve-id--compact';
+            if (isSpecialCase || disableLink) classes += ' cve-id--disabled';
+            
+            // Create element with visual styling (code element for shaded box appearance)
+            if (isSpecialCase || disableLink) {
+                return `<code class="${classes}">${displayText}</code>`;
             } else {
-                // No file currently loaded, use original refresh behavior
-                showStatus('No dashboard data loaded. Please select a JSON file to begin.', 'warning');
-                
-                // Clear any cached dashboard data
-                dashboardData = null;
-                
-                // Clear the file input to force re-selection
-                const fileInput = document.getElementById('file-input');
-                fileInput.value = '';
-                
-                // Reset file selection state
-                document.getElementById('file-name').textContent = 'No file selected';
-                document.getElementById('load-button').disabled = true;
-                
-                // Hide dashboard content
-                document.querySelector('.dashboard-content').style.display = 'none';
-                
-                // Expand file selector
-                expandFileSelector();
-                
-                // Clear any status messages
-                hideStatus();
-                
-                // Show refresh status
-                showStatus('Dashboard refreshed - please select a file to load fresh data', 'info');
-                
-                // Scroll to file selector
-                setTimeout(() => {
-                    document.getElementById('file-selector').scrollIntoView({ 
-                        behavior: 'smooth' 
-                    });
-                }, 100);
+                return `<a href="https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/${cveId}.html" target="_blank" class="${classes}"><code class="cve-id-inner">${displayText}</code></a>`;
             }
         }
 
@@ -1675,10 +1558,9 @@
             fileInputWrapper.classList.add('collapsed');
             loadButton.classList.add('collapsed');
             
-            // Show collapsed elements including both buttons
+            // Show collapsed elements
             collapsedInfo.classList.add('show');
             expandButton.classList.add('show');
-            document.getElementById('refresh-button').classList.add('show');
             
             // Hide expanded elements
             fileStatus.style.display = 'none';
@@ -1700,10 +1582,9 @@
             fileInputWrapper.classList.remove('collapsed');
             loadButton.classList.remove('collapsed');
             
-            // Hide collapsed elements including both buttons
+            // Hide collapsed elements
             collapsedInfo.classList.remove('show');
             expandButton.classList.remove('show');
-            document.getElementById('refresh-button').classList.remove('show');
             
             // Show expanded elements
             fileStatus.style.display = 'block';
@@ -2057,7 +1938,7 @@
                                 <div class="icon">🏃</div>
                                 <div class="service-name">Fastest CVE Time</div>
                                 <div class="call-count">${formatNumber(speed_stats.fastest_cve_time || performance.min_time || 0, 2)}s</div>
-                                <div class="description">${speed_stats.fastest_cve_id || 'N/A'}</div>
+                                <div class="description">${speed_stats.fastest_cve_id ? createCveIdElement(speed_stats.fastest_cve_id, { compact: true }) : 'N/A'}</div>
                             </div>
                         </div>
 
@@ -2066,7 +1947,7 @@
                                 <div class="icon">🐌</div>
                                 <div class="service-name">Slowest CVE Time</div>
                                 <div class="call-count">${formatNumber(speed_stats.slowest_cve_time || performance.max_time || 0, 2)}s</div>
-                                <div class="description">${speed_stats.slowest_cve_id || 'N/A'}</div>
+                                <div class="description">${speed_stats.slowest_cve_id ? createCveIdElement(speed_stats.slowest_cve_id, { compact: true }) : 'N/A'}</div>
                             </div>
                         </div>
                     </div>
@@ -2471,15 +2352,8 @@
                     const totalCount = cveData.total_count;
                     const latestTimestamp = cveData.last_occurrence || cveData.first_occurrence || 'Unknown';
                     
-                    // Create CVE link
-                    const cveDisplay = (cveId !== 'unknown' && cveId !== 'system-wide') ? 
-                        `<a href="https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/${cveId}.html" target="_blank" style="text-decoration: none;">
-                            <code style="background: rgba(108, 117, 125, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; color: #495057; border: 1px solid rgba(108, 117, 125, 0.2); transition: all 0.2s ease; cursor: pointer;" 
-                                  onmouseover="this.style.background='rgba(108, 117, 125, 0.2)'; this.style.borderColor='#495057';" 
-                                  onmouseout="this.style.background='rgba(108, 117, 125, 0.1)'; this.style.borderColor='rgba(108, 117, 125, 0.2)';"
-                                  title="Click to open CVE page in new tab">${cveId}</code>
-                        </a>` : 
-                        `<code style="background: rgba(108, 117, 125, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; color: #6c757d;">${cveId === 'unknown' ? 'General System Issues' : (cveId === 'system-wide' ? 'System-Wide Issues' : cveId)}</code>`;
+                    // Create CVE display using universal function
+                    const cveDisplay = createCveIdElement(cveId);
                     
                     html += `
                         <div class="cve-log-entry" style="margin-bottom: 15px; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;">
@@ -2754,8 +2628,7 @@
                         <tr style="${rowClass}">
                             <td style="padding: 12px; font-weight: 600; color: #2c3e50;">#${index + 1}</td>
                             <td style="padding: 12px;">
-                                <a href="https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/${cveId}.html" 
-                                   target="_blank" style="color: #2c3e50; text-decoration: none; font-weight: 600; font-family: monospace;">${cveId}</a>
+                                ${createCveIdElement(cveId)}
                             </td>
                             <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">${formatNumber(uniqueStrings)}</td>
                             <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">${formatNumber(affectedEntries)}</td>
@@ -2793,8 +2666,17 @@
                 
                 top_result_queries.slice(0, 10).forEach((query, index) => {
                     const rowClass = index % 2 === 0 ? 'background: #f8f9fa;' : 'background: white;';
-                    // Use the pre-formatted CVE display with NVD links, fallback to empty if not available
-                    const cveLinksHtml = query.cve_display || '<span class="text-muted">No CVEs tracked</span>';
+                    
+                    // Create CVE display using universal function
+                    let cveLinksHtml = '<span class="text-muted">No CVEs tracked</span>';
+                    if (query.cve_ids && query.cve_ids.length > 0) {
+                        const cveElements = query.cve_ids.slice(0, 5).map(cveId => createCveIdElement(cveId, { compact: true }));
+                        cveLinksHtml = cveElements.join(', ');
+                        if (query.total_cve_count > 5) {
+                            cveLinksHtml += ` <span style="color: #6c757d;">(+${query.total_cve_count - 5} more)</span>`;
+                        }
+                    }
+                    
                     const source = query.source || '🌐 API';
                     
                     html += `
@@ -2903,15 +2785,8 @@
                     const processingTime = formatTime(file.processing_time || 0);
                     const rowStyle = index % 2 === 0 ? 'background: #f8f9fa;' : 'background: #dfdfdf;';
                     
-                    // Create CVE link to the appropriate URL
-                    const cveLink = cveId !== 'Unknown' ? 
-                        `<a href="https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/${cveId}.html" target="_blank" style="text-decoration: none;">
-                            <code style="background: rgba(22, 160, 133, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; color: #16a085; border: 1px solid rgba(22, 160, 133, 0.2); transition: all 0.2s ease; cursor: pointer;" 
-                                  onmouseover="this.style.background='rgba(22, 160, 133, 0.2)'; this.style.borderColor='#16a085';" 
-                                  onmouseout="this.style.background='rgba(22, 160, 133, 0.1)'; this.style.borderColor='rgba(22, 160, 133, 0.2)';"
-                                  title="Click to open CVE page in new tab">${cveId}</code>
-                        </a>` : 
-                        `<code style="background: rgba(108, 117, 125, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; color: #6c757d;">${cveId}</code>`;
+                    // Create CVE link using universal function
+                    const cveLink = createCveIdElement(cveId === 'Unknown' ? 'unknown' : cveId);
                     
                     // Use bloat analysis data if available
                     const bloatAnalysis = file.bloat_analysis || {};
