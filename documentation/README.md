@@ -32,7 +32,7 @@ runs/[timestamp]_[context]/
 ├── generated_pages/    # HTML reports for this run
 ├── logs/              # Run-specific logs  
 ├── reports/           # Dashboard data for this run
-└── datasets/          # Dataset files for this run
+└── logs/              # All data files, tracking, and monitoring
 ```
 
 ### Key Components

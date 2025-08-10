@@ -110,9 +110,10 @@ runs/[timestamp]_[context]/
 ├── logs/
 │   ├── generateDatasetReport.json    # Real-time dashboard data
 │   ├── sourceDataConcernReport.json  # Data quality analysis
-│   └── [timestamp]_[context].log     # Detailed processing log
-├── generated_pages/                  # HTML vulnerability reports
-└── datasets/                         # Generated dataset files (if applicable)
+│   ├── [timestamp]_[context].log     # Detailed processing log
+│   ├── dataset_tracker.json         # Dataset generation tracking (if applicable)
+│   └── [output_files]               # Generated dataset files (if applicable)
+└── generated_pages/                  # HTML vulnerability reports
 ```
 
 ### Dashboard JSON Structure
@@ -239,8 +240,7 @@ Analysis_Tools/
 ├── runs/                       # All analysis outputs (unified structure)
 │   └── [timestamp]_[context]/  # Individual run directories
 │       ├── generated_pages/    # HTML vulnerability reports
-│       ├── logs/              # Run-specific log files
-│       └── reports/           # Dashboard data for this run
+│       └── logs/              # Run-specific log files
 ├── dashboards/                 # Global dashboard files
 │   └── index.html             # Project-wide monitoring dashboard
 └── cache/                     # Shared CPE cache
@@ -254,13 +254,11 @@ Dashboard data is maintained within each run directory:
 
 ```text
 runs/[timestamp]_[context]/
-├── reports/
-│   ├── dashboard_data.json     # Run-specific dashboard data
-│   └── [other_reports]         # Additional analysis reports
+├── generated_pages/            # HTML vulnerability reports  
 └── logs/                       # Run-specific logs
 ```
 
-**Benefits of Run-isolated Dashboards:**
+**Benefits of Run-isolated Structure:**
 
 - 📁 Complete run isolation prevents data mixing
 - 🚀 Fast access to specific run results

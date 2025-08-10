@@ -152,7 +152,7 @@ File Generated: {file_name} (Size: {size} {unit})
 ```text
 Generated HTML file: /path/to/output/CVE-2024-1234.html
 File Generated: CVE-2024-1234.html (Size: 42.5 KB)
-Created dataset file: /path/to/datasets/cve_list.txt
+Created dataset file: /path/to/logs/cve_list.txt
 Loaded configuration file: /path/to/config/config.json
 ```
 

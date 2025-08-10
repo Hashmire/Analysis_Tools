@@ -56,7 +56,7 @@ def create_run_directory(run_context: str = None, is_test: bool = False) -> Tupl
     run_path = project_root / "runs" / run_id
     
     # Create subdirectories (cache is global, not run-specific)
-    subdirs = ["generated_pages", "logs", "reports"]
+    subdirs = ["generated_pages", "logs"]
     for subdir in subdirs:
         (run_path / subdir).mkdir(parents=True, exist_ok=True)
     
@@ -70,7 +70,7 @@ def get_current_run_paths(run_id: str) -> dict:
         run_id: The run identifier
         
     Returns:
-        Dictionary with keys: generated_pages, logs, reports, cache (global)
+        Dictionary with keys: generated_pages, logs, cache (global)
     """
     project_root = get_analysis_tools_root()
     run_path = project_root / "runs" / run_id
@@ -79,7 +79,6 @@ def get_current_run_paths(run_id: str) -> dict:
         "generated_pages": run_path / "generated_pages",
         "logs": run_path / "logs", 
         "cache": project_root / "cache",  # Cache is global, not run-specific
-        "reports": run_path / "reports",
         "run_root": run_path
     }
 

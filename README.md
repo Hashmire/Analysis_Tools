@@ -46,10 +46,12 @@ Analysis_Tools/
 │   └── requirements.txt        # Dependencies
 ├── runs/                       # All analysis outputs (unified structure)
 │   └── [timestamp]_[context]/  # Individual run directories
-│       ├── generated_pages/    # HTML reports for this run
-│       ├── logs/              # Run-specific logs
-│       ├── logs/              # Run-specific logs and real-time dashboard data
-│       └── datasets/          # Dataset files for this run
+│       ├── generated_pages/    # HTML vulnerability reports for this run
+│       └── logs/              # All data files, tracking, and monitoring
+│           ├── cve_dataset.txt      # Generated dataset files
+│           ├── dataset_tracker.json # Run tracking metadata
+│           ├── workflow_log.json    # Real-time dashboard data
+│           └── dashboard_data.json  # Additional monitoring data
 ├── test_files/                 # Test suites and test data
 ├── documentation/              # Guides and references
 ├── dashboards/                # Real-time dashboard system
@@ -81,7 +83,7 @@ python generate_dataset.py --last-days 7 --run-analysis
 python generate_dataset.py --show-last-run
 ```
 
-All generated datasets are tracked in run-specific directories under `runs/[timestamp]_[context]/datasets/` with metadata for future differential updates.
+All generated datasets are tracked in run-specific directories under `runs/[timestamp]_[context]/logs/` with metadata for future differential updates.
 
 ## Documentation
 
@@ -165,7 +167,7 @@ python generate_dataset.py --last-days 30 --run-analysis
 python generate_dataset.py --since-last-run --run-analysis
 ```
 
-All dataset outputs are isolated in run-specific directories under `runs/[timestamp]_[context]/datasets/`.
+All dataset outputs are isolated in run-specific directories under `runs/[timestamp]_[context]/logs/`.
 
 ### Real-time Dashboard System
 

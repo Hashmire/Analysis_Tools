@@ -27,10 +27,10 @@ def resolve_output_path(output_file, run_directory=None):
     if os.path.isabs(output_file):
         return Path(output_file)
     elif run_directory:
-        # Write directly to run directory
-        datasets_dir = run_directory / "datasets"
-        datasets_dir.mkdir(parents=True, exist_ok=True)
-        return datasets_dir / output_file
+        # Write directly to logs directory (consolidated storage)
+        logs_dir = run_directory / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        return logs_dir / output_file
     else:
         # No run directory provided - fail fast
         raise RuntimeError("Run directory required for dataset generation - standalone usage not supported")
@@ -38,12 +38,12 @@ def resolve_output_path(output_file, run_directory=None):
 def record_dataset_run(output_file, cve_count, run_directory, run_type="status_based"):
     """Record this dataset generation run in the run-specific tracking system"""
     try:
-        # Write tracking data directly to run directory (unified runs structure)
-        run_datasets_dir = run_directory / "datasets"
-        run_datasets_dir.mkdir(exist_ok=True)
-        tracker_file = run_datasets_dir / "dataset_tracker.json"
+        # Write tracking data directly to logs directory (consolidated storage)
+        run_logs_dir = run_directory / "logs"
+        run_logs_dir.mkdir(exist_ok=True)
+        tracker_file = run_logs_dir / "dataset_tracker.json"
         
-        # Load existing tracking data from run directory if it exists
+        # Load existing tracking data from logs directory if it exists
         if tracker_file.exists():
             with open(tracker_file, 'r') as f:
                 tracker_data = json.load(f)
@@ -603,8 +603,8 @@ def main():
             logger.info("Starting integrated analysis run...", group="initialization")
             
             # Dataset was already written to run directory, so just run analysis
-            # The run directory already contains the dataset in datasets/ subdirectory
-            dataset_path = run_directory / "datasets" / Path(args.output).name
+            # The run directory already contains the dataset in logs/ subdirectory
+            dataset_path = run_directory / "logs" / Path(args.output).name
             
             # Run analysis tool with existing run context
             success = run_analysis_tool(args.output, resolved_api_key, run_directory, run_id, args.external_assets)
@@ -637,7 +637,7 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
         if not run_directory:
             raise RuntimeError("Run directory required for integrated analysis - legacy behavior removed")
             
-        dataset_path = run_directory / "datasets" / Path(dataset_file).name
+        dataset_path = run_directory / "logs" / Path(dataset_file).name
         if not dataset_path.exists():
             raise FileNotFoundError(f"Dataset file not found in run directory: {dataset_path}")
         

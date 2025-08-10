@@ -72,12 +72,12 @@ Each dataset generation creates a timestamped run directory:
 
 ```text
 runs/[timestamp]_[context]/
-├── datasets/           # Generated dataset files
+├── logs/                  # All data and tracking files
 │   ├── dataset_tracker.json  # Run tracking metadata
-│   └── [output_files]         # CVE dataset files
-├── logs/              # Generation logs
-├── generated_pages/   # HTML reports (if analysis enabled)
-└── reports/          # Dashboard data (if analysis enabled)
+│   ├── cve_dataset.txt        # Generated dataset files
+│   ├── workflow_log.json      # Real-time dashboard data
+│   └── dashboard_data.json    # Additional monitoring data
+└── generated_pages/       # HTML reports (if analysis enabled)
 ```
 
 ## Real-time Monitoring
@@ -124,7 +124,7 @@ The tracking system creates `dataset_tracker.json` within each run directory wit
       "run_type": "status_based",
       "timestamp": "2024-07-02T10:30:00.000000",
       "cve_count": 150,
-      "output_file": "runs/[timestamp]/datasets/cve_dataset.txt"
+      "output_file": "runs/[timestamp]/logs/cve_dataset.txt"
     }
   ]
 }
