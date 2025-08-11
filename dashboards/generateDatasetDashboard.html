@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analysis Tools Dashboard</title>
+    <title>Hashmire/Analysis_Tools v0.2.0 - Generate Dataset Dashboard</title>
     <style>
         * {
             margin: 0;
@@ -48,7 +48,7 @@
         .file-selector {
             background: #3498db;
             color: white;
-            padding: 25px;
+            padding: 15px 30px;
             text-align: center;
             transition: all 0.4s ease;
         }
@@ -60,96 +60,146 @@
 
         .file-input-container {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             align-items: center;
             gap: 20px;
-            max-width: 600px;
+            max-width: 800px;
             margin: 0 auto;
-            transition: all 0.4s ease;
-        }
-
-        .file-input-container.collapsed {
-            flex-direction: row;
             justify-content: space-between;
-            max-width: 100%;
-            gap: 15px;
         }
 
-        .collapsed-info {
-            display: none;
-            flex: 1;
-            text-align: left;
-        }
-
-        .collapsed-info.show {
-            display: block;
-        }
-
-        .collapsed-filename {
-            font-size: 1.1em;
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
-
-        .collapsed-details {
-            font-size: 0.9em;
-            opacity: 0.9;
-        }
-
-        .collapsed-buttons {
+        .file-input-main {
             display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-top: 10px;
-        }
-
-        .expand-button {
-            background: rgba(255, 255, 255, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.9em;
-            transition: all 0.3s ease;
-            display: none;
-        }
-
-        .expand-button.show {
-            display: block;
-        }
-
-        .expand-button:hover {
-            background: rgba(255, 255, 255, 0.3);
-            border-color: rgba(255, 255, 255, 0.5);
+            flex-direction: row;
+            align-items: center;
+            gap: 15px;
         }
 
         .file-input-wrapper {
             position: relative;
-            overflow: hidden;
-            display: inline-block;
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px dashed rgba(255, 255, 255, 0.5);
-            border-radius: 10px;
-            padding: 30px 40px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 6px;
+            padding: 8px 16px;
             cursor: pointer;
             transition: all 0.3s ease;
-            min-width: 400px;
-        }
-
-        .file-input-wrapper.collapsed {
-            display: none;
+            min-width: 220px;
+            justify-content: center;
+            color: white;
+            font-family: inherit;
+            font-size: 0.9em;
         }
 
         .file-input-wrapper:hover {
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.15);
             border-color: rgba(255, 255, 255, 0.8);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .file-input-wrapper:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         }
 
         .file-input {
             position: absolute;
-            left: -9999px;
-            opacity: 0;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        .file-icon {
+            font-size: 1.1em;
+        }
+
+        .file-input-text {
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .file-name-display {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.8em;
+            font-weight: 400;
+            letter-spacing: 0.3px;
+            text-align: left;
+            flex: 1;
+        }
+
+        .status-bar {
+            background: transparent;
+            color: rgba(255, 255, 255, 0.9);
+            padding: 0;
+            display: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            min-width: 300px;
+            padding: 12px 16px;
+        }
+
+        .status-filename {
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: rgba(255, 255, 255, 0.95);
+            text-align: left;
+        }
+
+        .status-details {
+            display: flex;
+            gap: 12px;
+            font-size: 0.75em;
+            opacity: 0.9;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Mobile responsiveness for compact file loader */
+        @media (max-width: 768px) {
+            .file-input-container {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .file-input-main {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .file-input-wrapper {
+                min-width: 200px;
+                padding: 10px 16px;
+                font-size: 0.85em;
+            }
+
+            .status-bar {
+                padding: 10px 12px;
+                margin-top: 8px;
+                min-width: auto;
+                width: 100%;
+            }
+
+            .status-details {
+                flex-direction: column;
+                gap: 4px;
+            }
         }
 
         .file-input-label {
@@ -1167,39 +1217,34 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1 id="dashboard-title">Analysis Tools</h1>
+            <h1 id="dashboard-title">Hashmire/Analysis_Tools v0.2.0</h1>
             <div id="dashboard-subtitle" style="font-size: 1.2em; margin-top: 5px; opacity: 0.9;">Generate Dataset Dashboard</div>
             <p>Real-time monitoring and analytics for dataset generation</p>
         </div>
 
         <div class="file-selector" id="file-selector">
             <div class="file-input-container" id="file-input-container">
-                <!-- Collapsed view (initially hidden) -->
-                <div class="collapsed-info" id="collapsed-info">
-                    <div class="collapsed-filename" id="collapsed-filename">No file loaded</div>
-                    <div class="collapsed-generation" id="collapsed-generation" style="font-size: 0.85em; opacity: 0.9; margin: 3px 0;"></div>
-                    <div class="collapsed-details" id="collapsed-details">Click "Change File" to select a different dashboard file</div>
-                </div>
-                <div class="collapsed-buttons">
-                    <button class="expand-button" id="expand-button" onclick="expandFileSelector()">Change File</button>
-                </div>
-                
-                <!-- Full file selection view -->
-                <div class="file-input-wrapper" id="file-input-wrapper">
-                    <input type="file" id="file-input" class="file-input" accept=".json" onchange="handleFileSelect(event)">
-                    <label for="file-input" class="file-input-label">
+                <div class="file-input-main">
+                    <input type="file" id="file-input" class="file-input" accept=".json">
+                    <button type="button" id="file-select-btn" class="file-input-wrapper">
                         <div class="file-icon">📊</div>
-                        <div class="file-input-text">Select Dashboard JSON File</div>
-                        <div class="file-input-hint">Click to browse for generateDatasetReport.json</div>
-                    </label>
+                        <div class="file-input-text">Load Dataset Report</div>
+                    </button>
+                    <div class="file-name-display">
+                        Selected: <span id="file-name">No file selected</span>
+                    </div>
                 </div>
-                <div style="color: rgba(255, 255, 255, 0.8); font-size: 0.9em;" id="file-status">
-                    Selected: <span id="file-name">No file selected</span>
+                <div class="status-bar" id="status-bar" style="display: none;">
+                    <div class="status-filename" id="status-filename">--</div>
+                    <div class="status-details">
+                        <div class="status-item">
+                            <span>Generated: <span id="generation-time">--</span></span>
+                        </div>
+                        <div class="status-item">
+                            <span id="file-size">-- KB</span> • <span>Loaded <span id="load-time">--</span></span>
+                        </div>
+                    </div>
                 </div>
-                <button id="load-button" class="load-button" onclick="loadFile()" disabled>
-                    Load Dashboard
-                </button>
-                <div id="status-message" class="status-message"></div>
             </div>
         </div>
 
@@ -1349,8 +1394,8 @@
         function updatePageTitles(data) {
             try {
                 const metadata = data.metadata || {};
-                const toolname = metadata.toolname || 'Analysis Tools';
-                const version = metadata.version || '';
+                const toolname = metadata.toolname || 'Hashmire/Analysis_Tools';
+                const version = metadata.version || '0.2.0';
                 
                 // Update page title
                 const pageTitle = version ? `${toolname} v${version} - Generate Dataset Dashboard` : `${toolname} - Generate Dataset Dashboard`;
@@ -1364,9 +1409,9 @@
                 
             } catch (error) {
                 console.error('Could not load config from metadata:', error);
-                // Fallback values
-                const toolname = 'Analysis Tools';
-                const version = 'Unknown';
+                // Fallback values using proper config values
+                const toolname = 'Hashmire/Analysis_Tools';
+                const version = '0.2.0';
                 const headerTitle = `${toolname} v${version}`;
                 const pageTitle = `${headerTitle} - Generate Dataset Dashboard`;
                 
@@ -1378,18 +1423,63 @@
         }
 
         function handleFileSelect(event) {
-            const file = event.target.files[0];
-            const loadButton = document.getElementById('load-button');
-            const statusMessage = document.getElementById('status-message');
+            const files = event.target.files || event.dataTransfer?.files;
+            const file = files?.[0];
             
             if (file) {
+                console.log('File selected:', file.name);
                 document.getElementById('file-name').textContent = file.name;
-                loadButton.disabled = false;
-                hideStatus();
+                // Auto-load the file
+                loadFile();
             } else {
                 document.getElementById('file-name').textContent = 'No file selected';
-                loadButton.disabled = true;
             }
+        }
+
+        function updateStatusBar(file, data) {
+            const statusBar = document.getElementById('status-bar');
+            const statusFilename = document.getElementById('status-filename');
+            const generationTimeEl = document.getElementById('generation-time');
+            const fileSizeEl = document.getElementById('file-size');
+            const loadTimeEl = document.getElementById('load-time');
+            
+            if (!statusBar || !statusFilename || !generationTimeEl || !fileSizeEl || !loadTimeEl) {
+                return; // Elements not found, skip status update
+            }
+            
+            // Set filename
+            statusFilename.textContent = file.name;
+            
+            // Set generation time
+            let generationTime = 'Unknown';
+            let timeAgo = '';
+            
+            if (data.metadata && data.metadata.run_started_at) {
+                const genDate = new Date(data.metadata.run_started_at);
+                generationTime = genDate.toLocaleString();
+                const now = new Date();
+                const diffMs = now - genDate;
+                const diffMins = Math.floor(diffMs / (1000 * 60));
+                const diffHours = Math.floor(diffMins / 60);
+                const diffDays = Math.floor(diffHours / 24);
+                
+                if (diffMins < 60) timeAgo = ` (${diffMins} min ago)`;
+                else if (diffHours < 24) timeAgo = ` (${diffHours}h ago)`;
+                else timeAgo = ` (${diffDays}d ago)`;
+            }
+            
+            generationTimeEl.textContent = generationTime + timeAgo;
+            
+            // Set file size
+            const fileSizeKB = (file.size / 1024).toFixed(1);
+            fileSizeEl.textContent = `${fileSizeKB} KB`;
+            
+            // Set load time
+            const now = new Date();
+            loadTimeEl.textContent = now.toLocaleTimeString();
+            
+            // Show status bar
+            statusBar.style.display = 'block';
         }
 
         /**
@@ -1481,10 +1571,8 @@
                     updatePageTitles(dashboardData);
                     
                     populateDashboard(dashboardData);
+                    updateStatusBar(file, dashboardData);
                     showStatus('Dashboard loaded successfully!', 'success');
-                    
-                    // Collapse the file selector and show dashboard content
-                    collapseFileSelector(file, dashboardData);
                     
                     // Show dashboard content
                     document.querySelector('.dashboard-content').style.display = 'block';
@@ -1494,7 +1582,7 @@
                         document.querySelector('.dashboard-content').scrollIntoView({ 
                             behavior: 'smooth' 
                         });
-                    }, 500); // Wait for collapse animation
+                    }, 300); // Reduced timeout for better responsiveness
                 } catch (error) {
                     showStatus('Error parsing JSON file: ' + error.message, 'error');
                     console.error('JSON parsing error:', error);
@@ -1508,102 +1596,23 @@
             reader.readAsText(file);
         }
 
-        function collapseFileSelector(file, dashboardData) {
-            const fileSelector = document.getElementById('file-selector');
-            const fileInputContainer = document.getElementById('file-input-container');
-            const collapsedInfo = document.getElementById('collapsed-info');
-            const expandButton = document.getElementById('expand-button');
-            const fileInputWrapper = document.getElementById('file-input-wrapper');
-            const loadButton = document.getElementById('load-button');
-            const fileStatus = document.getElementById('file-status');
-            const statusMessage = document.getElementById('status-message');
-            
-            // Extract generation time from dashboard data if available
-            let generationText = '';
-            if (dashboardData && dashboardData.metadata && dashboardData.metadata.last_updated) {
-                try {
-                    const genDate = new Date(dashboardData.metadata.last_updated);
-                    const now = new Date();
-                    const diffMs = now - genDate;
-                    const diffMinutes = Math.floor(diffMs / (1000 * 60));
-                    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-                    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                    
-                    let timeAgo;
-                    if (diffDays > 0) {
-                        timeAgo = `${diffDays}d ago`;
-                    } else if (diffHours > 0) {
-                        timeAgo = `${diffHours}h ago`;
-                    } else if (diffMinutes > 0) {
-                        timeAgo = `${diffMinutes}m ago`;
-                    } else {
-                        timeAgo = 'just now';
-                    }
-                    
-                    generationText = `Generated: ${genDate.toLocaleString()} (${timeAgo})`;
-                } catch (e) {
-                    console.error('Error formatting generation time:', e);
-                    generationText = 'Generated: [Invalid date format]';
-                }
-            }
-            
-            // Update collapsed info
-            document.getElementById('collapsed-filename').textContent = file.name;
-            document.getElementById('collapsed-generation').textContent = generationText;
-            document.getElementById('collapsed-details').textContent = `${formatFileSize(file.size)} • Loaded ${new Date().toLocaleTimeString()}`;
-            
-            // Apply collapsed classes
-            fileSelector.classList.add('collapsed');
-            fileInputContainer.classList.add('collapsed');
-            fileInputWrapper.classList.add('collapsed');
-            loadButton.classList.add('collapsed');
-            
-            // Show collapsed elements
-            collapsedInfo.classList.add('show');
-            expandButton.classList.add('show');
-            
-            // Hide expanded elements
-            fileStatus.style.display = 'none';
-            statusMessage.style.display = 'none';
-        }
-
-        function expandFileSelector() {
-            const fileSelector = document.getElementById('file-selector');
-            const fileInputContainer = document.getElementById('file-input-container');
-            const collapsedInfo = document.getElementById('collapsed-info');
-            const expandButton = document.getElementById('expand-button');
-            const fileInputWrapper = document.getElementById('file-input-wrapper');
-            const loadButton = document.getElementById('load-button');
-            const fileStatus = document.getElementById('file-status');
-            
-            // Remove collapsed classes
-            fileSelector.classList.remove('collapsed');
-            fileInputContainer.classList.remove('collapsed');
-            fileInputWrapper.classList.remove('collapsed');
-            loadButton.classList.remove('collapsed');
-            
-            // Hide collapsed elements
-            collapsedInfo.classList.remove('show');
-            expandButton.classList.remove('show');
-            
-            // Show expanded elements
-            fileStatus.style.display = 'block';
-            
-            // Scroll to file selector
-            fileSelector.scrollIntoView({ 
-                behavior: 'smooth' 
-            });
-        }
-
         function showStatus(message, type) {
             const statusMessage = document.getElementById('status-message');
-            statusMessage.textContent = message;
-            statusMessage.className = 'status-message status-' + type;
-            statusMessage.style.display = 'block';
+            if (statusMessage) {
+                statusMessage.textContent = message;
+                statusMessage.className = 'status-message status-' + type;
+                statusMessage.style.display = 'block';
+            } else {
+                // Fallback to console for compact design
+                console.log(`Status (${type}): ${message}`);
+            }
         }
 
         function hideStatus() {
-            document.getElementById('status-message').style.display = 'none';
+            const statusMessage = document.getElementById('status-message');
+            if (statusMessage) {
+                statusMessage.style.display = 'none';
+            }
         }
 
         function scrollToSection(sectionId) {
@@ -2964,7 +2973,70 @@
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', function() {
             initializeLogTabs();
+            initializeCompactFileSelector();
         });
+
+        function initializeCompactFileSelector() {
+            console.log('Initializing compact file selector...');
+            
+            const fileInput = document.getElementById('file-input');
+            const fileButton = document.getElementById('file-select-btn');
+            const fileSelector = document.getElementById('file-selector');
+            
+            if (!fileInput || !fileButton) {
+                console.error('Required file input elements not found!');
+                return;
+            }
+            
+            // Button click handler - triggers file input
+            fileButton.addEventListener('click', function(e) {
+                console.log('File button clicked, opening file dialog...');
+                e.preventDefault();
+                e.stopPropagation();
+                fileInput.click();
+            });
+            
+            // File input change handler
+            fileInput.addEventListener('change', function(e) {
+                console.log('File input changed:', e.target.files);
+                handleFileSelect(e);
+            });
+            
+            // Drag and drop functionality
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                fileSelector.addEventListener(eventName, function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
+            });
+            
+            // Visual feedback for drag operations
+            ['dragenter', 'dragover'].forEach(eventName => {
+                fileSelector.addEventListener(eventName, function() {
+                    fileSelector.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                    fileSelector.style.transform = 'scale(1.02)';
+                }, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                fileSelector.addEventListener(eventName, function() {
+                    fileSelector.style.backgroundColor = '';
+                    fileSelector.style.transform = '';
+                }, false);
+            });
+            
+            // Handle file drop
+            fileSelector.addEventListener('drop', function(e) {
+                console.log('File dropped:', e.dataTransfer.files);
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    fileInput.files = files;
+                    handleFileSelect({ target: { files: files } });
+                }
+            }, false);
+            
+            console.log('Compact file selector initialization complete!');
+        }
     </script>
 </body>
 </html>
