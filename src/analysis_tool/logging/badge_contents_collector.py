@@ -268,6 +268,43 @@ class BadgeContentsCollector:
             
             # Add to platform entries array
             self.current_cve_data['platform_entries'].append(platform_entry)
+
+    def collect_clean_platform_entry(self, source_id: str) -> None:
+        """
+        Collect a platform entry that has no source data concerns.
+        
+        Args:
+            source_id: Actual source UUID from the data
+        """
+        if not self.current_cve_data:
+            if logger:
+                logger.warning(f"No current CVE set for clean platform entry collection - source_id {source_id}", group="badge_generation")
+            return
+            
+        # Track consolidated statistics for clean entries
+        self.consolidated_metadata['total_platform_entries'] += 1
+        self.current_cve_data['cve_metadata']['total_platform_entries'] += 1
+        
+        # Initialize clean_platform_entries array if it doesn't exist
+        if 'clean_platform_entries' not in self.current_cve_data:
+            self.current_cve_data['clean_platform_entries'] = []
+        
+        # Check if we already have an entry for this source
+        existing_entry = None
+        for entry in self.current_cve_data['clean_platform_entries']:
+            if entry['sourceID'] == source_id:
+                existing_entry = entry
+                break
+        
+        if existing_entry:
+            # Increment count for existing source
+            existing_entry['cleanPlatformCount'] += 1
+        else:
+            # Create new entry for this source
+            self.current_cve_data['clean_platform_entries'].append({
+                'sourceID': source_id,
+                'cleanPlatformCount': 1
+            })
     
     def _increment_concern_type_count(self, concern_counts_array: List[Dict], concern_type: str) -> None:
         """Increment concern type count in array format."""
@@ -415,6 +452,11 @@ def complete_cve_collection() -> bool:
     """Complete collection for the current CVE and save to file."""
     collector = get_badge_contents_collector()
     return collector.complete_cve_processing()
+
+def collect_clean_platform_entry(source_id: str) -> None:
+    """Collect a platform entry that has no source data concerns."""
+    collector = get_badge_contents_collector()
+    collector.collect_clean_platform_entry(source_id)
 
 def finalize_badge_contents_report() -> Optional[str]:
     """Finalize the badge contents report at the end of a run."""

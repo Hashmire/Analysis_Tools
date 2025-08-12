@@ -1111,7 +1111,7 @@ def convertRowDataToHTML(row, tableIndex=0) -> str:
     
     # Create the unified Source Data Concerns badge to replace individual purple badges
     from .badge_modal_system import create_source_data_concerns_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
-    from ..logging.badge_contents_collector import get_badge_contents_collector
+    from ..logging.badge_contents_collector import get_badge_contents_collector, collect_clean_platform_entry
     
     source_data_concerns_badge = create_source_data_concerns_badge(
         table_index=tableIndex,
@@ -1156,6 +1156,11 @@ def convertRowDataToHTML(row, tableIndex=0) -> str:
                 concerns_count=concerns_count,
                 concern_types=concern_types
             )
+    else:
+        # No source data concerns found - collect this as a clean platform entry
+        source_id = row.get('sourceID', 'Unknown')
+        if source_id and source_id != 'Unknown':
+            collect_clean_platform_entry(source_id)
 
     # ===== 🔍 SUPPORTING INFORMATION MODAL =====
     

@@ -512,6 +512,14 @@
             font-weight: 600;
         }
 
+        .stat-detail {
+            display: block;
+            font-size: 0.8em;
+            color: #6B7280;
+            margin-top: 2px;
+            font-style: italic;
+        }
+
         .top-concerns {
             margin-bottom: 15px;
         }
@@ -537,6 +545,66 @@
                 0 2px 8px rgba(124, 58, 237, 0.15),
                 inset 0 1px 0 rgba(255, 255, 255, 0.6);
             transition: all 0.2s ease;
+        }
+
+        .top-concern.enhanced {
+            display: inline-block;
+            width: 30%;
+            margin: 8px 1%;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-left: 4px solid #8B5CF6;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(139, 92, 246, 0.1);
+            vertical-align: top;
+            box-sizing: border-box;
+        }
+
+        .top-concern.enhanced:hover {
+            border-left-color: #7C3AED;
+            border-color: rgba(139, 92, 246, 0.3);
+            box-shadow: 0 5px 15px rgba(139, 92, 246, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .concern-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .concern-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.95em;
+        }
+
+        .concern-count-badge {
+            background: linear-gradient(135deg, #8B5CF6 0%, #A855F7 100%);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .concern-breakdown {
+            font-size: 0.8em;
+            color: #6B7280;
+            line-height: 1.4;
+        }
+
+        .breakdown-label {
+            font-weight: 500;
+            color: #8B5CF6;
+        }
+
+        .breakdown-text {
+            font-style: italic;
         }
         
         .top-concern:hover {
@@ -578,11 +646,11 @@
         }
 
         .platform-entry.with-concerns {
-            border-left-color: #D97706;
-            background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 20%, #FFFBEB 100%);
-            border-color: rgba(217, 119, 6, 0.2);
+            border-left-color: #8B5CF6;
+            background: linear-gradient(135deg, #FAF5FF 0%, #F3E8FF 20%, #FAF5FF 100%);
+            border-color: rgba(139, 92, 246, 0.2);
             box-shadow: 
-                0 4px 15px rgba(217, 119, 6, 0.15),
+                0 4px 15px rgba(139, 92, 246, 0.15),
                 inset 0 1px 0 rgba(255, 255, 255, 0.8);
         }
 
@@ -600,8 +668,344 @@
 
         .platform-entry .concern-summary {
             font-size: 0.85em;
-            color: #D97706;
+            color: #6B46C1;
             font-weight: 500;
+        }
+
+        /* CVE Group Hierarchical Styling */
+        .cve-group {
+            margin-bottom: 20px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #FAFAFA 0%, #F3F4F6 100%);
+            border: 1px solid rgba(139, 92, 246, 0.15);
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .cve-group:hover {
+            border-color: rgba(139, 92, 246, 0.25);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.12);
+            transform: translateY(-2px);
+        }
+
+        .cve-summary {
+            background: linear-gradient(135deg, #8B5CF6 0%, #A855F7 50%, #9333EA 100%);
+            color: white;
+            padding: 16px 20px;
+            margin: 0;
+            font-weight: 600;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            position: relative;
+            overflow: hidden;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            letter-spacing: 0.3px;
+        }
+
+        .cve-summary::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .cve-summary:hover::before {
+            left: 100%;
+        }
+
+        .cve-summary:hover {
+            background: linear-gradient(135deg, #7C3AED 0%, #9333EA 50%, #8B5CF6 100%);
+            box-shadow: 
+                inset 0 2px 10px rgba(0, 0, 0, 0.1),
+                0 4px 15px rgba(139, 92, 246, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .cve-summary.with-concerns {
+            background: linear-gradient(135deg, #6B46C1 0%, #7C3AED 50%, #8B5CF6 100%);
+            position: relative;
+            box-shadow: 0 2px 8px rgba(107, 70, 193, 0.15);
+        }
+
+        .cve-summary.with-concerns::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .cve-summary.with-concerns:hover::before {
+            left: 100%;
+        }
+
+        .cve-summary.with-concerns:hover {
+            background: linear-gradient(135deg, #553C9A 0%, #6B46C1 50%, #7C3AED 100%);
+            box-shadow: 
+                inset 0 2px 10px rgba(0, 0, 0, 0.1),
+                0 6px 18px rgba(107, 70, 193, 0.25);
+            transform: translateY(-1px);
+        }
+
+        .cve-content {
+            padding: 20px;
+            background: linear-gradient(135deg, #FFFFFF 0%, #FEFEFE 100%);
+        }
+
+        .concern-types-section {
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid rgba(139, 92, 246, 0.1);
+        }
+
+        .concern-types-section h6 {
+            color: #7C3AED;
+            font-weight: 600;
+            margin-bottom: 15px;
+            font-size: 1.05em;
+        }
+
+        .concern-type-details {
+            margin-bottom: 15px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #FEFEFE 0%, #F9FAFB 100%);
+            border: 1px solid rgba(107, 114, 128, 0.15);
+            overflow: hidden;
+        }
+
+        .concern-type-summary {
+            background: linear-gradient(135deg, #6B7280 0%, #9CA3AF 50%, #D1D5DB 100%);
+            color: white;
+            padding: 12px 16px;
+            margin: 0;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+        }
+
+        .concern-type-summary:hover {
+            background: linear-gradient(135deg, #4B5563 0%, #6B7280 50%, #9CA3AF 100%);
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .concern-type-entries {
+            padding: 12px;
+            background: linear-gradient(135deg, #FFFFFF 0%, #F9FAFB 100%);
+        }
+
+        .platform-entries-section h6 {
+            color: #059669;
+            font-weight: 600;
+            margin-bottom: 15px;
+            font-size: 1.05em;
+        }
+
+        /* Enhanced platform entry styling for CVE context */
+        .platform-entry .entry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .platform-entry .vendor-product {
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .platform-entry .concern-count {
+            background: linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+
+        /* Concern Subcategory Styling - Enhanced Luxury Theme */
+        .concern-subcategory {
+            margin-bottom: 20px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #FAFAFA 0%, #F8FAFC 100%);
+            border: 1px solid rgba(139, 92, 246, 0.12);
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(139, 92, 246, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .concern-subcategory:hover {
+            border-color: rgba(139, 92, 246, 0.2);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.12);
+        }
+
+        .subcategory-header {
+            background: linear-gradient(135deg, #8B5CF6 0%, #A855F7 50%, #9333EA 100%);
+            color: white;
+            padding: 12px 16px;
+            margin: 0;
+            font-weight: 600;
+            font-size: 0.95em;
+            border: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .subcategory-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .concern-subcategory:hover .subcategory-header::before {
+            left: 100%;
+        }
+
+        .subcategory-items {
+            padding: 16px;
+            background: linear-gradient(135deg, #FFFFFF 0%, #FEFEFE 100%);
+        }
+
+        .concern-item {
+            margin-bottom: 12px;
+            padding: 14px;
+            background: linear-gradient(135deg, #FFFFFF 0%, #FDFDFE 100%);
+            border-radius: 8px;
+            border-left: 4px solid #8B5CF6;
+            border: 1px solid rgba(139, 92, 246, 0.1);
+            font-size: 0.9em;
+            box-shadow: 0 2px 6px rgba(139, 92, 246, 0.06);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .concern-item:hover {
+            border-left-color: #7C3AED;
+            border-color: rgba(139, 92, 246, 0.2);
+            box-shadow: 0 4px 10px rgba(139, 92, 246, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .concern-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .concern-details {
+            color: #374151;
+            line-height: 1.5;
+            font-weight: 500;
+        }
+
+        .concern-field {
+            display: inline-block;
+            background: linear-gradient(135deg, #EDE9FE 0%, #F3E8FF 100%);
+            color: #6B46C1;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-left: 8px;
+            font-weight: 600;
+            border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+
+        .concern-value {
+            display: inline-block;
+            background: linear-gradient(135deg, #F3E8FF 0%, #FAF5FF 100%);
+            color: #7C3AED;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-left: 4px;
+            font-family: 'Courier New', monospace;
+            font-weight: 500;
+            border: 1px solid rgba(124, 58, 237, 0.2);
+        }
+
+        .concern-context {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+            border-radius: 6px;
+            color: #6B7280;
+            font-size: 0.85em;
+            font-style: italic;
+            border-left: 3px solid #D1D5DB;
+        }
+
+        .no-concerns {
+            text-align: center;
+            padding: 20px;
+            color: #9CA3AF;
+            font-style: italic;
+            background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);
+            border-radius: 8px;
+            border: 2px dashed #D1D5DB;
+        }
+
+        .platform-entries-for-concern {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid rgba(139, 92, 246, 0.1);
+            background: linear-gradient(135deg, #FAFAFA 0%, #F8FAFC 100%);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .platform-entries-for-concern h7 {
+            color: #059669;
+            font-weight: 600;
+            margin-bottom: 12px;
+            font-size: 1em;
+            display: block;
+            padding: 8px 12px;
+            background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+            border-radius: 6px;
+            border-left: 4px solid #059669;
+        }
+
+        .platform-entry.compact {
+            margin: 8px 0;
+            padding: 12px 16px;
+            font-size: 0.9em;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #FFFFFF 0%, #FEFEFE 100%);
+            border: 1px solid rgba(5, 150, 105, 0.15);
+            box-shadow: 0 2px 4px rgba(5, 150, 105, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .platform-entry.compact:hover {
+            border-color: rgba(5, 150, 105, 0.25);
+            box-shadow: 0 4px 8px rgba(5, 150, 105, 0.12);
+            transform: translateY(-1px);
+        }
+
+        .platform-entry.compact .entry-header {
+            margin-bottom: 6px;
+        }
+
+        .platform-entry.compact .concern-count {
+            background: linear-gradient(135deg, #059669 0%, #10B981 100%);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 0.75em;
+            font-weight: 600;
         }
 
         .loading {
@@ -693,6 +1097,261 @@
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
 
+        /* Enhanced heading styles for luxury integration */
+        h8.subcategory-header {
+            display: block;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            letter-spacing: 0.3px;
+        }
+
+        /* CVE Card Styles */
+        .cve-cards-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .cve-card {
+            display: inline-flex;
+            flex-direction: column;
+            width: 30%;
+            margin: 8px 1%;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-left: 4px solid #8B5CF6;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(139, 92, 246, 0.1);
+            vertical-align: top;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+            overflow: hidden;
+            min-height: 100px; /* Further reduced for compact layout */
+        }
+
+        .cve-card:hover {
+            border-left-color: #7C3AED;
+            border-color: rgba(139, 92, 246, 0.3);
+            box-shadow: 0 5px 15px rgba(139, 92, 246, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .cve-card.expanding {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .cve-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .cve-id {
+            font-weight: 600;
+            color: #2563eb;
+            font-size: 0.95em;
+            text-decoration: underline;
+            cursor: pointer;
+            transition: color 0.2s ease, text-decoration-color 0.2s ease;
+        }
+
+        .cve-id:hover {
+            color: #1d4ed8;
+            text-decoration-color: #1d4ed8;
+        }
+
+        .cve-entries-count {
+            background: linear-gradient(135deg, #8B5CF6 0%, #A855F7 100%);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .cve-card-content {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            cursor: pointer;
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+        }
+
+        .cve-card-main-content {
+            flex: 0 1 auto; /* Allow shrinking, don't force growth */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cve-content-display {
+            font-size: 0.9em;
+            color: #374151;
+            line-height: 1.5;
+            transition: opacity 0.3s ease, max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            max-height: 80px; /* Reduced from 120px for more compact display */
+        }
+
+        .cve-content-display.expanded {
+            max-height: 400px; /* Expanded height for details */
+        }
+
+        .cve-content-display.fade-out {
+            opacity: 0;
+        }
+
+        .cve-content-display.fade-in {
+            opacity: 1;
+        }
+
+        .cve-concern-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 6px 0;
+            transition: all 0.3s ease;
+        }
+
+        .cve-concern-type {
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .cve-concern-count {
+            color: #8B5CF6;
+            font-weight: 600;
+        }
+
+        /* Unified styling for both summary and detailed views */
+        .cve-concern-section {
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .cve-section-title {
+            font-weight: 600;
+            color: #1F2937;
+            font-size: 0.95em;
+            margin-bottom: 4px;
+        }
+
+        .cve-section-summary {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+            color: #374151;
+            margin-bottom: 2px;
+            font-weight: 500;
+        }
+
+        .cve-section-details {
+            font-size: 0.85em;
+            color: #4B5563;
+            line-height: 1.4;
+            margin-left: 10px;
+            border-left: 3px solid rgba(139, 92, 246, 0.2);
+            padding-left: 10px;
+            margin-top: 6px;
+            opacity: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .cve-section-details.show {
+            opacity: 1;
+            max-height: 200px;
+        }
+
+        .cve-id-link {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .cve-id-link:hover {
+            text-decoration: none;
+            color: #7C3AED;
+        }
+
+        .cve-card-content {
+            cursor: pointer;
+            user-select: text;
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+        }
+
+        .cve-detailed-content {
+            display: none !important;
+        }
+
+        .click-details-indicator {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: auto;
+            padding-top: 8px;
+            border-top: 1px solid rgba(139, 92, 246, 0.2);
+            font-size: 0.8em;
+            color: #6B46C1;
+            font-style: italic;
+            font-weight: 500;
+            opacity: 0;
+            transform: translateY(-4px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+            flex-shrink: 0; /* Prevent shrinking */
+        }
+
+        .cve-card:hover .click-details-indicator {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .cve-card.expanded .click-details-indicator {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .chevron {
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 0.9em;
+            display: inline-block;
+            font-weight: bold;
+            color: #8B5CF6;
+        }
+
+        .cve-card.expanded .chevron {
+            transform: rotate(180deg);
+        }
+
+        .cve-concern-detail-header {
+            color: #5B21B6;
+            font-size: 0.9em;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        .cve-subcategory-breakdown {
+            font-size: 0.8em;
+            color: #6B7280;
+            line-height: 1.4;
+            margin-left: 12px;
+            border-left: 2px solid rgba(139, 92, 246, 0.1);
+            padding-left: 8px;
+            margin-bottom: 8px;
+        }
+
+        .cve-concern-detail-section {
+            margin-bottom: 8px;
+        }
+
         @media (max-width: 768px) {
             .container {
                 margin: 10px;
@@ -758,6 +1417,12 @@
                 padding: 20px;
             }
 
+            .cve-card {
+                width: 100%;
+                margin: 8px 0;
+                display: block;
+            }
+
             .top-concerns {
                 margin-bottom: 15px;
             }
@@ -765,6 +1430,12 @@
             .top-concern {
                 margin: 2px;
                 font-size: 0.8em;
+            }
+
+            .top-concern.enhanced {
+                width: 100%;
+                margin: 8px 0;
+                display: block;
             }
 
             .platform-entry {
@@ -842,7 +1513,7 @@
             <div id="analysis-section" class="section">
                 <div id="sa_header_01" class="section-header">
                     <h2 id="sa_sourceName_01" class="section-title">Source Analysis</h2>
-                    <p id="sa_subtitle_01" class="section-subtitle">Detailed source data concerns organized by source with comprehensive platform entry analysis</p>
+                    <p id="sa_subtitle_01" class="section-subtitle">Detailed source data concerns organized by source with comprehensive CVE analysis and hierarchical concern type breakdown</p>
                 </div>
                 <div id="sa_content_01" class="section-content">
                     <div class="search-container">
@@ -878,8 +1549,277 @@
             'cpeArrayConcerns': 'CPE Array Concerns',
             'duplicateEntries': 'Duplicate Entries',
             'platformDataConcerns': 'Platform Data Concerns',
-            'missingAffectedProducts': 'Missing Affected Products'
+            'missingAffectedProducts': 'Missing Affected Products',
+            'overlappingRanges': 'Overlapping Ranges'
         };
+
+        // ===== COMPREHENSIVE CONCERN CATEGORIZATION SYSTEM =====
+        
+        /**
+         * Categorize Version Text Patterns concerns into semantic sub-categories
+         */
+        function categorizeVersionTextPatterns(concerns) {
+            const categories = {
+                'Range Indicators': [],
+                'Upper Bound Indicators': [],
+                'Lower Bound Indicators': [],
+                'Approximation Indicators': [],
+                'Inclusive/Exclusive Indicators': [],
+                'Non-specific Versions': [],
+                'Reference Directives': [],
+                'Descriptive Statements': [],
+                'Character Validation Issues': [],
+                'Whitespace Issues': [],
+                'Placeholder Values': []
+            };
+            
+            const rangePatterns = ['through', 'thru', 'to', 'between', 'and'];
+            const upperBoundPatterns = ['before', 'prior to', 'earlier than', 'up to', 'until', 'not after', 'older than', 'below'];
+            const lowerBoundPatterns = ['after', 'since', 'later than', 'newer than', 'starting with', 'from', 'above'];
+            const approximationPatterns = ['about', 'approximately', 'circa', 'around', 'roughly'];
+            const inclusivePatterns = ['inclusive', 'exclusive', 'including', 'excluding'];
+            const nonSpecificPatterns = ['all versions', 'any version', 'multiple versions'];
+            const referencePatterns = ['see references', 'see advisory', 'refer to', 'check', 'as noted'];
+            const descriptivePatterns = ['supported', 'unstable', 'development', 'beta', 'release candidate', 'nightly'];
+            const placeholderPatterns = ['n/a', 'null', 'none', 'unknown', 'tbd', 'pending', '*'];
+            
+            concerns.forEach(concern => {
+                const concernText = (concern.concern || concern.issue || '').toLowerCase();
+                
+                if (placeholderPatterns.some(pattern => concernText.includes(pattern))) {
+                    categories['Placeholder Values'].push(concern);
+                } else if (concernText.includes('invalid characters')) {
+                    categories['Character Validation Issues'].push(concern);
+                } else if (concernText.includes('whitespace')) {
+                    categories['Whitespace Issues'].push(concern);
+                } else if (rangePatterns.some(pattern => concernText.includes(pattern))) {
+                    categories['Range Indicators'].push(concern);
+                } else if (upperBoundPatterns.some(pattern => concernText.includes(pattern))) {
+                    categories['Upper Bound Indicators'].push(concern);
+                } else if (lowerBoundPatterns.some(pattern => concernText.includes(pattern))) {
+                    categories['Lower Bound Indicators'].push(concern);
+                } else if (approximationPatterns.some(pattern => concernText.includes(pattern))) {
+                    categories['Approximation Indicators'].push(concern);
+                } else if (inclusivePatterns.some(pattern => concernText.includes(pattern))) {
+                    categories['Inclusive/Exclusive Indicators'].push(concern);
+                } else if (nonSpecificPatterns.some(pattern => concernText.includes(pattern))) {
+                    categories['Non-specific Versions'].push(concern);
+                } else if (referencePatterns.some(pattern => concernText.includes(pattern))) {
+                    categories['Reference Directives'].push(concern);
+                } else if (descriptivePatterns.some(pattern => concernText.includes(pattern))) {
+                    categories['Descriptive Statements'].push(concern);
+                } else {
+                    // Default to first non-empty category or create a misc category
+                    if (!categories['Other Patterns']) categories['Other Patterns'] = [];
+                    categories['Other Patterns'].push(concern);
+                }
+            });
+            
+            return categories;
+        }
+        
+        /**
+         * Categorize CPE Array Concerns into semantic sub-categories
+         */
+        function categorizeCPEArrayConcerns(concerns) {
+            const categories = {
+                'Empty Arrays': [],
+                'Format Issues': [],
+                'Structure Issues': [],
+                'Duplicate CPEs': [],
+                'Version Pattern Issues': [],
+                'Generic Versions': []
+            };
+            
+            concerns.forEach(concern => {
+                const issueText = (concern.issue || '').toLowerCase();
+                
+                if (issueText.includes('empty cpe array')) {
+                    categories['Empty Arrays'].push(concern);
+                } else if (issueText.includes('invalid cpe format') || issueText.includes('missing') || issueText.includes('prefix')) {
+                    categories['Format Issues'].push(concern);
+                } else if (issueText.includes('invalid cpe 2.3 format') || issueText.includes('expected format')) {
+                    categories['Structure Issues'].push(concern);
+                } else if (issueText.includes('duplicate cpe')) {
+                    categories['Duplicate CPEs'].push(concern);
+                } else if (issueText.includes('improper version text patterns') || issueText.includes('descriptive text')) {
+                    categories['Version Pattern Issues'].push(concern);
+                } else if (issueText.includes('generic version identifier') || issueText.includes('too generic')) {
+                    categories['Generic Versions'].push(concern);
+                } else {
+                    if (!categories['Other Issues']) categories['Other Issues'] = [];
+                    categories['Other Issues'].push(concern);
+                }
+            });
+            
+            return categories;
+        }
+        
+        /**
+         * Categorize Placeholder Data concerns into semantic sub-categories
+         */
+        function categorizePlaceholderData(concerns) {
+            const categories = {
+                'Vendor Placeholders': [],
+                'Product Placeholders': [],
+                'Single Dash Placeholders': [],
+                'Generic Placeholders': []
+            };
+            
+            concerns.forEach(concern => {
+                const fieldType = concern.field || '';
+                const issueText = (concern.issue || '').toLowerCase();
+                
+                if (fieldType === 'vendor') {
+                    if (issueText.includes('single dash')) {
+                        categories['Single Dash Placeholders'].push(concern);
+                    } else {
+                        categories['Vendor Placeholders'].push(concern);
+                    }
+                } else if (fieldType === 'product') {
+                    if (issueText.includes('single dash')) {
+                        categories['Single Dash Placeholders'].push(concern);
+                    } else {
+                        categories['Product Placeholders'].push(concern);
+                    }
+                } else {
+                    categories['Generic Placeholders'].push(concern);
+                }
+            });
+            
+            return categories;
+        }
+        
+        /**
+         * Master function to categorize concerns by type
+         */
+        function categorizeConcernsByType(concernType, concerns) {
+            if (!concerns || concerns.length === 0) return {};
+            
+            switch (concernType) {
+                case 'versionTextPatterns':
+                    return categorizeVersionTextPatterns(concerns);
+                case 'cpeArrayConcerns':
+                    return categorizeCPEArrayConcerns(concerns);
+                case 'placeholderData':
+                    return categorizePlaceholderData(concerns);
+                case 'versionComparators':
+                    return { 'Text Comparators': concerns };
+                case 'versionGranularity':
+                    return { 'Granularity Mismatches': concerns };
+                case 'wildcardBranches':
+                    return { 'Wildcard Patterns': concerns };
+                case 'duplicateEntries':
+                    return { 'Row Duplicates': concerns };
+                case 'platformDataConcerns':
+                    return { 'Unexpected Platform Data': concerns };
+                case 'missingAffectedProducts':
+                    return { 'No Affected Status': concerns };
+                case 'overlappingRanges':
+                    return { 'Version Range Overlaps': concerns };
+                default:
+                    return { 'Uncategorized': concerns };
+            }
+        }
+        
+        /**
+         * Generate HTML for categorized concerns
+         */
+        function generateCategorizedConcernHTML(categorizedConcerns, concernType) {
+            console.log(`Generating HTML for ${concernType}:`, categorizedConcerns); // Debug log
+            
+            if (!categorizedConcerns || Object.keys(categorizedConcerns).length === 0) {
+                return '<div class="no-concerns">No concerns in this category</div>';
+            }
+            
+            const nonEmptyCategories = Object.entries(categorizedConcerns)
+                .filter(([category, concerns]) => concerns && concerns.length > 0);
+            
+            if (nonEmptyCategories.length === 0) {
+                return '<div class="no-concerns">No concerns found after categorization</div>';
+            }
+            
+            return nonEmptyCategories.map(([category, concerns]) => `
+                <div class="concern-subcategory">
+                    <h8 class="subcategory-header">${category} (${concerns.length})</h8>
+                    <div class="subcategory-items">
+                        ${concerns.map((concern, index) => `
+                            <div class="concern-item">
+                                <div class="concern-details">
+                                    ${concern.concern || concern.issue || concern.message || 'No details available'}
+                                    ${concern.field ? `<span class="concern-field">Field: ${concern.field}</span>` : ''}
+                                    ${concern.value ? `<span class="concern-value">Value: "${concern.value}"</span>` : ''}
+                                    ${concern.details ? `<div class="concern-context">${concern.details}</div>` : ''}
+                                    ${concern.context ? `<div class="concern-context">${concern.context}</div>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        /**
+         * Analyze concern details across all entries for a source to get subcategory breakdown
+         */
+        function analyzeConcernBreakdown(sourceData) {
+            const concernBreakdowns = {};
+            
+            // Iterate through all entries for this source
+            sourceData.entries.forEach(entry => {
+                if (entry.concerns_detail && entry.concerns_detail.length > 0) {
+                    entry.concerns_detail.forEach(detailGroup => {
+                        const concernType = detailGroup.concern_type;
+                        const concerns = detailGroup.concerns || [];
+                        
+                        if (!concernBreakdowns[concernType]) {
+                            concernBreakdowns[concernType] = [];
+                        }
+                        
+                        // Add all concerns from this entry to the breakdown
+                        concernBreakdowns[concernType].push(...concerns);
+                    });
+                }
+            });
+            
+            // Now categorize each concern type
+            const categorizedBreakdowns = {};
+            Object.entries(concernBreakdowns).forEach(([concernType, concerns]) => {
+                categorizedBreakdowns[concernType] = categorizeConcernsByType(concernType, concerns);
+            });
+            
+            return categorizedBreakdowns;
+        }
+        
+        /**
+         * Generate subcategory summary for a concern type
+         */
+        function generateSubcategorySummary(concernType, categorizedConcerns) {
+            if (!categorizedConcerns || Object.keys(categorizedConcerns).length === 0) {
+                return '';
+            }
+            
+            const nonEmptyCategories = Object.entries(categorizedConcerns)
+                .filter(([category, concerns]) => concerns && concerns.length > 0)
+                .sort((a, b) => b[1].length - a[1].length); // Sort by count descending
+            
+            if (nonEmptyCategories.length === 0) {
+                return '';
+            }
+            
+            // Calculate total concerns for percentage calculation
+            const totalConcerns = nonEmptyCategories.reduce((sum, [, concerns]) => sum + concerns.length, 0);
+            
+            // Show ALL subcategories with percentages on new lines
+            const summary = nonEmptyCategories
+                .map(([category, concerns]) => {
+                    const percentage = ((concerns.length / totalConcerns) * 100).toFixed(1);
+                    return `${category}: ${concerns.length} (${percentage}%)`;
+                })
+                .join('<br>');
+            
+            return summary;
+        }
 
         function formatFileSize(bytes) {
             if (!bytes || bytes === 0) return '0 B';
@@ -915,6 +1855,58 @@
                 loadJsonFile();
             } else {
                 document.getElementById('file-name').textContent = 'No file selected';
+            }
+        }
+
+        function toggleCveDetails(cardId) {
+            const card = document.getElementById(cardId);
+            if (!card) return;
+            
+            const contentDisplay = card.querySelector('.cve-content-display');
+            const detailSections = card.querySelectorAll('.cve-section-details');
+            const chevron = card.querySelector('.chevron');
+            const clickIndicator = card.querySelector('.click-details-indicator span');
+            
+            // Add expanding class for enhanced transition timing
+            card.classList.add('expanding');
+            
+            if (card.classList.contains('expanded')) {
+                // Collapse: Hide detail sections
+                detailSections.forEach(section => {
+                    section.classList.remove('show');
+                });
+                
+                // Update UI elements
+                chevron.textContent = '▼';
+                clickIndicator.textContent = 'Click for details';
+                contentDisplay.classList.remove('expanded');
+                card.classList.remove('expanded');
+                
+                // Clean up after transition
+                setTimeout(() => {
+                    card.classList.remove('expanding');
+                }, 400);
+                
+            } else {
+                // Expand: Show detail sections with smooth animations
+                contentDisplay.classList.add('expanded');
+                card.classList.add('expanded');
+                
+                // Stagger the appearance of detail sections for smooth effect
+                detailSections.forEach((section, index) => {
+                    setTimeout(() => {
+                        section.classList.add('show');
+                    }, index * 50); // Stagger by 50ms each
+                });
+                
+                // Update UI elements
+                chevron.textContent = '▲';
+                clickIndicator.textContent = 'Click to collapse';
+                
+                // Clean up after transition
+                setTimeout(() => {
+                    card.classList.remove('expanding');
+                }, 400);
             }
         }
         
@@ -1062,7 +2054,65 @@
             const sourcesList = document.getElementById('sources-list');
             const sourceData = {};
             
-            // Aggregate source data
+            // First pass: Track ALL CVEs processed per source (including those with no concerns)
+            dashboardData.cve_data.forEach(cve => {
+                // Check if this CVE has any platform entries (even without concerns)
+                if (cve.platform_entries && cve.platform_entries.length > 0) {
+                    cve.platform_entries.forEach(entry => {
+                        if (!sourceData[entry.source_id]) {
+                            sourceData[entry.source_id] = {
+                                source_id: entry.source_id,
+                                source_name: entry.source_name || entry.source_id,
+                                total_concerns: 0,
+                                cve_records: new Set(),
+                                cve_records_with_concerns: new Set(),
+                                cve_records_without_concerns: new Set(),
+                                concern_breakdown: {},
+                                entries: []
+                            };
+                        }
+                        
+                        const source = sourceData[entry.source_id];
+                        // Track ALL CVEs for this source
+                        source.cve_records.add(cve.cve_id);
+                        
+                        // Track CVEs with/without concerns separately
+                        if (entry.total_concerns > 0) {
+                            source.cve_records_with_concerns.add(cve.cve_id);
+                        } else {
+                            source.cve_records_without_concerns.add(cve.cve_id);
+                        }
+                    });
+                }
+                
+                // Process clean platform entries (new data structure)
+                if (cve.clean_platform_entries && cve.clean_platform_entries.length > 0) {
+                    cve.clean_platform_entries.forEach(cleanEntry => {
+                        const sourceId = cleanEntry.sourceID;
+                        const cleanCount = cleanEntry.cleanPlatformCount;
+                        
+                        if (!sourceData[sourceId]) {
+                            sourceData[sourceId] = {
+                                source_id: sourceId,
+                                source_name: sourceId, // Will be resolved later if available
+                                total_concerns: 0,
+                                cve_records: new Set(),
+                                cve_records_with_concerns: new Set(),
+                                cve_records_without_concerns: new Set(),
+                                concern_breakdown: {},
+                                entries: []
+                            };
+                        }
+                        
+                        const source = sourceData[sourceId];
+                        // Add this CVE to the source's records
+                        source.cve_records.add(cve.cve_id);
+                        source.cve_records_without_concerns.add(cve.cve_id);
+                    });
+                }
+            });
+            
+            // Second pass: Aggregate concern data
             dashboardData.cve_data.forEach(cve => {
                 cve.platform_entries.forEach(entry => {
                     if (!sourceData[entry.source_id]) {
@@ -1086,7 +2136,8 @@
                         table_index: entry.table_index,
                         concerns: entry.total_concerns,
                         concern_breakdown: entry.concern_breakdown || {},
-                        concern_types: entry.concern_types || Object.keys(entry.concern_breakdown || {})
+                        concern_types: entry.concern_types || Object.keys(entry.concern_breakdown || {}),
+                        concerns_detail: entry.concerns_detail || []  // Include the detailed concern data
                     });
                     
                     // Merge concern breakdown
@@ -1095,6 +2146,24 @@
                         source.concern_breakdown[displayName] = (source.concern_breakdown[displayName] || 0) + count;
                     });
                 });
+            });
+            
+            // Calculate total platform entries for each source (including clean entries)
+            Object.values(sourceData).forEach(source => {
+                // Count clean platform entries from clean_platform_entries data
+                let totalCleanEntries = 0;
+                dashboardData.cve_data.forEach(cve => {
+                    if (cve.clean_platform_entries) {
+                        const cleanEntry = cve.clean_platform_entries.find(entry => entry.sourceID === source.source_id);
+                        if (cleanEntry) {
+                            totalCleanEntries += cleanEntry.cleanPlatformCount;
+                        }
+                    }
+                });
+                
+                // Add totals to source data
+                source.clean_platform_entries = totalCleanEntries;
+                source.total_platform_entries = source.entries.length + totalCleanEntries;
             });
             
             // Sort by total concerns
@@ -1110,6 +2179,9 @@
                 const topConcerns = Object.entries(data.concern_breakdown)
                     .sort((a, b) => b[1] - a[1])
                     .slice(0, 5);
+                
+                // Analyze concern breakdowns for subcategory information
+                const concernBreakdowns = analyzeConcernBreakdown(data);
                 
                 const cardId = `sa_card_${String(sourceIndex + 1).padStart(2, '0')}`;
                 const titleId = `sa_title_${String(sourceIndex + 1).padStart(2, '0')}`;
@@ -1144,44 +2216,154 @@
                         <h4 id="${titleId}">${data.source_name}</h4>
                         <div id="${contentId}" class="source-stats">
                             <div class="source-stat">
-                                <strong id="${badge1Id}">${data.total_concerns}</strong> total concerns
-                            </div>
-                            <div class="source-stat">
                                 <strong id="${badge2Id}">${data.cve_records.size}</strong> CVE records
+                                <span class="stat-detail">(${data.cve_records_with_concerns.size} with concerns, ${data.cve_records_without_concerns.size} clean)</span>
                             </div>
                             <div class="source-stat">
-                                <strong id="${badge3Id}">${data.entries.length}</strong> platform entries
+                                <strong id="${badge3Id}">${data.total_platform_entries}</strong> platform entries
+                                <span class="stat-detail">(${data.entries.length} with concerns, ${data.clean_platform_entries} clean)</span>
+                            </div>
+                            <div class="source-stat">
+                                <strong id="${badge1Id}">${data.total_concerns}</strong> total concerns
                             </div>
                         </div>
                         <div id="${listId}" class="top-concerns">
-                            <strong>Top Concern Types:</strong>
+                            <strong>Concern Type Analysis:</strong>
                             ${topConcerns.length > 0 ? 
                                 topConcerns.map(([type, count], concernIndex) => {
                                     const itemId = `sa_item_${String(sourceIndex + 1).padStart(2, '0')}_${String(concernIndex + 1).padStart(2, '0')}`;
-                                    return `<div id="${itemId}" class="top-concern">${type}: ${count}</div>`;
+                                    
+                                    // Get the concern type key from display name
+                                    const concernTypeKey = Object.keys(concernTypeNames).find(key => 
+                                        concernTypeNames[key] === type
+                                    ) || type.toLowerCase().replace(/\s+/g, '');
+                                    
+                                    // Get subcategory breakdown
+                                    const subcategorySummary = concernBreakdowns[concernTypeKey] 
+                                        ? generateSubcategorySummary(concernTypeKey, concernBreakdowns[concernTypeKey])
+                                        : '';
+                                    
+                                    return `
+                                        <div id="${itemId}" class="top-concern enhanced">
+                                            <div class="concern-header">
+                                                <span class="concern-title">${type}</span>
+                                                <span class="concern-count-badge">${count}</span>
+                                            </div>
+                                            ${subcategorySummary ? `
+                                                <div class="concern-breakdown">
+                                                    <span class="breakdown-text">${subcategorySummary}</span>
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    `;
                                 }).join('') :
                                 '<div class="top-concern" style="background: #F3F4F6; color: #6B7280;">No concerns detected</div>'
                             }
                         </div>
                         <details id="${detailsId}">
-                            <summary>View platform entries (${data.entries.length})</summary>
-                            <div id="${entriesListId}">
-                                ${data.entries.map((entry, entryIndex) => {
-                                    const entryId = `sa_item_${String(sourceIndex + 1).padStart(2, '0')}_${String(entryIndex + 1).padStart(3, '0')}`;
-                                    const hasAlerts = entry.concerns > 0;
-                                    const concernTypes = entry.concern_types || [];
-                                    const concernTypesDisplay = concernTypes.length > 0 ? 
-                                        concernTypes.map(type => concernTypeNames[type] || type).join(', ') : 
-                                        'No specific types';
-                                    
-                                    return `
-                                        <div id="${entryId}" class="platform-entry ${hasAlerts ? 'with-concerns' : ''}">
-                                            <h5><strong>${entry.cve_id}</strong> - ${entry.vendor}/${entry.product}</h5>
-                                            <div class="entry-details">Table ${entry.table_index} | Source: ${sourceId}</div>
-                                            ${hasAlerts ? `<div class="concern-summary">${entry.concerns} concerns: ${concernTypesDisplay}</div>` : ''}
-                                        </div>
-                                    `;
-                                }).join('')}
+                            ${(() => {
+                                // Group entries by CVE ID to count unique CVEs
+                                const cveGroups = {};
+                                data.entries.forEach((entry, entryIndex) => {
+                                    if (!cveGroups[entry.cve_id]) {
+                                        cveGroups[entry.cve_id] = [];
+                                    }
+                                    cveGroups[entry.cve_id].push({...entry, entryIndex});
+                                });
+                                const uniqueCveCount = Object.keys(cveGroups).length;
+                                return `<summary>View CVE Entries (${uniqueCveCount})</summary>`;
+                            })()}
+                            <div id="${entriesListId}" class="cve-cards-container">
+                                ${(() => {
+                                    // Group entries by CVE ID
+                                    const cveGroups = {};
+                                    data.entries.forEach((entry, entryIndex) => {
+                                        if (!cveGroups[entry.cve_id]) {
+                                            cveGroups[entry.cve_id] = [];
+                                        }
+                                        cveGroups[entry.cve_id].push({...entry, entryIndex});
+                                    });
+
+                                    return Object.entries(cveGroups).map(([cveId, cveEntries]) => {
+                                        const totalConcerns = cveEntries.reduce((sum, entry) => sum + entry.concerns, 0);
+                                        const cardId = `cve_card_${cveId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                                        
+                                        // Aggregate concern types across all entries for this CVE
+                                        const concernTypeCounts = {};
+                                        cveEntries.forEach(entry => {
+                                            Object.entries(entry.concern_breakdown || {}).forEach(([type, count]) => {
+                                                concernTypeCounts[type] = (concernTypeCounts[type] || 0) + count;
+                                            });
+                                        });
+
+                                        const concernTypeEntries = Object.entries(concernTypeCounts)
+                                            .sort(([,a], [,b]) => b - a);
+
+                                        const githubUrl = `https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/${cveId}.html`;
+
+                                        // Collect all concern details for this CVE for subcategory analysis
+                                        const allConcernDetails = {};
+                                        cveEntries.forEach(entry => {
+                                            if (entry.concerns_detail) {
+                                                entry.concerns_detail.forEach(detailGroup => {
+                                                    if (!allConcernDetails[detailGroup.concern_type]) {
+                                                        allConcernDetails[detailGroup.concern_type] = [];
+                                                    }
+                                                    allConcernDetails[detailGroup.concern_type].push(...detailGroup.concerns);
+                                                });
+                                            }
+                                        });
+
+                                        return `
+                                            <div class="cve-card" id="${cardId}">
+                                                <div class="cve-card-header">
+                                                    <a href="${githubUrl}" target="_blank" class="cve-id-link">
+                                                        <span class="cve-id">${cveId}</span>
+                                                    </a>
+                                                    <span class="cve-entries-count">${cveEntries.length} entries</span>
+                                                </div>
+                                                <div class="cve-card-content" onclick="toggleCveDetails('${cardId}')">
+                                                    <div class="cve-card-main-content">
+                                                        <div class="cve-content-display">
+                                                            ${totalConcerns > 0 ? 
+                                                                concernTypeEntries.map(([type, count]) => {
+                                                                    const displayName = concernTypeNames[type] || type;
+                                                                    const percentage = ((count / totalConcerns) * 100).toFixed(1);
+                                                                    const concernDetails = allConcernDetails[type] || [];
+                                                                    const categorizedConcerns = categorizeConcernsByType(type, concernDetails);
+                                                                    const subcategorySummary = generateSubcategorySummary(type, categorizedConcerns);
+                                                                    
+                                                                    return `
+                                                                        <div class="cve-concern-section" data-type="${type}">
+                                                                            <div class="cve-section-summary">
+                                                                                <span class="cve-concern-type">${displayName}:</span>
+                                                                                <span class="cve-concern-count">${count} (${percentage}%)</span>
+                                                                            </div>
+                                                                            <div class="cve-section-details">
+                                                                                ${subcategorySummary || 'No subcategory details available'}
+                                                                            </div>
+                                                                        </div>
+                                                                    `;
+                                                                }).join('') 
+                                                                : `
+                                                                    <div class="cve-concern-section">
+                                                                        <div class="cve-section-summary">
+                                                                            <span class="cve-concern-type" style="color: #059669;">No concerns detected</span>
+                                                                        </div>
+                                                                    </div>
+                                                                `
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                    <div class="click-details-indicator">
+                                                        <span>Click for details</span>
+                                                        <span class="chevron">▼</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('');
+                                })()}
                             </div>
                         </details>
                     </div>
