@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hashmire/Analysis_Tools v0.2.0 - Source Data Concern Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <style>
         * {
             margin: 0;
@@ -463,6 +464,7 @@
 
         #sources-list {
             list-style: none;
+            overflow: visible; /* Allow chart hover effects to extend beyond list boundaries */
         }
 
         .source-item {
@@ -476,6 +478,7 @@
                 0 8px 25px rgba(124, 58, 237, 0.08),
                 inset 0 1px 0 rgba(255, 255, 255, 0.8);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: visible; /* Allow chart hover effects to extend beyond card boundaries */
         }
 
         .source-item:hover {
@@ -501,10 +504,43 @@
 
         .source-stat {
             background: white;
-            padding: 10px 15px;
+            padding: 15px;
             border-radius: 8px;
             font-size: 0.9em;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            flex: 1;
+            min-width: 280px; /* Increased from 250px to accommodate larger 150px charts */
+            overflow: visible; /* Allow chart hover effects to extend beyond boundaries */
+        }
+
+        .stat-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 5px; /* Reduced from 15px to minimize space between text and chart */
+            overflow: visible; /* Allow chart hover effects to extend beyond boundaries */
+        }
+
+        .stat-text {
+            flex: 1;
+        }
+
+        .stat-chart-container {
+            flex-shrink: 0;
+            padding: 5px; /* Reduced from 25px to minimize dead space */
+            overflow: visible; /* Allow chart hover effects to extend beyond boundaries */
+            position: relative; /* Ensure proper stacking context for hover effects */
+        }
+
+        .stat-pie-chart {
+            width: 150px !important;  /* Actual canvas size for proper tooltip positioning */
+            height: 150px !important; /* Actual canvas size for proper tooltip positioning */
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(139, 92, 246, 0.15);
+            position: relative; /* Ensure proper stacking for hover effects */
+            z-index: 10; /* Higher z-index to ensure hover effects appear above other elements */
+            transform: scale(0.8); /* Scale down visually while preserving canvas dimensions */
+            transform-origin: center; /* Scale from center point */
         }
 
         .source-stat strong {
@@ -1374,9 +1410,29 @@
                 gap: 20px;
             }
             
-            .source-stats {
+            .stats-container {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .stats-text {
                 flex-direction: column;
                 gap: 10px;
+            }
+            
+            .charts-container {
+                justify-content: center;
+                gap: 10px;
+                flex-wrap: wrap;
+            }
+            
+            .chart-wrapper {
+                min-width: 80px;
+            }
+            
+            .pie-chart {
+                width: 80px !important;
+                height: 80px !important;
             }
             
             .file-input-wrapper {
@@ -2051,6 +2107,32 @@
             `;
         }
         
+        /**
+         * Create a user-friendly display name from source name or source ID
+         */
+        function createDisplaySourceName(sourceName, sourceId) {
+            // If we have a proper source name, use it
+            if (sourceName && sourceName !== sourceId && !isUUID(sourceName)) {
+                return sourceName;
+            }
+            
+            // If the source name is a UUID or missing, create a friendly name
+            if (isUUID(sourceId)) {
+                return `Source ${sourceId.substring(0, 8)}...`;
+            }
+            
+            // Fallback to the source ID if it's not a UUID
+            return sourceId;
+        }
+        
+        /**
+         * Check if a string is a UUID
+         */
+        function isUUID(str) {
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            return uuidRegex.test(str);
+        }
+        
         function populateSources() {
             const sourcesList = document.getElementById('sources-list');
             const sourceData = {};
@@ -2065,7 +2147,7 @@
                         if (!sourceData[entry.source_id]) {
                             sourceData[entry.source_id] = {
                                 source_id: entry.source_id,
-                                source_name: entry.source_name || entry.source_id,
+                                source_name: createDisplaySourceName(entry.source_name, entry.source_id),
                                 total_concerns: 0,
                                 cve_records: new Set(),
                                 cve_records_with_concerns: new Set(),
@@ -2084,7 +2166,7 @@
                     });
                 }
                 
-                // Check clean platform entries (new data structure)
+                // Check platform entries with no concerns (new data structure)
                 if (cve.clean_platform_entries && cve.clean_platform_entries.length > 0) {
                     cve.clean_platform_entries.forEach(cleanEntry => {
                         const sourceId = cleanEntry.sourceID;
@@ -2092,7 +2174,7 @@
                         if (!sourceData[sourceId]) {
                             sourceData[sourceId] = {
                                 source_id: sourceId,
-                                source_name: sourceId, // Will be resolved later if available
+                                source_name: createDisplaySourceName(null, sourceId), // Create friendly name from sourceId
                                 total_concerns: 0,
                                 cve_records: new Set(),
                                 cve_records_with_concerns: new Set(),
@@ -2128,7 +2210,7 @@
                     if (!sourceData[entry.source_id]) {
                         sourceData[entry.source_id] = {
                             source_id: entry.source_id,
-                            source_name: entry.source_name || entry.source_id,
+                            source_name: createDisplaySourceName(entry.source_name, entry.source_id),
                             total_concerns: 0,
                             cve_records: new Set(),
                             concern_breakdown: {},
@@ -2158,9 +2240,9 @@
                 });
             });
             
-            // Calculate total platform entries for each source (including clean entries)
+            // Calculate total platform entries for each source (including entries with no concerns)
             Object.values(sourceData).forEach(source => {
-                // Count clean platform entries from clean_platform_entries data
+                // Count platform entries with no concerns from clean_platform_entries data
                 let totalCleanEntries = 0;
                 dashboardData.cve_data.forEach(cve => {
                     if (cve.clean_platform_entries) {
@@ -2226,15 +2308,37 @@
                         <h4 id="${titleId}">${data.source_name}</h4>
                         <div id="${contentId}" class="source-stats">
                             <div class="source-stat">
-                                <strong id="${badge2Id}">${data.cve_records.size}</strong> CVE records
-                                <span class="stat-detail">(${data.cve_records_with_concerns.size} with concerns, ${data.cve_records_without_concerns.size} clean)</span>
+                                <div class="stat-content">
+                                    <div class="stat-text">
+                                        <strong id="${badge2Id}">${data.cve_records.size}</strong> CVE records
+                                        <span class="stat-detail">(${data.cve_records_with_concerns.size} concerns detected, ${data.cve_records_without_concerns.size} no concerns)</span>
+                                    </div>
+                                    <div class="stat-chart-container">
+                                        <canvas id="cve-chart-${sourceIndex}" class="stat-pie-chart"></canvas>
+                                    </div>
+                                </div>
                             </div>
                             <div class="source-stat">
-                                <strong id="${badge3Id}">${data.total_platform_entries}</strong> platform entries
-                                <span class="stat-detail">(${data.entries.length} with concerns, ${data.clean_platform_entries} clean)</span>
+                                <div class="stat-content">
+                                    <div class="stat-text">
+                                        <strong id="${badge3Id}">${data.total_platform_entries}</strong> platform entries
+                                        <span class="stat-detail">(${data.entries.length} concerns detected, ${data.clean_platform_entries} no concerns)</span>
+                                    </div>
+                                    <div class="stat-chart-container">
+                                        <canvas id="platform-chart-${sourceIndex}" class="stat-pie-chart"></canvas>
+                                    </div>
+                                </div>
                             </div>
                             <div class="source-stat">
-                                <strong id="${badge1Id}">${data.total_concerns}</strong> total concerns
+                                <div class="stat-content">
+                                    <div class="stat-text">
+                                        <strong id="${badge1Id}">${data.total_concerns}</strong> total concerns
+                                        <span class="stat-detail">Concern types breakdown</span>
+                                    </div>
+                                    <div class="stat-chart-container">
+                                        <canvas id="concerns-chart-${sourceIndex}" class="stat-pie-chart"></canvas>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div id="${listId}" class="top-concerns">
@@ -2382,6 +2486,9 @@
             
             sourcesList.innerHTML = sourcesHTML;
             
+            // Create charts for each source
+            createSourceCharts(sortedSources);
+            
             // Build search index with DOM references for optimized searching
             sourceSearchIndex.forEach((indexEntry, i) => {
                 indexEntry.element = document.getElementById(indexEntry.id);
@@ -2389,6 +2496,226 @@
             
             // Initialize search functionality
             initializeSearch(sortedSources.length);
+        }
+        
+        function createSourceCharts(sortedSources) {
+            // Define sage green and royal purple color palettes with lighter fills and deeper borders
+            const concernColors = [
+                '#9F7AEA', '#B794F6', '#D6BCFA', '#E9D8FD', '#F7FAFC',  // Royal purple gradient (lighter fills)
+                '#68D391', '#9AE6B4', '#C6F6D5', '#F0FFF4', '#F7FAFC'   // Sage green gradient (lighter fills)
+            ];
+            
+            const concernBorderColors = [
+                '#553C9A', '#6B46C1', '#7C3AED', '#8B5CF6', '#9F7AEA',  // Deeper royal purple borders
+                '#276749', '#2F855A', '#38A169', '#48BB78', '#68D391'   // Deeper sage green borders
+            ];
+            
+            const cleanColor = '#9AE6B4';      // Light sage green for "No Concerns" entries
+            const cleanBorderColor = '#2F855A'; // Deep sage green border
+            const concernColor = '#B794F6';    // Light royal purple for "Concerns Detected" entries
+            const concernBorderColor = '#6B46C1'; // Deep royal purple border
+            
+            // Custom tooltip positioner to center tooltips
+            Chart.Tooltip.positioners.center = function(elements, eventPosition) {
+                if (!elements.length) {
+                    return false;
+                }
+                
+                // Get the chart area
+                const chart = this.chart;
+                const {chartArea: {left, top, right, bottom}} = chart;
+                
+                // Return center position of chart area
+                return {
+                    x: (left + right) / 2,
+                    y: (top + bottom) / 2
+                };
+            };
+            
+            sortedSources.forEach(([sourceId, data], sourceIndex) => {
+                // 1. CVE Distribution Chart
+                const cveCanvas = document.getElementById(`cve-chart-${sourceIndex}`);
+                if (cveCanvas) {
+                    new Chart(cveCanvas, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Concerns Detected', 'No Concerns'],
+                            datasets: [{
+                                data: [data.cve_records_with_concerns.size, data.cve_records_without_concerns.size],
+                                backgroundColor: [concernColor, cleanColor],
+                                borderColor: [concernBorderColor, cleanBorderColor],
+                                borderWidth: 3,
+                                hoverOffset: 18,
+                                hoverBorderWidth: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    position: 'center', // Pin tooltip to center of chart
+                                    displayColors: false,
+                                    titleFont: { size: 0 }, // Hide title completely
+                                    bodyFont: { size: 11 },
+                                    padding: 4, // Reduced from 8 to minimize tooltip padding
+                                    callbacks: {
+                                        title: function() {
+                                            return ''; // No title
+                                        },
+                                        label: function(context) {
+                                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                            // Add line break for multi-word labels
+                                            const label = context.label.includes(' ') ? context.label.replace(' ', '\n') : context.label;
+                                            return `${label}:\n${percentage}%`;
+                                        }
+                                    }
+                                }
+                            },
+                            cutout: '50%' // Increased thickness from 60% to 50%
+                        }
+                    });
+                }
+                
+                // 2. Platform Entries Chart
+                const platformCanvas = document.getElementById(`platform-chart-${sourceIndex}`);
+                if (platformCanvas) {
+                    new Chart(platformCanvas, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['Concerns Detected', 'No Concerns'],
+                            datasets: [{
+                                data: [data.entries.length, data.clean_platform_entries],
+                                backgroundColor: [concernColor, cleanColor],
+                                borderColor: [concernBorderColor, cleanBorderColor],
+                                borderWidth: 3,
+                                hoverOffset: 18,
+                                hoverBorderWidth: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    position: 'center', // Pin tooltip to center of chart
+                                    displayColors: false,
+                                    titleFont: { size: 0 }, // Hide title completely
+                                    bodyFont: { size: 11 },
+                                    padding: 4, // Reduced from 8 to minimize tooltip padding
+                                    callbacks: {
+                                        title: function() {
+                                            return ''; // No title
+                                        },
+                                        label: function(context) {
+                                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                            // Add line break for multi-word labels
+                                            const label = context.label.includes(' ') ? context.label.replace(' ', '\n') : context.label;
+                                            return `${label}:\n${percentage}%`;
+                                        }
+                                    }
+                                }
+                            },
+                            cutout: '50%' // Increased thickness from 60% to 50%
+                        }
+                    });
+                }
+                
+                // 3. Concern Types Breakdown Chart
+                const concernsCanvas = document.getElementById(`concerns-chart-${sourceIndex}`);
+                if (concernsCanvas && data.total_concerns > 0) {
+                    const topConcerns = Object.entries(data.concern_breakdown)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 5); // Top 5 concerns
+                    
+                    if (topConcerns.length > 0) {
+                        new Chart(concernsCanvas, {
+                            type: 'doughnut',
+                            data: {
+                                labels: topConcerns.map(([type, count]) => type),
+                                datasets: [{
+                                    data: topConcerns.map(([type, count]) => count),
+                                    backgroundColor: concernColors.slice(0, topConcerns.length),
+                                    borderColor: concernBorderColors.slice(0, topConcerns.length),
+                                    borderWidth: 3,
+                                    hoverOffset: 18,
+                                    hoverBorderWidth: 4
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: {
+                                        position: 'center', // Pin tooltip to center of chart
+                                        displayColors: false,
+                                        titleFont: { size: 0 }, // Hide title completely
+                                        bodyFont: { size: 11 },
+                                        padding: 4, // Reduced from 8 to minimize tooltip padding
+                                        callbacks: {
+                                            title: function() {
+                                                return ''; // No title
+                                            },
+                                            label: function(context) {
+                                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                                const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                                // Add line break for multi-word labels
+                                                const label = context.label.includes(' ') ? context.label.replace(' ', '\n') : context.label;
+                                                return `${label}:\n${percentage}%`;
+                                            }
+                                        }
+                                    }
+                                },
+                                cutout: '40%' // Increased thickness from 50% to 40%
+                            }
+                        });
+                    }
+                } else if (concernsCanvas) {
+                    // Show "No Concerns" chart
+                    new Chart(concernsCanvas, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['No Concerns'],
+                            datasets: [{
+                                data: [1],
+                                backgroundColor: [cleanColor],
+                                borderColor: [cleanBorderColor],
+                                borderWidth: 3,
+                                hoverOffset: 18,
+                                hoverBorderWidth: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    position: 'center', // Pin tooltip to center of chart
+                                    displayColors: false,
+                                    titleFont: { size: 0 }, // Hide title completely
+                                    bodyFont: { size: 11 },
+                                    padding: 4, // Reduced from 8 to minimize tooltip padding
+                                    callbacks: {
+                                        title: function() {
+                                            return ''; // No title
+                                        },
+                                        label: function() {
+                                            return 'No Concerns:\n100%';
+                                        }
+                                    }
+                                }
+                            },
+                            cutout: '50%' // Increased thickness from 60% to 50%
+                        }
+                    });
+                }
+            });
         }
         
         function showError(message) {
