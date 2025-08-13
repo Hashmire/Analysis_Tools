@@ -14,11 +14,11 @@ python test_files\run_all_tests.py
 - `--verbose` or `-v`: Show detailed test output and error messages
 
 **Features:**
-- Executes all 6 test suites automatically
+- Executes all 9 test suites automatically
 - Provides comprehensive summary reporting
 - Enhanced error transparency for debugging
 - Standardized output parsing across all suites
-- Individual test count aggregation (161 total tests)
+- Individual test count aggregation (514 total tests)
 
 ## **📊 Test Suite Overview**
 
@@ -30,8 +30,11 @@ python test_files\run_all_tests.py
 | **Confirmed Mappings** | 10 | Confirmed mappings pipeline and data flow |
 | **Provenance Assistance** | 10 | CPE provenance functionality and HTML generation |
 | **NVD Source Manager** | 10 | Source data integration and resolution |
+| **Source Data Concern Badge Data Collector JSON** | 101 | Complete badge contents collection system (source data concerns + clean platform tracking) |
+| **Source Data Concern Dashboard Webpage** | 90 | Standalone dashboard HTML validation and display testing |
+| **Source Data Concern Dashboard** | 157 | Complete dashboard integration with backend data processing |
 
-**Total: 166 individual tests** - All must maintain 100% pass rate.
+**Total: 514 individual tests** - All must maintain 100% pass rate.
 
 ## **🔧 Individual Test Suite Execution**
 
@@ -49,6 +52,11 @@ python test_files\test_provenance_assistance.py test_files\testProvenanceAssista
 # Data pipeline validation
 python test_files\test_confirmed_mappings.py                                          # 10 tests
 python test_files\test_nvd_source_manager.py                                          # 10 tests
+
+# Source Data Concern system testing
+python test_files\test_source_data_concern_badge_data_collector_json.py               # 101 tests
+python test_files\test_source_data_concern_dashboard_webpage.py                       # 90 tests
+python test_files\test_source_data_concern_dashboard.py                               # 157 tests
 ```
 
 ## **📋 Test Output Format**
@@ -87,14 +95,19 @@ TEST_RESULTS: PASSED=X TOTAL=Y SUITE="Name"
 
 ## **📚 Individual Test Suite Documentation**
 
-All individual test suite documentation has been simplified to focus on core validation areas and unified runner integration:
+All individual test suite documentation focuses on core validation areas and unified runner integration:
 
 - `logging_test_suite.md` - Structured logging system validation (53 tests)
 - `modular_rules_test_suite.md` - JSON generation rules and HTML validation (16 tests)
-- `platform_badges_test_suite.md` - Badge/modal system and data quality validation (62 tests)
+- `platform_badges_test_suite.md` - Badge/modal system and data quality validation (67 tests)
 - `confirmed_mappings_test_suite.md` - Data pipeline and mapping validation (10 tests)  
 - `provenance_assistance_test_suite.md` - CPE provenance and HTML generation (10 tests)
 - `nvd_source_manager_test_suite.md` - Source data integration testing (10 tests)
+
+**Source Data Concern System Documentation:**
+- Badge data collection system testing (101 tests) - Documented within consolidated test suite
+- Dashboard webpage testing (90 tests) - Standalone dashboard validation  
+- Dashboard integration testing (157 tests) - Complete system validation
 
 **Documentation Pattern:**
 - **📊 Overview** - Purpose and test count

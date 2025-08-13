@@ -351,7 +351,8 @@ class BadgeContentsCollector:
             'Missing Affected Products': 'missingAffectedProducts',
             'Overlapping Ranges': 'overlappingRanges'
         }
-        return mapping.get(concern_type, concern_type.lower().replace(' ', ''))
+        # Convert to camelCase for any unmapped concern types instead of lowercase
+        return mapping.get(concern_type, concern_type.replace(' ', '').replace(concern_type[0], concern_type[0].lower(), 1) if concern_type else '')
     
     def finalize_report(self) -> Optional[str]:
         """

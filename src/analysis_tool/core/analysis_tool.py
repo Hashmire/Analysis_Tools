@@ -257,8 +257,8 @@ def process_cve(cve_id, nvd_api_key):
             if state == 'REJECTED':
                 logger.warning(f"{cve_id} is in REJECTED state - skipping processing", group="cve_queries")
                 
-                # Complete badge contents collection for this skipped CVE
-                complete_cve_collection(cve_id)
+                # Complete badge contents collection for this record
+                complete_cve_collection()
                 
                 # Ensure progress tracking is properly updated for skipped CVEs
                 from ..logging.dataset_contents_collector import finish_cve_processing

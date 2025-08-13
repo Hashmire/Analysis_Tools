@@ -262,7 +262,7 @@ class BadgeModal {
             
             tabContentHtml += `
                 <div class="tab-pane fade ${isActive ? 'show active' : ''}" id="${tabId}" role="tabpanel">
-                    <div class="p-2" style="max-height: 250px; overflow-y: auto;">
+                    <div class="p-2 tab-content-scrollable" style="max-height: 70vh; overflow-y: auto;">
                         ${tab.content}
                     </div>
                 </div>

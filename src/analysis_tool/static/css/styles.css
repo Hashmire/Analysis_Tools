@@ -1009,6 +1009,33 @@ table.dataframe td:last-child {
  * MODAL CONTENT STYLING
  * ======================================== */
 
+/* Tab content scrollable area - allows for comprehensive lists */
+.tab-content-scrollable {
+    max-height: 70vh;
+    min-height: 200px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #6c757d #f8f9fa;
+}
+
+.tab-content-scrollable::-webkit-scrollbar {
+    width: 8px;
+}
+
+.tab-content-scrollable::-webkit-scrollbar-track {
+    background: #f8f9fa;
+    border-radius: 4px;
+}
+
+.tab-content-scrollable::-webkit-scrollbar-thumb {
+    background: #6c757d;
+    border-radius: 4px;
+}
+
+.tab-content-scrollable::-webkit-scrollbar-thumb:hover {
+    background: #495057;
+}
+
 /* Confirmed Mapping Modal Styles */
 .confirmed-mapping-compact .sorting-item {
     background: linear-gradient(135deg, rgba(25, 135, 84, 0.1) 0%, rgba(25, 135, 84, 0.05) 100%);

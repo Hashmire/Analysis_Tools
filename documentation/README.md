@@ -19,7 +19,7 @@ This directory contains comprehensive documentation for the Hashmire/Analysis_To
 |------|---------|
 | `badge_modal_system_reference.md` | Complete badge and modal system implementation reference |
 | `cpes_api_caching_system.md` | CPE API caching implementation and performance optimization |
-| `dashboard_usage.md` | Dashboard features and usage instructions |
+| `dashboard_usage.md` | Real-time dashboard system comprehensive usage guide |
 | `dataset_generation.md` | Dataset generation methodology and capabilities |
 | `logging_system.md` | Structured logging system architecture and patterns |
 
@@ -40,16 +40,24 @@ runs/[timestamp]_[context]/
 - **Entry Points**: `run_tools.py` (CVE analysis), `generate_dataset.py` (dataset generation)
 - **Core Engine**: `src/analysis_tool/core/analysis_tool.py`
 - **Run Management**: `src/analysis_tool/storage/run_organization.py`
-- **Dashboard**: `dashboards/` (real-time monitoring system)
+- **Dashboard System**: `dashboards/` (real-time monitoring system)
 - **Dashboard Data Collection**: `src/analysis_tool/logging/dataset_contents_collector.py`
 - **Shared Cache**: `cache/` directory for CPE API responses
 
 ### Testing
 
-All test suites maintain 100% pass rate requirements:
+All test suites maintain 100% pass rate requirements with complete integration:
 
-- **Platform Badge Tests** (62 tests) - Complete badge system validation
+- **Source Data Concern Badge Data Collector JSON** (101 tests) - Complete badge contents collection system
+- **Platform Badge Tests** (67 tests) - Complete badge system validation  
 - **Modular Rules** (16 tests) - JSON generation rules
 - **Logging System** (53 tests) - Structured logging validation
 - **Confirmed Mappings** (10 tests) - Complete confirmed mappings pipeline validation
 - **Provenance Assistance** (10 tests) - Package repository detection
+- **NVD Source Manager** (10 tests) - Source data integration and resolution
+- **Source Data Concern Dashboard Webpage** (90 tests) - Standalone dashboard validation
+- **Source Data Concern Dashboard** (157 tests) - Complete dashboard integration testing
+
+**Total: 514 tests across 9 test suites**
+
+Execute all tests: `python test_files\run_all_tests.py`

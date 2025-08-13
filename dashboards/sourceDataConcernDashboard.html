@@ -1200,7 +1200,8 @@
         }
 
         .cve-content-display.expanded {
-            max-height: 400px; /* Expanded height for details */
+            max-height: 70vh; /* Viewport-relative height for comprehensive sub-category lists */
+            overflow-y: auto; /* Add scrollbar for very long lists */
         }
 
         .cve-content-display.fade-out {
@@ -1266,7 +1267,8 @@
 
         .cve-section-details.show {
             opacity: 1;
-            max-height: 200px;
+            max-height: 60vh; /* Viewport-relative height for comprehensive sub-category lists */
+            overflow-y: auto; /* Add scrollbar for very long lists */
         }
 
         .cve-id-link {
@@ -1609,9 +1611,8 @@
                 } else if (descriptivePatterns.some(pattern => concernText.includes(pattern))) {
                     categories['Descriptive Statements'].push(concern);
                 } else {
-                    // Default to first non-empty category or create a misc category
-                    if (!categories['Other Patterns']) categories['Other Patterns'] = [];
-                    categories['Other Patterns'].push(concern);
+                    // Default to most specific applicable category instead of generic "Other Patterns"
+                    categories['Character Validation Issues'].push(concern);
                 }
             });
             
@@ -1647,8 +1648,8 @@
                 } else if (issueText.includes('generic version identifier') || issueText.includes('too generic')) {
                     categories['Generic Versions'].push(concern);
                 } else {
-                    if (!categories['Other Issues']) categories['Other Issues'] = [];
-                    categories['Other Issues'].push(concern);
+                    // Default to most specific applicable category instead of generic "Other Issues"
+                    categories['Format Issues'].push(concern);
                 }
             });
             
@@ -2054,9 +2055,11 @@
             const sourcesList = document.getElementById('sources-list');
             const sourceData = {};
             
-            // First pass: Track ALL CVEs processed per source (including those with no concerns)
+            // First pass: Track ALL CVEs processed per source and determine concern status per CVE per source
             dashboardData.cve_data.forEach(cve => {
-                // Check if this CVE has any platform entries (even without concerns)
+                const cveSourceConcerns = {}; // Track whether this CVE has concerns for each source
+                
+                // Check platform entries with concerns
                 if (cve.platform_entries && cve.platform_entries.length > 0) {
                     cve.platform_entries.forEach(entry => {
                         if (!sourceData[entry.source_id]) {
@@ -2072,24 +2075,19 @@
                             };
                         }
                         
-                        const source = sourceData[entry.source_id];
-                        // Track ALL CVEs for this source
-                        source.cve_records.add(cve.cve_id);
-                        
-                        // Track CVEs with/without concerns separately
+                        // Track if this CVE has concerns for this source
                         if (entry.total_concerns > 0) {
-                            source.cve_records_with_concerns.add(cve.cve_id);
-                        } else {
-                            source.cve_records_without_concerns.add(cve.cve_id);
+                            cveSourceConcerns[entry.source_id] = true;
+                        } else if (cveSourceConcerns[entry.source_id] === undefined) {
+                            cveSourceConcerns[entry.source_id] = false;
                         }
                     });
                 }
                 
-                // Process clean platform entries (new data structure)
+                // Check clean platform entries (new data structure)
                 if (cve.clean_platform_entries && cve.clean_platform_entries.length > 0) {
                     cve.clean_platform_entries.forEach(cleanEntry => {
                         const sourceId = cleanEntry.sourceID;
-                        const cleanCount = cleanEntry.cleanPlatformCount;
                         
                         if (!sourceData[sourceId]) {
                             sourceData[sourceId] = {
@@ -2104,12 +2102,24 @@
                             };
                         }
                         
-                        const source = sourceData[sourceId];
-                        // Add this CVE to the source's records
-                        source.cve_records.add(cve.cve_id);
-                        source.cve_records_without_concerns.add(cve.cve_id);
+                        // Only mark as no concerns if not already marked as having concerns
+                        if (cveSourceConcerns[sourceId] === undefined) {
+                            cveSourceConcerns[sourceId] = false;
+                        }
                     });
                 }
+                
+                // Now categorize this CVE per source based on overall concern status
+                Object.entries(cveSourceConcerns).forEach(([sourceId, hasConcerns]) => {
+                    const source = sourceData[sourceId];
+                    source.cve_records.add(cve.cve_id);
+                    
+                    if (hasConcerns) {
+                        source.cve_records_with_concerns.add(cve.cve_id);
+                    } else {
+                        source.cve_records_without_concerns.add(cve.cve_id);
+                    }
+                });
             });
             
             // Second pass: Aggregate concern data
@@ -2286,7 +2296,7 @@
 
                                     return Object.entries(cveGroups).map(([cveId, cveEntries]) => {
                                         const totalConcerns = cveEntries.reduce((sum, entry) => sum + entry.concerns, 0);
-                                        const cardId = `cve_card_${cveId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                                        const cardId = `cve_card_${String(sourceIndex + 1).padStart(2, '0')}_${cveId.replace(/[^a-zA-Z0-9]/g, '_')}`;
                                         
                                         // Aggregate concern types across all entries for this CVE
                                         const concernTypeCounts = {};

@@ -64,6 +64,18 @@ class TestSuiteRunner:
             {
                 'name': 'NVD Source Manager',
                 'command': ['python', 'test_files\\test_nvd_source_manager.py']
+            },
+            {
+                'name': 'Source Data Concern Badge Data Collector JSON',
+                'command': ['python', 'test_files\\test_source_data_concern_badge_data_collector_json.py']
+            },
+            {
+                'name': 'Source Data Concern Dashboard Webpage',
+                'command': ['python', 'test_files\\test_source_data_concern_dashboard_webpage.py']
+            },
+            {
+                'name': 'Source Data Concern Dashboard',
+                'command': ['python', 'test_files\\test_source_data_concern_dashboard.py']
             }
         ]
 

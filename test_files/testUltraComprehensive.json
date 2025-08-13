@@ -1,0 +1,287 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1",
+  "cveMetadata": {
+    "cveId": "CVE-2024-99999",
+    "assignerOrgId": "comprehensive-test-org-12345",
+    "state": "PUBLISHED",
+    "assignerShortName": "ComprehensiveTestOrg",
+    "datePublished": "2024-08-12T10:00:00.000Z",
+    "dateUpdated": "2024-08-12T12:30:00.000Z"
+  },
+  "containers": {
+    "cna": {
+      "affected": [
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "AllConcernTypes",
+      "defaultStatus": "affected",
+      "versions": [
+        {
+          "version": ">= 1.0.0, < 2.0.0",
+          "status": "affected",
+          "versionType": "semantic"
+        },
+        {
+          "version": "before 3.0.0",
+          "status": "affected",
+          "versionType": "custom"
+        },
+        {
+          "version": "after 4.0.0",
+          "status": "affected",
+          "versionType": "custom"
+        },
+        {
+          "version": "about 5.0.0",
+          "status": "affected",
+          "versionType": "custom"
+        },
+        {
+          "version": "inclusive 6.0.0",
+          "status": "affected",
+          "versionType": "custom"
+        },
+        {
+          "version": "all versions",
+          "status": "affected",
+          "versionType": "custom"
+        },
+        {
+          "version": "see references",
+          "status": "affected",
+          "versionType": "custom"
+        },
+        {
+          "version": "beta 7.0.0",
+          "status": "affected",
+          "versionType": "custom"
+        },
+        {
+          "version": "< 8.0.0 (chars: <)",
+          "status": "affected",
+          "versionType": "custom"
+        },
+        {
+          "version": "9.0.0 whitespace",
+          "status": "affected",
+          "versionType": "custom"
+        },
+        {
+          "version": "n/a",
+          "status": "affected",
+          "versionType": "custom"
+        }
+      ]
+    },
+    {
+      "vendor": "-",
+      "product": "PlaceholderVendor",
+      "defaultStatus": "affected",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "status": "affected",
+          "versionType": "semantic"
+        }
+      ]
+    },
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "-",
+      "defaultStatus": "affected",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "status": "affected",
+          "versionType": "semantic"
+        }
+      ]
+    },
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "VersionComparators",
+      "defaultStatus": "affected",
+      "versions": [
+        {
+          "version": ">= 1.0.0",
+          "status": "affected",
+          "versionType": "custom"
+        }
+      ]
+    },
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "VersionGranularity",
+      "defaultStatus": "affected",
+      "versions": [
+        {
+          "version": "3.3",
+          "status": "affected",
+          "versionType": "semantic"
+        },
+        {
+          "version": "3.3.0",
+          "status": "affected",
+          "versionType": "semantic"
+        }
+      ]
+    },
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "WildcardBranches",
+      "defaultStatus": "affected",
+      "versions": [
+        {
+          "version": "5.4.*",
+          "status": "affected",
+          "versionType": "custom"
+        }
+      ]
+    },
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "DuplicateEntries",
+      "defaultStatus": "affected",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "status": "affected",
+          "versionType": "semantic"
+        },
+        {
+          "version": "1.0.0",
+          "status": "affected",
+          "versionType": "semantic"
+        }
+      ]
+    },
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "PlatformDataConcerns",
+      "defaultStatus": "affected",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "status": "affected",
+          "versionType": "semantic"
+        }
+      ],
+      "platforms": ["unusual-platform-data"]
+    },
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "MissingAffectedProducts",
+      "defaultStatus": "unaffected",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "status": "unaffected",
+          "versionType": "semantic"
+        }
+      ]
+    },
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "OverlappingRanges",
+      "defaultStatus": "affected",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "status": "affected",
+          "lessThan": "2.0.0",
+          "versionType": "semantic"
+        },
+        {
+          "version": "1.5.0",
+          "status": "affected", 
+          "lessThan": "2.5.0",
+          "versionType": "semantic"
+        }
+      ]
+    },
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "CPEArrayEmpty",
+      "defaultStatus": "affected",
+      "cpes": [],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "status": "affected",
+          "versionType": "semantic"
+        }
+      ]
+    },
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "CPEArrayFormatIssues",
+      "defaultStatus": "affected",
+      "cpes": ["invalid:cpe:format"],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "status": "affected",
+          "versionType": "semantic"
+        }
+      ]
+    },
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "CPEArrayStructureIssues",
+      "defaultStatus": "affected",
+      "cpes": ["cpe:2.3:INVALID"],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "status": "affected",
+          "versionType": "semantic"
+        }
+      ]
+    },
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "CPEArrayDuplicates",
+      "defaultStatus": "affected",
+      "cpes": [
+        "cpe:2.3:a:comprehensivetest:cpearrayduplicates:*:*:*:*:*:*:*:*",
+        "cpe:2.3:a:comprehensivetest:cpearrayduplicates:*:*:*:*:*:*:*:*"
+      ],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "status": "affected",
+          "versionType": "semantic"
+        }
+      ]
+    },
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "CPEVersionPatternIssues",
+      "defaultStatus": "affected",
+      "cpes": ["cpe:2.3:a:comprehensivetest:cpeversionpatternissues:descriptive_text:*:*:*:*:*:*:*"],
+      "versions": [
+        {
+          "version": "1.0.0",
+          "status": "affected",
+          "versionType": "semantic"
+        }
+      ]
+    },
+    {
+      "vendor": "ComprehensiveTest",
+      "product": "CPEGenericVersions",
+      "defaultStatus": "affected",
+      "cpes": ["cpe:2.3:a:comprehensivetest:cpegenericversions:*:*:*:*:*:*:*:*"],
+      "versions": [
+        {
+          "version": "*",
+          "status": "affected",
+          "versionType": "custom"
+        }
+      ]
+        }
+      ]
+    }
+  }
+}
