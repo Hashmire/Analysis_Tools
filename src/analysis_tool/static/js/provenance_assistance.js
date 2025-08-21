@@ -3,6 +3,27 @@
  */
 
 /**
+ * Resolve source ID to human-readable display name using unified source system
+ * @param {string} sourceId - The source ID (UUID or orgId) to resolve
+ * @returns {string} Human-readable source name or original ID if not found
+ */
+function resolveSourceDisplay(sourceId) {
+    // Use unified source system - no fallbacks
+    if (!window.UnifiedSourceManager) {
+        throw new Error("Unified source manager not available for source resolution");
+    }
+    
+    const sourceInfo = window.UnifiedSourceManager.getSourceById(sourceId);
+    if (sourceInfo) {
+        return sourceInfo.name;
+    }
+    
+    // If not found, return the ID itself (fail gracefully for display purposes)
+    console.warn(`Source ${sourceId} not found in unified registry`);
+    return sourceId;
+}
+
+/**
  * Get CVE description data from the global metadata
  * @returns {Array} Array of description data objects
  */
@@ -164,7 +185,7 @@ function toggleDescription(button) {
     // Update the content then show it with animation
     contentArea.innerHTML = `
         <h6 class="mb-3 text-muted">
-            ${source.sourceRole}: ${source.sourceId} (${description.lang})
+            ${source.sourceRole}: ${resolveSourceDisplay(source.sourceId)} (${description.lang})
         </h6>
         <div class="description-text">
             ${displayText}
@@ -211,11 +232,21 @@ function addWordPressProvenanceLinks(rowIndex, platformData, linksContainer) {
             const metadata = JSON.parse(metadataDiv.getAttribute('data-cve-metadata'));
             
             if (metadata && metadata.sourceData && Array.isArray(metadata.sourceData)) {
-                // Check if any of the sources are WordPress-related
-                isWordPressSource = metadata.sourceData.some(source => 
-                    source.sourceId === 'b15e7b5b-3da4-40ae-a43c-f7aa60e62599' || // WordFence
-                    source.sourceId === '1bfdd5d7-9bf6-4a53-96ea-42e2716d7a81'    // WP Scan
-                );
+                // Check if any of the sources used in THIS CVE are WordPress-related
+                // Note: metadata.sourceData contains only sources used in this specific CVE
+                const wordpressUuids = [
+                    'b15e7b5b-3da4-40ae-a43c-f7aa60e62599', // WordFence
+                    '1bfdd5d7-9bf6-4a53-96ea-42e2716d7a81'  // WP Scan
+                ];
+                
+                isWordPressSource = metadata.sourceData.some(source => {
+                    // Check both orgId and sourceIdentifiers for WordPress UUIDs
+                    const orgId = source.orgId || '';
+                    const sourceIdentifiers = source.sourceIdentifiers || [];
+                    
+                    return wordpressUuids.includes(orgId) || 
+                           wordpressUuids.some(uuid => sourceIdentifiers.includes(uuid));
+                });
             }
         } catch (e) {
             console.error('Error checking WordPress sources:', e);
@@ -613,6 +644,7 @@ function createReferenceCards(rowIndex, referencesData) {
     referencesData.forEach(sourceData => {
         const sourceId = sourceData.sourceId || 'Unknown';
         const sourceRole = sourceData.sourceRole || 'Unknown';
+        const resolvedSourceName = resolveSourceDisplay(sourceId); // Use unified resolution
         
         // Process each reference in this source
         (sourceData.references || []).forEach(reference => {
@@ -636,6 +668,7 @@ function createReferenceCards(rowIndex, referencesData) {
                         existingRef.sources.push({
                             sourceId,
                             sourceRole,
+                            resolvedName: resolvedSourceName, // Add resolved name
                             tags: reference.tags || []
                         });
                     } else {
@@ -646,6 +679,7 @@ function createReferenceCards(rowIndex, referencesData) {
                             sources: [{
                                 sourceId,
                                 sourceRole,
+                                resolvedName: resolvedSourceName, // Add resolved name
                                 tags: reference.tags || []
                             }]
                         });
@@ -719,7 +753,8 @@ function createReferenceCards(rowIndex, referencesData) {
             ref.sources.forEach((source, i) => {
                 if (i > 0) tooltip += '\n\n'; // Add spacing between sources
                 
-                tooltip += `Source: ${source.sourceRole} (${source.sourceId})\n`;
+                const displayName = source.resolvedName || 'Unknown Source'; // Always use resolved name
+                tooltip += `Source: ${source.sourceRole} (${displayName})\n`;
                 tooltip += `Name: ${ref.name}\n`;
                 tooltip += `URL: ${ref.url}\n`;
                 

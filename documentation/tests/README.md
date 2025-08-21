@@ -18,7 +18,7 @@ python test_files\run_all_tests.py
 - Provides comprehensive summary reporting
 - Enhanced error transparency for debugging
 - Standardized output parsing across all suites
-- Individual test count aggregation (514 total tests)
+- Individual test count aggregation (552 total tests)
 
 ## **📊 Test Suite Overview**
 
@@ -29,12 +29,12 @@ python test_files\run_all_tests.py
 | **Platform Badges** | 67 | Badge/modal system, data quality validation, and overlapping ranges detection |
 | **Confirmed Mappings** | 10 | Confirmed mappings pipeline and data flow |
 | **Provenance Assistance** | 10 | CPE provenance functionality and HTML generation |
-| **NVD Source Manager** | 10 | Source data integration and resolution |
-| **Source Data Concern Badge Data Collector JSON** | 101 | Complete badge contents collection system (source data concerns + clean platform tracking) |
+| **NVD Source Manager** | 27 | Source data integration, resolution, and unified architecture compliance |
+| **Source Data Concern Badge Data Collector JSON** | 122 | Complete badge contents collection system (source data concerns + clean platform tracking) |
 | **Source Data Concern Dashboard Webpage** | 90 | Standalone dashboard HTML validation and display testing |
 | **Source Data Concern Dashboard** | 157 | Complete dashboard integration with backend data processing |
 
-**Total: 514 individual tests** - All must maintain 100% pass rate.
+**Total: 552 individual tests** - All must maintain 100% pass rate.
 
 ## **🔧 Individual Test Suite Execution**
 

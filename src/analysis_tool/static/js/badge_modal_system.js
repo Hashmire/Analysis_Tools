@@ -1605,8 +1605,8 @@ class BadgeModalFactory {
                 
                 if (tableIndex !== null) {
                     try {
-                        // Use extractDataFromTable function to get platform-specific version data
-                        const extractedData = extractDataFromTable(tableIndex);
+                        // Use unified data extraction to get platform-specific version data
+                        const extractedData = unifiedExtractDataFromTable(tableIndex);
                         if (extractedData && extractedData.rawPlatformData && extractedData.rawPlatformData.versions) {
                             versionsArray = extractedData.rawPlatformData.versions;
                             entryCount = versionsArray.length;

@@ -27,52 +27,27 @@ function updateCompletionTracker() {
             const isSkipped = container.classList.contains('collapsed') && container.classList.contains('skipped-row');
             const tableIndex = container.id.replace('rowDataTable_', '').replace('_container', '');
             
-            // Get the actual table
-            const rowDataTable = document.getElementById(`rowDataTable_${tableIndex}`);
-            if (!rowDataTable) return;
-            
-            // Find source information - specifically look for Source ID row
-            const sourceRows = rowDataTable.querySelectorAll('tr');
+            // Use the unified data extraction system for source resolution
             let sourceId = null;
             
-            // First try to find Source ID row with UUID
-            for (const row of sourceRows) {
-                const firstCell = row.querySelector('td:first-child');
-                if (!firstCell || firstCell.textContent.trim() !== 'Source ID') continue;
-                
-                const sourceCell = row.querySelector('td:nth-child(2) span[title]');
-                if (!sourceCell || !sourceCell.title) continue;
-                
-                const titleText = sourceCell.title;
-                
-                // Check if this is the NIST source (special case)
-                if (titleText.includes('Contact Email: nvd@nist.gov')) {
-                    sourceId = 'nvd@nist.gov';
-                    break;
+            try {
+                // Use unified data extraction
+                if (typeof window.unifiedExtractDataFromTable !== 'function') {
+                    console.error(`Unified data extraction not available for table ${tableIndex}. Check that unified_data_extraction.js is loaded.`);
+                    return;
                 }
                 
-                // Extract all UUIDs from Source Identifiers section
-                const identifiersSection = titleText.match(/Source Identifiers:\s*([^]*?)(?=\n|$)/);
-                if (identifiersSection && identifiersSection[1]) {
-                    // Split by comma and trim whitespace
-                    const identifiers = identifiersSection[1].split(',').map(id => id.trim());
-                    
-                    // Find a valid UUID format in the identifiers
-                    for (const id of identifiers) {
-                        if (id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-                            sourceId = id;
-                            break;
-                        }
-                    }
-                    
-                    // If we found a UUID, break out of the row loop
-                    if (sourceId) break;
-                }
+                const extractedData = window.unifiedExtractDataFromTable(tableIndex);
+                sourceId = extractedData.metadata.sourceId;
+                console.debug(`Table ${tableIndex}: extracted sourceId via unified approach: ${sourceId}`);
+            } catch (error) {
+                console.error(`Error extracting source data for table ${tableIndex}:`, error);
+                return;
             }
             
             // Skip if no source ID found
-            if (!sourceId) {
-                console.debug(`No source ID found for table ${tableIndex}`);
+            if (!sourceId || sourceId === 'Unknown') {
+                console.debug(`No valid source ID found for table ${tableIndex}`);
                 return;
             }
             
@@ -80,8 +55,9 @@ function updateCompletionTracker() {
             if (!sourceStats[sourceId]) {
                 sourceStats[sourceId] = { total: 0, completed: 0, skipped: 0 };
                 
-                // Get source name from global metadata
-                const sourceInfo = getSourceById(sourceId);
+                // Use unified source system for consistent data access
+                const sourceInfo = window.UnifiedSourceManager ? 
+                    window.UnifiedSourceManager.getSourceById(sourceId) : null;
                 sourceNames[sourceId] = sourceInfo ? sourceInfo.name : sourceId;
             }
             
@@ -171,63 +147,16 @@ function updateCompletionTracker() {
 }
 
 /**
- * Get the source data from the global metadata
- * @returns {Array|null} The source data array or null if not found
+ * Get all source data using the unified source system
+ * @returns {Object} The source registry object
  */
 function getSourceData() {
-    try {
-        const metadataDiv = document.getElementById('global-cve-metadata');
-        if (!metadataDiv || !metadataDiv.hasAttribute('data-cve-metadata')) {
-            return null;
-        }
-        
-        const metadata = JSON.parse(metadataDiv.getAttribute('data-cve-metadata'));
-        return metadata.sourceData || [];  // Return as array instead of object
-    } catch (e) {
-        console.error('Error retrieving source data:', e);
-        return [];  // Return empty array instead of empty object
+    if (!window.UnifiedSourceManager) {
+        console.error('Unified source manager not available for source data');
+        return {};
     }
-}
-
-/**
- * Get source information by ID from the global metadata
- * @param {string} sourceId - The source ID to look for
- * @returns {Object|null} Source information or null if not found
- */
-function getSourceById(sourceId) {
-    try {
-        const sourceData = getSourceData();
-        if (!sourceData || !Array.isArray(sourceData)) {
-            console.warn(`No source data available when looking up sourceId: ${sourceId}`);
-            return null;
-        }
-        
-        // First try exact match on sourceId
-        let source = sourceData.find(source => source.sourceId === sourceId);
-        
-        // If not found, try checking sourceIdentifiers
-        if (!source) {
-            source = sourceData.find(source => 
-                source.sourceIdentifiers && 
-                Array.isArray(source.sourceIdentifiers) && 
-                source.sourceIdentifiers.includes(sourceId)
-            );
-        }
-        
-        // Log when source is not found
-        if (!source) {
-            console.warn(`Source not found for ID: ${sourceId}`);
-            // Debug: dump all available source IDs to help troubleshooting
-            console.debug('Available source IDs:', 
-                sourceData.map(s => ({id: s.sourceId, name: s.name, identifiers: s.sourceIdentifiers}))
-            );
-        }
-        
-        return source;
-    } catch (e) {
-        console.error(`Error retrieving source data for ID ${sourceId}:`, e);
-        return null;
-    }
+    
+    return window.UnifiedSourceManager.getAllSources();
 }
 
 /**
@@ -291,6 +220,5 @@ document.addEventListener('DOMContentLoaded', function() {
 // Global Exports - All window assignments consolidated here
 // =============================================================================
 window.getSourceData = getSourceData;
-window.getSourceById = getSourceById;
 window.updateCompletionTracker = updateCompletionTracker;
 window.initializeCompletionTracker = initializeCompletionTracker;

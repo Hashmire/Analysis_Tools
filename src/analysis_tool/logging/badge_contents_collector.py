@@ -249,6 +249,14 @@ class BadgeContentsCollector:
                 resolved_name = get_source_name(source_id)
                 if resolved_name:
                     source_name = resolved_name
+                    if logger:
+                        logger.debug(f"Source name resolved for concern entry: {source_id} -> {source_name}", group="badge_generation")
+                else:
+                    if logger:
+                        logger.warning(f"Source name resolution failed for concern entry: {source_id}", group="badge_generation")
+            else:
+                if logger:
+                    logger.warning(f"Source name resolution unavailable for concern entry: {source_id}", group="badge_generation")
             
             # Create platform entry object with normalized concern type keys
             concern_type_keys = [self._concern_type_to_key(ct) for ct in concern_types]
@@ -300,9 +308,25 @@ class BadgeContentsCollector:
             # Increment count for existing source
             existing_entry['cleanPlatformCount'] += 1
         else:
-            # Create new entry for this source
+            # Resolve source ID to human-readable name (same as concern entries)
+            source_name = 'Unknown Source'
+            if get_source_name and source_id:
+                resolved_name = get_source_name(source_id)
+                if resolved_name:
+                    source_name = resolved_name
+                    if logger:
+                        logger.debug(f"Source name resolved for clean entry: {source_id} -> {source_name}", group="badge_generation")
+                else:
+                    if logger:
+                        logger.warning(f"Source name resolution failed for clean entry: {source_id}", group="badge_generation")
+            else:
+                if logger:
+                    logger.warning(f"Source name resolution unavailable for clean entry: {source_id}", group="badge_generation")
+            
+            # Create new entry for this source with resolved name
             self.current_cve_data['clean_platform_entries'].append({
                 'sourceID': source_id,
+                'source_name': source_name,  # Add human-readable name
                 'cleanPlatformCount': 1
             })
     

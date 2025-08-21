@@ -12,6 +12,9 @@ from ..logging.workflow_logger import get_logger, LogGroup
 # Import global source manager functions
 from ..storage.nvd_source_manager import get_source_info, get_source_name
 
+# Import unified source manager
+from .unified_source_manager import get_unified_source_manager
+
 # Get logger instance
 logger = get_logger()
 
@@ -822,7 +825,7 @@ def get_dynamic_data_injection():
     # Import badge modal system functions
     from .badge_modal_system import get_consolidated_cpe_registration_script, get_consolidated_platform_notification_script
     
-    # Add JSON settings HTML injection with advanced template deduplication
+    # Add JSON settings HTML injection
     from .badge_modal_system import get_consolidated_json_settings_script
     consolidated_json_settings_registrations = get_consolidated_json_settings_script()
     
@@ -830,7 +833,7 @@ def get_dynamic_data_injection():
     if not consolidated_json_settings_registrations:
         safe_json_settings = JSON_SETTINGS_HTML if 'JSON_SETTINGS_HTML' in globals() and JSON_SETTINGS_HTML else {}
         
-        # Implement basic deduplication for JSON_SETTINGS_HTML to prevent bloat
+        # Implement basic JSON settings handling to prevent bloat
         # Check if all settings are identical and use a template approach
         if safe_json_settings:
             # Get a sample key to check if all settings are identical
@@ -842,9 +845,9 @@ def get_dynamic_data_injection():
             
             if all_identical and len(safe_json_settings) > 1:
                 # Use a template approach to reduce size
-                logger.debug(f"Deduplicating JSON_SETTINGS_HTML - found {len(safe_json_settings)} identical entries", group="page_generation")
+                logger.debug(f"Using template for JSON_SETTINGS_HTML - found {len(safe_json_settings)} identical entries", group="page_generation")
                 json_settings_injection = f"""
-    // JSON Settings HTML template (deduplicated for efficiency)
+    // JSON Settings HTML template (for efficiency)
     window.JSON_SETTINGS_TEMPLATE = {json.dumps(sample_content, cls=CustomJSONEncoder)};
     window.JSON_SETTINGS_KEYS = {json.dumps(list(safe_json_settings.keys()), cls=CustomJSONEncoder)};
     // Create JSON_SETTINGS_HTML from template
@@ -877,9 +880,9 @@ def get_dynamic_data_injection():
                 
                 if all_identical:
                     # Use template approach for identical settings
-                    logger.debug(f"Deduplicating INTELLIGENT_SETTINGS - found {len(safe_intelligent_settings)} identical entries", group="page_generation")
+                    logger.debug(f"Using template for INTELLIGENT_SETTINGS - found {len(safe_intelligent_settings)} identical entries", group="page_generation")
                     intelligent_settings_js = f"""
-        // Intelligent settings template (deduplicated for efficiency)
+        // Intelligent settings template (for efficiency)
         window.INTELLIGENT_SETTINGS_TEMPLATE = {json.dumps(sample_settings, cls=CustomJSONEncoder)};
         window.INTELLIGENT_SETTINGS_KEYS = {json.dumps(list(safe_intelligent_settings.keys()), cls=CustomJSONEncoder)};
         // Create INTELLIGENT_SETTINGS from template
@@ -1592,7 +1595,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 # Parse the JSON for storage in global registry
                 ref_data_dict = json.loads(ref_data_js)
                 
-                # Register reference data with the global CPE registry (deduplicated)
+                # Register reference data with the global CPE registry
                 register_cpe_data(cpe_base, 'references', ref_data_dict)
                 
                 # Create reference HTML without inline script
@@ -1845,7 +1848,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 # Parse the JSON for storage in global registry
                 ref_data_dict = json.loads(ref_data_js)
                 
-                # Register reference data with the global CPE registry (deduplicated)
+                # Register reference data with the global CPE registry
                 register_cpe_data(base_key, 'references', ref_data_dict)
                 
                 # Create reference HTML without inline script
@@ -1872,10 +1875,8 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
             for key, value in sorted_search_keys:
                 sorting_data["searches"][key] = value
             
-            # Register sorting priority data with the global CPE registry (deduplicated)
-            register_cpe_data(base_key, 'sortingPriority', sorting_data)
-            
-            # Sanitize base_key for use as ID
+                # Register sorting priority data with the global CPE registry
+                register_cpe_data(base_key, 'sortingPriority', sorting_data)            # Sanitize base_key for use as ID
             base_key_id = base_key.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_")
             
             # Let frontend JavaScript calculate tab count dynamically from actual data
@@ -1929,22 +1930,36 @@ def getCPEJsonScript() -> str:
     # Get the current script's directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
     # Define the files with paths relative to the current script
+    # UNIFIED ARCHITECTURE: Load order is critical for dependency resolution
     js_files = [
-        os.path.join(current_dir, "..", "static", "js", "badge_modal_system.js"),  # Add modular system first
+        # 1. Unified data extraction (after unified source data injection)
+        os.path.join(current_dir, "..", "static", "js", "unified_data_extraction.js"),
+        # 2. Core systems
+        os.path.join(current_dir, "..", "static", "js", "badge_modal_system.js"),
         os.path.join(current_dir, "..", "static", "js", "modular_rules.js"),
+        # 3. Data handlers (now depend on unified extraction)
         os.path.join(current_dir, "..", "static", "js", "cpe_json_handler.js"),
+        # 4. UI and interaction systems
         os.path.join(current_dir, "..", "static", "js", "ui_controller.js"),
         os.path.join(current_dir, "..", "static", "js", "selection_manager.js"),
         os.path.join(current_dir, "..", "static", "js", "timestamp_handler.js"),
         os.path.join(current_dir, "..", "static", "js", "provenance_assistance.js"),
+        # 5. Completion tracking (depends on unified data extraction)
         os.path.join(current_dir, "..", "static", "js", "completion_tracker.js"),
+        # 6. Application-specific modules (depend on everything above)
         os.path.join(current_dir, "..", "static", "js", "custom_cpe_builder.js")
     ]
     
     # Read JavaScript files
     js_content = ""
     
-    # Read each file and add its content to the script tag
+    # FIRST: Inject unified source data before any other JavaScript
+    unified_manager = get_unified_source_manager()
+    unified_manager.initialize()
+    unified_source_js = unified_manager.generate_javascript_data()
+    js_content += unified_source_js + "\n\n"
+    
+    # THEN: Read each static JavaScript file and add its content
     for js_file in js_files:
         try:
             with open(js_file, 'r', encoding='utf-8') as f:
@@ -2629,7 +2644,7 @@ def store_json_settings_html(table_id, raw_platform_data=None):
         'enableUpdatePatterns': False
     }
     
-    # Store the HTML (even if identical - let template deduplication handle optimization later)
+    # Store the HTML for later use
     JSON_SETTINGS_HTML[table_id] = create_json_generation_settings_html(table_id, settings)
     
     # Store intelligent settings for JavaScript (even if identical - template system handles this)

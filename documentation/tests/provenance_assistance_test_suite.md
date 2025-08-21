@@ -50,6 +50,30 @@ python test_files\test_provenance_assistance.py test_files\testProvenanceAssista
 - **Test Data**: `testProvenanceAssistance.json` with synthetic CVE data
 - **Dependencies**: HTML generation system, badge/modal integration, CPE processing
 - **Output**: HTML files with embedded provenance assistance features
+
+### **Unified Source Resolution Architecture**
+
+The provenance assistance system uses unified source resolution for consistent source name display:
+
+- **WordPress Detection**: Uses CVE-specific source data (not global NVD registry) to determine if WordPress sources are involved
+- **Source Name Display**: Uses `resolveSourceDisplay()` function with `window.getSourceById()` for human-readable names instead of UUIDs
+- **Reference Tooltips**: Shows resolved source names in tooltips instead of raw source IDs
+- **Fail-Fast Pattern**: WordPress detection only triggers when WordPress sources are actually involved in the specific CVE
+
+#### **WordPress Source Detection Logic**
+
+```javascript
+// Checks only sources used in THIS CVE
+isWordPressSource = metadata.sourceData.some(source => {
+    const orgId = source.orgId || '';
+    const sourceIdentifiers = source.sourceIdentifiers || [];
+    
+    return wordpressUuids.includes(orgId) || 
+           wordpressUuids.some(uuid => sourceIdentifiers.includes(uuid));
+});
+```
+
+This ensures WordPress provenance assistance only appears when relevant.
 - **Expected Behavior**: Should create another ADP description card
 - **Validation Points**:
   - Should appear as third description source

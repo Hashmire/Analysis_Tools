@@ -2462,9 +2462,12 @@
                         const sourceId = cleanEntry.sourceID;
                         
                         if (!sourceData[sourceId]) {
+                            // Use embedded source name if available, otherwise create display name
+                            const sourceName = cleanEntry.source_name || createDisplaySourceName(null, sourceId);
+                            
                             sourceData[sourceId] = {
                                 source_id: sourceId,
-                                source_name: createDisplaySourceName(null, sourceId), // Create friendly name from sourceId
+                                source_name: sourceName,
                                 total_concerns: 0,
                                 cve_records: new Set(),
                                 cve_records_with_concerns: new Set(),

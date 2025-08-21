@@ -291,7 +291,7 @@ function updateConsolidatedJson(tableId) {
         const tableIndex = tableId.split('_')[1];
         
         // Extract metadata and raw platform data from the row data table
-        const extractedData = extractDataFromTable(tableIndex);
+        const extractedData = unifiedExtractDataFromTable(tableIndex);
         
         // Process the JSON based on the source
         // Generate JSON using the existing working processVersionDataToCpeMatches function

@@ -55,7 +55,7 @@ function patchCpeJsonProcessing() {
                 const tableIndex = tableId.split('_')[1];
                 
                 // Extract metadata and raw platform data from the row data table
-                const extractedData = extractDataFromTable(tableIndex);
+                const extractedData = unifiedExtractDataFromTable(tableIndex);
                   // Process the JSON based on the source
                 const json = processJsonBasedOnSource(
                     selectedRows, 
@@ -626,7 +626,7 @@ function registerCustomCpeHandler(cpeBaseString, tableId) {
     const tableIndex = tableId.split('_')[1];
     
     // Get rawPlatformData for the correct table
-    const extractedData = extractDataFromTable(tableIndex);
+    const extractedData = unifiedExtractDataFromTable(tableIndex);
     const rawPlatformData = extractedData.rawPlatformData;
       window.customCPEHandlers.set(cpeBaseString, {
         createMatch: function() {

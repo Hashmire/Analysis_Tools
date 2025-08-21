@@ -120,8 +120,7 @@ Even single CVE processing benefits from the cache by:
 ### Automatic Refresh (12-Hour Strategy)
 
 - **Aggressive Refresh**: Cache entries automatically expire after 12 hours
-- **Fresh Data Guarantee**: Ensures CPE data is always current for operational use
-- **Optimal for Long Gaps**: Perfect for quarterly, bi-annual, or annual processing cycles
+- **Fresh Data Guarantee**: Ensures CPE data is relatively current
 - **Automatic Cleanup**: Expired entries are removed when accessed
 
 ### Performance Impact
@@ -131,19 +130,6 @@ Even single CVE processing benefits from the cache by:
 - **Next Day Runs**: Fresh data with updated CPE information
 - **Overall Benefit**: Significant speedup while maintaining data freshness
 
-### Manual Cache Operations
-
-```python
-# Disable caching temporarily
-config['cache']['enabled'] = False
-
-# Clear cache completely
-cache.clear()
-
-# Force cache save
-cache.flush()
-```
-
 ### Cache Statistics
 
 ```python
@@ -152,68 +138,3 @@ print(f"Total entries: {stats['total_entries']}")
 print(f"Hit rate: {stats['lifetime_hit_rate']}%")
 print(f"API calls saved: {stats['api_calls_saved']}")
 ```
-
-## Performance Optimization
-
-The cache system has been **heavily optimized for production use**:
-
-### Ultra-Fast JSON Operations
-
-- **Uses orjson library** for 1000x faster JSON serialization/deserialization
-- **10,000 entries save in ~0.02 seconds** (vs 20+ seconds with standard JSON)
-- **Cache loading**: 10,000+ entries in ~0.07 seconds
-- **Cache lookups**: 200,000+ lookups per second
-
-### Benchmark Results
-
-| Operation | Entries | Time | Performance |
-|-----------|---------|------|-------------|
-| Save Cache | 10,000 | 0.02s | 500,000 entries/sec |
-| Load Cache | 10,000 | 0.07s | 140,000 entries/sec |
-| Cache Lookup | 1,000 | 0.005s | 200,000 lookups/sec |
-| Add Entry | 10,000 | 0.07s | 140,000 entries/sec |
-
-### Real-World Impact
-
-- **Before**: Cache saving was a major bottleneck (15-20+ seconds)
-- **After**: Cache operations are virtually instant
-- **Net Result**: Cache is now significantly faster than making API calls
-- **Scalability**: Handles 25,000+ CVE datasets efficiently
-
-## Best Practices
-
-1. **Keep cache enabled** for all bulk processing operations
-2. **Monitor cache hit rates** - consistently low rates may indicate data quality issues
-3. **Periodic cache cleanup** - let expired entries be removed automatically
-4. **Backup important caches** for large operational datasets
-5. **Review cache size** periodically to ensure it doesn't grow excessively
-
-## Troubleshooting
-
-### Cache Not Loading
-
-- Check file permissions in the cache directory
-- Verify JSON syntax in cache files
-- Review error logs for file I/O issues
-
-### Low Hit Rates
-
-- Ensure CVE records have consistent CPE formatting
-- Check for data preprocessing issues
-- Verify cache entries aren't expiring too quickly
-
-### Performance Issues
-
-- Cache performance has been optimized with orjson for 1000x faster save/load operations
-- 10,000+ entries save in ~0.02 seconds (vs 20+ seconds with standard JSON)
-- Enable compression for very large caches
-- Monitor disk space usage in cache directory
-
-## Future Enhancements
-
-Potential future improvements include:
-
-- Cache compression and optimization
-- Distributed cache sharing between environments
-- Cache preloading for common CPE patterns
-- Advanced cache analytics and reporting

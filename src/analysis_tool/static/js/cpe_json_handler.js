@@ -54,7 +54,7 @@ function determineVulnerability(status) {
 /**
  * Creates a CPE match object for a given CPE base string
  * @param {string} cpeBase - The base CPE string
- * @param {boolean} isVulnerable - Whether this is vulnerable (optional, defaults to true for backward compatibility)
+ * @param {boolean} isVulnerable - Whether this is vulnerable
  * @returns {Object} A CPE match object
  */
 function createCpeMatchObject(cpeBase, isVulnerable = true) {
@@ -306,109 +306,6 @@ function generateAllConfigurationsJson() {
     }
 }
 
-
-/**
- * Extract metadata and rawPlatformData from the row data table
- * @param {string|number} tableIndex - Index of the table
- * @returns {Object} Extracted data including metadata and rawPlatformData
- */
-function extractDataFromTable(tableIndex) {
-    // Default metadata
-    const result = {
-        metadata: {
-            dataResource: "Unknown",
-            sourceId: "Unknown", 
-            sourceName: "Unknown",
-            sourceRole: "Unknown"
-        },
-        rawPlatformData: null
-    };
-    
-    // Get the row data table
-    const rowDataTable = document.getElementById(`rowDataTable_${tableIndex}`);
-    
-    if (rowDataTable) {
-        // Get all rows in the table
-        const rows = rowDataTable.querySelectorAll('tr');
-        
-        // Process the first three rows to extract metadata
-        for (let i = 0; i < rows.length && i < 3; i++) {
-            const cells = rows[i].querySelectorAll('td');
-            if (cells.length >= 2) {
-                const labelCell = cells[0];
-                const valueCell = cells[1];
-                
-                // Extract data source from first row
-                if (i === 0 && labelCell.textContent.trim() === "Data Resource") {
-                    result.metadata.dataResource = valueCell.textContent.trim();
-                    console.debug(`Found dataResource: ${result.metadata.dataResource}`);
-                }
-                
-                // Extract source ID from second row
-                else if (i === 1 && labelCell.textContent.trim() === "Source ID") {
-                    const spanWithTitle = valueCell.querySelector('span[title]');
-                    if (spanWithTitle) {
-                        const titleText = spanWithTitle.getAttribute('title');
-                        console.debug(`Source ID title text: "${titleText}"`);
-                        
-                        // Match pattern: "Source Identifiers: something, UUID"
-                        const uuidPattern = /Source Identifiers:.*?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
-                        const match = titleText.match(uuidPattern);
-                        
-                        if (match && match[1]) {
-                            const extractedUuid = match[1];
-                            // Use the unified source system to resolve UUID to human-readable name
-                            // Ensure getSourceById is available (from completion_tracker.js)
-                            let resolvedSourceName = valueCell.textContent.trim(); // current display value
-                            if (typeof window.getSourceById === 'function') {
-                                const sourceInfo = window.getSourceById(extractedUuid);
-                                resolvedSourceName = sourceInfo ? sourceInfo.name : valueCell.textContent.trim();
-                            } else {
-                                console.debug('getSourceById function not yet available, using current display value for source name');
-                            }
-                            
-                            result.metadata.sourceId = extractedUuid; // Keep UUID for compatibility
-                            result.metadata.sourceName = resolvedSourceName;
-                            console.debug(`Found sourceId UUID: ${result.metadata.sourceId}, resolved to: ${result.metadata.sourceName}`);
-                        } else {
-                            // If no UUID found, use the text content as both ID and name
-                            result.metadata.sourceId = valueCell.textContent.trim();
-                            result.metadata.sourceName = valueCell.textContent.trim();
-                            console.debug(`UUID not found in title, using text as sourceId: ${result.metadata.sourceId}`);
-                        }
-                    } else {
-                        // No span with title, just use the text content
-                        result.metadata.sourceId = valueCell.textContent.trim();
-                        result.metadata.sourceName = valueCell.textContent.trim();
-                        console.debug(`No title attribute found, using text as sourceId: ${result.metadata.sourceId}`);
-                    }
-                }
-                
-                // Extract source role from third row
-                else if (i === 2 && labelCell.textContent.trim() === "Source Role") {
-                    result.metadata.sourceRole = valueCell.textContent.trim();
-                    console.debug(`Found sourceRole: ${result.metadata.sourceRole}`);
-                }
-            }
-        }
-        
-        // Direct access by ID for rawPlatformData - simple and reliable
-        const rawDataElement = document.getElementById(`rawPlatformData_${tableIndex}`);
-        if (rawDataElement && rawDataElement.textContent) {
-            try {
-                result.rawPlatformData = JSON.parse(rawDataElement.textContent);
-                console.debug(`Raw platform data found for table ${tableIndex}`);
-            } catch (parseError) {
-                console.error(`Error parsing raw platform data for table ${tableIndex}:`, parseError);
-            }
-        } else {
-            console.debug(`No raw platform data element found with ID rawPlatformData_${tableIndex}`);
-        }
-    } else {
-        console.debug(`Row data table not found for index ${tableIndex}`);    }
-    
-    return result;
-}
 
 /**
  * Create a CPE match object from version info
