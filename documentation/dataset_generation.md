@@ -1,119 +1,103 @@
 # Dataset Generation
 
-The `generate_dataset.py` utility provides intelligent dataset management capabilities with unified runs structure integration.
+The `generate_dataset.py` utility generates CVE datasets from NVD API with integrated analysis workflow.
 
-## Features
+## Command-Line Options
 
-### 1. Date-based CVE Filtering
+### Date-based Filtering
 
-Query CVEs based on their `lastModified` date using NVD API parameters:
-
-- `--last-days N` - CVEs modified in the last N days (max 120)
-- `--start-date` and `--end-date` - CVEs modified within a specific date range
-
-**Examples:**
+Query CVEs by `lastModified` date:
 
 ```bash
-# CVEs modified in the last 30 days
+# CVEs modified in the last N days (max 120)
 python generate_dataset.py --last-days 30
 
-# CVEs modified in January 2024
+# CVEs modified within date range  
 python generate_dataset.py --start-date 2024-01-01 --end-date 2024-01-31
-```
 
-### 2. Differential Updates
-
-Generate datasets containing only CVEs that have changed since your last run:
-
-```bash
-# Generate dataset for CVEs modified since the last run
+# CVEs modified since last run
 python generate_dataset.py --since-last-run
 ```
 
-### 3. Run Tracking
-
-All dataset generation runs are tracked in run-specific directories under `runs/[timestamp]_[context]/`. View your history:
+### Status-based Filtering (Default)
 
 ```bash
-# Show when the last dataset generation occurred
+# Default: CVEs with statuses "Received", "Awaiting Analysis", "Undergoing Analysis"
+python generate_dataset.py
+
+# Custom statuses
+python generate_dataset.py --statuses "Received" "Modified"
+```
+
+### Analysis Integration
+
+Analysis runs automatically unless disabled:
+
+```bash
+# Generate dataset and run analysis (default)
+python generate_dataset.py --last-days 7
+
+# Generate dataset only
+python generate_dataset.py --last-days 7 --no-analysis
+
+# Pass options to analysis tool
+python generate_dataset.py --last-days 7 --external-assets
+```
+
+### Information Commands
+
+```bash
+# Show when last dataset generation occurred
 python generate_dataset.py --show-last-run
 ```
 
-### 4. Integrated Processing
-
-The analysis tool runs automatically after dataset generation by default:
-
-```bash
-# Generate dataset and analyze it (default behavior)
-python generate_dataset.py --last-days 7
-
-# Skip analysis if you only want the dataset
-python generate_dataset.py --last-days 7 --no-analysis
-```
-
-## Unified Runs Structure
-
-All dataset generation outputs are contained in run-specific directories:
-
-```bash
-# Traditional status-based generation - analysis runs automatically
-python generate_dataset.py --statuses "Received" "Awaiting Analysis"
-
-# Test mode - analysis runs automatically  
-python generate_dataset.py --test-mode
-
-# Legacy behavior: skip analysis if you only want dataset generation
-python generate_dataset.py --test-mode --no-analysis
-```
-
-### Output Structure
+## Output Structure
 
 Each dataset generation creates a timestamped run directory:
 
 ```text
 runs/[timestamp]_[context]/
-├── logs/                  # All data and tracking files
+├── logs/
 │   ├── dataset_tracker.json  # Run tracking metadata
-│   ├── cve_dataset.txt        # Generated dataset files
+│   ├── cve_dataset.txt        # Generated dataset
 │   ├── workflow_log.json      # Real-time dashboard data
 │   └── dashboard_data.json    # Additional monitoring data
-└── generated_pages/       # HTML reports (if analysis enabled)
+└── generated_pages/           # HTML reports (if analysis enabled)
 ```
 
-## Real-time Monitoring
+## Real-time Dashboard
 
-The dataset generation process provides real-time monitoring through an integrated dashboard system:
+During dataset generation:
 
-### Dashboard Access
+- **Dashboard:** Open `dashboards/generateDatasetDashboard.html` in browser
+- **Updates:** Automatic refresh every 5 seconds
+- **Features:** Progress tracking, ETA calculations, error attribution, processing statistics
 
-When running `generate_dataset.py`, the system automatically:
+## Limitations
 
-- Starts real-time data collection in the background
-- Generates a live dashboard accessible at `dashboards/generateDatasetDashboard.html`
-- Updates progress, timing, and statistics every 5 seconds
+- **Date Range:** Maximum 120 consecutive days (NVD API limitation)
+- **Date Format:** YYYY-MM-DD or full ISO format
+- **Run Directory:** All outputs go to `runs/[timestamp]_[context]/` structure
 
-### Dashboard Features
+## Common Usage Examples
 
-- **Progress Tracking**: Real-time progress updates with accurate ETA calculations
-- **Warning/Error Attribution**: Links warnings and errors to specific processing stages
-- **Resource Monitoring**: Tracks processing rates, API usage, and system performance
-- **File Status**: Shows current files being processed and completion statistics
+```bash
+# Generate initial dataset for recent CVEs
+python generate_dataset.py --last-days 30
 
-### Viewing the Dashboard
+# Daily differential updates  
+python generate_dataset.py --since-last-run
 
-1. Open `dashboards/generateDatasetDashboard.html` in your browser during dataset generation
-2. The dashboard automatically refreshes to show current progress
-3. Use the refresh button to manually update the view or switch between different run files
+# Analyze specific time period
+python generate_dataset.py --start-date 2024-06-01 --end-date 2024-06-15
 
-## Date Range Limitations
+# Dataset only (no analysis)
+python generate_dataset.py --since-last-run --no-analysis
+```
 
-- Maximum date range: 120 consecutive days (NVD API limitation)
-- Dates can be in YYYY-MM-DD format or full ISO format
-- The system automatically handles URL encoding and timezone offsets
+## Run Tracking
 
-## Tracking File Format
-
-The tracking system creates `dataset_tracker.json` within each run directory with this structure:
+The system creates `dataset_tracker.json` in each run's `logs/` directory:
 
 ```json
 {
@@ -121,7 +105,7 @@ The tracking system creates `dataset_tracker.json` within each run directory wit
   "run_history": [
     {
       "run_id": "status_based_20240702_103000",
-      "run_type": "status_based",
+      "run_type": "status_based", 
       "timestamp": "2024-07-02T10:30:00.000000",
       "cve_count": 150,
       "output_file": "runs/[timestamp]/logs/cve_dataset.txt"
@@ -130,32 +114,6 @@ The tracking system creates `dataset_tracker.json` within each run directory wit
 }
 ```
 
-## Common Workflows
+---
 
-**Initial Setup:**
-
-```bash
-# Generate your first dataset for recent CVEs (analysis runs automatically)
-python generate_dataset.py --last-days 30 --output initial_dataset.txt
-```
-
-**Regular Updates:**
-
-```bash
-# Daily/weekly differential updates (analysis runs automatically)
-python generate_dataset.py --since-last-run
-
-# Skip re-analysis if only updating dataset
-python generate_dataset.py --since-last-run --no-analysis
-```
-
-**Investigating Specific Periods:**
-
-```bash
-# Analyze CVEs from a specific incident timeframe
-python generate_dataset.py --start-date 2024-06-01 --end-date 2024-06-15 --output incident_analysis.txt
-```
-
-## Entry Point Usage
-
-**Important:** Use `generate_dataset.py` from the project root directory. All outputs are automatically organized in the unified runs structure.
+**Entry Point:** Use `python generate_dataset.py` from project root
