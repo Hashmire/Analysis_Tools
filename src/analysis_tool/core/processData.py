@@ -521,6 +521,12 @@ def deriveCPEMatchStringList(rawDataSet):
             if not cpe_string:  # Skip empty strings but log them
                 logger.warning(f"Empty CPE string found in row {index}", group="data_processing")
                 continue
+            
+            # Validate CPE for NVD API compatibility early to prevent API calls with problematic strings
+            is_compatible, reason = is_nvd_api_compatible(cpe_string)
+            if not is_compatible:
+                logger.warning(f"CPE incompatible with NVD API in row {index}, skipping: {cpe_string} - {reason}", group="data_processing")
+                continue
                 
             distinct_values.add(cpe_string)
 
@@ -537,7 +543,7 @@ def suggestCPEData(apiKey, rawDataset, case):
             issues = {
                 'placeholder_entries': [],     # (row, source, vendor, product)
                 'unexpected_platforms': [],    # (row, source, platform_value)  
-                'invalid_cpe_format': [],     # (row, source, issue_description)
+                'nvd_api_incompatible_cpe': [],     # (row, source, issue_description)
                 'missing_data': [],           # (row, source, missing_field)
                 'overly_broad_cpe': [],       # (row, source, cpe_string, reason)
                 'unicode_normalization_skipped': [], # (row, source, original_vendor, original_product, normalized_vendor, normalized_product)
@@ -1073,12 +1079,12 @@ def suggestCPEData(apiKey, rawDataset, case):
                                             cpeBaseStrings.append(wildcarded_match_string)
                                 
                                 except Exception as e:
-                                    # Track invalid CPE format issue
-                                    issues['invalid_cpe_format'].append((index, source_role, f"CPE parsing failed: {str(e)} for '{cpe}'"))
+                                    # Track NVD API incompatible CPE issue
+                                    issues['nvd_api_incompatible_cpe'].append((index, source_role, f"CPE parsing failed: {str(e)} for '{cpe}'"))
                             else:
-                                # Track invalid CPE format for non-CPE strings
+                                # Track NVD API incompatible CPE for non-CPE strings
                                 if cpe:  # Only log if there's actually a value
-                                    issues['invalid_cpe_format'].append((index, source_role, f"Invalid CPE format: '{cpe}'"))                # Validate CPE base strings for specificity before storing
+                                    issues['nvd_api_incompatible_cpe'].append((index, source_role, f"Non-CPE string format: '{cpe}'"))                # Validate CPE base strings for specificity before storing
                 validated_cpe_strings = []
                 culled_cpe_strings = []
                 for cpe_string in cpeBaseStrings:
@@ -1121,7 +1127,7 @@ def suggestCPEData(apiKey, rawDataset, case):
             # Report issues if any were found
             total_issues = (len(issues['placeholder_entries']) + 
                           len(issues['unexpected_platforms']) + 
-                          len(issues['invalid_cpe_format']) + 
+                          len(issues['nvd_api_incompatible_cpe']) + 
                           len(issues['missing_data']) +
                           len(issues['overly_broad_cpe']) +
                           len(issues['unicode_normalization_skipped']))            
@@ -1132,8 +1138,8 @@ def suggestCPEData(apiKey, rawDataset, case):
                     issue_types.append(f"placeholder data ({len(issues['placeholder_entries'])})")
                 if issues['unexpected_platforms']:
                     issue_types.append(f"unexpected platforms ({len(issues['unexpected_platforms'])})")
-                if issues['invalid_cpe_format']:
-                    issue_types.append(f"invalid CPE format ({len(issues['invalid_cpe_format'])})")
+                if issues['nvd_api_incompatible_cpe']:
+                    issue_types.append(f"NVD API incompatible CPE ({len(issues['nvd_api_incompatible_cpe'])})")
                 if issues['missing_data']:
                     issue_types.append(f"missing data ({len(issues['missing_data'])})")
                 if issues['overly_broad_cpe']:
@@ -1240,16 +1246,8 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                 
                 # Check for invalid_cpe status from our updated gatherNVDCPEData function
                 if json_response and json_response.get("status") == "invalid_cpe":
-                    logger.warning(f"Skipping invalid CPE match string: {query_string}", group="cpe_queries")
-                    stats = {
-                        "matches_found": 0,
-                        "status": "invalid_cpe",
-                        "error_message": json_response.get("error", "Invalid cpeMatchstring parameter")
-                    }
-                    bulk_results.append({query_string: stats})
-                    continue                # Check for invalid_cpe status from our updated gatherNVDCPEData function
-                if json_response and json_response.get("status") == "invalid_cpe":
-                    logger.warning(f"Skipping invalid CPE match string: {query_string}", group="cpe_queries")
+                    # Note: This should be rare due to early validation in deriveCPEMatchStringList
+                    logger.warning(f"API rejected CPE string (bypassed early validation): {query_string}", group="cpe_queries")
                     stats = {
                         "matches_found": 0,
                         "status": "invalid_cpe",
@@ -1312,7 +1310,8 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                 
                 # Don't retry for invalid cpeMatchstring errors
                 if "Invalid cpeMatchstring parameter" in error_message:
-                    logger.warning(f"Invalid CPE match string detected, skipping: {query_string}", group="cpe_queries")
+                    # Note: This should be rare due to early validation in deriveCPEMatchStringList
+                    logger.warning(f"API rejected CPE string (bypassed early validation): {query_string}", group="cpe_queries")
                     stats = {
                         "matches_found": 0,
                         "status": "invalid_cpe",
@@ -2186,6 +2185,43 @@ def filter_most_specific_cpes(cpe_list: List[str]) -> List[str]:
     
     return filtered_cpes
 
+def is_nvd_api_compatible(cpe_string):
+    """
+    Validates that a CPE string is compatible with NVD API requirements.
+    This checks for empirically observed patterns that cause NVD API "Invalid cpeMatchstring parameter" errors.
+    Returns (is_compatible, reason) tuple.
+    
+    Note: This is NOT a full CPE 2.3 specification validator - it only checks for known NVD API issues.
+    """
+    if not cpe_string:
+        return False, "Empty CPE string"
+    
+    if not cpe_string.startswith('cpe:2.3:'):
+        return False, "Missing CPE 2.3 prefix - NVD API requires 'cpe:2.3:' prefix"
+    
+    # Parse components using existing function
+    components = parse_cpe_components(cpe_string)
+    if not components:
+        return False, "Incorrect component count - NVD API expects exactly 13 colon-separated components"
+    
+    # Check for problematic patterns that cause NVD API "Invalid cpeMatchstring parameter" errors
+    for field_name, value in components.items():
+        if value and value not in ['*', '-']:
+            # Check for non-ASCII characters that might have slipped through normalization
+            if any(ord(char) > 127 for char in value):
+                non_ascii_chars = [char for char in value if ord(char) > 127]
+                return False, f"Field {field_name} contains non-ASCII characters ({non_ascii_chars}) - will cause NVD API rejection"
+            
+            # Empirically observed: NVD API rejects very long vendor/product names
+            if field_name in ['vendor', 'product'] and len(value) > 100:
+                return False, f"Field {field_name} too long ({len(value)} chars) - likely to cause NVD API rejection"
+            
+            # Empirically observed: Complex escaped comma patterns often rejected by NVD API
+            if '\\,' in value and len(value) > 50:
+                return False, f"Field {field_name} contains escaped commas and is long ({len(value)} chars) - pattern known to cause NVD API rejection"
+    
+    return True, "NVD API compatible"
+
 #
 # Validates that a CPE base string has sufficient specificity to avoid overly broad queries
 def validate_cpe_specificity(cpe_string):
@@ -2195,12 +2231,12 @@ def validate_cpe_specificity(cpe_string):
     Returns (is_valid, reason) tuple.
     """
     if not cpe_string or not cpe_string.startswith('cpe:2.3:'):
-        return False, "Invalid CPE format"
+        return False, "Not a CPE 2.3 string"
     
     # Split the CPE string and check components
     parts = cpe_string.split(':')
     if len(parts) < 13:  # CPE 2.3 should have 13 parts
-        return False, "Incomplete CPE format"
+        return False, "Incomplete CPE 2.3 components"
     
     # Check if we have at least vendor OR product specified
     # Allow CPE strings with at least vendor OR product (handles Unicode normalization cases)

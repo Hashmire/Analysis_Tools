@@ -268,7 +268,8 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                     
                                     # Don't retry for "Invalid cpeMatchstring parameter" errors
                                     if "Invalid cpeMatchstring parameter" in error_message:
-                                        logger.warning(f"Invalid CPE match string detected, skipping: {query_string}", group="cpe_queries")
+                                        # Note: This should be rare due to early validation in deriveCPEMatchStringList
+                                        logger.warning(f"API rejected CPE string (bypassed early validation): {query_string}", group="cpe_queries")
                                         # Return what we've collected so far
                                         consolidated_data["startIndex"] = 0
                                         consolidated_data["resultsPerPage"] = len(consolidated_data["products"])
@@ -316,7 +317,8 @@ def gatherNVDCPEData(apiKey, case, query_string):
                         
                         # Don't retry for "Invalid cpeMatchstring parameter" errors
                         if "Invalid cpeMatchstring parameter" in error_message:
-                            logger.warning(f"Invalid CPE match string detected, skipping: {query_string}", group="cpe_queries")
+                            # Note: This should be rare due to early validation in deriveCPEMatchStringList
+                            logger.warning(f"API rejected CPE string (bypassed early validation): {query_string}", group="cpe_queries")
                             # Return empty result structure instead of None
                             return {
                                 "totalResults": 0,
