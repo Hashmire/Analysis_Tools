@@ -949,6 +949,15 @@ class CustomJSONEncoder(json.JSONEncoder):
             # If we can't encode it normally, convert to string
             return str(obj)
 
+def safe_js_string(value):
+    """
+    Safely encode a string for use in JavaScript contexts.
+    This prevents issues with escape sequences and special characters.
+    """
+    # Use JSON encoding to handle all escape sequences properly
+    # Then remove the outer quotes since we'll add them back in the template
+    return json.dumps(str(value))[1:-1]
+
 def convertRowDataToHTML(row, tableIndex=0) -> str:
     # Access platformEntryMetadata for consolidated fields
     platform_metadata = row.get('platformEntryMetadata', {})
@@ -1572,7 +1581,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 references_html = f'''
                 <div class="reference-section">
                     <span class="badge modal-badge bg-info" 
-                          onclick="BadgeModalManager.openReferencesModal('{base_key_safe}', '{cpe_base.replace("'", "\\'")}', {len(references)})" id="refBadge_{base_key_safe}">
+                          onclick="BadgeModalManager.openReferencesModal('{base_key_safe}', '{safe_js_string(cpe_base)}', {len(references)})" id="refBadge_{base_key_safe}">
                         📋 Provenance ({len(references)})
                     </span>
                 </div>'''
@@ -1587,7 +1596,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                             "refs": ['''
                     
                     for ref in type_refs:
-                        ref_url = ref.get('url', 'No URL').replace('"', '\\"').replace("'", "\\'")
+                        ref_url = safe_js_string(ref.get('url', 'No URL'))
                         ref_count = ref.get('frequency', 1)
                         ref_data_js += f'''
                                 {{"url": "{ref_url}", "count": {ref_count}}},'''
@@ -1606,7 +1615,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 references_html = f'''
                 <div class="reference-section">
                     <span class="badge modal-badge bg-info" 
-                          onclick="BadgeModalManager.openReferencesModal('{base_key_safe}', '{cpe_base.replace("'", "\\'")}', {len(references)})" id="refBadge_{base_key_safe}">
+                          onclick="BadgeModalManager.openReferencesModal('{base_key_safe}', '{safe_js_string(cpe_base)}', {len(references)})" id="refBadge_{base_key_safe}">
                         📋 Provenance ({len(references)})
                     </span>
                 </div>'''
@@ -1644,11 +1653,11 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                     <td>
                         <div class="d-flex flex-wrap gap-1 align-items-center">
                             <span class="badge modal-badge bg-success"
-                                  onclick="BadgeModalManager.openConfirmedMappingModal('{base_key_safe}', '{cpe_base.replace("'", "\\'")}')">
+                                  onclick="BadgeModalManager.openConfirmedMappingModal('{base_key_safe}', '{safe_js_string(cpe_base)}')">
                                 ✅ Confirmed Mapping
                             </span>
                             <span class="badge modal-badge bg-secondary" 
-                                  onclick="BadgeModalManager.openSortingPriorityModal('{base_key_safe}', '{cpe_base.replace("'", "\\'")}', 'statistics')">
+                                  onclick="BadgeModalManager.openSortingPriorityModal('{base_key_safe}', '{safe_js_string(cpe_base)}', 'statistics')">
                                 📈 Sorting Priority Context
                             </span>"""
                 
@@ -1693,7 +1702,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                     <td>
                         <div class="d-flex flex-wrap gap-1 align-items-center">
                             <span class="badge modal-badge bg-success"
-                                  onclick="BadgeModalManager.openConfirmedMappingModal('{base_key_safe}', '{cpe_base.replace("'", "\\'")}')">
+                                  onclick="BadgeModalManager.openConfirmedMappingModal('{base_key_safe}', '{safe_js_string(cpe_base)}')">
                                 ✅ Confirmed Mapping
                             </span>
                         </div>
@@ -1825,7 +1834,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 references_html = f'''
                 <div class="reference-section">
                     <span class="badge modal-badge bg-info" 
-                          onclick="BadgeModalManager.openReferencesModal('{base_key_safe}', '{base_key.replace("'", "\\'")}', {len(references)})" id="refBadge_{base_key_safe}">
+                          onclick="BadgeModalManager.openReferencesModal('{base_key_safe}', '{safe_js_string(base_key)}', {len(references)})" id="refBadge_{base_key_safe}">
                         📋 Provenance ({len(references)})
                     </span>
                 </div>'''
@@ -1840,7 +1849,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                             "refs": ['''
                     
                     for ref in type_refs:
-                        ref_url = ref.get('url', 'No URL').replace('"', '\\"').replace("'", "\\'")
+                        ref_url = safe_js_string(ref.get('url', 'No URL'))
                         ref_count = ref.get('frequency', 1)
                         ref_data_js += f'''
                                 {{"url": "{ref_url}", "count": {ref_count}}},'''
@@ -1859,7 +1868,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 references_html = f'''
                 <div class="reference-section">
                     <span class="badge modal-badge bg-info" 
-                          onclick="BadgeModalManager.openReferencesModal('{base_key_safe}', '{base_key.replace("'", "\\'")}', {len(references)})" id="refBadge_{base_key_safe}">
+                          onclick="BadgeModalManager.openReferencesModal('{base_key_safe}', '{safe_js_string(base_key)}', {len(references)})" id="refBadge_{base_key_safe}">
                         📋 Provenance ({len(references)})
                     </span>
                 </div>'''
@@ -1892,7 +1901,7 @@ def convertCPEsQueryDataToHTML(sortedCPEsQueryData: dict, tableIndex=0, row_data
                 <td>
                 <div class="d-flex flex-wrap gap-1 align-items-center">
                     <span class="badge modal-badge bg-secondary" 
-                          onclick="BadgeModalManager.openSortingPriorityModal('{base_key_safe}', '{base_key.replace("'", "\\'")}', 'statistics')">
+                          onclick="BadgeModalManager.openSortingPriorityModal('{base_key_safe}', '{safe_js_string(base_key)}', 'statistics')">
                         📈 Sorting Priority Context
                     </span>"""
             
