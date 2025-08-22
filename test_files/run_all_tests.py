@@ -54,6 +54,10 @@ class TestSuiteRunner:
                 'command': ['python', 'test_files\\test_platform_badges.py']
             },
             {
+                'name': 'Update Patterns',
+                'command': ['python', 'test_files\\test_update_patterns.py']
+            },
+            {
                 'name': 'Confirmed Mappings',
                 'command': ['python', 'test_files\\test_confirmed_mappings.py']
             },

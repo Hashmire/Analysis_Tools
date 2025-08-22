@@ -48,16 +48,17 @@ runs/[timestamp]_[context]/
 
 All test suites maintain 100% pass rate requirements with complete integration:
 
-- **Source Data Concern Badge Data Collector JSON** (101 tests) - Complete badge contents collection system
+- **Update Patterns** (180 tests) - Comprehensive update pattern transformation validation
+- **Source Data Concern Dashboard** (157 tests) - Complete dashboard integration testing
+- **Source Data Concern Badge Data Collector JSON** (122 tests) - Complete badge contents collection system
+- **Source Data Concern Dashboard Webpage** (90 tests) - Standalone dashboard validation
 - **Platform Badge Tests** (67 tests) - Complete badge system validation  
-- **Modular Rules** (16 tests) - JSON generation rules
 - **Logging System** (53 tests) - Structured logging validation
+- **NVD Source Manager** (27 tests) - Source data integration and resolution
+- **Modular Rules** (16 tests) - JSON generation rules
 - **Confirmed Mappings** (10 tests) - Complete confirmed mappings pipeline validation
 - **Provenance Assistance** (10 tests) - Package repository detection
-- **NVD Source Manager** (10 tests) - Source data integration and resolution
-- **Source Data Concern Dashboard Webpage** (90 tests) - Standalone dashboard validation
-- **Source Data Concern Dashboard** (157 tests) - Complete dashboard integration testing
 
-**Total: 514 tests across 9 test suites**
+**Total: 732 tests across 10 test suites**
 
 Execute all tests: `python test_files\run_all_tests.py`

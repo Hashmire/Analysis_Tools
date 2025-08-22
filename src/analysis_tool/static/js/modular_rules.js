@@ -376,7 +376,10 @@ const JSON_GENERATION_RULES = {
                 // Space-separated patterns (common in CVE data)
                 /\s+p\d+$/i, /\s+patch\s*\d+/i, /\s+sp\d+$/i, /\s+hotfix\s*\d+/i,
                 /\s+update\s*\d+/i, /\s+beta\s*\d*/i, /\s+alpha\s*\d*/i, 
-                /\s+rc\s*\d*/i, /\s+fix\s*\d+/i, /\s+revision\s*\d+/i, /\s+rev\s*\d+/i
+                /\s+rc\s*\d*/i, /\s+fix\s*\d+/i, /\s+revision\s*\d+/i, /\s+rev\s*\d+/i,
+                
+                // Application pack patterns
+                /\s+ap\d+$/i, /\.ap\d+$/i, /application[\s\-_]+pack/i
             ];
             
             return versionData.versions.some(v => 
@@ -387,101 +390,387 @@ const JSON_GENERATION_RULES = {
             const version = versionInfo.version;
               // Enhanced pattern definitions with proper ordering (specific patterns first)
             const updatePatterns = [
-                // Specific patterns first to avoid incorrect matches
+                // ===== PATCH TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+p\s*(\d+)$/i, type: 'patch' },  // Handle "3.0.0 p1"
+                { pattern: /^(.+?)\s+patch\s*(\d+)$/i, type: 'patch' },  // Handle "3.3 patch 1"
+                { pattern: /^(.+?)\s+Patch\s*(\d+)$/i, type: 'patch' },  // Handle "3.3 Patch 1"
                 
-                // SPACE-SEPARATED PATTERNS (for real-world CVE data formats)
-                // These must come first as they're more specific than the general patterns below
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])p(\d+)$/i, type: 'patch' },  // Handle "2.3.0p12"
                 
-                // Space-separated patch patterns (most common in CVE data)
-                { pattern: /^(.+?)\s+p(\d+)$/i, type: 'patch' }, // Handle "3.0.0 p1", "3.1.0 p2"
-                { pattern: /^(.+?)\s+patch\s*(\d+)$/i, type: 'patch' }, // Handle "3.3 Patch 1", "3.3 Patch 2"
-                { pattern: /^(.+?)\s+Patch\s*(\d+)$/i, type: 'patch' }, // Handle "3.3 Patch 1" (capitalized)
+                // 3. Specific notation patterns
+                { pattern: /^(.+?)\.p(\d+)$/i, type: 'patch' },  // Handle "3.1.0.p7"
                 
-                // Space-separated service pack patterns
-                { pattern: /^(.+?)\s+sp(\d+)$/i, type: 'sp' }, // Handle "2.0.0 sp1"
-                { pattern: /^(.+?)\s+service\s+pack\s*(\d+)$/i, type: 'sp' }, // Handle "2.0.0 service pack 1"
-                { pattern: /^(.+?)\s+Service\s+Pack\s*(\d+)$/i, type: 'sp' }, // Handle "2.0.0 Service Pack 1"
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_patch_(\d+)$/i, type: 'patch' },  // Handle "2.0.0_patch_5"
+                { pattern: /^(.+?)-patch-(\d+)$/i, type: 'patch' },  // Handle "2.0.0-patch-5"
+                { pattern: /^(.+?)\.patch\.(\d+)$/i, type: 'patch' },  // Handle "2.0.0.patch.5"
+                { pattern: /^(.+?)_p_(\d+)$/i, type: 'patch' },  // Handle "2.0.0_p_5"
                 
-                // Space-separated hotfix patterns
-                { pattern: /^(.+?)\s+hotfix\s*(\d+)$/i, type: 'hotfix' }, // Handle "3.0.0 hotfix 1"
-                { pattern: /^(.+?)\s+Hotfix\s*(\d+)$/i, type: 'hotfix' }, // Handle "3.0.0 Hotfix 1"
-                { pattern: /^(.+?)\s+hf(\d+)$/i, type: 'hotfix' }, // Handle "3.0.0 hf1"
                 
-                // Space-separated update patterns
-                { pattern: /^(.+?)\s+update\s*(\d+)$/i, type: 'update' }, // Handle "3.0.0 update 1"
-                { pattern: /^(.+?)\s+Update\s*(\d+)$/i, type: 'update' }, // Handle "3.0.0 Update 1"
-                { pattern: /^(.+?)\s+upd(\d+)$/i, type: 'update' }, // Handle "3.0.0 upd1"
+                // ===== SERVICE_PACK TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+sp\s*(\d+)$/i, type: 'sp' },  // Handle "2.0.0 sp1"
+                { pattern: /^(.+?)\s+service\s+pack\s*(\d+)$/i, type: 'sp' },  // Handle "2.0.0 service pack 1"
+                { pattern: /^(.+?)\s+Service\s+Pack\s*(\d+)$/i, type: 'sp' },  // Handle "2.0.0 Service Pack 1"
                 
-                // Space-separated beta patterns
-                { pattern: /^(.+?)\s+beta\s*(\d*)$/i, type: 'beta' }, // Handle "1.0.0 beta", "1.0.0 beta 1"
-                { pattern: /^(.+?)\s+Beta\s*(\d*)$/i, type: 'beta' }, // Handle "1.0.0 Beta 1"
-                { pattern: /^(.+?)\s+b(\d+)$/i, type: 'beta' }, // Handle "1.0.0 b1"
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])sp(\d+)$/i, type: 'sp' },  // Handle "1sp1"
                 
-                // Space-separated alpha patterns
-                { pattern: /^(.+?)\s+alpha\s*(\d*)$/i, type: 'alpha' }, // Handle "1.0.0 alpha", "1.0.0 alpha 1"
-                { pattern: /^(.+?)\s+Alpha\s*(\d*)$/i, type: 'alpha' }, // Handle "1.0.0 Alpha 1"
-                { pattern: /^(.+?)\s+a(\d+)$/i, type: 'alpha' }, // Handle "1.0.0 a1"
+                // 3. Specific notation patterns
+                { pattern: /^(.+?)\.sp(\d+)$/i, type: 'sp' },  // Handle "3.0.0.sp1"
                 
-                // Space-separated release candidate patterns
-                { pattern: /^(.+?)\s+rc\s*(\d*)$/i, type: 'rc' }, // Handle "1.0.0 rc", "1.0.0 rc 1"
-                { pattern: /^(.+?)\s+RC\s*(\d*)$/i, type: 'rc' }, // Handle "1.0.0 RC 1"
-                { pattern: /^(.+?)\s+release\s+candidate\s*(\d*)$/i, type: 'rc' }, // Handle "1.0.0 release candidate 1"
-                { pattern: /^(.+?)\s+Release\s+Candidate\s*(\d*)$/i, type: 'rc' }, // Handle "1.0.0 Release Candidate 1"
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_sp_(\d+)$/i, type: 'sp' },  // Handle "13.0.0_sp_4"
+                { pattern: /^(.+?)-sp-(\d+)$/i, type: 'sp' },  // Handle "13.0.0-sp-4"
+                { pattern: /^(.+?)\.sp\.(\d+)$/i, type: 'sp' },  // Handle "13.0.0.sp.4"
+                { pattern: /^(.+?)_service_pack_(\d+)$/i, type: 'sp' },  // Handle "4.0.0_service_pack_3"
                 
-                // Space-separated fix patterns
-                { pattern: /^(.+?)\s+fix\s*(\d+)$/i, type: 'fix' }, // Handle "3.0.0 fix 1"
-                { pattern: /^(.+?)\s+Fix\s*(\d+)$/i, type: 'fix' }, // Handle "3.0.0 Fix 1"
                 
-                // Space-separated revision patterns
-                { pattern: /^(.+?)\s+revision\s*(\d+)$/i, type: 'revision' }, // Handle "3.0.0 revision 1"
-                { pattern: /^(.+?)\s+Revision\s*(\d+)$/i, type: 'revision' }, // Handle "3.0.0 Revision 1"
-                { pattern: /^(.+?)\s+rev\s*(\d+)$/i, type: 'revision' }, // Handle "3.0.0 rev 1"
-                { pattern: /^(.+?)\s+Rev\s*(\d+)$/i, type: 'revision' }, // Handle "3.0.0 Rev 1"
+                // ===== APPLICATION_PACK TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+ap\s*(\d+)$/i, type: 'ap' },  // Handle "24.0 ap375672"
+                { pattern: /^(.+?)\s+application\s+pack\s*(\d+)$/i, type: 'ap' },  // Handle "24.0 application pack 375672"
+                { pattern: /^(.+?)\s+Application\s+Pack\s*(\d+)$/i, type: 'ap' },  // Handle "24.0 Application Pack 375672"
                 
-                // TRADITIONAL DOT/DASH/UNDERSCORE PATTERNS (existing patterns)
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])ap(\d+)$/i, type: 'ap' },  // Handle "1ap3"
                 
-                // Service pack patterns (most specific first)
-                { pattern: /^(.+?)\.sp(\d+)$/i, type: 'sp' }, // Handle 3.0.0.sp1
-                { pattern: /^(.+?)[\.\-_]*service[\s\-_]+pack[\.\-_]*(\d*)[\.\-_]*$/i, type: 'sp' },
-                { pattern: /^(.+?)[\.\-_]*sp[\.\-_]*(\d+)[\.\-_]*$/i, type: 'sp' },
+                // 3. Specific notation patterns
+                { pattern: /^(.+?)\.ap(\d+)$/i, type: 'ap' },  // Handle "24.0.ap375672"
                 
-                // Patch patterns (handle p-notation specifically)
-                { pattern: /^(.+?)\.p(\d+)$/i, type: 'patch' }, // Handle 3.1.0.p7
-                { pattern: /^(.+?)[\.\-_]*patch[\.\-_]*(\d*)[\.\-_]*$/i, type: 'patch' },
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_ap_(\d+)$/i, type: 'ap' },  // Handle "15.0.0_ap_6"
+                { pattern: /^(.+?)-ap-(\d+)$/i, type: 'ap' },  // Handle "15.0.0-ap-6"
+                { pattern: /^(.+?)\.ap\.(\d+)$/i, type: 'ap' },  // Handle "15.0.0.ap.6"
+                { pattern: /^(.+?)_application_pack_(\d+)$/i, type: 'ap' },  // Handle "4.0.0_application_pack_3"
                 
-                // Beta patterns (handle .1 notation specifically)
-                { pattern: /^(.+?)-beta\.(\d+)$/i, type: 'beta' }, // Handle 1.0.0-beta.1
-                { pattern: /^(.+?)[\.\-_]*beta[\.\-_]*(\d*)[\.\-_]*$/i, type: 'beta' },
-                { pattern: /^(.+?)[\.\-_]*b[\.\-_]*(\d+)[\.\-_]*$/i, type: 'beta' },
                 
-                // Alpha patterns
-                { pattern: /^(.+?)-alpha\.(\d+)$/i, type: 'alpha' }, // Handle 1.0.0-alpha.1
-                { pattern: /^(.+?)[\.\-_]*alpha[\.\-_]*(\d*)[\.\-_]*$/i, type: 'alpha' },
-                { pattern: /^(.+?)[\.\-_]*a[\.\-_]*(\d+)[\.\-_]*$/i, type: 'alpha' },
+                // ===== HOTFIX TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+hotfix\s*(\d+)$/i, type: 'hotfix' },  // Handle "3.0.0 hotfix 1"
+                { pattern: /^(.+?)\s+Hotfix\s*(\d+)$/i, type: 'hotfix' },  // Handle "3.0.0 Hotfix 1"
+                { pattern: /^(.+?)\s+hf\s*(\d+)$/i, type: 'hotfix' },  // Handle "3.0.0 hf1"
                 
-                // Release candidate patterns
-                { pattern: /^(.+?)-rc\.(\d+)$/i, type: 'rc' }, // Handle 1.0.0-rc.1
-                { pattern: /^(.+?)[\.\-_]*rc[\.\-_]*(\d*)[\.\-_]*$/i, type: 'rc' },
-                { pattern: /^(.+?)[\.\-_]*release[\s\-_]+candidate[\.\-_]*(\d*)[\.\-_]*$/i, type: 'rc' },
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])hotfix(\d+)$/i, type: 'hotfix' },  // Handle "1.0.0hotfix1"
+                { pattern: /^(.+?)(?<![a-zA-Z\.])hf(\d+)$/i, type: 'hotfix' },  // Handle "1.0.0hf1"
                 
-                // Hotfix patterns (handle .2 notation specifically)
-                { pattern: /^(.+?)-hotfix\.(\d+)$/i, type: 'hotfix' }, // Handle 2.1.0-hotfix.2
-                { pattern: /^(.+?)[\.\-_]*hotfix[\.\-_]*(\d*)[\.\-_]*$/i, type: 'hotfix' },
-                { pattern: /^(.+?)[\.\-_]*hf[\.\-_]*(\d+)[\.\-_]*$/i, type: 'hotfix' },
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-hotfix\.(\d+)$/i, type: 'hotfix' },  // Handle "2.1.0-hotfix.2"
                 
-                // Patch patterns with specific numbering (handle .5 notation)
-                { pattern: /^(.+?)-patch\.(\d+)$/i, type: 'patch' }, // Handle 2.0.0-patch.5
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_hotfix_(\d+)$/i, type: 'hotfix' },  // Handle "4.0.0_hotfix_3"
+                { pattern: /^(.+?)-hotfix-(\d+)$/i, type: 'hotfix' },  // Handle "4.0.0-hotfix-3"
+                { pattern: /^(.+?)_hf_(\d+)$/i, type: 'hotfix' },  // Handle "5.0.0_hf_2"
                 
-                // Update patterns
-                { pattern: /^(.+?)[\.\-_]*update[\.\-_]*(\d*)[\.\-_]*$/i, type: 'update' },
-                { pattern: /^(.+?)[\.\-_]*upd[\.\-_]*(\d+)[\.\-_]*$/i, type: 'update' },
                 
-                // Fix patterns
-                { pattern: /^(.+?)[\.\-_]*fix[\.\-_]*(\d+)[\.\-_]*$/i, type: 'fix' },
+                // ===== CUMULATIVE UPDATE TERM GROUP =====
+                // 1. Space-separated patterns (MUST come before general update patterns)
+                { pattern: /^(.+?)\s+cu\s*(\d+)$/i, type: 'cu' },  // Handle "14.0.0 cu 5"
+                { pattern: /^(.+?)\s+cumulative\s+update\s*(\d+)$/i, type: 'cu' },  // Handle "8.0.0 cumulative update 1" → standardized to cu
+                { pattern: /^(.+?)\s+Cumulative\s+Update\s*(\d+)$/i, type: 'cu' },  // Handle "8.0.0 Cumulative Update 1" → standardized to cu
                 
-                // Revision patterns
-                { pattern: /^(.+?)[\.\-_]*revision[\.\-_]*(\d+)[\.\-_]*$/i, type: 'revision' },
-                { pattern: /^(.+?)[\.\-_]*rev[\.\-_]*(\d+)[\.\-_]*$/i, type: 'revision' }
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])cu(\d+)$/i, type: 'cu' },  // Handle "1.0.0cu1"
+                
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-cu\.(\d+)$/i, type: 'cu' },  // Handle "2.1.0-cu.2"
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)[\.\-_]*cu[\.\-_]*(\d+)[\.\-_]*$/i, type: 'cu' },  // Handle "14.0.0-cu-5"
+                { pattern: /^(.+?)[\.\-_]*cumulative[\s\-_]+update[\.\-_]*(\d+)[\.\-_]*$/i, type: 'cu' },  // Handle flexible → standardized to cu
+                { pattern: /^(.+?)-cumulative-update-(\d+)$/i, type: 'cu' },  // Handle "4.0.0-cumulative-update-3" → standardized to cu
+                { pattern: /^(.+?)_cumulative_update_(\d+)$/i, type: 'cu' },  // Handle "4.0.0_cumulative_update_3" → standardized to cu
+                
+                
+                // ===== UPDATE TERM GROUP (general - must come after specific patterns) =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+update\s*(\d+)$/i, type: 'update' },  // Handle "3.0.0 update 1"
+                { pattern: /^(.+?)\s+Update\s*(\d+)$/i, type: 'update' },  // Handle "3.0.0 Update 1"
+                { pattern: /^(.+?)\s+upd\s*(\d+)$/i, type: 'update' },  // Handle "3.0.0 upd1"
+                
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])update(\d+)$/i, type: 'update' },  // Handle "4.0.0update1"
+                { pattern: /^(.+?)(?<![a-zA-Z\.])upd(\d+)$/i, type: 'update' },  // Handle "4.0.0upd1"
+                
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-upd\.(\d+)$/i, type: 'update' },  // Handle "7.0.0-upd.4"
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_update_(\d+)$/i, type: 'update' },  // Handle "5.0.0_update_2"
+                { pattern: /^(.+?)-update-(\d+)$/i, type: 'update' },  // Handle "5.0.0-update-2"
+                { pattern: /^(.+?)_upd_(\d+)$/i, type: 'update' },  // Handle "6.0.0_upd_3"
+                
+                
+                // ===== BETA TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+beta\s*(\d+)$/i, type: 'beta' },  // Handle "1.0.0 beta 1"
+                { pattern: /^(.+?)\s+Beta\s*(\d+)$/i, type: 'beta' },  // Handle "1.0.0 Beta 1"
+                { pattern: /^(.+?)\s+b\s*(\d+)$/i, type: 'beta' },  // Handle "1.0.0 b1"
+                
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])beta(\d+)$/i, type: 'beta' },  // Handle "4.0.0beta1"
+                { pattern: /^(.+?)(?<![a-zA-Z\.])b(\d+)$/i, type: 'beta' },  // Handle "4.0.0b1"
+                
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-beta\.(\d+)$/i, type: 'beta' },  // Handle "1.0.0-beta.1"
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_beta_(\d+)$/i, type: 'beta' },  // Handle "1.0.0_beta_1"
+                { pattern: /^(.+?)-beta-(\d+)$/i, type: 'beta' },  // Handle "1.0.0-beta-1"
+                { pattern: /^(.+?)\.beta\.(\d+)$/i, type: 'beta' },  // Handle "1.0.0.beta.1"
+                
+                
+                // ===== ALPHA TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+alpha\s*(\d+)$/i, type: 'alpha' },  // Handle "1.0.0 alpha 1"
+                { pattern: /^(.+?)\s+Alpha\s*(\d+)$/i, type: 'alpha' },  // Handle "1.0.0 Alpha 1"
+                { pattern: /^(.+?)\s+a\s*(\d+)$/i, type: 'alpha' },  // Handle "1.0.0 a1"
+                
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])alpha(\d+)$/i, type: 'alpha' },  // Handle "2.0.0alpha1"
+                { pattern: /^(.+?)(?<![a-zA-Z\.])a(\d+)$/i, type: 'alpha' },  // Handle "2.0.0a1"
+                
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-alpha\.(\d+)$/i, type: 'alpha' },  // Handle "1.0.0-alpha.1"
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_alpha_(\d+)$/i, type: 'alpha' },  // Handle "3.0.0_alpha_2"
+                { pattern: /^(.+?)-alpha-(\d+)$/i, type: 'alpha' },  // Handle "3.0.0-alpha-2"
+                { pattern: /^(.+?)_a_(\d+)$/i, type: 'alpha' },  // Handle "4.0.0_a_3"
+                
+                
+                // ===== RELEASE_CANDIDATE TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+rc\s*(\d+)$/i, type: 'rc' },  // Handle "1.0.0 rc 1"
+                { pattern: /^(.+?)\s+RC\s*(\d+)$/i, type: 'rc' },  // Handle "1.0.0 RC 1"
+                { pattern: /^(.+?)\s+release\s+candidate\s*(\d+)$/i, type: 'rc' },  // Handle "1.0.0 release candidate 1"
+                { pattern: /^(.+?)\s+Release\s+Candidate\s*(\d+)$/i, type: 'rc' },  // Handle "1.0.0 Release Candidate 1"
+                
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])rc(\d+)$/i, type: 'rc' },  // Handle "3.0.0rc1"
+                
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-rc\.(\d+)$/i, type: 'rc' },  // Handle "1.0.0-rc.1"
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_rc_(\d+)$/i, type: 'rc' },  // Handle "2.0.0_rc_2"
+                { pattern: /^(.+?)-rc-(\d+)$/i, type: 'rc' },  // Handle "2.0.0-rc-2"
+                { pattern: /^(.+?)_release_candidate_(\d+)$/i, type: 'rc' },  // Handle "4.0.0_release_candidate_3"
+                
+                
+                // ===== FIX TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+fix\s*(\d+)$/i, type: 'fix' },  // Handle "3.0.0 fix 1"
+                { pattern: /^(.+?)\s+Fix\s*(\d+)$/i, type: 'fix' },  // Handle "3.0.0 Fix 1"
+                
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])fix(\d+)$/i, type: 'fix' },  // Handle "5.0.0fix1"
+                
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-fix\.(\d+)$/i, type: 'fix' },  // Handle "2.1.0-fix.2"
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_fix_(\d+)$/i, type: 'fix' },  // Handle "4.0.0_fix_2"
+                { pattern: /^(.+?)-fix-(\d+)$/i, type: 'fix' },  // Handle "4.0.0-fix-2"
+                { pattern: /^(.+?)\.fix\.(\d+)$/i, type: 'fix' },  // Handle "6.0.0.fix.3"
+                { pattern: /^(.+?)[\.\-_]*fix[\.\-_]*(\d+)[\.\-_]*$/i, type: 'fix' },  // Handle flexible patterns
+                { pattern: /^(.+?)_fix(\d+)$/i, type: 'fix' },  // Handle "8.0.0_fix4" (no separator around number)
+                
+                
+                // ===== REVISION TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+revision\s*(\d+)$/i, type: 'revision' },  // Handle "3.0.0 revision 1"
+                { pattern: /^(.+?)\s+Revision\s*(\d+)$/i, type: 'revision' },  // Handle "3.0.0 Revision 1"
+                { pattern: /^(.+?)\s+rev\s*(\d+)$/i, type: 'revision' },  // Handle "3.0.0 rev 1"
+                { pattern: /^(.+?)\s+Rev\s*(\d+)$/i, type: 'revision' },  // Handle "3.0.0 Rev 1"
+                
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])revision(\d+)$/i, type: 'revision' },  // Handle "6.0.0revision1"
+                { pattern: /^(.+?)(?<![a-zA-Z\.])rev(\d+)$/i, type: 'revision' },  // Handle "6.0.0rev1"
+                
+                // 3. Dash-dot notation patterns (none specific for revision)
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_revision_(\d+)$/i, type: 'revision' },  // Handle "7.0.0_revision_2"
+                { pattern: /^(.+?)-revision-(\d+)$/i, type: 'revision' },  // Handle "7.0.0-revision-2"
+                { pattern: /^(.+?)_rev_(\d+)$/i, type: 'revision' },  // Handle "8.0.0_rev_3"
+                
+                
+                // ===== MAINTENANCE_RELEASE TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+mr\s*(\d+)$/i, type: 'mr' },  // Handle "16.0.0 mr 7"
+                { pattern: /^(.+?)\s+maintenance\s+release\s*(\d+)$/i, type: 'mr' },  // Handle "2.5.0 maintenance release 1" → standardized to mr
+                { pattern: /^(.+?)\s+Maintenance\s+Release\s*(\d+)$/i, type: 'mr' },  // Handle "2.5.0 Maintenance Release 1" → standardized to mr
+                
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])mr(\d+)$/i, type: 'mr' },  // Handle "1.0.0mr1"
+                
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-mr\.(\d+)$/i, type: 'mr' },  // Handle "3.1.0-mr.2"
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)[\.\-_]*mr[\.\-_]*(\d+)[\.\-_]*$/i, type: 'mr' },  // Handle "16.0.0_mr_7"
+                { pattern: /^(.+?)[\.\-_]*maintenance[\s\-_]+release[\.\-_]*(\d+)[\.\-_]*$/i, type: 'mr' },  // Handle flexible → standardized to mr
+                { pattern: /^(.+?)-maintenance-release-(\d+)$/i, type: 'mr' },  // Handle "4.0.0-maintenance-release-3" → standardized to mr
+                { pattern: /^(.+?)_maintenance_release_(\d+)$/i, type: 'mr' },  // Handle "4.0.0_maintenance_release_3" → standardized to mr
+                
+                
+                // ===== BUILD TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+build\s*(\d+)$/i, type: 'build' },  // Handle "1.0.0 build 1"
+                { pattern: /^(.+?)\s+Build\s*(\d+)$/i, type: 'build' },  // Handle "1.0.0 Build 1"
+                
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])build(\d+)$/i, type: 'build' },  // Handle "7.0.0build1"
+                
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-build\.(\d+)$/i, type: 'build' },  // Handle "2.1.0-build.2"
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_build_(\d+)$/i, type: 'build' },  // Handle "1.0.0_build_1"
+                { pattern: /^(.+?)-build-(\d+)$/i, type: 'build' },  // Handle "2.0.0-build-2"
+                { pattern: /^(.+?)\.build\.(\d+)$/i, type: 'build' },  // Handle "3.0.0.build.3"
+                { pattern: /^(.+?)_build_(\d+)$/i, type: 'build' },  // Handle "4.0.0_build_4" (duplicate, should be unique)
+                { pattern: /^(.+?)-build-(\d+)$/i, type: 'build' },  // Handle "5.0.0-build-5" (duplicate, should be unique)
+                
+                
+                // ===== RELEASE TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+release\s*(\d+)$/i, type: 'release' },  // Handle "2.0.0 release 1"
+                { pattern: /^(.+?)\s+Release\s*(\d+)$/i, type: 'release' },  // Handle "2.0.0 Release 1"
+                
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])release(\d+)$/i, type: 'release' },  // Handle "8.0.0release1"
+                
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-release\.(\d+)$/i, type: 'release' },  // Handle "3.1.0-release.2"
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_release_(\d+)$/i, type: 'release' },  // Handle "2.0.0_release_1"
+                { pattern: /^(.+?)-release-(\d+)$/i, type: 'release' },  // Handle "3.0.0-release-2"
+                { pattern: /^(.+?)\.release\.(\d+)$/i, type: 'release' },  // Handle "4.0.0.release.3"
+                { pattern: /^(.+?)_release_(\d+)$/i, type: 'release' },  // Handle "5.0.0_release_4" (duplicate, keep unique)
+                { pattern: /^(.+?)-release-(\d+)$/i, type: 'release' },  // Handle "6.0.0-release-5" (duplicate, keep unique)
+                
+                
+                // ===== MILESTONE TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+milestone\s*(\d+)$/i, type: 'milestone' },  // Handle "4.0.0 milestone 1"
+                { pattern: /^(.+?)\s+Milestone\s*(\d+)$/i, type: 'milestone' },  // Handle "4.0.0 Milestone 1"
+                
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])milestone(\d+)$/i, type: 'milestone' },  // Handle "9.0.0milestone1"
+                
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-milestone\.(\d+)$/i, type: 'milestone' },  // Handle "4.1.0-milestone.2"
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_milestone_(\d+)$/i, type: 'milestone' },  // Handle "3.0.0_milestone_1"
+                { pattern: /^(.+?)-milestone-(\d+)$/i, type: 'milestone' },  // Handle "5.0.0-milestone-2"
+                { pattern: /^(.+?)\.milestone\.(\d+)$/i, type: 'milestone' },  // Handle "6.0.0.milestone.3"
+                { pattern: /^(.+?)_milestone_(\d+)$/i, type: 'milestone' },  // Handle "7.0.0_milestone_4" (duplicate, keep unique)
+                { pattern: /^(.+?)-milestone-(\d+)$/i, type: 'milestone' },  // Handle "8.0.0-milestone-5" (duplicate, keep unique)
+                
+                
+                // ===== SNAPSHOT TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+snapshot\s*(\d+)$/i, type: 'snapshot' },  // Handle "5.0.0 snapshot 1"
+                { pattern: /^(.+?)\s+Snapshot\s*(\d+)$/i, type: 'snapshot' },  // Handle "5.0.0 Snapshot 1"
+                
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])snapshot(\d+)$/i, type: 'snapshot' },  // Handle "10.0.0snapshot1"
+                
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-snapshot\.(\d+)$/i, type: 'snapshot' },  // Handle "5.1.0-snapshot.2"
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_snapshot_(\d+)$/i, type: 'snapshot' },  // Handle "4.0.0_snapshot_1"
+                { pattern: /^(.+?)-snapshot-(\d+)$/i, type: 'snapshot' },  // Handle "6.0.0-snapshot-2"
+                { pattern: /^(.+?)\.snapshot\.(\d+)$/i, type: 'snapshot' },  // Handle "7.0.0.snapshot.3"
+                { pattern: /^(.+?)_snapshot_(\d+)$/i, type: 'snapshot' },  // Handle "8.0.0_snapshot_4" (duplicate, keep unique)
+                { pattern: /^(.+?)-snapshot-(\d+)$/i, type: 'snapshot' },  // Handle "9.0.0-snapshot-5" (duplicate, keep unique)
+                
+                
+                // ===== PREVIEW TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+preview\s*(\d+)$/i, type: 'preview' },  // Handle "6.0.0 preview 1"
+                { pattern: /^(.+?)\s+Preview\s*(\d+)$/i, type: 'preview' },  // Handle "6.0.0 Preview 1"
+                
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])preview(\d+)$/i, type: 'preview' },  // Handle "11.0.0preview1"
+                
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-preview\.(\d+)$/i, type: 'preview' },  // Handle "6.1.0-preview.2"
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_preview_(\d+)$/i, type: 'preview' },  // Handle "5.0.0_preview_1"
+                { pattern: /^(.+?)-preview-(\d+)$/i, type: 'preview' },  // Handle "7.0.0-preview-2"
+                { pattern: /^(.+?)\.preview\.(\d+)$/i, type: 'preview' },  // Handle "8.0.0.preview.3"
+                { pattern: /^(.+?)_preview_(\d+)$/i, type: 'preview' },  // Handle "9.0.0_preview_4" (duplicate, keep unique)
+                { pattern: /^(.+?)-preview-(\d+)$/i, type: 'preview' },  // Handle "10.0.0-preview-5" (duplicate, keep unique)
+                
+                
+                // ===== CANDIDATE TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+candidate\s*(\d+)$/i, type: 'candidate' },  // Handle "7.0.0 candidate 1"
+                { pattern: /^(.+?)\s+Candidate\s*(\d+)$/i, type: 'candidate' },  // Handle "7.0.0 Candidate 1"
+                
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])candidate(\d+)$/i, type: 'candidate' },  // Handle "12.0.0candidate1"
+                
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-candidate\.(\d+)$/i, type: 'candidate' },  // Handle "7.1.0-candidate.2"
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_candidate_(\d+)$/i, type: 'candidate' },  // Handle "6.0.0_candidate_1"
+                { pattern: /^(.+?)-candidate-(\d+)$/i, type: 'candidate' },  // Handle "8.0.0-candidate-2"
+                { pattern: /^(.+?)\.candidate\.(\d+)$/i, type: 'candidate' },  // Handle "9.0.0.candidate.3"
+                { pattern: /^(.+?)_candidate_(\d+)$/i, type: 'candidate' },  // Handle "10.0.0_candidate_4" (duplicate, keep unique)
+                { pattern: /^(.+?)-candidate-(\d+)$/i, type: 'candidate' },  // Handle "11.0.0-candidate-5" (duplicate, keep unique)
+                
+                
+                // ===== DEVELOPMENT TERM GROUP =====
+                // 1. Space-separated patterns
+                { pattern: /^(.+?)\s+development\s*(\d+)$/i, type: 'development' },  // Handle "8.0.0 development 1"
+                { pattern: /^(.+?)\s+Development\s*(\d+)$/i, type: 'development' },  // Handle "8.0.0 Development 1"
+                
+                // 2. Direct concatenation patterns
+                { pattern: /^(.+?)(?<![a-zA-Z\.])development(\d+)$/i, type: 'development' },  // Handle "13.0.0development1"
+                
+                // 3. Dash-dot notation patterns
+                { pattern: /^(.+?)-development\.(\d+)$/i, type: 'development' },  // Handle "8.1.0-development.2"
+                
+                // 4. Flexible separator patterns
+                { pattern: /^(.+?)_development_(\d+)$/i, type: 'development' },  // Handle "7.0.0_development_1"
+                { pattern: /^(.+?)-development-(\d+)$/i, type: 'development' },  // Handle "9.0.0-development-2"
+                { pattern: /^(.+?)\.development\.(\d+)$/i, type: 'development' },  // Handle "10.0.0.development.3"
+                { pattern: /^(.+?)_development_(\d+)$/i, type: 'development' },  // Handle "11.0.0_development_4" (duplicate, keep unique)
+                { pattern: /^(.+?)-development-(\d+)$/i, type: 'development' },  // Handle "12.0.0-development-5" (duplicate, keep unique)
+                
+                
+                // ===== DEVICE_PACK TERM GROUP =====
+                // NOTE: Order matters! Specific patterns must come before general patterns
+                
+                // 1. Specific notation patterns (most specific first - must come before general patterns)
+                { pattern: /^([^_]+)_DP(\d+)$/i, type: 'dp' },  // Handle "3.4_DP1" (original case) - exclude underscore from base
+                
+                // 2. Space-separated patterns
+                { pattern: /^(.+?)\s+dp\s*(\d+)$/i, type: 'dp' },  // Handle "3.4 dp 1"
+                { pattern: /^(.+?)\s+DP\s*(\d+)$/i, type: 'dp' },  // Handle "3.4 DP 1"
+                { pattern: /^(.+?)\s+device\s+pack\s*(\d+)$/i, type: 'dp' },  // Handle "3.4 device pack 1" → standardized to dp
+                
+                // 3. Direct concatenation patterns (general patterns come after specific ones)
+                { pattern: /^(.+?)(?<![a-zA-Z\.])dp(\d+)$/i, type: 'dp' },  // Handle "3.4dp1"
+                
+                // 4. Flexible separator patterns  
+                { pattern: /^(.+?)_dp_(\d+)$/i, type: 'dp' },  // Handle "2.0.0_dp_3"
+                { pattern: /^(.+?)-dp-(\d+)$/i, type: 'dp' },  // Handle "4.0.0-dp-4"
+                { pattern: /^(.+?)\.dp\.(\d+)$/i, type: 'dp' },  // Handle "6.0.0.dp.5"
+                { pattern: /^(.+?)_device_pack_(\d+)$/i, type: 'dp' },  // Handle "7.0.0_device_pack_6" → standardized to dp
+                
             ];
               for (const { pattern, type } of updatePatterns) {
                 const match = version.match(pattern);

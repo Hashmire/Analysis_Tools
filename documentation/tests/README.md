@@ -14,27 +14,28 @@ python test_files\run_all_tests.py
 - `--verbose` or `-v`: Show detailed test output and error messages
 
 **Features:**
-- Executes all 9 test suites automatically
+- Executes all 10 test suites automatically
 - Provides comprehensive summary reporting
 - Enhanced error transparency for debugging
 - Standardized output parsing across all suites
-- Individual test count aggregation (552 total tests)
+- Individual test count aggregation (732 total tests)
 
 ## **📊 Test Suite Overview**
 
 | **Test Suite** | **Tests** | **Purpose** |
 |:---------------|:----------|:------------|
-| **Logging System** | 53 | Structured logging and workflow validation |
-| **Modular Rules** | 16 | JSON generation rules and HTML validation |
-| **Platform Badges** | 67 | Badge/modal system, data quality validation, and overlapping ranges detection |
-| **Confirmed Mappings** | 10 | Confirmed mappings pipeline and data flow |
-| **Provenance Assistance** | 10 | CPE provenance functionality and HTML generation |
-| **NVD Source Manager** | 27 | Source data integration, resolution, and unified architecture compliance |
+| **Update Patterns** | 180 | Comprehensive update pattern transformation validation (all 20 term groups) |
+| **Source Data Concern Dashboard** | 157 | Complete dashboard integration with backend data processing |
 | **Source Data Concern Badge Data Collector JSON** | 122 | Complete badge contents collection system (source data concerns + clean platform tracking) |
 | **Source Data Concern Dashboard Webpage** | 90 | Standalone dashboard HTML validation and display testing |
-| **Source Data Concern Dashboard** | 157 | Complete dashboard integration with backend data processing |
+| **Platform Badges** | 67 | Badge/modal system, data quality validation, and overlapping ranges detection |
+| **Logging System** | 53 | Structured logging and workflow validation |
+| **NVD Source Manager** | 27 | Source data integration, resolution, and unified architecture compliance |
+| **Modular Rules** | 16 | JSON generation rules and HTML validation |
+| **Confirmed Mappings** | 10 | Confirmed mappings pipeline and data flow |
+| **Provenance Assistance** | 10 | CPE provenance functionality and HTML generation |
 
-**Total: 552 individual tests** - All must maintain 100% pass rate.
+**Total: 732 individual tests** - All must maintain 100% pass rate.
 
 ## **🔧 Individual Test Suite Execution**
 
@@ -44,6 +45,7 @@ For debugging specific issues, test suites can be run individually:
 # Core system validation
 python test_files\test_logging_system.py                                              # 53 tests
 python test_files\test_platform_badges.py                                             # 67 tests
+python test_files\test_update_patterns.py                                             # 180 tests
 
 # HTML generation and processing  
 python test_files\test_modular_rules.py test_files\testModularRulesEnhanced.json     # 16 tests
@@ -51,10 +53,10 @@ python test_files\test_provenance_assistance.py test_files\testProvenanceAssista
 
 # Data pipeline validation
 python test_files\test_confirmed_mappings.py                                          # 10 tests
-python test_files\test_nvd_source_manager.py                                          # 10 tests
+python test_files\test_nvd_source_manager.py                                          # 27 tests
 
 # Source Data Concern system testing
-python test_files\test_source_data_concern_badge_data_collector_json.py               # 101 tests
+python test_files\test_source_data_concern_badge_data_collector_json.py               # 122 tests
 python test_files\test_source_data_concern_dashboard_webpage.py                       # 90 tests
 python test_files\test_source_data_concern_dashboard.py                               # 157 tests
 ```
@@ -100,9 +102,10 @@ All individual test suite documentation focuses on core validation areas and uni
 - `logging_test_suite.md` - Structured logging system validation (53 tests)
 - `modular_rules_test_suite.md` - JSON generation rules and HTML validation (16 tests)
 - `platform_badges_test_suite.md` - Badge/modal system and data quality validation (67 tests)
+- `update_patterns_test_suite.md` - Comprehensive update pattern transformation validation (180 tests)
 - `confirmed_mappings_test_suite.md` - Data pipeline and mapping validation (10 tests)  
 - `provenance_assistance_test_suite.md` - CPE provenance and HTML generation (10 tests)
-- `nvd_source_manager_test_suite.md` - Source data integration testing (10 tests)
+- `nvd_source_manager_test_suite.md` - Source data integration testing (27 tests)
 
 **Source Data Concern System Documentation:**
 - Badge data collection system testing (101 tests) - Documented within consolidated test suite

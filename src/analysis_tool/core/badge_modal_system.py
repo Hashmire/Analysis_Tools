@@ -42,6 +42,8 @@ PLATFORM_ENTRY_NOTIFICATION_REGISTRY = {
     'supportingInformation': {}, # table_index -> supporting information data
     'sourceDataConcerns': {}   # table_index -> source data quality concerns
 }
+# Global KB exclusions tracking
+global_kb_exclusions = []
 
 # ===== CONSTANTS AND PATTERNS =====
 # Define non-specific version values that should be treated as placeholders
@@ -1313,46 +1315,20 @@ def analyze_version_characteristics(raw_platform_data):
                 has_comparator = any(comp in field_value_lower for comp in comparators)
                 has_text_pattern = any(text_comp in field_value_lower for text_comp in VERSION_TEXT_PATTERNS)
                 
-                update_patterns = [
-                    # Alpha patterns
-                    r'^(.+?)[\.\-_\s]*alpha[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*a[\.\-_\s]*(\d+)[\.\-_\s]*$',
-                    
-                    # Beta patterns
-                    r'^(.+?)[\.\-_\s]*beta[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*b[\.\-_\s]*(\d+)[\.\-_\s]*$',
-                    
-                    # Release candidate patterns
-                    r'^(.+?)[\.\-_\s]*rc[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*release[\s\-_]+candidate[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    
-                    # Patch patterns
-                    r'^(.+?)[\.\-_\s]*patch[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*p[\.\-_\s]*(\d+)[\.\-_\s]*$',  # This pattern will match firmware identifiers like QEP8111
-                    r'^(.+?)\.p(\d+)$', # Handle 3.1.0.p7
-                    
-                    # Hotfix patterns
-                    r'^(.+?)[\.\-_\s]*hotfix[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*hf[\.\-_\s]*(\d+)[\.\-_\s]*$',
-                    
-                    # Service pack patterns
-                    r'^(.+?)[\.\-_\s]*service[\s\-_]+pack[\.\-_\s]*(\d*)[\.\-_]*$',
-                    r'^(.+?)[\.\-_\s]*sp[\.\-_]*(\d+)[\.\-_]*$',
-                    r'^(.+?)\.sp(\d+)$', # Handle 3.0.0.sp1
-                    
-                    # Update patterns
-                    r'^(.+?)[\.\-_\s]*update[\.\-_\s]*(\d*)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*upd[\.\-_\s]*(\d+)[\.\-_\s]*$',
-                    
-                    # Fix patterns
-                    r'^(.+?)[\.\-_\s]*fix[\.\-_\s]*(\d+)[\.\-_\s]*$',
-                    
-                    # Revision patterns
-                    r'^(.+?)[\.\-_\s]*revision[\.\-_\s]*(\d+)[\.\-_\s]*$',
-                    r'^(.+?)[\.\-_\s]*rev[\.\-_\s]*(\d+)[\.\-_\s]*$'
-                ]
-                compiled_update_patterns = [re.compile(pattern, re.IGNORECASE) for pattern in update_patterns]
-                has_update_pattern = any(pattern.match(field_value) for pattern in compiled_update_patterns)
+                # Extract all transformation patterns from the update_patterns list using the helper function
+                # This ensures we use the same comprehensive patterns for detection as for transformation
+                update_patterns, kb_exclusion_patterns = get_update_patterns()
+                update_pattern_regexes = []
+                for pattern_dict in update_patterns:
+                    if 'pattern' in pattern_dict:
+                        try:
+                            compiled_pattern = re.compile(pattern_dict['pattern'], re.IGNORECASE)
+                            update_pattern_regexes.append(compiled_pattern)
+                        except re.error:
+                            # Skip invalid regex patterns
+                            continue
+                
+                has_update_pattern = any(pattern.match(field_value) for pattern in update_pattern_regexes)
                 
                 # Collect all applicable concerns
                 if has_comparator:
@@ -1598,6 +1574,416 @@ def has_update_related_content(raw_platform_data):
 
 # ===== UPDATE PATTERN ANALYSIS FUNCTIONS =====
 
+def get_update_patterns():
+    """
+    Get the comprehensive list of update transformation patterns.
+    This ensures consistency between detection and transformation functions.
+    """
+    # KB EXCLUSION PATTERNS - These patterns detect KB references and exclude them
+    # KB patterns are documentation references, not version patterns
+    kb_exclusion_patterns = [
+        r'(?i)^.*?kb\d+.*?$',                    # Basic KB pattern (case insensitive)
+        r'(?i)^.*?KB\d+.*?$',                    # Uppercase KB pattern  
+        r'(?i)^.*?[\.\-_]kb[\.\-_]?\d+.*?$',     # KB with separators
+        r'(?i)^.*?\s+kb\s*\d+.*?$',              # KB with spaces
+        r'(?i)^.*?\s+KB\s*\d+.*?$',              # Uppercase KB with spaces
+        r'(?i)^.*?[\.\-_]+kb\d+.*?$',            # KB with prefix separators
+        r'(?i)^.*?kb[\.\-_]+\d+.*?$',            # KB with suffix separators
+        r'(?i)^.*?[\.\-_]kb[\.\-_]\d+.*?$'       # KB with surrounding separators
+    ]
+    
+    # Check for KB exclusion patterns first
+    for kb_pattern in kb_exclusion_patterns:
+        if re.match(kb_pattern, str(''), re.IGNORECASE):  # This will be checked per string later
+            pass  # This is just for pattern definition
+    
+    update_patterns = [
+        
+        # ===== PATCH TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+p\s*(\d+)$', 'type': 'patch'},  # Handle "3.0.0 p1"
+        {'pattern': r'^(.+?)\s+patch\s*(\d+)$', 'type': 'patch'},  # Handle "3.3 patch 1"
+        {'pattern': r'^(.+?)\s+Patch\s*(\d+)$', 'type': 'patch'},  # Handle "3.3 Patch 1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])p(\d+)$', 'type': 'patch'},  # Handle "2.3.0p12"
+        
+        # 3. Specific notation patterns
+        {'pattern': r'^(.+?)\.p(\d+)$', 'type': 'patch'},  # Handle "3.1.0.p7"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_patch_(\d+)$', 'type': 'patch'},  # Handle "2.0.0_patch_5"
+        {'pattern': r'^(.+?)-patch-(\d+)$', 'type': 'patch'},  # Handle "2.0.0-patch-5"
+        {'pattern': r'^(.+?)\.patch\.(\d+)$', 'type': 'patch'},  # Handle "2.0.0.patch.5"
+        {'pattern': r'^(.+?)_p_(\d+)$', 'type': 'patch'},  # Handle "2.0.0_p_5"
+        
+        
+        # ===== SERVICE_PACK TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+sp\s*(\d+)$', 'type': 'sp'},  # Handle "2.0.0 sp1"
+        {'pattern': r'^(.+?)\s+service\s+pack\s*(\d+)$', 'type': 'sp'},  # Handle "2.0.0 service pack 1"
+        {'pattern': r'^(.+?)\s+Service\s+Pack\s*(\d+)$', 'type': 'sp'},  # Handle "2.0.0 Service Pack 1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])sp(\d+)$', 'type': 'sp'},  # Handle "1sp1"
+        
+        # 3. Specific notation patterns
+        {'pattern': r'^(.+?)\.sp(\d+)$', 'type': 'sp'},  # Handle "3.0.0.sp1"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_sp_(\d+)$', 'type': 'sp'},  # Handle "13.0.0_sp_4"
+        {'pattern': r'^(.+?)-sp-(\d+)$', 'type': 'sp'},  # Handle "13.0.0-sp-4"
+        {'pattern': r'^(.+?)\.sp\.(\d+)$', 'type': 'sp'},  # Handle "13.0.0.sp.4"
+        {'pattern': r'^(.+?)_service_pack_(\d+)$', 'type': 'sp'},  # Handle "4.0.0_service_pack_3"
+        
+        
+        # ===== APPLICATION_PACK TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+ap\s*(\d+)$', 'type': 'ap'},  # Handle "24.0 ap375672"
+        {'pattern': r'^(.+?)\s+application\s+pack\s*(\d+)$', 'type': 'ap'},  # Handle "24.0 application pack 375672"
+        {'pattern': r'^(.+?)\s+Application\s+Pack\s*(\d+)$', 'type': 'ap'},  # Handle "24.0 Application Pack 375672"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])ap(\d+)$', 'type': 'ap'},  # Handle "1ap3"
+        
+        # 3. Specific notation patterns
+        {'pattern': r'^(.+?)\.ap(\d+)$', 'type': 'ap'},  # Handle "24.0.ap375672"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_ap_(\d+)$', 'type': 'ap'},  # Handle "15.0.0_ap_6"
+        {'pattern': r'^(.+?)-ap-(\d+)$', 'type': 'ap'},  # Handle "15.0.0-ap-6"
+        {'pattern': r'^(.+?)\.ap\.(\d+)$', 'type': 'ap'},  # Handle "15.0.0.ap.6"
+        {'pattern': r'^(.+?)_application_pack_(\d+)$', 'type': 'ap'},  # Handle "4.0.0_application_pack_3"
+        
+        
+        # ===== HOTFIX TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+hotfix\s*(\d+)$', 'type': 'hotfix'},  # Handle "3.0.0 hotfix 1"
+        {'pattern': r'^(.+?)\s+Hotfix\s*(\d+)$', 'type': 'hotfix'},  # Handle "3.0.0 Hotfix 1"
+        {'pattern': r'^(.+?)\s+hf\s*(\d+)$', 'type': 'hotfix'},  # Handle "3.0.0 hf1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])hotfix(\d+)$', 'type': 'hotfix'},  # Handle "1.0.0hotfix1"
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])hf(\d+)$', 'type': 'hotfix'},  # Handle "1.0.0hf1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-hotfix\.(\d+)$', 'type': 'hotfix'},  # Handle "2.1.0-hotfix.2"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_hotfix_(\d+)$', 'type': 'hotfix'},  # Handle "4.0.0_hotfix_3"
+        {'pattern': r'^(.+?)-hotfix-(\d+)$', 'type': 'hotfix'},  # Handle "4.0.0-hotfix-3"
+        {'pattern': r'^(.+?)_hf_(\d+)$', 'type': 'hotfix'},  # Handle "5.0.0_hf_2"
+        
+        
+        # ===== CUMULATIVE UPDATE TERM GROUP =====
+        # 1. Space-separated patterns (MUST come before general update patterns)
+        {'pattern': r'^(.+?)\s+cu\s*(\d+)$', 'type': 'cu'},  # Handle "14.0.0 cu 5"
+        {'pattern': r'^(.+?)\s+cumulative\s+update\s*(\d+)$', 'type': 'cu'},  # Handle "8.0.0 cumulative update 1" → standardized to cu
+        {'pattern': r'^(.+?)\s+Cumulative\s+Update\s*(\d+)$', 'type': 'cu'},  # Handle "8.0.0 Cumulative Update 1" → standardized to cu
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])cu(\d+)$', 'type': 'cu'},  # Handle "1.0.0cu1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-cu\.(\d+)$', 'type': 'cu'},  # Handle "2.1.0-cu.2"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)[\.\-_]*cu[\.\-_]*(\d+)[\.\-_]*$', 'type': 'cu'},  # Handle "14.0.0-cu-5"
+        {'pattern': r'^(.+?)[\.\-_]*cumulative[\s\-_]+update[\.\-_]*(\d+)[\.\-_]*$', 'type': 'cu'},  # Handle flexible → standardized to cu
+        {'pattern': r'^(.+?)-cumulative-update-(\d+)$', 'type': 'cu'},  # Handle "4.0.0-cumulative-update-3" → standardized to cu
+        {'pattern': r'^(.+?)_cumulative_update_(\d+)$', 'type': 'cu'},  # Handle "4.0.0_cumulative_update_3" → standardized to cu
+        
+        
+        # ===== UPDATE TERM GROUP (general - must come after specific patterns) =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+update\s*(\d+)$', 'type': 'update'},  # Handle "3.0.0 update 1"
+        {'pattern': r'^(.+?)\s+Update\s*(\d+)$', 'type': 'update'},  # Handle "3.0.0 Update 1"
+        {'pattern': r'^(.+?)\s+upd\s*(\d+)$', 'type': 'update'},  # Handle "3.0.0 upd1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])update(\d+)$', 'type': 'update'},  # Handle "4.0.0update1"
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])upd(\d+)$', 'type': 'update'},  # Handle "4.0.0upd1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-upd\.(\d+)$', 'type': 'update'},  # Handle "7.0.0-upd.4"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_update_(\d+)$', 'type': 'update'},  # Handle "5.0.0_update_2"
+        {'pattern': r'^(.+?)-update-(\d+)$', 'type': 'update'},  # Handle "5.0.0-update-2"
+        {'pattern': r'^(.+?)_upd_(\d+)$', 'type': 'update'},  # Handle "6.0.0_upd_3"
+        
+        
+        # ===== BETA TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+beta\s*(\d+)$', 'type': 'beta'},  # Handle "1.0.0 beta 1"
+        {'pattern': r'^(.+?)\s+Beta\s*(\d+)$', 'type': 'beta'},  # Handle "1.0.0 Beta 1"
+        {'pattern': r'^(.+?)\s+b\s*(\d+)$', 'type': 'beta'},  # Handle "1.0.0 b1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])beta(\d+)$', 'type': 'beta'},  # Handle "4.0.0beta1"
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])b(\d+)$', 'type': 'beta'},  # Handle "4.0.0b1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-beta\.(\d+)$', 'type': 'beta'},  # Handle "1.0.0-beta.1"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_beta_(\d+)$', 'type': 'beta'},  # Handle "1.0.0_beta_1"
+        {'pattern': r'^(.+?)-beta-(\d+)$', 'type': 'beta'},  # Handle "1.0.0-beta-1"
+        {'pattern': r'^(.+?)\.beta\.(\d+)$', 'type': 'beta'},  # Handle "1.0.0.beta.1"
+        
+        
+        # ===== ALPHA TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+alpha\s*(\d+)$', 'type': 'alpha'},  # Handle "1.0.0 alpha 1"
+        {'pattern': r'^(.+?)\s+Alpha\s*(\d+)$', 'type': 'alpha'},  # Handle "1.0.0 Alpha 1"
+        {'pattern': r'^(.+?)\s+a\s*(\d+)$', 'type': 'alpha'},  # Handle "1.0.0 a1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])alpha(\d+)$', 'type': 'alpha'},  # Handle "2.0.0alpha1"
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])a(\d+)$', 'type': 'alpha'},  # Handle "2.0.0a1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-alpha\.(\d+)$', 'type': 'alpha'},  # Handle "1.0.0-alpha.1"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_alpha_(\d+)$', 'type': 'alpha'},  # Handle "3.0.0_alpha_2"
+        {'pattern': r'^(.+?)-alpha-(\d+)$', 'type': 'alpha'},  # Handle "3.0.0-alpha-2"
+        {'pattern': r'^(.+?)_a_(\d+)$', 'type': 'alpha'},  # Handle "4.0.0_a_3"
+        
+        
+        # ===== RELEASE_CANDIDATE TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+rc\s*(\d+)$', 'type': 'rc'},  # Handle "1.0.0 rc 1"
+        {'pattern': r'^(.+?)\s+RC\s*(\d+)$', 'type': 'rc'},  # Handle "1.0.0 RC 1"
+        {'pattern': r'^(.+?)\s+release\s+candidate\s*(\d+)$', 'type': 'rc'},  # Handle "1.0.0 release candidate 1"
+        {'pattern': r'^(.+?)\s+Release\s+Candidate\s*(\d+)$', 'type': 'rc'},  # Handle "1.0.0 Release Candidate 1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])rc(\d+)$', 'type': 'rc'},  # Handle "3.0.0rc1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-rc\.(\d+)$', 'type': 'rc'},  # Handle "1.0.0-rc.1"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_rc_(\d+)$', 'type': 'rc'},  # Handle "2.0.0_rc_2"
+        {'pattern': r'^(.+?)-rc-(\d+)$', 'type': 'rc'},  # Handle "2.0.0-rc-2"
+        {'pattern': r'^(.+?)_release_candidate_(\d+)$', 'type': 'rc'},  # Handle "4.0.0_release_candidate_3"
+        
+        
+        # ===== FIX TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+fix\s*(\d+)$', 'type': 'fix'},  # Handle "3.0.0 fix 1"
+        {'pattern': r'^(.+?)\s+Fix\s*(\d+)$', 'type': 'fix'},  # Handle "3.0.0 Fix 1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])fix(\d+)$', 'type': 'fix'},  # Handle "5.0.0fix1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-fix\.(\d+)$', 'type': 'fix'},  # Handle "2.1.0-fix.2"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_fix_(\d+)$', 'type': 'fix'},  # Handle "4.0.0_fix_2"
+        {'pattern': r'^(.+?)-fix-(\d+)$', 'type': 'fix'},  # Handle "4.0.0-fix-2"
+        {'pattern': r'^(.+?)\.fix\.(\d+)$', 'type': 'fix'},  # Handle "6.0.0.fix.3"
+        {'pattern': r'^(.+?)[\.\-_]*fix[\.\-_]*(\d+)[\.\-_]*$', 'type': 'fix'},  # Handle flexible patterns
+        {'pattern': r'^(.+?)_fix(\d+)$', 'type': 'fix'},  # Handle "8.0.0_fix4" (no separator around number)
+        
+        
+        # ===== REVISION TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+revision\s*(\d+)$', 'type': 'revision'},  # Handle "3.0.0 revision 1"
+        {'pattern': r'^(.+?)\s+Revision\s*(\d+)$', 'type': 'revision'},  # Handle "3.0.0 Revision 1"
+        {'pattern': r'^(.+?)\s+rev\s*(\d+)$', 'type': 'revision'},  # Handle "3.0.0 rev 1"
+        {'pattern': r'^(.+?)\s+Rev\s*(\d+)$', 'type': 'revision'},  # Handle "3.0.0 Rev 1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])revision(\d+)$', 'type': 'revision'},  # Handle "6.0.0revision1"
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])rev(\d+)$', 'type': 'revision'},  # Handle "6.0.0rev1"
+        
+        # 3. Dash-dot notation patterns (none specific for revision)
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_revision_(\d+)$', 'type': 'revision'},  # Handle "7.0.0_revision_2"
+        {'pattern': r'^(.+?)-revision-(\d+)$', 'type': 'revision'},  # Handle "7.0.0-revision-2"
+        {'pattern': r'^(.+?)_rev_(\d+)$', 'type': 'revision'},  # Handle "8.0.0_rev_3"
+        
+        
+        # ===== MAINTENANCE_RELEASE TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+mr\s*(\d+)$', 'type': 'mr'},  # Handle "16.0.0 mr 7"
+        {'pattern': r'^(.+?)\s+maintenance\s+release\s*(\d+)$', 'type': 'mr'},  # Handle "2.5.0 maintenance release 1" → standardized to mr
+        {'pattern': r'^(.+?)\s+Maintenance\s+Release\s*(\d+)$', 'type': 'mr'},  # Handle "2.5.0 Maintenance Release 1" → standardized to mr
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])mr(\d+)$', 'type': 'mr'},  # Handle "1.0.0mr1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-mr\.(\d+)$', 'type': 'mr'},  # Handle "3.1.0-mr.2"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)[\.\-_]*mr[\.\-_]*(\d+)[\.\-_]*$', 'type': 'mr'},  # Handle "16.0.0_mr_7"
+        {'pattern': r'^(.+?)[\.\-_]*maintenance[\s\-_]+release[\.\-_]*(\d+)[\.\-_]*$', 'type': 'mr'},  # Handle flexible → standardized to mr
+        {'pattern': r'^(.+?)-maintenance-release-(\d+)$', 'type': 'mr'},  # Handle "4.0.0-maintenance-release-3" → standardized to mr
+        {'pattern': r'^(.+?)_maintenance_release_(\d+)$', 'type': 'mr'},  # Handle "4.0.0_maintenance_release_3" → standardized to mr
+        
+        
+        # ===== BUILD TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+build\s*(\d+)$', 'type': 'build'},  # Handle "1.0.0 build 1"
+        {'pattern': r'^(.+?)\s+Build\s*(\d+)$', 'type': 'build'},  # Handle "1.0.0 Build 1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])build(\d+)$', 'type': 'build'},  # Handle "7.0.0build1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-build\.(\d+)$', 'type': 'build'},  # Handle "2.1.0-build.2"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_build_(\d+)$', 'type': 'build'},  # Handle "1.0.0_build_1"
+        {'pattern': r'^(.+?)-build-(\d+)$', 'type': 'build'},  # Handle "2.0.0-build-2"
+        {'pattern': r'^(.+?)\.build\.(\d+)$', 'type': 'build'},  # Handle "3.0.0.build.3"
+        {'pattern': r'^(.+?)_build_(\d+)$', 'type': 'build'},  # Handle "4.0.0_build_4"
+        {'pattern': r'^(.+?)-build-(\d+)$', 'type': 'build'},  # Handle "5.0.0-build-5"
+        
+        
+        # ===== RELEASE TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+release\s*(\d+)$', 'type': 'release'},  # Handle "2.0.0 release 1"
+        {'pattern': r'^(.+?)\s+Release\s*(\d+)$', 'type': 'release'},  # Handle "2.0.0 Release 1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])release(\d+)$', 'type': 'release'},  # Handle "8.0.0release1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-release\.(\d+)$', 'type': 'release'},  # Handle "3.1.0-release.2"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_release_(\d+)$', 'type': 'release'},  # Handle "2.0.0_release_1"
+        {'pattern': r'^(.+?)-release-(\d+)$', 'type': 'release'},  # Handle "3.0.0-release-2"
+        {'pattern': r'^(.+?)\.release\.(\d+)$', 'type': 'release'},  # Handle "4.0.0.release.3"
+        {'pattern': r'^(.+?)_release_(\d+)$', 'type': 'release'},  # Handle "5.0.0_release_4"
+        {'pattern': r'^(.+?)-release-(\d+)$', 'type': 'release'},  # Handle "6.0.0-release-5"
+        
+        
+        # ===== MILESTONE TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+milestone\s*(\d+)$', 'type': 'milestone'},  # Handle "4.0.0 milestone 1"
+        {'pattern': r'^(.+?)\s+Milestone\s*(\d+)$', 'type': 'milestone'},  # Handle "4.0.0 Milestone 1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])milestone(\d+)$', 'type': 'milestone'},  # Handle "9.0.0milestone1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-milestone\.(\d+)$', 'type': 'milestone'},  # Handle "4.1.0-milestone.2"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_milestone_(\d+)$', 'type': 'milestone'},  # Handle "3.0.0_milestone_1"
+        {'pattern': r'^(.+?)-milestone-(\d+)$', 'type': 'milestone'},  # Handle "5.0.0-milestone-2"
+        {'pattern': r'^(.+?)\.milestone\.(\d+)$', 'type': 'milestone'},  # Handle "6.0.0.milestone.3"
+        {'pattern': r'^(.+?)_milestone_(\d+)$', 'type': 'milestone'},  # Handle "7.0.0_milestone_4"
+        {'pattern': r'^(.+?)-milestone-(\d+)$', 'type': 'milestone'},  # Handle "8.0.0-milestone-5"
+        
+        
+        # ===== SNAPSHOT TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+snapshot\s*(\d+)$', 'type': 'snapshot'},  # Handle "5.0.0 snapshot 1"
+        {'pattern': r'^(.+?)\s+Snapshot\s*(\d+)$', 'type': 'snapshot'},  # Handle "5.0.0 Snapshot 1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])snapshot(\d+)$', 'type': 'snapshot'},  # Handle "10.0.0snapshot1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-snapshot\.(\d+)$', 'type': 'snapshot'},  # Handle "5.1.0-snapshot.2"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_snapshot_(\d+)$', 'type': 'snapshot'},  # Handle "4.0.0_snapshot_1"
+        {'pattern': r'^(.+?)-snapshot-(\d+)$', 'type': 'snapshot'},  # Handle "6.0.0-snapshot-2"
+        {'pattern': r'^(.+?)\.snapshot\.(\d+)$', 'type': 'snapshot'},  # Handle "7.0.0.snapshot.3"
+        {'pattern': r'^(.+?)_snapshot_(\d+)$', 'type': 'snapshot'},  # Handle "8.0.0_snapshot_4"
+        {'pattern': r'^(.+?)-snapshot-(\d+)$', 'type': 'snapshot'},  # Handle "9.0.0-snapshot-5"
+        
+        
+        # ===== PREVIEW TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+preview\s*(\d+)$', 'type': 'preview'},  # Handle "6.0.0 preview 1"
+        {'pattern': r'^(.+?)\s+Preview\s*(\d+)$', 'type': 'preview'},  # Handle "6.0.0 Preview 1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])preview(\d+)$', 'type': 'preview'},  # Handle "11.0.0preview1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-preview\.(\d+)$', 'type': 'preview'},  # Handle "6.1.0-preview.2"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_preview_(\d+)$', 'type': 'preview'},  # Handle "5.0.0_preview_1"
+        {'pattern': r'^(.+?)-preview-(\d+)$', 'type': 'preview'},  # Handle "7.0.0-preview-2"
+        {'pattern': r'^(.+?)\.preview\.(\d+)$', 'type': 'preview'},  # Handle "8.0.0.preview.3"
+        {'pattern': r'^(.+?)_preview_(\d+)$', 'type': 'preview'},  # Handle "9.0.0_preview_4"
+        {'pattern': r'^(.+?)-preview-(\d+)$', 'type': 'preview'},  # Handle "10.0.0-preview-5"
+        
+        
+        # ===== CANDIDATE TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+candidate\s*(\d+)$', 'type': 'candidate'},  # Handle "7.0.0 candidate 1"
+        {'pattern': r'^(.+?)\s+Candidate\s*(\d+)$', 'type': 'candidate'},  # Handle "7.0.0 Candidate 1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])candidate(\d+)$', 'type': 'candidate'},  # Handle "12.0.0candidate1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-candidate\.(\d+)$', 'type': 'candidate'},  # Handle "7.1.0-candidate.2"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_candidate_(\d+)$', 'type': 'candidate'},  # Handle "6.0.0_candidate_1"
+        {'pattern': r'^(.+?)-candidate-(\d+)$', 'type': 'candidate'},  # Handle "8.0.0-candidate-2"
+        {'pattern': r'^(.+?)\.candidate\.(\d+)$', 'type': 'candidate'},  # Handle "9.0.0.candidate.3"
+        {'pattern': r'^(.+?)_candidate_(\d+)$', 'type': 'candidate'},  # Handle "10.0.0_candidate_4"
+        {'pattern': r'^(.+?)-candidate-(\d+)$', 'type': 'candidate'},  # Handle "11.0.0-candidate-5"
+        
+        
+        # ===== DEVELOPMENT TERM GROUP =====
+        # 1. Space-separated patterns
+        {'pattern': r'^(.+?)\s+development\s*(\d+)$', 'type': 'development'},  # Handle "8.0.0 development 1"
+        {'pattern': r'^(.+?)\s+Development\s*(\d+)$', 'type': 'development'},  # Handle "8.0.0 Development 1"
+        
+        # 2. Direct concatenation patterns
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])development(\d+)$', 'type': 'development'},  # Handle "13.0.0development1"
+        
+        # 3. Dash-dot notation patterns
+        {'pattern': r'^(.+?)-development\.(\d+)$', 'type': 'development'},  # Handle "8.1.0-development.2"
+        
+        # 4. Flexible separator patterns
+        {'pattern': r'^(.+?)_development_(\d+)$', 'type': 'development'},  # Handle "7.0.0_development_1"
+        {'pattern': r'^(.+?)-development-(\d+)$', 'type': 'development'},  # Handle "9.0.0-development-2"
+        {'pattern': r'^(.+?)\.development\.(\d+)$', 'type': 'development'},  # Handle "10.0.0.development.3"
+        {'pattern': r'^(.+?)_development_(\d+)$', 'type': 'development'},  # Handle "11.0.0_development_4"
+        {'pattern': r'^(.+?)-development-(\d+)$', 'type': 'development'},  # Handle "12.0.0-development-5"
+        
+        
+        # ===== DEVICE_PACK TERM GROUP =====
+        # NOTE: Order matters! Specific patterns must come before general patterns
+        
+        # 1. Specific notation patterns (most specific first - must come before general patterns)
+        {'pattern': r'^([^_]+)_DP(\d+)$', 'type': 'dp'},  # Handle "3.4_DP1" (original case) - exclude underscore from base
+        
+        # 2. Space-separated patterns
+        {'pattern': r'^(.+?)\s+dp\s*(\d+)$', 'type': 'dp'},  # Handle "3.4 dp 1"
+        {'pattern': r'^(.+?)\s+DP\s*(\d+)$', 'type': 'dp'},  # Handle "3.4 DP 1"
+        {'pattern': r'^(.+?)\s+device\s+pack\s*(\d+)$', 'type': 'dp'},  # Handle "3.4 device pack 1" → standardized to dp
+        
+        # 3. Direct concatenation patterns (general patterns come after specific ones)
+        {'pattern': r'^(.+?)(?<![a-zA-Z\.])dp(\d+)$', 'type': 'dp'},  # Handle "3.4dp1"
+        
+        # 4. Flexible separator patterns  
+        {'pattern': r'^(.+?)_dp_(\d+)$', 'type': 'dp'},  # Handle "2.0.0_dp_3"
+        {'pattern': r'^(.+?)-dp-(\d+)$', 'type': 'dp'},  # Handle "4.0.0-dp-4"
+        {'pattern': r'^(.+?)\.dp\.(\d+)$', 'type': 'dp'},  # Handle "6.0.0.dp.5"
+        {'pattern': r'^(.+?)_device_pack_(\d+)$', 'type': 'dp'},  # Handle "7.0.0_device_pack_6" → standardized to dp
+        
+    ]
+    
+    return update_patterns, kb_exclusion_patterns
+
 def transform_version_with_update_pattern(version_str: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
     Transform a version string with update patterns to match JavaScript modular_rules.js logic.
@@ -1608,104 +1994,9 @@ def transform_version_with_update_pattern(version_str: str) -> Tuple[Optional[st
     if not version_str:
         return None, None, None
     
-    # Enhanced pattern definitions with proper ordering (specific patterns first)
-    # Matches the JavaScript updatePatterns exactly
-    update_patterns = [
-        # SPACE-SEPARATED PATTERNS (for real-world CVE data formats)
-        # These must come first as they're more specific than the general patterns below
-        
-        # Space-separated patch patterns (most common in CVE data)
-        {'pattern': r'^(.+?)\s+p(\d+)$', 'type': 'patch'},  # Handle "3.0.0 p1", "3.1.0 p2"
-        {'pattern': r'^(.+?)\s+patch\s*(\d+)$', 'type': 'patch'},  # Handle "3.3 Patch 1", "3.3 Patch 2"
-        {'pattern': r'^(.+?)\s+Patch\s*(\d+)$', 'type': 'patch'},  # Handle "3.3 Patch 1" (capitalized)
-        
-        # Space-separated service pack patterns
-        {'pattern': r'^(.+?)\s+sp(\d+)$', 'type': 'sp'},  # Handle "2.0.0 sp1"
-        {'pattern': r'^(.+?)\s+service\s+pack\s*(\d+)$', 'type': 'sp'},  # Handle "2.0.0 service pack 1"
-        {'pattern': r'^(.+?)\s+Service\s+Pack\s*(\d+)$', 'type': 'sp'},  # Handle "2.0.0 Service Pack 1"
-        
-        # Space-separated hotfix patterns
-        {'pattern': r'^(.+?)\s+hotfix\s*(\d+)$', 'type': 'hotfix'},  # Handle "3.0.0 hotfix 1"
-        {'pattern': r'^(.+?)\s+Hotfix\s*(\d+)$', 'type': 'hotfix'},  # Handle "3.0.0 Hotfix 1"
-        {'pattern': r'^(.+?)\s+hf(\d+)$', 'type': 'hotfix'},  # Handle "3.0.0 hf1"
-        
-        # Space-separated update patterns
-        {'pattern': r'^(.+?)\s+update\s*(\d+)$', 'type': 'update'},  # Handle "3.0.0 update 1"
-        {'pattern': r'^(.+?)\s+Update\s*(\d+)$', 'type': 'update'},  # Handle "3.0.0 Update 1"
-        {'pattern': r'^(.+?)\s+upd(\d+)$', 'type': 'update'},  # Handle "3.0.0 upd1"
-        
-        # Space-separated beta patterns
-        {'pattern': r'^(.+?)\s+beta\s*(\d*)$', 'type': 'beta'},  # Handle "1.0.0 beta", "1.0.0 beta 1"
-        {'pattern': r'^(.+?)\s+Beta\s*(\d*)$', 'type': 'beta'},  # Handle "1.0.0 Beta 1"
-        {'pattern': r'^(.+?)\s+b(\d+)$', 'type': 'beta'},  # Handle "1.0.0 b1"
-        
-        # Space-separated alpha patterns
-        {'pattern': r'^(.+?)\s+alpha\s*(\d*)$', 'type': 'alpha'},  # Handle "1.0.0 alpha", "1.0.0 alpha 1"
-        {'pattern': r'^(.+?)\s+Alpha\s*(\d*)$', 'type': 'alpha'},  # Handle "1.0.0 Alpha 1"
-        {'pattern': r'^(.+?)\s+a(\d+)$', 'type': 'alpha'},  # Handle "1.0.0 a1"
-        
-        # Release candidate patterns
-        {'pattern': r'^(.+?)\s+rc\s*(\d*)$', 'type': 'rc'},  # Handle "1.0.0 rc", "1.0.0 rc 1"
-        {'pattern': r'^(.+?)\s+RC\s*(\d*)$', 'type': 'rc'},  # Handle "1.0.0 RC 1"
-        {'pattern': r'^(.+?)\s+release\s+candidate\s*(\d*)$', 'type': 'rc'},  # Handle "1.0.0 release candidate 1"
-        {'pattern': r'^(.+?)\s+Release\s+Candidate\s*(\d*)$', 'type': 'rc'},  # Handle "1.0.0 Release Candidate 1"
-        
-        # Space-separated fix patterns
-        {'pattern': r'^(.+?)\s+fix\s*(\d+)$', 'type': 'fix'},  # Handle "3.0.0 fix 1"
-        {'pattern': r'^(.+?)\s+Fix\s*(\d+)$', 'type': 'fix'},  # Handle "3.0.0 Fix 1"
-        
-        # Space-separated revision patterns
-        {'pattern': r'^(.+?)\s+revision\s*(\d+)$', 'type': 'revision'},  # Handle "3.0.0 revision 1"
-        {'pattern': r'^(.+?)\s+Revision\s*(\d+)$', 'type': 'revision'},  # Handle "3.0.0 Revision 1"
-        {'pattern': r'^(.+?)\s+rev\s*(\d+)$', 'type': 'revision'},  # Handle "3.0.0 rev 1"
-        {'pattern': r'^(.+?)\s+Rev\s*(\d+)$', 'type': 'revision'},  # Handle "3.0.0 Rev 1"
-        
-        # TRADITIONAL DOT/DASH/UNDERSCORE PATTERNS (existing patterns)
-        
-        # Service pack patterns (most specific first)
-        {'pattern': r'^(.+?)\.sp(\d+)$', 'type': 'sp'},  # Handle 3.0.0.sp1
-        {'pattern': r'^(.+?)[\.\-_]*service[\s\-_]+pack[\.\-_]*(\d*)[\.\-_]*$', 'type': 'sp'},
-        {'pattern': r'^(.+?)[\.\-_]*sp[\.\-_]*(\d+)[\.\-_]*$', 'type': 'sp'},
-        
-        # Patch patterns (handle p-notation specifically)
-        {'pattern': r'^(.+?)\.p(\d+)$', 'type': 'patch'},  # Handle 3.1.0.p7
-        {'pattern': r'^(.+?)[\.\-_]*patch[\.\-_]*(\d*)[\.\-_]*$', 'type': 'patch'},
-        
-        # Beta patterns (handle .1 notation specifically)
-        {'pattern': r'^(.+?)-beta\.(\d+)$', 'type': 'beta'},  # Handle 1.0.0-beta.1
-        {'pattern': r'^(.+?)[\.\-_]*beta[\.\-_]*(\d*)[\.\-_]*$', 'type': 'beta'},
-        {'pattern': r'^(.+?)[\.\-_]*b[\.\-_]*(\d+)[\.\-_]*$', 'type': 'beta'},
-        
-        # Alpha patterns
-        {'pattern': r'^(.+?)-alpha\.(\d+)$', 'type': 'alpha'},  # Handle 1.0.0-alpha.1
-        {'pattern': r'^(.+?)[\.\-_]*alpha[\.\-_]*(\d*)[\.\-_]*$', 'type': 'alpha'},
-        {'pattern': r'^(.+?)[\.\-_]*a[\.\-_]*(\d+)[\.\-_]*$', 'type': 'alpha'},
-        
-        # Release candidate patterns
-        {'pattern': r'^(.+?)-rc\.(\d+)$', 'type': 'rc'},  # Handle 1.0.0-rc.1
-        {'pattern': r'^(.+?)[\.\-_]*rc[\.\-_]*(\d*)[\.\-_]*$', 'type': 'rc'},
-        {'pattern': r'^(.+?)[\.\-_]*release[\s\-_]+candidate[\.\-_]*(\d*)[\.\-_]*$', 'type': 'rc'},
-        
-        # Hotfix patterns (handle .2 notation specifically)
-        {'pattern': r'^(.+?)-hotfix\.(\d+)$', 'type': 'hotfix'},  # Handle 2.1.0-hotfix.2
-        {'pattern': r'^(.+?)[\.\-_]*hotfix[\.\-_]*(\d*)[\.\-_]*$', 'type': 'hotfix'},
-        {'pattern': r'^(.+?)[\.\-_]*hf[\.\-_]*(\d+)[\.\-_]*$', 'type': 'hotfix'},
-        
-        # Patch patterns with specific numbering (handle .5 notation)
-        {'pattern': r'^(.+?)-patch\.(\d+)$', 'type': 'patch'},  # Handle 2.0.0-patch.5
-        
-        # Update patterns
-        {'pattern': r'^(.+?)[\.\-_]*update[\.\-_]*(\d*)[\.\-_]*$', 'type': 'update'},
-        {'pattern': r'^(.+?)[\.\-_]*upd[\.\-_]*(\d+)[\.\-_]*$', 'type': 'update'},
-        
-        # Fix patterns
-        {'pattern': r'^(.+?)[\.\-_]*fix[\.\-_]*(\d+)[\.\-_]*$', 'type': 'fix'},
-        
-        # Revision patterns
-        {'pattern': r'^(.+?)[\.\-_]*revision[\.\-_]*(\d+)[\.\-_]*$', 'type': 'revision'},
-        {'pattern': r'^(.+?)[\.\-_]*rev[\.\-_]*(\d+)[\.\-_]*$', 'type': 'revision'}
-    ]
-    
+    # Get the comprehensive patterns from the helper function
+    update_patterns, kb_exclusion_patterns = get_update_patterns()
+   
     for pattern_info in update_patterns:
         pattern = re.compile(pattern_info['pattern'], re.IGNORECASE)
         match = pattern.match(version_str)

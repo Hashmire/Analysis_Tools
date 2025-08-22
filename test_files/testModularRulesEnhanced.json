@@ -1,9 +1,22 @@
 {
   "dataType": "CVE_RECORD",
   "dataVersion": "5.1.1",
+  "_testSourceData": {
+    "sources": [
+      {
+        "orgId": "d1c1063e-7a18-46af-9102-31f8928bc633",
+        "name": "Cisco Systems, Inc.",
+        "contactEmail": "psirt@cisco.com",
+        "sourceIdentifiers": [
+          "psirt@cisco.com",
+          "d1c1063e-7a18-46af-9102-31f8928bc633"
+        ]
+      }
+    ]
+  },
   "cveMetadata": {
     "cveId": "CVE-1337-99997",
-    "assignerOrgId": "modular-test-org-12345",
+    "assignerOrgId": "d1c1063e-7a18-46af-9102-31f8928bc633",
     "state": "PUBLISHED",
     "assignerShortName": "ModularTestOrg",
     "datePublished": "2024-06-15T10:00:00.000Z",
@@ -14,7 +27,7 @@
   "containers": {
     "cna": {
       "providerMetadata": {
-        "orgId": "modular-test-org-12345",
+        "orgId": "d1c1063e-7a18-46af-9102-31f8928bc633",
         "shortName": "ModularTestOrg",
         "dateUpdated": "2024-06-15T12:30:00.000Z"
       },
@@ -399,6 +412,70 @@
             {
               "version": "3.0.0-beta.*",
               "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "application-pack-vendor",
+          "product": "ap-pattern-product",
+          "versions": [
+            {
+              "version": "24.0 ap375672",
+              "status": "affected"
+            },
+            {
+              "version": "24.0.ap375672",
+              "status": "affected"
+            },
+            {
+              "version": "3.1 application pack 123",
+              "status": "unaffected"
+            },
+            {
+              "version": "2.0 Application Pack 456",
+              "status": "affected"
+            },
+            {
+              "version": "1.5-ap789",
+              "status": "affected"
+            },
+            {
+              "version": "5.0_ap999",
+              "status": "unaffected"
+            },
+            {
+              "version": "25.0",
+              "status": "unaffected"
+            }
+          ]
+        },
+        {
+          "vendor": "mixed-update-patterns-vendor",
+          "product": "comprehensive-update-product",
+          "versions": [
+            {
+              "version": "10.0 p1",
+              "status": "affected"
+            },
+            {
+              "version": "10.1 sp2",
+              "status": "affected"
+            },
+            {
+              "version": "10.2 ap123",
+              "status": "affected"
+            },
+            {
+              "version": "11.0 beta 1",
+              "status": "unaffected"
+            },
+            {
+              "version": "11.1 hotfix 5",
+              "status": "affected"
+            },
+            {
+              "version": "12.0",
+              "status": "unaffected"
             }
           ]
         }
