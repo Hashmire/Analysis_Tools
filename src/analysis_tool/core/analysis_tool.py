@@ -664,10 +664,12 @@ def main():
             config['external_assets'] = config['api']['external_assets'].copy()
             config['external_assets']['enabled'] = True
         else:
-            # Fallback if config structure is missing
-            if 'external_assets' not in config:
-                config['external_assets'] = {}
-            config['external_assets']['enabled'] = True
+            # Fail fast if required config structure is missing
+            logger.error(
+                f"External assets requested via --external-assets but config structure is missing. "
+                f"Expected config['api']['external_assets'] section in config.json. "
+                f"Please verify your configuration file contains the required external_assets section."
+            )
         
         # Update the global config as well so process_cve function can access it
         import sys

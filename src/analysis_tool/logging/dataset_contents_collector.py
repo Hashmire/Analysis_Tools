@@ -21,7 +21,8 @@ try:
     from .workflow_logger import get_logger, LogGroup
     logger = get_logger()
 except ImportError:
-    # Fallback for testing environments
+    # GRACEFUL DEGRADATION: Testing environment compatibility
+    # Allows collector to function without logger dependency in test scenarios
     logger = None
 
 class UnifiedDashboardCollector:
@@ -133,7 +134,8 @@ class UnifiedDashboardCollector:
                 self.__class__._config_logged = True
                 
         except Exception as e:
-            # Fallback values if config loading fails
+            # GRACEFUL DEGRADATION: Dashboard metadata defaults for presentation layer
+            # Provides safe display values when config.json is unavailable (non-critical functionality)
             self.data["metadata"]["toolname"] = "Analysis_Tools"
             self.data["metadata"]["version"] = "Unknown"
             self.data["metadata"]["config_loaded"] = False
@@ -842,7 +844,7 @@ class UnifiedDashboardCollector:
                 self._update_cpe_top_lists_from_temp()
                 return
                 
-            # Legacy fallback for backward compatibility
+            # BACKWARD COMPATIBILITY: Legacy data structure support
             query_details = self.data["cpe_query_stats"]["query_details"]
             
             # Query details should already be serializable (using lists not sets)
@@ -1110,7 +1112,7 @@ class UnifiedDashboardCollector:
         if cve_from_timeline:
             return cve_from_timeline
         
-        # Strategy 4: Use current processing context as fallback (if timeline matching fails)
+        # Strategy 4: Use current processing context when timeline matching fails
         if self.current_processing_cve:
             return self.current_processing_cve
         elif self.data["processing"]["current_cve"]:
@@ -1350,8 +1352,7 @@ class UnifiedDashboardCollector:
             
         except Exception as e:
             if logger:
-                logger.debug(f"Failed to consolidate entries by CVE: {str(e)}", group="data_processing")
-            return entries[:50]  # Fallback: just limit the original entries
+                logger.error(f"Entry consolidation failed: {str(e)}. This indicates a data processing issue that requires investigation.", group="data_processing")
 
     def _determine_error_category(self, message):
         """Determine the error category based on message content"""

@@ -749,15 +749,19 @@ def format_bounds_description(bounds: Dict) -> str:
 def load_config():
     """Load configuration from config.json"""
     try:
-        config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+        # Config file is in the parent directory (src/analysis_tool/config.json)
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config.json')
         with open(config_path, 'r') as f:
             return json.load(f)
     except Exception as e:
-        # Return a default config to prevent crashes
+        # GRACEFUL DEGRADATION: Presentation layer defaults for HTML generation
+        # Provides safe display values when config.json is unavailable (non-critical functionality)
+        if logger:
+            logger.warning(f"Could not load config for HTML generation: {e}", group="initialization")
         return {
             'application': {
                 'toolname': 'Hashmire/Analysis_Tools',
-                'version': '0.1.0'
+                'version': 'UNKOWN'
             }
         }
 

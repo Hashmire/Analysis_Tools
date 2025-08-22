@@ -383,11 +383,11 @@ class WorkflowLogger:
                 safe_message = message.encode('utf-8', errors='replace').decode('utf-8')
                 tqdm.write(safe_message)
             except:
-                # Final fallback - just skip problematic characters
+                # GRACEFUL DEGRADATION: ASCII encoding for logging output compatibility
                 safe_message = message.encode('ascii', errors='replace').decode('ascii')
                 print(safe_message)
         except (ImportError, AttributeError):
-            # Fallback to regular print if tqdm is not available or no active progress bar
+            # GRACEFUL DEGRADATION: Standard print when tqdm is unavailable  
             try:
                 print(message)
             except UnicodeEncodeError:

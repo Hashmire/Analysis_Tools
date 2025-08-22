@@ -12,20 +12,13 @@ Key optimizations:
 """
 
 import os
-import json
 import gzip
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
+import orjson
 from ..logging.workflow_logger import get_logger
-
-# Try to use orjson for much better performance, fall back to standard json
-try:
-    import orjson
-    HAS_ORJSON = True
-except ImportError:
-    HAS_ORJSON = False
 
 # Get logger instance
 logger = get_logger()
@@ -77,18 +70,11 @@ class CPECache:
             if self.cache_file.exists():
                 if self.config.get('compression', False) and str(self.cache_file).endswith('.gz'):
                     with gzip.open(self.cache_file, 'rt', encoding='utf-8') as f:
-                        if HAS_ORJSON:
-                            content = f.read()
-                            self.cache_data = orjson.loads(content)
-                        else:
-                            self.cache_data = json.load(f)
+                        content = f.read()
+                        self.cache_data = orjson.loads(content)
                 else:
-                    if HAS_ORJSON:
-                        with open(self.cache_file, 'rb') as f:
-                            self.cache_data = orjson.loads(f.read())
-                    else:
-                        with open(self.cache_file, 'r', encoding='utf-8') as f:
-                            self.cache_data = json.load(f)
+                    with open(self.cache_file, 'rb') as f:
+                        self.cache_data = orjson.loads(f.read())
                 
                 load_time = time.time() - start_time
                 logger.info(f"/cpes/ cache loaded: {len(self.cache_data)} entries in {load_time:.2f}s", group="cpe_queries")
@@ -97,22 +83,15 @@ class CPECache:
                 
             # Load metadata
             if self.metadata_file.exists():
-                with open(self.metadata_file, 'r', encoding='utf-8') as f:
-                    stored_metadata = json.load(f)
+                with open(self.metadata_file, 'rb') as f:
+                    stored_metadata = orjson.loads(f.read())
                     self.metadata.update(stored_metadata)
                     
-        except (json.JSONDecodeError, FileNotFoundError) as e:
+        except (orjson.JSONDecodeError, FileNotFoundError) as e:
             logger.warning(f"Cache load error: {e} - starting with empty cache", group="cpe_queries")
             self.cache_data = {}
         except Exception as e:
-            if HAS_ORJSON:
-                try:
-                    # Try orjson decode error
-                    logger.warning(f"orjson decode error: {e} - starting with empty cache", group="cpe_queries")
-                except:
-                    logger.warning(f"Cache load error: {e} - starting with empty cache", group="cpe_queries")
-            else:
-                logger.warning(f"Cache load error: {e} - starting with empty cache", group="cpe_queries")
+            logger.warning(f"Cache load error: {e} - starting with empty cache", group="cpe_queries")
             self.cache_data = {}
             
     def _save_cache(self):
@@ -127,28 +106,20 @@ class CPECache:
             self.metadata['last_updated'] = datetime.now().isoformat()
             self.metadata['total_entries'] = len(self.cache_data)
             
-            # Save main cache using orjson for much better performance
+            # Save main cache using orjson for performance
             if self.config.get('compression', False):
                 cache_file_gz = str(self.cache_file) + '.gz'
                 with gzip.open(cache_file_gz, 'wt', encoding='utf-8') as f:
-                    if HAS_ORJSON:
-                        # orjson produces bytes, decode for text mode
-                        f.write(orjson.dumps(self.cache_data).decode('utf-8'))
-                    else:
-                        json.dump(self.cache_data, f, separators=(',', ':'))
+                    # orjson produces bytes, decode for text mode
+                    f.write(orjson.dumps(self.cache_data).decode('utf-8'))
             else:
-                if HAS_ORJSON:
-                    # orjson is much faster - write as binary
-                    with open(self.cache_file, 'wb') as f:
-                        f.write(orjson.dumps(self.cache_data))
-                else:
-                    # Fallback to standard json
-                    with open(self.cache_file, 'w', encoding='utf-8') as f:
-                        json.dump(self.cache_data, f, separators=(',', ':'))
+                # orjson is faster - write as binary
+                with open(self.cache_file, 'wb') as f:
+                    f.write(orjson.dumps(self.cache_data))
                     
-            # Save metadata (small file, can keep readable)
-            with open(self.metadata_file, 'w', encoding='utf-8') as f:
-                json.dump(self.metadata, f, indent=2)
+            # Save metadata
+            with open(self.metadata_file, 'wb') as f:
+                f.write(orjson.dumps(self.metadata, option=orjson.OPT_INDENT_2))
             
             save_time = time.time() - start_time
             

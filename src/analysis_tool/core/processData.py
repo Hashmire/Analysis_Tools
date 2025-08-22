@@ -1667,7 +1667,8 @@ def determine_platform_format_type(affected):
     elif has_exact:
         return 'cveAffectsVersionSingle'
     else:
-        return 'cveAffectsNoVersions'  # Fallback for unexpected version format
+        # This indicates a data quality issue that should be investigated
+        logger.error(f"Unexpected version format detected in CVE data: No valid version ranges or exact versions found. This indicates a data quality issue that requires investigation.", group="data_processing")
 
 #########################
 

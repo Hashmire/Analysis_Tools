@@ -646,7 +646,7 @@ def generate_template_structures(data_registry: Dict, data_type: str) -> Tuple[D
         elif data_type == 'intelligentSettings':
             pattern = analyze_intelligent_settings_patterns(data)
         else:
-            # Fallback for unknown types
+            # PATTERN GENERATION: Create unique pattern for unrecognized data types
             pattern = f"unknown_{len(str(data))}"
         
         if pattern not in patterns_to_keys:
@@ -3438,7 +3438,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         else:
             source_role = 'Unknown Source'
     except (ValueError, TypeError):
-        # Fallback for pandas Series boolean ambiguity
+        # GRACEFUL DEGRADATION: Handle pandas Series boolean ambiguity for display layer
         source_role = 'Unknown Source'
     
     # Register the concerns data for the modal
