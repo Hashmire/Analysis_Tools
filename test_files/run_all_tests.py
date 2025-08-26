@@ -14,10 +14,7 @@ Browser Behavior:
 - This is controlled via the UNIFIED_TEST_RUNNER environment variable
 
 Usage:
-    python run_all_tests.py [--verbose]
-    
-Options:
-    --verbose, -v  Show detailed test output and error messages
+    python run_all_tests.py
 """
 
 import subprocess
@@ -35,8 +32,7 @@ class TestSuiteRunner:
     This enables reliable parsing and comprehensive reporting.
     """
     
-    def __init__(self, verbose: bool = False):
-        self.verbose = verbose
+    def __init__(self):
         self.results: List[Dict] = []
         
         # Define all test suites
@@ -180,8 +176,8 @@ class TestSuiteRunner:
                 'tests_passed': test_info['tests_passed'],
                 'tests_total': test_info['tests_total'],
                 'summary': test_info['summary'],
-                'output': result.stdout if self.verbose else '',
-                'error': result.stderr if self.verbose else ''
+                'output': '',
+                'error': ''
             }
             
         except subprocess.TimeoutExpired:
@@ -230,10 +226,7 @@ class TestSuiteRunner:
             
             if not result['success']:
                 overall_success = False
-                if self.verbose and result['error']:
-                    print(f"   Error: {result['error']}")
-                elif not self.verbose:
-                    print(f"   {result['summary']}")
+                print(f"   {result['summary']}")
         
         total_time = time.time() - total_start_time
         
@@ -275,16 +268,16 @@ class TestSuiteRunner:
         return overall_success
 
 def main():
-    """Main function with argument parsing."""
+    """Main function with argument validation."""
     import argparse
     
     parser = argparse.ArgumentParser(description='Run all Analysis Tools test suites')
-    parser.add_argument('--verbose', '-v', action='store_true', 
-                       help='Show detailed output and errors')
+    # Note: No arguments are supported by the unified test runner
+    # Individual test suites may support their own arguments when run directly
     
     args = parser.parse_args()
     
-    runner = TestSuiteRunner(verbose=args.verbose)
+    runner = TestSuiteRunner()
     success = runner.run_all_tests()
     
     sys.exit(0 if success else 1)

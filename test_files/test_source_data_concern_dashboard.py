@@ -764,6 +764,11 @@ class SourceDataConcernDashboardDisplayTestSuite:
 
 def main():
     """Run the Source Data Concern Dashboard display test suite."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Test source data concern dashboard functionality')
+    args = parser.parse_args()
+    
     print("Starting Source Data Concern Dashboard Display Test Suite")
     print("=" * 70)
     print("This test suite validates the dashboard's ability to ingest and")

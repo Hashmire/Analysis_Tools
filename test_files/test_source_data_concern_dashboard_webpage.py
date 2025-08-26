@@ -476,6 +476,11 @@ class DashboardDisplayTest:
 
 def main():
     """Run the dashboard display test suite."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Test source data concern dashboard webpage functionality')
+    args = parser.parse_args()
+    
     print("Source Data Concern Dashboard Display Test Suite")
     print("=" * 60)
     print("Testing dashboard's ability to ingest and display JSON data")

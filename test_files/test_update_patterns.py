@@ -1165,6 +1165,11 @@ def validate_javascript_python_synchronization():
 
 def main():
     """Main comprehensive test runner."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Test update patterns functionality')
+    args = parser.parse_args()
+    
     print("=" * 80)
     print("COMPREHENSIVE UPDATE PATTERN TEST SUITE")
     print("Complete coverage for ALL 20 terms with consistent scenario types")

@@ -1501,6 +1501,11 @@ class SourceDataConcernJSONTestSuite:
 
 def main():
     """Run all Source Data Concern JSON generation and clean platform tracking tests."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Test source data concern badge data collector JSON functionality')
+    args = parser.parse_args()
+    
     print("Starting Source Data Concern Badge Data Collector JSON Test Suite")
     print("=" * 70)
     print("This test suite covers the complete badge data collection system:")

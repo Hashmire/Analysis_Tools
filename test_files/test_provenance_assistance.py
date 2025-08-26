@@ -513,20 +513,20 @@ class ProvenanceAssistanceTestSuite:
 
 def main():
     """Main entry point for the test suite."""
-    if len(sys.argv) < 2:
-        print("Usage: python test_provenance_assistance.py <test_json_file>")
-        print("Example: python test_provenance_assistance.py testProvenanceAssistance.json")
-        sys.exit(1)
+    import argparse
     
-    test_file = sys.argv[1]
+    parser = argparse.ArgumentParser(description='Test provenance assistance functionality')
+    parser.add_argument('test_file', help='Test data JSON file')
+    
+    args = parser.parse_args()
     
     # Validate test file exists
-    if not Path(test_file).exists():
-        print(f"❌ Test file not found: {test_file}")
+    if not Path(args.test_file).exists():
+        print(f"❌ Test file not found: {args.test_file}")
         sys.exit(1)
     
     # Run test suite
-    test_suite = ProvenanceAssistanceTestSuite(test_file)
+    test_suite = ProvenanceAssistanceTestSuite(args.test_file)
     
     if test_suite.run_all_tests():
         success = test_suite.print_summary()

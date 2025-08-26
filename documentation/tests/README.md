@@ -10,9 +10,6 @@ The recommended way to run all tests is using the unified test runner:
 python test_files\run_all_tests.py
 ```
 
-**Options:**
-- `--verbose` or `-v`: Show detailed test output and error messages
-
 **Features:**
 - Executes all 10 test suites automatically
 - Provides comprehensive summary reporting
@@ -61,6 +58,21 @@ python test_files\test_source_data_concern_dashboard_webpage.py                 
 python test_files\test_source_data_concern_dashboard.py                               # 157 tests
 ```
 
+### **Command Line Arguments**
+
+Most test suites run without command line arguments. The following test suites support optional parameters:
+
+```bash
+# Test suites with JSON test data files (required)
+python test_files\test_modular_rules.py test_files\testModularRulesEnhanced.json
+python test_files\test_provenance_assistance.py test_files\testProvenanceAssistance.json
+
+# Test suite with optional test data file
+python test_files\test_nvd_source_manager.py [test_file.json]
+```
+
+**Note:** No test suites support verbose (`-v`) flags. For detailed debugging, run individual test suites which provide comprehensive diagnostic output automatically.
+
 ## **📋 Test Output Format**
 
 All test suites use standardized output format for unified runner compatibility:
@@ -85,9 +97,9 @@ TEST_RESULTS: PASSED=X TOTAL=Y SUITE="Name"
 3. Re-run `python test_files\run_all_tests.py` to verify no regressions
 
 ### **Debugging Test Failures:**
-1. Use `python test_files\run_all_tests.py --verbose` for detailed output
-2. Run individual test suite for focused debugging
-3. Check generated HTML files in `runs/` directories for validation issues
+1. Run individual test suite for focused debugging
+2. Check generated HTML files in `runs/` directories for validation issues
+3. Review diagnostic output automatically displayed for failures
 
 ### **Adding New Tests:**
 1. Follow existing standardized output pattern

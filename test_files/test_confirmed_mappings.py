@@ -611,6 +611,11 @@ class ConfirmedMappingsTestSuite:
 
 def main():
     """Main function to run the confirmed mappings test suite."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Test confirmed mappings functionality')
+    args = parser.parse_args()
+    
     test_suite = ConfirmedMappingsTestSuite()
     success = test_suite.run_all_tests()
     

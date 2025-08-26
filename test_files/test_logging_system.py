@@ -1153,5 +1153,10 @@ def run_logging_tests():
     return result.wasSuccessful()
 
 if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Test logging system functionality')
+    args = parser.parse_args()
+    
     success = run_logging_tests()
     sys.exit(0 if success else 1)

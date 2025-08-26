@@ -754,14 +754,14 @@ class ModularRulesTestSuite:
         return passed == total
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python test_modular_rules.py <test_json_file>")
-        print("Example: python test_modular_rules.py testModularRulesEnhanced.json")
-        sys.exit(1)
+    import argparse
     
-    test_json_file = sys.argv[1]
+    parser = argparse.ArgumentParser(description='Test modular rules functionality')
+    parser.add_argument('test_file', help='Test data JSON file')
     
-    test_suite = ModularRulesTestSuite(test_json_file)
+    args = parser.parse_args()
+    
+    test_suite = ModularRulesTestSuite(args.test_file)
     success = test_suite.run_all_tests()
     
     sys.exit(0 if success else 1)

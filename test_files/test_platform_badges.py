@@ -1463,6 +1463,11 @@ class PlatformBadgesTestSuite:
 
 def main():
     """Main test execution."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Test platform badges functionality')
+    args = parser.parse_args()
+    
     test_suite = PlatformBadgesTestSuite()
     success = test_suite.run_all_tests()
     
