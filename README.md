@@ -4,6 +4,8 @@ Tools for processing CVE records and generating CPE Applicability Statements. Pr
 
 ## Overview
 
+**Understanding the Problem Space**: For comprehensive insight into the cybersecurity challenges this tool addresses, see [CPE Automation Challenges](documentation/cpe_automation_challenges.md).
+
 ### CPE Applicability Generator
 
 Processes CVE records to generate CPE Applicability Statements:
@@ -28,10 +30,11 @@ All generated datasets are tracked in run-specific directories under `runs/[time
 
 ## Documentation
 
+- [CPE Automation Challenges](documentation/cpe_automation_challenges.md) - Problem domains, solutions, and codebase architecture
 - [Badge and Modal System Reference](documentation/badge_modal_system_reference.md) - Complete badge/modal system documentation
 - [CPE Caching System](documentation/cpes_api_caching_system.md) - Cache configuration and management
 - [Logging System](documentation/logging_system.md) - Structured logging patterns and configuration
-- [Dashboard Usage](documentation/dashboard_usage.md) - On demand dashboard system and usage
+- [Dashboard Usage](documentation/dashboard_usage.md) - Dashboard system and usage
 - [Dataset Generation](documentation/dataset_generation.md) - Dataset generation methodology and capabilities
 
 ### Test Documentation
