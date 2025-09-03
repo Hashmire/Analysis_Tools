@@ -58,6 +58,14 @@ class TestSuiteRunner:
                 'command': ['python', 'test_files\\test_confirmed_mappings.py']
             },
             {
+                'name': 'Curator',
+                'command': ['python', 'test_files\\test_curator.py']
+            },
+            {
+                'name': 'Confirmed Mapping Dashboard',
+                'command': ['python', 'test_files\\test_confirmed_mapping_dashboard.py']
+            },
+            {
                 'name': 'Provenance Assistance',
                 'command': ['python', 'test_files\\test_provenance_assistance.py', 'test_files\\testProvenanceAssistance.json']
             },

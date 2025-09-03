@@ -6,7 +6,7 @@ Manages the creation and organization of analysis runs with timestamp-based nami
 import os
 import datetime
 from pathlib import Path
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
 def get_analysis_tools_root() -> Path:
     """Get the root directory of the Analysis_Tools project"""
@@ -19,13 +19,15 @@ def get_analysis_tools_root() -> Path:
     
     raise RuntimeError("Could not find Analysis_Tools project root")
 
-def create_run_directory(run_context: str = None, is_test: bool = False) -> Tuple[Path, str]:
+def create_run_directory(run_context: str = None, is_test: bool = False, 
+                        subdirs: List[str] = None) -> Tuple[Path, str]:
     """
     Create a new run directory with timestamp-based naming.
     
     Args:
         run_context: Optional context string (e.g., CVE ID, batch name) to append to timestamp
         is_test: Whether this is a test run (adds 'TEST_' prefix to context)
+        subdirs: Optional list of subdirectories to create (defaults to ["generated_pages", "logs"])
         
     Returns:
         Tuple of (run_directory_path, run_id)
@@ -56,7 +58,9 @@ def create_run_directory(run_context: str = None, is_test: bool = False) -> Tupl
     run_path = project_root / "runs" / run_id
     
     # Create subdirectories (cache is global, not run-specific)
-    subdirs = ["generated_pages", "logs"]
+    if subdirs is None:
+        subdirs = ["generated_pages", "logs"]  # Default for Analysis_Tools
+    
     for subdir in subdirs:
         (run_path / subdir).mkdir(parents=True, exist_ok=True)
     
@@ -98,14 +102,15 @@ def get_latest_run() -> Optional[Path]:
     run_dirs.sort(key=lambda x: x.stat().st_ctime, reverse=True)
     return run_dirs[0]
 
-def ensure_run_directory(run_context: str = None) -> Tuple[Path, str]:
+def ensure_run_directory(run_context: str = None, subdirs: List[str] = None) -> Tuple[Path, str]:
     """
     Ensure run directory exists, creating if necessary.
     
     Args:
         run_context: Optional context for the run
+        subdirs: Optional list of subdirectories to create
         
     Returns:
         Tuple of (run_directory_path, run_id)
     """
-    return create_run_directory(run_context)
+    return create_run_directory(run_context, subdirs=subdirs)

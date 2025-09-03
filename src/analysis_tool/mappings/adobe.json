@@ -1,0 +1,195 @@
+{
+    "cnaId": "078d4453-3bcd-4900-85e6-15281da43538",
+    "confirmedMappings": [
+    {
+  "cpeBaseString": "cpe:2.3:a:adobe:incopy:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "InCopy"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:experience_manager:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Experience Manager"
+    },
+    {
+      "vendor": "Adobe",
+      "product": "Adobe Experience Manager"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:commerce:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Adobe Commerce"
+    },
+    {
+      "vendor": "Adobe",
+      "product": "Commerce"
+    },
+	{
+  "cpeBaseString": "cpe:2.3:a:adobe:dimension:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Dimension"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:bridge:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Bridge"
+    },
+    {
+      "vendor": "Adobe",
+      "product": "Adobe Bridge"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:bridge:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Animate"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:framemaker:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "FrameMaker"
+    },
+    {
+      "vendor": "Adobe",
+      "product": "Adobe Framemaker"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:indesign:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "InDesign"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:substance_3d_painter:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Substance3D - Painter"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:substance_3d_stager:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Substance3D - Stager"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:substance_3d_designer:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Substance3D - Designer"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:substance_3d_modeler:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Substance3D - Modeler"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:substance_3d_sampler:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Substance3D - Sampler"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:substance_3d_viewer:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Substance3D - Viewer"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:media_encoder:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Media Encoder"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:audition:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Audition"
+    },
+    {
+      "vendor": "Adobe",
+      "product": "Adobe Audition"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:connect:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Connect"
+    },
+    {
+      "vendor": "Adobe",
+      "product": "Adobe Connect"
+    }
+  ]
+},
+{
+  "cpeBaseString": "cpe:2.3:a:adobe:dreamweaver:*:*:*:*:*:*:*:*",
+  "aliases": [
+    {
+      "vendor": "Adobe",
+      "product": "Dreamweaver"
+    },
+	{
+      "vendor": "Adobe",
+      "product": "Adobe Dreamweaver"
+    }
+  ]
+}
+  ]
+}
+    ]
+}

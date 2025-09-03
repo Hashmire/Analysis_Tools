@@ -2,7 +2,7 @@
     "cnaId": "f38d906d-7342-40ea-92c1-6c4a2c6478c8",
     "confirmedMappings": [
         {
-            "cpebasestring": "cpe:2.3:o:microsoft:windows_10_1809:*:*:*:*:*:*:*:*",
+            "cpeBaseString": "cpe:2.3:o:microsoft:windows_10_1809:*:*:*:*:*:*:*:*",
             "aliases": [
                 {
                     "vendor": "microsoft",
@@ -15,7 +15,7 @@
             ]
         },
         {
-            "cpebasestring": "cpe:2.3:o:microsoft:windows_10_1809:*:*:*:*:*:*:x64:*",
+            "cpeBaseString": "cpe:2.3:o:microsoft:windows_10_1809:*:*:*:*:*:*:x64:*",
             "aliases":[
                 {
                     "vendor": "microsoft",
@@ -50,7 +50,7 @@
             ]
         },
         {
-            "cpebasestring": "cpe:2.3:o:microsoft:windows_10_1809:*:*:*:*:*:*:x86:*",
+            "cpeBaseString": "cpe:2.3:o:microsoft:windows_10_1809:*:*:*:*:*:*:x86:*",
             "aliases":[
                 {
                     "vendor": "microsoft",
@@ -85,7 +85,7 @@
             ]
         },
         {
-            "cpebasestring": "cpe:2.3:o:microsoft:windows_10_1809:*:*:*:*:*:*:arm64:*",
+            "cpeBaseString": "cpe:2.3:o:microsoft:windows_10_1809:*:*:*:*:*:*:arm64:*",
             "aliases":[
                 {
                     "vendor": "microsoft",
