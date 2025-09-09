@@ -2,6 +2,109 @@
     "cnaId": "9a959283-ebb5-44b6-b705-dcc2bbced522",
     "confirmedMappings": [
         {
+            "cpeBaseString": "cpe:2.3:a:ibm:rational_quality_manager:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "IBM",
+                    "product": "Rational Quality Manager"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:ibm:infosphere_information_server:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "IBM",
+                    "product": "InfoSphere Information Server"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:ibm:websphere_application_server:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "IBM",
+                    "product": "WebSphere Application Server"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:ibm:collaborative_lifecycle_management:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "IBM",
+                    "product": "Rational Collaborative Lifecycle Management"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:ibm:security_guardium:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "IBM",
+                    "product": "Security Guardium"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:ibm:cognos_analytics:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "IBM",
+                    "product": "Cognos Analytics"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:ibm:qradar_security_information_and_event_manager:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "IBM",
+                    "product": "QRadar SIEM"
+                },
+                {
+                    "vendor": "IBM",
+                    "product": "Security QRadar SIEM"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:ibm:rational_doors_next_generation:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "IBM",
+                    "product": "Rational DOORS Next Generation"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:ibm:maximo_asset_management:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "IBM",
+                    "product": "Maximo Asset Management"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:ibm:mq:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "IBM",
+                    "product": "MQ"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:ibm:rational_engineering_lifecycle_manager:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "IBM",
+                    "product": "Rational Engineering Lifecycle Manager"
+                }
+            ]
+        },
+        {
             "cpeBaseString": "cpe:2.3:a:ibm:websphere_application_server:*:*:*:*:liberty:*:*:*",
             "aliases": [
                 {

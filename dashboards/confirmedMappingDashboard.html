@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hashmire/Analysis_Tools v0.2.0 - Source Mapping Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <title>Hashmire/Analysis_Tools v0.2.0 - CPE Confirmed Mapping Dashboard</title>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script> -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * {
@@ -543,7 +543,8 @@
 
         .analysis-content {
             max-height: 0;
-            overflow: hidden;
+            overflow-x: visible;
+            overflow-y: hidden;
             transition: max-height 0.4s ease, opacity 0.3s ease;
             opacity: 0;
         }
@@ -551,6 +552,7 @@
         .analysis-content.expanded {
             max-height: 1000px;
             opacity: 1;
+            overflow: visible;
         }
 
         .concern-badge {
@@ -578,7 +580,7 @@
             border-radius: 6px;
             padding: 8px;
             position: absolute;
-            z-index: 1;
+            z-index: 9999;
             bottom: 125%;
             left: 50%;
             margin-left: -150px;
@@ -602,6 +604,70 @@
         .concern-tooltip:hover .tooltiptext {
             visibility: visible;
             opacity: 1;
+        }
+
+        .coverage-tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+        }
+
+        .coverage-tooltip .tooltiptext {
+            visibility: hidden;
+            width: 400px;
+            background-color: #2E7D32;
+            color: #fff;
+            text-align: left;
+            border-radius: 8px;
+            padding: 12px;
+            position: absolute;
+            z-index: 9999;
+            top: 125%;
+            left: 50%;
+            margin-left: -200px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.85em;
+            line-height: 1.4;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .coverage-tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            margin-left: -6px;
+            border-width: 6px;
+            border-style: solid;
+            border-color: transparent transparent #2E7D32 transparent;
+        }
+
+        .coverage-tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .tooltip-section {
+            margin-bottom: 8px;
+        }
+
+        .tooltip-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .tooltip-formula {
+            font-family: 'Courier New', monospace;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 4px 6px;
+            border-radius: 3px;
+            margin: 3px 0;
+        }
+
+        .tooltip-highlight {
+            font-weight: bold;
+            color: #A5D6A7;
         }
 
         .section-header {
@@ -879,6 +945,7 @@
             gap: 12px;
             padding: 15px;
             background: #F8F9FA;
+            overflow: visible;
         }
 
         .stat-card {
@@ -888,6 +955,7 @@
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
             text-align: center;
             border-left: 3px solid #4CAF50;
+            overflow: visible;
         }
 
         .stat-value {
@@ -913,11 +981,12 @@
             background: white;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
+            overflow: visible;
         }
 
         .section-content {
             padding: 30px;
+            overflow: visible;
         }
 
         .alias-group {
@@ -1098,6 +1167,111 @@
         .flex-1 { flex: 1; }
         .flex-shrink-0 { flex-shrink: 0; }
         .gap-8 { gap: 8px; }
+        
+        /* === PROCESSING OVERLAY === */
+        .processing-overlay {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            background: rgba(0, 0, 0, 0.3) !important;
+            backdrop-filter: blur(2px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 999999 !important;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            pointer-events: auto !important;
+        }
+        
+        .processing-card {
+            background: linear-gradient(135deg, #E8F5E8 0%, #F1F8E9 100%);
+            border: 2px solid #4CAF50;
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(76, 175, 80, 0.3);
+            min-width: 300px;
+            max-width: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .processing-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(76, 175, 80, 0.1), transparent);
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+        
+        .processing-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #E8F5E8;
+            border-top: 4px solid #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .processing-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2E7D32;
+            margin-bottom: 8px;
+        }
+        
+        .processing-message {
+            font-size: 14px;
+            color: #388E3C;
+            margin-bottom: 16px;
+            line-height: 1.4;
+        }
+        
+        .processing-progress {
+            background: #E8F5E8;
+            border-radius: 8px;
+            height: 6px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+        
+        .processing-progress-bar {
+            background: linear-gradient(90deg, #4CAF50, #66BB6A, #4CAF50);
+            height: 100%;
+            border-radius: 8px;
+            transition: width 0.3s ease;
+            background-size: 20px 20px;
+            animation: progress-animation 1.5s linear infinite;
+        }
+        
+        @keyframes progress-animation {
+            0% { background-position: 0 0; }
+            100% { background-position: 20px 0; }
+        }
+        
+        .processing-details {
+            font-size: 12px;
+            color: #4CAF50;
+            font-weight: 500;
+        }
         .gap-10 { gap: 10px; }
 
         /* Spacing Utilities */
@@ -1476,8 +1650,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Source Mapping Dashboard</h1>
-            <p>Analyze CVE Source Data Mapping Extraction Results</p>
+            <h1>CPE Confirmed Mapping Dashboard</h1>
+            <p>Analyze CVE Platform Aliases and Assign them to CPE Base Strings</p>
         </div>
 
         <div class="file-selector">
@@ -1509,7 +1683,7 @@
                             <div class="doc-icon">ℹ️</div>
                             <div>
                                 <h3 class="doc-title">What am I looking at?</h3>
-                                <p class="doc-subtitle">Click to learn how to use this dashboard</p>
+                                <p class="doc-subtitle">Click to learn how to use this dashboard and why it exists.</p>
                             </div>
                         </div>
                         <div class="doc-chevron" id="doc-chevron">▼</div>
@@ -1520,65 +1694,82 @@
             <!-- Documentation Content - Expandable -->
             <div class="documentation-content" id="documentation-content">
                 <div class="doc-intro">
-                    <p><strong>Overview:</strong> This dashboard helps systematically convert unconfirmed alias data into validated CPE mappings for a specific source.</p>
-                    <p>For technical issues, feature requests, or questions about the Source Mapping Dashboard, please visit the <a href="https://github.com/Hashmire/Analysis_Tools/issues" target="_blank" style="color: #0066cc; text-decoration: none;">Repository Issues page</a>. <br /> Community feedback and contributions to improve the dashboard's functionality and user experience are always encouraged!</p>
+                    <p>
+                        <strong>Overview:  </strong><br />
+                        The Common Plaform Enumeration (CPE) Confirmed Mapping Dashboard is designed to help systematically convert platform alias data into validated CPE Base String mappings for a specific external data contributor. <br />
+                        The files generated are to enhance the coverage and precision of <a href="https://github.com/Hashmire/Analysis_Tools/tree/main/src/analysis_tool/mappings" target="_blank" style="color: #0066cc; text-decoration: none;">Existing Confirmed Mapping Files</a>.<br />
+                        These mappings help to resolve <a href="https://github.com/Hashmire/Analysis_Tools/blob/main/documentation/cpe_automation_challenges.md#problem-domain-1-cpe-base-string-determination" target="_blank" style="color: #0066cc; text-decoration: none;">Problem Domain #1 - CPE Base String Determination</a> 
+                        challenges by providing a vetted set of aliases that can be programmatically associated with CPE Base Strings for CPE Automation needs.
+                    </p>
+                    <p>
+                        <strong>Goals:  </strong><br />
+                        This dashboard aims to increase Confirmed Mapping coverage to <strong>100%</strong>. <i>This goal is limited based on the various data concerns within external platform alias contribututions.</i> <br />
+                        This dashboard aims to reduce the identified Data Concerns to <strong>0%</strong>. <i>This goal is limited based on the active involvement of external platform alias data contributors.</i> <br />
+                    </p>
+                    <p>
+                        <strong>Feedback: </strong><br />
+                        For technical issues, feature requests, or questions; please visit the <a href="https://github.com/Hashmire/Analysis_Tools/issues" target="_blank" style="color: #0066cc; text-decoration: none;">Repository Issues page</a>. <br />
+                        Community feedback and contributions to improve the dashboard's functionality and user experience are always encouraged!</p>
                 </div>
 
                 <div class="doc-sections">
                     <div class="doc-section">
                         <h4>🔍 Step 1: Review and Filter Unconfirmed Aliases</h4>
                         <ul>
-                            <li>Use the search filter to find aliases for specific vendors, products, or platforms</li>
-                            <li>Examine alias properties like vendor, product, and platform as they relate to this source scope</li>
-                            <li>Click CVE links to review the current CPE Match String assignments within NVD Applicability Statements for additional plausible proper CPE Base Strings context</li>
+                            <li>Aliases are sets of platform related data extracted from various authoritative sources</li>
+                            <li>Use the search filter to find targeted text values among the Alias Groups</li>
+                            <li>Examine alias properties like vendor, product, platform, repo, etc.</li>
+                            <li>Click each alias to review associated contextual information (NVD Website CPE-AS, CVE Frequency Data) </li>
+                            <li>Click CVE links to review the current CPE Match String assignments within NVD Applicability Statements</li>
                             <li>Focus on high-frequency aliases (more CVEs = higher impact when mapped)</li>
-                            <li>Avoid creating aliases that involve inappropriate data such as version information</li>
+                            <li>Avoid selecting aliases that contain inappropriate data such as version information or multiple platform values</li>
                         </ul>
                     </div>
 
                     <div class="doc-section">
                         <h4>📋 Step 2: Select Related Aliases for Mapping</h4>
                         <ul>
-                            <li>Check the boxes next to aliases that represent the same product/software within this source scope</li>
-                            <li>Include platform variants (e.g., "Windows 10 x64" and "Windows 10 32-bit") if they map to the same CPE Base String</li>
+                            <li>Check the box(es) next to alias(es) that represent the exact same platform and specificity</li>
                             <li>Group related aliases that should share the same CPE Base String</li>
+                            <li>Review current selections in the selected alias(es) window (bottom right of browser screen)</li>
                             <li>Minimum 1 alias required to generate a mapping</li>
                         </ul>
                     </div>
 
                     <div class="doc-section">
-                        <h4>🎯 Step 3: Generate Consolidated Mapping</h4>
+                        <h4>📋 Step 3: Update Confirmed Mappings</h4>
                         <ul>
-                            <li>Click "Generate Consolidated Mapping" to open the mapping generator</li>
+                            <li>Click "Update Confirmed Mappings" to open the mapping generator</li>
+                            <li>Consider all appropriate CPE Base String specificity and normative requirements</li>
                             <li>Choose CPE Base String approach:</li>
                             <ul>
-                                <li><strong>Existing CPE:</strong> Select from dropdown of confirmed mappings</li>
-                                <li><strong>Manual CPE:</strong> Enter full cpe:2.3:a:vendor:product:*:*:*:*:*:*:*:* format</li>
+                                <li><strong>Manual CPE:</strong> Enter full <code>cpe:2.3:a:vendor:product:*:*:*:*:swed:tsw:thw:*</code> format</li>
+                                <li><strong>Existing CPE:</strong> Select from dropdown of existing confirmed mappings</li>
                             </ul>
                             <li>Review the generated JSON with your selected aliases</li>
+                            <li>Visually confirm the aliases are appropriate for the CPE Base String</li>
                         </ul>
                     </div>
 
                     <div class="doc-section">
                         <h4>💾 Step 4: Save and Continue</h4>
                         <ul>
-                            <li>Copy the JSON output and add it to your confirmed mappings file</li>
-                            <li>Update your confirmed mappings file with the new entries</li>
-                            <li>Continue mapping remaining unconfirmed aliases in subsequent analysis runs</li>
-                            <li>Re-run the curator to process the updated confirmed mappings when desired</li>
+                            <li>Click the "Update Confirmed Mapping" button to commit the alias assignment</li>
+                            <li>Continue mapping remaining aliases</li>
+                            <li>Download the Confirmed Mapping file by clicking the JSON button in the section header</li>
+                            <li>Submit the file for inclusion</li>
                         </ul>
                     </div>
 
                     <div class="doc-section doc-section-full-width">
                         <h4>📊 Understanding the Data</h4>
                         <ul>
-                            <li><strong>Product Groups</strong> - Number of distinct CPE mapping entries (confirmed and unconfirmed) from the source mapping extraction</li>
-                            <li><strong>Unique Aliases</strong> - Total count of individual alias entries across all mapping groups</li>
-                            <li><strong>Confirmed Mapping Coverage</strong> - Percentage of aliases that already have validated CPE associations</li>
-                            <li><strong>Alias Properties</strong> - Vendor, product, and platform attributes extracted from the source analysis</li>
-                            <li><strong>Source CVE Context</strong> - The original CVE records where each alias was discovered</li>
-                            <li><strong>CPE Base String</strong> - Standardized Common Platform Enumeration identifier for products</li>
-                            <li><strong>Unconfirmed Aliases</strong> - Aliases without validated CPE mappings that need manual review and confirmation</li>
+                            <li><strong>Aliases</strong> - Sets of platform related data extracted from various authoritative sources</li>
+                            <li><strong>Unconfirmed Aliases</strong> - Aliases without validated CPE mappings, these need manual review and confirmation</li>
+                            <li><strong>Confirmed Mapping Coverage</strong> - Percentage of aliases that already have validated CPE Mappings</li>
+                            <li><strong>Alias Properties</strong> - Properties extracted from the CVE List <code>affected</code> array</li>
+                            <li><strong>CPE Base String</strong> - Common Platform Enumeration Match String for representing a platform. Does not include <code>version</code> or <code>update</code> attribute data.</li>
+                            <li><strong>CPE Applicability Statment (CPE-AS)</strong> - Common Platform Enumeration Applicability Statements are a json representation of platform data used to indicate which platforms are affected by a vulnerability</li>
                         </ul>
                     </div>
                 </div>
@@ -1606,23 +1797,83 @@
                     <div class="analysis-content expanded" id="analysis-content">
                         <div class="section-content">
                             <div id="statsGrid" class="stats-grid">
-                                <div class="stat-card">
-                                    <div class="stat-value" id="totalProducts">-</div>
-                                    <div class="stat-label">Product Groups</div>
-                                </div>
-                                <div class="stat-card">
+                                <div class="stat-card coverage-tooltip">
                                     <div class="stat-value" id="totalAliases">-</div>
-                                    <div class="stat-label">Unique Aliases</div>
+                                    <div class="stat-label">Total Unique Aliases</div>
+                                    <div class="tooltiptext" id="aliasTooltip">
+                                        <div class="tooltip-section">
+                                            <div class="tooltip-formula">
+                                                Confirmed Mapping + Unconfirmed Aliases + Unconfirmed Aliases with Data Concerns
+                                            </div>
+                                        </div>
+                                        <div class="tooltip-section">
+                                            <span class="tooltip-highlight">Current Calculation:</span><br>
+                                            <span id="tooltipAliasCalculation">Loading...</span>
+                                        </div>
+                                        <div class="tooltip-section">
+                                            <span class="tooltip-highlight">Breakdown:</span><br>
+                                            <span id="tooltipAliasBreakdown">Loading...</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="stat-card">
+                                <div class="stat-card coverage-tooltip">
                                     <div class="stat-value" id="confirmedMappingCoverage">-</div>
                                     <div class="stat-label">Confirmed Mapping Coverage</div>
+                                    <div class="tooltiptext" id="coverageTooltip">
+                                        <div class="tooltip-section">
+                                            <div class="tooltip-formula">
+                                                (Unique Aliases in Confirmed Mappings ÷ Total Unique Aliases) × 100%
+                                            </div>
+                                        </div>
+                                        <div class="tooltip-section">
+                                            <span class="tooltip-highlight">Current Calculation:</span><br>
+                                            <span id="tooltipCalculation">Loading...</span>
+                                        </div>
+                                        <div class="tooltip-section">
+                                            <span class="tooltip-highlight">Breakdown:</span><br>
+                                            <span id="tooltipCoverageBreakdown">Loading...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="stat-card coverage-tooltip">
+                                    <div class="stat-value" id="confirmedConcernCount">-</div>
+                                    <div class="stat-label">Confirmed Mapping Alias Data Concerns</div>
+                                    <div class="tooltiptext" id="concernTooltip">
+                                        <div class="tooltip-section">
+                                            <div class="tooltip-formula">
+                                                (Confirmed Aliases with Data Quality Issues ÷ Total Confirmed Aliases) × 100%
+                                            </div>
+                                        </div>
+                                        <div class="tooltip-section">
+                                            <span class="tooltip-highlight">Current Calculation:</span><br>
+                                            <span id="tooltipConcernCalculation">Loading...</span>
+                                        </div>
+                                        <div class="tooltip-section">
+                                            <span class="tooltip-highlight">Breakdown:</span><br>
+                                            <span id="tooltipConcernBreakdown">Loading...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="stat-card coverage-tooltip">
+                                    <div class="stat-value" id="externalConcernCount">-</div>
+                                    <div class="stat-label">Unconfirmed Alias Data Concerns</div>
+                                    <div class="tooltiptext" id="externalConcernTooltip">
+                                        <div class="tooltip-section">
+                                            <div class="tooltip-formula">
+                                                (Unconfirmed Aliases with Data Quality Issues ÷ Total External Aliases) × 100%
+                                            </div>
+                                        </div>
+                                        <div class="tooltip-section">
+                                            <span class="tooltip-highlight">Current Calculation:</span><br>
+                                            <span id="tooltipExternalConcernCalculation">Loading...</span>
+                                        </div>
+                                        <div class="tooltip-section">
+                                            <span class="tooltip-highlight">Breakdown:</span><br>
+                                            <span id="tooltipExternalConcernBreakdown">Loading...</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="chart-container">
-                                <canvas id="topProductsChart"></canvas>
-                            </div>
-                            <div id="topProductsList" class="top-products"></div>
                         </div>
                     </div>
                 </div>
@@ -1636,22 +1887,783 @@
 
                 <div id="aliasGroups"></div>
 
-                <!-- Source Data Concerns Section -->
+                <!-- Unconfirmed Data Concerns Section -->
                 <div id="sourceDataConcernGroups"></div>
             </div>
         </div>
     </div>
 
     <script>
-        let currentData = null;
-        let topProductsChart = null;
-        let allSortedAliases = null;
-        let allConcerningAliases = null;
+        // Active global variables still needed by current system
+        let currentData = null;  // Used for compatibility and download functions
+
+        // ========== DATA MANAGER ==========
+        const DataManager = {
+            // Raw input data (immutable after load)
+            rawData: null,
+            
+            // Simple ID counter for performance optimization
+            aliasIdCounter: 1,
+            
+            // Three distinct datasets with explicit labels
+            datasets: {
+                confirmedMapping: [],           // From confirmedMappings array
+                unconfirmedAliases: [],        // From aliasGroups with no data concerns  
+                sourceDataConcernAliases: []   // From aliasGroups with data quality issues
+            },
+            
+            // Processed data for display
+            displayData: {
+                confirmedMapping: [],
+                unconfirmedAliases: [],
+                sourceDataConcernAliases: []
+            },
+            
+            // Current filter/search state
+            filters: {
+                searchText: '',
+                activeDatasets: ['confirmedMapping', 'unconfirmedAliases', 'sourceDataConcernAliases']
+            },
+            
+            // Utility methods
+            clearAllDatasets: function() {
+                this.datasets.confirmedMapping = [];
+                this.datasets.unconfirmedAliases = [];
+                this.datasets.sourceDataConcernAliases = [];
+                this.displayData.confirmedMapping = [];
+                this.displayData.unconfirmedAliases = [];
+                this.displayData.sourceDataConcernAliases = [];
+            },
+            
+            getDataset: function(datasetType) {
+                if (datasetType === 'confirmedMapping') {
+                    // Confirmed mappings have nested structure: [{cpeBaseString, aliases: [...]}, ...]
+                    // Flatten to array of aliases with cpeBaseString property
+                    const flattenedAliases = [];
+                    const confirmedMappings = this.displayData[datasetType] || [];
+                    
+                    console.debug(`[getDataset] confirmedMapping: ${confirmedMappings.length} mappings found`);
+                    
+                    confirmedMappings.forEach((mapping, index) => {
+                        console.debug(`[getDataset] Mapping ${index}: CPE=${mapping.cpeBaseString}, aliases=${mapping.aliases ? mapping.aliases.length : 'null'}`);
+                        if (mapping.aliases && Array.isArray(mapping.aliases)) {
+                            mapping.aliases.forEach(alias => {
+                                flattenedAliases.push({
+                                    ...alias,
+                                    cpeBaseString: mapping.cpeBaseString
+                                });
+                            });
+                        }
+                    });
+                    
+                    console.debug(`[getDataset] confirmedMapping result: ${flattenedAliases.length} total aliases`);
+                    return flattenedAliases;
+                } else {
+                    // Unconfirmed and source data concern aliases are flat arrays
+                    return this.displayData[datasetType] || [];
+                }
+            },
+            
+            // Test function to verify structure
+            validateStructure: function() {
+                const expectedDatasets = ['confirmedMapping', 'unconfirmedAliases', 'sourceDataConcernAliases'];
+                for (const dataset of expectedDatasets) {
+                    if (!Array.isArray(this.datasets[dataset])) {
+                        throw new Error(`Dataset ${dataset} is not an array`);
+                    }
+                    if (!Array.isArray(this.displayData[dataset])) {
+                        throw new Error(`DisplayData ${dataset} is not an array`);
+                    }
+                }
+                return true;
+            },
+            
+            // Filter management methods
+            setSearchFilter: function(searchText) {
+                this.filters.searchText = searchText;
+            },
+            
+            getActiveDatasets: function() {
+                return this.filters.activeDatasets;
+            },
+            
+            // ========== DATA LOADING METHOD ==========
+            
+            // Load raw JSON data and populate the three datasets
+            loadData: function(jsonData) {
+                try {
+                    // Validate input data
+                    if (!jsonData || !jsonData.aliasGroups) {
+                        throw new Error('Invalid data format: missing aliasGroups');
+                    }
+                    
+                    // Store raw data
+                    this.rawData = jsonData;
+                    
+                    // Clear existing datasets
+                    this.clearAllDatasets();
+                    
+                    // Process aliasGroups data into unconfirmed and concerning datasets
+                    jsonData.aliasGroups.forEach(mapping => {
+                        mapping.aliases.forEach(alias => {
+                            // Create processed alias with required fields
+                            const processedAlias = {
+                                ...alias,
+                                id: this.aliasIdCounter++, // Assign unique numeric ID
+                                cveCount: alias.source_cve ? alias.source_cve.length : 0,
+                                uniqueCveCount: alias.source_cve ? new Set(alias.source_cve).size : 0,
+                                aliasGroup: alias.aliasGroup || mapping.aliasGroup,
+                                isConfirmedMapping: false
+                            };
+                            
+                            // Create search text for filtering
+                            const searchFields = [
+                                alias.alias || '',
+                                alias.product || '',
+                                alias.vendor || '',
+                                alias.version || '',
+                                alias.update || '',
+                                alias.edition || '',
+                                alias.language || ''
+                            ];
+                            processedAlias._searchText = searchFields.join(' ').toLowerCase();
+                            
+                            // Detect source data concerns using global function (aligned with testing implementations)
+                            const concerns = detectSourceDataConcerns(alias);
+                            processedAlias.concerns = concerns;
+                            
+                            console.log(`Processed unconfirmed alias:`, alias.vendor, alias.product, `platform: "${alias.platform || alias.platforms || 'N/A'}"`, `concerns: ${concerns.length}`);
+                            
+                            // Separate into datasets based on concerns
+                            if (concerns.length > 0) {
+                                console.log(`Adding unconfirmed alias with concerns to sourceDataConcernAliases:`, alias.vendor, alias.product);
+                                this.datasets.sourceDataConcernAliases.push(processedAlias);
+                            } else {
+                                this.datasets.unconfirmedAliases.push(processedAlias);
+                            }
+                        });
+                    });
+                    
+                    // Process confirmedMappings data if it exists
+                    if (jsonData.confirmedMappings) {
+                        console.log('Processing confirmedMappings data with', jsonData.confirmedMappings.length, 'mappings');
+                        
+                        // Build confirmed aliases lookup for deduplication
+                        const confirmedAliasesLookup = new Set();
+                        
+                        jsonData.confirmedMappings.forEach((confirmedMapping, index) => {
+                            // Handle both cpeBaseString (camelCase) and cpebasestring (lowercase) formats
+                            const cpeBaseString = confirmedMapping.cpeBaseString || confirmedMapping.cpebasestring;
+                            if (!cpeBaseString) {
+                                console.error('Missing required cpeBaseString in confirmed mapping:', confirmedMapping);
+                                return; // Skip this mapping if no CPE base string
+                            }
+                            
+                            console.log(`Processing confirmed mapping ${index + 1}:`, cpeBaseString, 'with', confirmedMapping.aliases.length, 'aliases');
+                            
+                            // confirmedMapping dataset should receive processed confirmed mappings
+                            // Process aliases for this CPE base string
+                            const processedAliases = [];
+                            confirmedMapping.aliases.forEach(alias => {
+                                const processedAlias = {
+                                    ...alias,
+                                    id: this.aliasIdCounter++, // Assign unique numeric ID
+                                    cveCount: alias.source_cve ? alias.source_cve.length : 0,
+                                    uniqueCveCount: alias.source_cve ? new Set(alias.source_cve).size : 0,
+                                    aliasGroup: alias.source_cve && alias.source_cve.length > 0 ? 'Confirmed_Mapping_WithData' : 'Confirmed_Mapping_NoData',
+                                    isConfirmedMapping: true,
+                                    hasCveData: alias.source_cve && alias.source_cve.length > 0,
+                                    frequency: alias.frequency || 0,
+                                    cpeBaseString: cpeBaseString // Store CPE base string for reference
+                                };
+                                
+                                // Create search text for filtering
+                                const searchFields = [
+                                    alias.alias || '',
+                                    alias.product || '',
+                                    alias.vendor || '',
+                                    alias.version || '',
+                                    alias.update || '',
+                                    alias.edition || '',
+                                    alias.language || '',
+                                    alias.platform || ''
+                                ];
+                                processedAlias._searchText = searchFields.join(' ').toLowerCase();
+                                
+                                // Detect concerns using global function (aligned with testing implementations)
+                                const concerns = detectSourceDataConcerns(alias);
+                                processedAlias.concerns = concerns;
+                                
+                                console.log(`Adding confirmed alias to dataset:`, processedAlias.vendor, processedAlias.product, `platform: "${processedAlias.platform || 'N/A'}"`, `cpeBaseString: ${cpeBaseString}`, `concerns: ${concerns.length}`);
+                                processedAliases.push(processedAlias);
+                                
+                                // Add to lookup for deduplication - create key based on vendor, product, and platform
+                                const vendor = (alias.vendor || '').toLowerCase().trim();
+                                const product = (alias.product || '').toLowerCase().trim();
+                                const platform = (alias.platform || alias.platforms || '').toLowerCase().trim();
+                                const lookupKey = `${vendor}:${product}:${platform}`;
+                                confirmedAliasesLookup.add(lookupKey);
+                                
+                                // Debug logging for specific cases
+                                if (product.includes('windows server 2019')) {
+                                    console.log(`Added confirmed key: "${lookupKey}"`);
+                                }
+                            });
+                            
+                            // Store as nested structure with CPE base string and processed aliases
+                            this.datasets.confirmedMapping.push({
+                                cpeBaseString: cpeBaseString,
+                                aliases: processedAliases
+                            });
+                        });
+                        
+                        // Deduplicate: Remove aliases from unconfirmed datasets that match confirmed mappings
+                        console.log(`Deduplicating aliases using ${confirmedAliasesLookup.size} confirmed mappings...`);
+                        console.log('Sample confirmed keys:', Array.from(confirmedAliasesLookup).slice(0, 5));
+                        let dedupeCount = 0;
+                        
+                        // Check unconfirmedAliases dataset
+                        this.datasets.unconfirmedAliases = this.datasets.unconfirmedAliases.filter(alias => {
+                            const vendor = (alias.vendor || '').toLowerCase().trim();
+                            const product = (alias.product || '').toLowerCase().trim();
+                            const platform = (alias.platform || alias.platforms || '').toLowerCase().trim();
+                            const lookupKey = `${vendor}:${product}:${platform}`;
+                            
+                            // Debug logging for specific cases
+                            if (product.includes('windows server 2019')) {
+                                console.log(`Checking unconfirmed: "${lookupKey}" - Exact match: ${confirmedAliasesLookup.has(lookupKey)}`);
+                            }
+                            
+                            if (confirmedAliasesLookup.has(lookupKey)) {
+                                console.log(`Removing duplicate from unconfirmed: ${alias.vendor} ${alias.product} (${platform})`);
+                                dedupeCount++;
+                                return false; // Remove this alias
+                            }
+                            return true; // Keep this alias
+                        });
+                        
+                        // Check sourceDataConcernAliases dataset
+                        this.datasets.sourceDataConcernAliases = this.datasets.sourceDataConcernAliases.filter(alias => {
+                            const vendor = (alias.vendor || '').toLowerCase().trim();
+                            const product = (alias.product || '').toLowerCase().trim();
+                            const platform = (alias.platform || alias.platforms || '').toLowerCase().trim();
+                            const lookupKey = `${vendor}:${product}:${platform}`;
+                            
+                            if (confirmedAliasesLookup.has(lookupKey)) {
+                                console.log(`Removing duplicate from concerns: ${alias.vendor} ${alias.product} (${platform})`);
+                                dedupeCount++;
+                                return false; // Remove this alias
+                            }
+                            return true; // Keep this alias
+                        });
+                        
+                        console.log(`Deduplication complete: removed ${dedupeCount} duplicates`);
+                    }
+                    
+                    // Update display data
+                    this.displayData.confirmedMapping = [...this.datasets.confirmedMapping];
+                    this.displayData.unconfirmedAliases = [...this.datasets.unconfirmedAliases];
+                    this.displayData.sourceDataConcernAliases = [...this.datasets.sourceDataConcernAliases];
+                    
+                    // Count confirmed aliases in nested structure
+                    const confirmedAliasCount = this.datasets.confirmedMapping.reduce((total, mapping) => {
+                        return total + (mapping.aliases ? mapping.aliases.length : 0);
+                    }, 0);
+                    
+                    console.log(`Loaded data: ${confirmedAliasCount} confirmed, ${this.datasets.unconfirmedAliases.length} unconfirmed, ${this.datasets.sourceDataConcernAliases.length} concerning aliases`);
+                    
+                    return { 
+                        success: true, 
+                        confirmedCount: confirmedAliasCount,
+                        unconfirmedCount: this.datasets.unconfirmedAliases.length,
+                        concernCount: this.datasets.sourceDataConcernAliases.length
+                    };
+                    
+                } catch (error) {
+                    console.error(`loadData failed: ${error.message}`);
+                    return { success: false, error: error.message };
+                }
+            },
+
+            // ========== DATASET PROCESSING METHODS ==========            
+            // Remove alias from source dataset
+            removeAlias: function(aliasId, sourceDataset) {
+                try {
+                    if (!this.datasets[sourceDataset]) {
+                        throw new Error(`Invalid source dataset: ${sourceDataset}`);
+                    }
+                    
+                    const dataset = this.datasets[sourceDataset];
+                    const index = dataset.findIndex(item => item.id === aliasId || item.aliasGroup === aliasId);
+                    
+                    if (index === -1) {
+                        throw new Error(`Alias ID ${aliasId} not found in ${sourceDataset}`);
+                    }
+                    
+                    // Remove from dataset
+                    const removedItem = dataset.splice(index, 1)[0];
+                    
+                    // Update display data
+                    this.displayData[sourceDataset] = [...dataset];
+                    
+                    // Refresh display for the affected dataset
+                    const displayResult = updateDatasetDisplay([sourceDataset]);
+                    if (!displayResult.success) {
+                        console.warn(`Display update failed after removeAlias: ${displayResult.error}`);
+                    }
+                    
+                    // Update dashboard statistics after removing alias
+                    updateStatsFromDataManager();
+                    
+                    console.log(`Removed alias ${aliasId} from ${sourceDataset}`);
+                    return { success: true, removedItem: removedItem };
+                    
+                } catch (error) {
+                    console.error(`removeAlias failed: ${error.message}`);
+                    return { success: false, error: error.message };
+                }
+            },
+            
+            // Move alias from source dataset to confirmedMapping with CPE base string
+            mergeWithConfirmed: function(aliasId, sourceDataset, cpeBaseString) {
+                try {
+                    // Validate inputs
+                    if (!this.datasets[sourceDataset]) {
+                        throw new Error(`Invalid source dataset: ${sourceDataset}`);
+                    }
+                    
+                    // Normalize and validate CPE base string
+                    cpeBaseString = normalizeCpeString(cpeBaseString);
+                    
+                    // Sanitize to fix any corruption patterns
+                    const fixResult = validateAndFixCPE(cpeBaseString);
+                    if (fixResult.wasCorrupted) {
+                        console.warn('🔧 CPE corruption detected and fixed:', {
+                            original: fixResult.original,
+                            fixed: fixResult.fixed
+                        });
+                        cpeBaseString = fixResult.fixed;
+                    }
+                    
+                    const validation = fixResult.validation;
+                    if (!validation.valid) {
+                        if (validation.errors && validation.errors.length > 0) {
+                            throw new Error(`CPE validation failed: ${validation.errors.join(', ')}`);
+                        } else {
+                            throw new Error(`CPE validation failed: ${validation.message}`);
+                        }
+                    }
+                    
+                    // Find the alias in source dataset using efficient ID lookup
+                    const sourceData = this.datasets[sourceDataset];
+                    const aliasIndex = sourceData.findIndex(item => item.id === aliasId);
+                    
+                    if (aliasIndex === -1) {
+                        throw new Error(`Alias ID ${aliasId} not found in ${sourceDataset}`);
+                    }
+                    
+                    const aliasItem = sourceData[aliasIndex];
+                    
+                    // Check for conflicts: alias already exists in different CPE base string
+                    const confirmedData = this.datasets.confirmedMapping;
+                    console.log(`Checking conflicts for alias ${aliasId} against ${confirmedData.length} existing CPE mappings`);
+                    
+                    for (const mapping of confirmedData) {
+                        if (mapping.cpeBaseString !== cpeBaseString) {
+                            // Check if this alias already exists in a different CPE mapping
+                            // Must match vendor, product, AND platform (including null/undefined cases)
+                            const hasConflict = mapping.aliases && mapping.aliases.some(alias => 
+                                (alias.vendor === aliasItem.vendor && 
+                                 alias.product === aliasItem.product &&
+                                 (alias.platform || '') === (aliasItem.platform || '')) ||
+                                (aliasItem.aliases && aliasItem.aliases.some(subAlias => 
+                                    alias.vendor === subAlias.vendor && 
+                                    alias.product === subAlias.product &&
+                                    (alias.platform || '') === (subAlias.platform || '')
+                                ))
+                            );
+                            if (hasConflict) {
+                                console.error(`Conflict detected: alias ${aliasId} (${aliasItem.vendor}:${aliasItem.product}:${aliasItem.platform || 'no-platform'}) already exists in CPE: ${mapping.cpeBaseString}`);
+                                throw new Error(`Alias already exists in different CPE base string: ${mapping.cpeBaseString}`);
+                            }
+                        }
+                    }
+                    
+                    // Check if cpeBaseString already exists in confirmedMapping
+                    let targetMapping = confirmedData.find(item => item.cpeBaseString === cpeBaseString);
+                    
+                    // Prepare alias data for confirmed mapping format
+                    const aliasData = [];
+                    if (aliasItem.aliases && Array.isArray(aliasItem.aliases)) {
+                        // Multiple aliases from alias group - filter placeholders from each
+                        const cleanedAliases = aliasItem.aliases.map(alias => {
+                            const cleanedAlias = { ...alias };
+                            // Filter out placeholder platform values
+                            if (cleanedAlias.platform && (
+                                cleanedAlias.platform === '' || 
+                                cleanedAlias.platform === 'N/A' || 
+                                cleanedAlias.platform === 'n/a' || 
+                                cleanedAlias.platform === 'unknown' || 
+                                cleanedAlias.platform === '*' ||
+                                cleanedAlias.platform === 'null' ||
+                                cleanedAlias.platform === 'none'
+                            )) {
+                                delete cleanedAlias.platform;
+                            }
+                            return cleanedAlias;
+                        });
+                        aliasData.push(...cleanedAliases);
+                    } else {
+                        // Single alias item - preserve properties but filter placeholders
+                        const singleAlias = {
+                            ...aliasItem, // Copy all properties
+                            isConfirmedMapping: true, // Mark as confirmed
+                            cpeBaseString: cpeBaseString // Add CPE reference
+                        };
+                        
+                        // Filter out placeholder platform values to avoid carrying them forward
+                        if (singleAlias.platform && (
+                            singleAlias.platform === '' || 
+                            singleAlias.platform === 'N/A' || 
+                            singleAlias.platform === 'n/a' || 
+                            singleAlias.platform === 'unknown' || 
+                            singleAlias.platform === '*' ||
+                            singleAlias.platform === 'null' ||
+                            singleAlias.platform === 'none'
+                        )) {
+                            delete singleAlias.platform;
+                        }
+                        aliasData.push(singleAlias);
+                    }
+                    
+                    if (targetMapping) {
+                        // Add to existing CPE base string entry
+                        if (!targetMapping.aliases) targetMapping.aliases = [];
+                        targetMapping.aliases.push(...aliasData);
+                    } else {
+                        // Create new CPE base string entry
+                        const newMapping = {
+                            cpeBaseString: cpeBaseString,
+                            aliases: aliasData
+                        };
+                        confirmedData.push(newMapping);
+                    }
+                    
+                    // Remove from source dataset
+                    sourceData.splice(aliasIndex, 1);
+                    
+                    // CRITICAL: Update both datasets and displayData to ensure synchronization
+                    this.datasets[sourceDataset] = [...sourceData];
+                    this.displayData[sourceDataset] = [...sourceData];
+                    this.datasets.confirmedMapping = [...confirmedData];
+                    this.displayData.confirmedMapping = [...confirmedData];
+                    
+                    // Note: Display update will be handled by the calling function to avoid race conditions
+                    
+                    console.log(`After removal: ${sourceDataset} has ${sourceData.length} items, confirmedMapping has ${confirmedData.length} items`);
+                    
+                    console.log(`Merged alias ${aliasId} from ${sourceDataset} to confirmed mapping: ${cpeBaseString}`);
+                    return { success: true, cpeBaseString: cpeBaseString, aliasCount: aliasData.length };
+                    
+                } catch (error) {
+                    console.error(`mergeWithConfirmed failed: ${error.message}`);
+                    return { success: false, error: error.message };
+                }
+            },
+            
+            // Alias function for moveToConfirmed (same as mergeWithConfirmed)
+            moveToConfirmed: function(aliasId, sourceDataset, cpeBaseString) {
+                // Use the existing mergeWithConfirmed implementation
+                const result = this.mergeWithConfirmed(aliasId, sourceDataset, cpeBaseString);
+                
+                // Update display for both source dataset and confirmed mapping
+                if (result.success) {
+                    const displayResult = updateDatasetDisplay([sourceDataset, 'confirmedMapping']);
+                    if (!displayResult.success) {
+                        console.warn(`Display update failed after moveToConfirmed: ${displayResult.error}`);
+                    }
+                    
+                    // Update dashboard statistics after confirmed mapping changes
+                    updateStatsFromDataManager();
+                }
+                
+                return result;
+            },
+            
+            // Batch merge multiple aliases with confirmed mappings
+            batchMergeWithConfirmed: function(transferMap) {
+                try {
+                    // Validate transferMap structure
+                    if (!transferMap || typeof transferMap !== 'object') {
+                        throw new Error('Invalid transferMap: must be an object');
+                    }
+                    
+                    // Create backup of current state for rollback
+                    const backup = {
+                        confirmedMapping: JSON.parse(JSON.stringify(this.datasets.confirmedMapping)),
+                        unconfirmedAliases: JSON.parse(JSON.stringify(this.datasets.unconfirmedAliases)),
+                        sourceDataConcernAliases: JSON.parse(JSON.stringify(this.datasets.sourceDataConcernAliases))
+                    };
+                    
+                    const results = [];
+                    const errors = [];
+                    
+                    // Process each transfer
+                    for (const [aliasId, transferData] of Object.entries(transferMap)) {
+                        const { sourceDataset, cpeBaseString } = transferData;
+                        
+                        const result = this.mergeWithConfirmed(aliasId, sourceDataset, cpeBaseString);
+                        
+                        if (result.success) {
+                            results.push({ aliasId, ...result });
+                        } else {
+                            errors.push({ aliasId, error: result.error });
+                        }
+                    }
+                    
+                    // If any errors occurred, rollback all changes
+                    if (errors.length > 0) {
+                        // Restore backup
+                        this.datasets.confirmedMapping = backup.confirmedMapping;
+                        this.datasets.unconfirmedAliases = backup.unconfirmedAliases;
+                        this.datasets.sourceDataConcernAliases = backup.sourceDataConcernAliases;
+                        
+                        // Update display data
+                        this.displayData.confirmedMapping = [...backup.confirmedMapping];
+                        this.displayData.unconfirmedAliases = [...backup.unconfirmedAliases];
+                        this.displayData.sourceDataConcernAliases = [...backup.sourceDataConcernAliases];
+                        
+                        // Refresh display after rollback
+                        const displayResult = updateDatasetDisplay(['confirmedMapping', 'unconfirmedAliases', 'sourceDataConcernAliases']);
+                        if (!displayResult.success) {
+                            console.warn(`Display update failed after rollback: ${displayResult.error}`);
+                        }
+                        
+                        // Update dashboard statistics after rollback
+                        updateStatsFromDataManager();
+                        
+                        const errorMsg = `Batch merge failed, rolled back all changes. Errors: ${errors.map(e => e.error).join('; ')}`;
+                        console.error(errorMsg);
+                        throw new Error(errorMsg);
+                    }
+                    
+                    // Refresh display for all datasets (batch operations can affect multiple datasets)
+                    const displayResult = updateDatasetDisplay(['confirmedMapping', 'unconfirmedAliases', 'sourceDataConcernAliases']);
+                    if (!displayResult.success) {
+                        console.warn(`Display update failed after batchMergeWithConfirmed: ${displayResult.error}`);
+                    }
+                    
+                    // Update dashboard statistics after batch confirmed mapping changes
+                    updateStatsFromDataManager();
+                    
+                    console.log(`Batch merge completed successfully: ${results.length} aliases processed`);
+                    return { success: true, processed: results.length, results: results };
+                    
+                } catch (error) {
+                    console.error(`batchMergeWithConfirmed failed: ${error.message}`);
+                    return { success: false, error: error.message };
+                }
+            },
+            
+            // Export confirmed mappings as JSON file with auto-download
+            exportConfirmedMappings: function() {
+                try {
+                    // Get source UUID from loaded data or generate fallback
+                    let sourceUuid = null;
+                    let cnaId = null;
+                    
+                    if (window.currentData && window.currentData.metadata && window.currentData.metadata.target_uuid) {
+                        sourceUuid = window.currentData.metadata.target_uuid;
+                        cnaId = sourceUuid;
+                    } else if (this.rawData && this.rawData.metadata && this.rawData.metadata.target_uuid) {
+                        sourceUuid = this.rawData.metadata.target_uuid;
+                        cnaId = sourceUuid;
+                    } else {
+                        // Fallback to generated ID if no source UUID available
+                        cnaId = 'generated-' + Date.now().toString(36);
+                        sourceUuid = 'unknown';
+                    }
+                    
+                    // Create export structure matching microsoft.json format
+                    const exportData = {
+                        cnaId: cnaId,
+                        confirmedMappings: this.datasets.confirmedMapping.map(mapping => ({
+                            cpeBaseString: mapping.cpeBaseString,
+                            aliases: mapping.aliases || []
+                        }))
+                    };
+                    
+                    // Create JSON blob
+                    const jsonString = JSON.stringify(exportData, null, 4);
+                    const blob = new Blob([jsonString], { type: 'application/json' });
+                    
+                    // Generate filename with source UUID prefix and timestamp
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                    const filename = `${sourceUuid}-confirmed-mappings-${timestamp}.json`;
+                    
+                    // Create download link and trigger download
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                    
+                    console.log(`Exported confirmed mappings to: ${filename}`);
+                    return { success: true, filename: filename, entryCount: exportData.confirmedMappings.length, sourceUuid: sourceUuid };
+                    
+                } catch (error) {
+                    console.error(`exportConfirmedMappings failed: ${error.message}`);
+                    return { success: false, error: error.message };
+                }
+            },
+            
+            // Refresh display for specified datasets
+            refreshDatasetDisplay: function(sourceDatasetList) {
+                try {
+                    if (!Array.isArray(sourceDatasetList)) {
+                        sourceDatasetList = [sourceDatasetList];
+                    }
+                    
+                    const validDatasets = ['confirmedMapping', 'unconfirmedAliases', 'sourceDataConcernAliases'];
+                    const refreshedDatasets = [];
+                    
+                    for (const dataset of sourceDatasetList) {
+                        if (!validDatasets.includes(dataset)) {
+                            console.warn(`Invalid dataset for refresh: ${dataset}`);
+                            continue;
+                        }
+                        
+                        // Update display data
+                        this.displayData[dataset] = [...this.datasets[dataset]];
+                        refreshedDatasets.push(dataset);
+                    }
+                    
+                    // Trigger UI refresh using new display system
+                    if (refreshedDatasets.length > 0) {
+                        const displayResult = updateDatasetDisplay(refreshedDatasets);
+                        if (!displayResult.success) {
+                            throw new Error(`Display update failed: ${displayResult.error}`);
+                        }
+                    }
+                    
+                    console.log(`Refreshed display for datasets: ${refreshedDatasets.join(', ')}`);
+                    return { success: true, refreshed: refreshedDatasets };
+                    
+                } catch (error) {
+                    console.error(`refreshDatasetDisplay failed: ${error.message}`);
+                    return { success: false, error: error.message };
+                }
+            }
+        };
+
+        // ========== NEW DATASET DISPLAY SYSTEM ==========
+        
+        /**
+         * Updates the display areas based on specified DataManager datasets
+         * @param {Array<string>} datasetsToUpdate - Array of dataset names to update
+         *   Valid values: 'confirmedMapping', 'unconfirmedAliases', 'sourceDataConcernAliases'
+         */
+        function updateDatasetDisplay(datasetsToUpdate = ['confirmedMapping', 'unconfirmedAliases', 'sourceDataConcernAliases']) {
+            try {
+                // Validate input
+                if (!Array.isArray(datasetsToUpdate)) {
+                    throw new Error('datasetsToUpdate must be an array');
+                }
+                
+                const validDatasets = ['confirmedMapping', 'unconfirmedAliases', 'sourceDataConcernAliases'];
+                const invalidDatasets = datasetsToUpdate.filter(dataset => !validDatasets.includes(dataset));
+                if (invalidDatasets.length > 0) {
+                    throw new Error(`Invalid datasets: ${invalidDatasets.join(', ')}`);
+                }
+                
+                // Clear filtering state (no retention between display refreshes)
+                allSortedAliases = null;
+                allConcerningAliases = null;
+                
+                // Clear and reset the search filter UI
+                clearSearchFilter();
+                
+                // Prepare data from DataManager
+                const mainAliasData = [];
+                const concernAliasData = [];
+                
+                // Process each requested dataset
+                datasetsToUpdate.forEach(datasetName => {
+                    const datasetArray = DataManager.getDataset(datasetName);
+                    
+                    if (datasetName === 'sourceDataConcernAliases') {
+                        // Source data concerns go to separate section
+                        concernAliasData.push(...datasetArray);
+                    } else {
+                        // confirmedMapping and unconfirmedAliases go to main section
+                        mainAliasData.push(...datasetArray);
+                    }
+                });
+                
+                // Sort main alias data (confirmed mappings first, then by CVE count)
+                const sortedMainData = mainAliasData.sort((a, b) => {
+                    // Primary sort: confirmed mappings first
+                    if (a.isConfirmedMapping !== b.isConfirmedMapping) {
+                        return b.isConfirmedMapping ? 1 : -1;
+                    }
+                    
+                    // Secondary sort: CVE count (highest first)
+                    if (b.cveCount !== a.cveCount) {
+                        return b.cveCount - a.cveCount;
+                    }
+                    
+                    // Tertiary sort: Product name (alphabetical)
+                    const productA = (a.product || '').toLowerCase();
+                    const productB = (b.product || '').toLowerCase();
+                    return productA.localeCompare(productB);
+                });
+                
+                // Sort concern data by CVE count
+                const sortedConcernData = concernAliasData.sort((a, b) => {
+                    if (b.cveCount !== a.cveCount) {
+                        return b.cveCount - a.cveCount;
+                    }
+                    const productA = (a.product || '').toLowerCase();
+                    const productB = (b.product || '').toLowerCase();
+                    return productA.localeCompare(productB);
+                });
+                
+                // Update display areas
+                if (datasetsToUpdate.includes('confirmedMapping') || datasetsToUpdate.includes('unconfirmedAliases')) {
+                    displayAliasesByFrequency(sortedMainData);
+                    
+                    // Update global filter variables for compatibility
+                    allSortedAliases = sortedMainData;
+                }
+                
+                if (datasetsToUpdate.includes('sourceDataConcernAliases')) {
+                    displaySourceDataConcerns(sortedConcernData);
+                    
+                    // Update global filter variables for compatibility
+                    allConcerningAliases = sortedConcernData;
+                }
+                
+                // Reinitialize filter system (no retention between refreshes)
+                if (typeof initializeFilter === 'function') {
+                    initializeFilter();
+                }
+                
+                console.log(`Display updated for datasets: ${datasetsToUpdate.join(', ')}`);
+                return { success: true, updated: datasetsToUpdate };
+                
+            } catch (error) {
+                console.error(`updateDatasetDisplay failed: ${error.message}`);
+                return { success: false, error: error.message };
+            }
+        }
 
         // ========== CACHED DOM ELEMENTS ==========
         let fileInput, searchButton, clearButton, errorMessage, loadingMessage, mainContent, statsGrid;
 
-        // Source Data Concern patterns (synchronized with curator.py placeholder filtering)
+        // Data Concern patterns (synchronized with curator.py placeholder filtering)
         const NON_SPECIFIC_VALUES = [
             // Core placeholder patterns (exact match from curator)
             'n/a', 'n\\/a', 'n\\a', 'na', 'unknown', 'unspecified', 'not specified',
@@ -1710,8 +2722,8 @@
         // ========== GLOBAL CONSTANTS ==========
         const placeholderPatterns = ['n/a', 'null', 'none', 'unknown', 'tbd', 'pending', '*', 'n\\/a'];
         const cve5Properties = [
-            'vendor', 'product', 'collectionURL', 'packageName', 'cpes', 
-            'modules', 'programFiles', 'programRoutines', 'platforms', 'repo'
+            'vendor', 'product', 'platform', 'collectionURL', 'packageName', 'cpes', 
+            'modules', 'programFiles', 'programRoutines', 'repo'
         ];
 
         // ========== UTILITY FUNCTIONS ==========
@@ -1817,17 +2829,17 @@
             }
             
             // Check platform field for placeholder data and version patterns
-            if (alias.platforms && typeof alias.platforms === 'string') {
-                const platformLower = alias.platforms.toLowerCase();
+            if (alias.platform && typeof alias.platform === 'string') {
+                const platformLower = alias.platform.toLowerCase();
                 const isPlaceholder = NON_SPECIFIC_VALUES.some(val => platformLower === val.toLowerCase());
-                const isSingleDash = alias.platforms.trim() === '-';
+                const isSingleDash = alias.platform.trim() === '-';
                 
                 if (isPlaceholder || isSingleDash) {
                     const issueType = isSingleDash ? "single dash placeholder" : "placeholder value";
                     concerns.push({
                         type: "placeholderData",
-                        field: "platforms",
-                        value: alias.platforms,
+                        field: "platform",
+                        value: alias.platform,
                         issue: `Platform field contains ${issueType} preventing proper CPE matching`
                     });
                 }
@@ -1837,8 +2849,8 @@
                     if (platformLower.includes(pattern.toLowerCase())) {
                         concerns.push({
                             type: "versionInField",
-                            field: "platforms",
-                            value: alias.platforms,
+                            field: "platform",
+                            value: alias.platform,
                             pattern: pattern,
                             issue: `Platform field contains version pattern '${pattern}' which should not be in platform name`
                         });
@@ -1865,11 +2877,11 @@
                 });
             }
             
-            if (alias.platforms && typeof alias.platforms === 'string' && alias.platforms.includes(',')) {
+            if (alias.platform && typeof alias.platform === 'string' && alias.platform.includes(',')) {
                 concerns.push({
                     type: "multipleVariants",
-                    field: "platforms",
-                    value: alias.platforms,
+                    field: "platform",
+                    value: alias.platform,
                     issue: "Platform field contains commas indicating multiple platform variants that should be separated"
                 });
             }
@@ -1878,11 +2890,38 @@
         }
         let propertyDistributionChart = null;
 
-        // CPE validation functions
+        // CPE normalization and validation functions
+        function normalizeCpeString(cpeString) {
+            if (!cpeString) return cpeString;
+            
+            // Split the CPE string into parts
+            const parts = cpeString.split(':');
+            
+            // If it's not a proper CPE string, return as-is
+            if (parts.length < 3 || !cpeString.startsWith('cpe:2.3:')) {
+                return cpeString;
+            }
+            
+            // Normalize each component (vendor, product, etc.)
+            for (let i = 3; i < parts.length; i++) {
+                if (parts[i] && parts[i] !== '*') {
+                    // Convert to lowercase only
+                    parts[i] = parts[i].toLowerCase();
+                }
+            }
+            
+            return parts.join(':');
+        }
+
         function validateCpeString(cpeString) {
             if (!cpeString) return { valid: false, message: 'Empty CPE string' };
             
             const errors = [];
+            
+            // Check for corruption indicators first
+            if (cpeString.includes('::')) {
+                errors.push('Contains double colons (::) - indicates data corruption. Use :*: instead');
+            }
             
             if (!cpeString.startsWith('cpe:2.3:')) {
                 errors.push('Must start with cpe:2.3:');
@@ -1892,6 +2931,18 @@
             
             if (parts.length !== 13) {
                 errors.push(`Expected 13 components, found ${parts.length}`);
+            }
+            
+            // Check for empty components that should be wildcards
+            const emptyComponentIndices = [];
+            parts.forEach((part, index) => {
+                if (part === '' && index >= 3) { // Skip cpe, 2.3, and part attribute
+                    emptyComponentIndices.push(index);
+                }
+            });
+            
+            if (emptyComponentIndices.length > 0) {
+                errors.push(`Empty components at positions ${emptyComponentIndices.join(', ')}. Use '*' wildcards instead`);
             }
             
             // Only check further validation if we have the right number of parts
@@ -2015,7 +3066,8 @@
                 return;
             }
             
-            // Validate the CPE string
+            // Only validate during live typing, don't auto-fix
+            // Auto-fix only happens on Enter key in handleCpeKeydown
             const validation = validateCpeString(value);
             
             if (validation.valid) {
@@ -2038,7 +3090,39 @@
                 input.removeAttribute('data-final-cpe');
             }
             
+            // Update the modal button state
+            updateModalButtonState();
+            
             updateConsolidatedOutput();
+        }
+        
+        function updateModalButtonState() {
+            const cpeInput = document.getElementById('cpeBaseString');
+            const updateBtn = document.getElementById('outputModal')?.querySelector('.modal-btn-primary');
+            
+            if (!updateBtn || !cpeInput) return;
+            
+            const isValidCpe = cpeInput.hasAttribute('data-final-cpe') && cpeInput.getAttribute('data-final-cpe');
+            const hasSelectedAliases = selectedAliases && selectedAliases.size > 0;
+            
+            if (isValidCpe && hasSelectedAliases) {
+                updateBtn.disabled = false;
+                updateBtn.style.opacity = '1';
+                updateBtn.style.cursor = 'pointer';
+                updateBtn.title = '';
+            } else {
+                updateBtn.disabled = true;
+                updateBtn.style.opacity = '0.5';
+                updateBtn.style.cursor = 'not-allowed';
+                
+                if (!isValidCpe && !hasSelectedAliases) {
+                    updateBtn.title = 'Please enter a valid CPE base string and select aliases';
+                } else if (!isValidCpe) {
+                    updateBtn.title = 'Please enter a valid CPE base string';
+                } else if (!hasSelectedAliases) {
+                    updateBtn.title = 'Please select aliases to map';
+                }
+            }
         }
 
         function handleCpeKeydown(event) {
@@ -2046,16 +3130,21 @@
                 const input = event.target;
                 let value = input.value;
                 
-                // Auto-complete with :*:*:*:*:*:*:*:* if not already complete
+                // AUTO-FIX ONLY ON ENTER: Sanitize any existing corruption
+                value = sanitizeCPE(value);
+                
+                // AUTO-FIX ONLY ON ENTER: Auto-complete with :*:*:*:*:*:*:*:* if not already complete
                 if (value.startsWith('cpe:2.3:') && value.split(':').length < 13) {
                     const parts = value.split(':');
                     while (parts.length < 13) {
                         parts.push('*');
                     }
                     value = parts.join(':');
-                    input.value = value;
-                    handleCpeInput(input);
                 }
+                
+                // Update input with sanitized and completed value
+                input.value = value;
+                handleCpeInput(input);
                 
                 event.preventDefault();
             }
@@ -2089,6 +3178,18 @@
             };
         }
 
+        /**
+         * Clear and reset the search filter to its initial state
+         */
+        function clearSearchFilter() {
+            const filterInput = document.getElementById('filterInput');
+            
+            if (filterInput) {
+                filterInput.value = '';
+                console.debug('🔍 Search filter input cleared');
+            }
+        }
+
         function performSearch(filterText) {
             // Show loading
             const originalSearchText = searchButton.textContent;
@@ -2100,7 +3201,83 @@
 
             // Use setTimeout to allow UI update
             setTimeout(() => {
-                filterAliases(filterText);
+                // Use DataManager query functions instead of deprecated filterAliases
+                if (!filterText.trim()) {
+                    // No filter - show all data
+                    updateDatasetDisplay(['confirmedMapping', 'unconfirmedAliases', 'sourceDataConcernAliases']);
+                } else {
+                    // Apply filter using query functions
+                    const searchTerm = filterText.trim().toLowerCase();
+                    
+                    // Use query function to get all aliases then filter
+                    const allAliases = DataQueries.getAllAliases();
+                    const filteredAliases = allAliases.filter(alias => 
+                        alias._searchText && alias._searchText.includes(searchTerm)
+                    );
+                    
+                    // Sort filtered aliases
+                    const sortedAliases = filteredAliases.sort((a, b) => {
+                        const scoreA = a.frequency || a.cveCount || a.source_cve?.length || 0;
+                        const scoreB = b.frequency || b.cveCount || b.source_cve?.length || 0;
+                        if (scoreB !== scoreA) return scoreB - scoreA;
+                        
+                        const productA = (a.product || '').toLowerCase();
+                        const productB = (b.product || '').toLowerCase();
+                        return productA.localeCompare(productB);
+                    });
+                    
+                    // Separate filtered results by dataset type using property-based identification
+                    const filteredConfirmed = sortedAliases.filter(alias => 
+                        alias.isConfirmedMapping === true
+                    );
+                    const filteredUnconfirmed = sortedAliases.filter(alias => 
+                        alias.isConfirmedMapping !== true && !alias.hasSourceDataConcerns
+                    );
+                    const filteredConcern = sortedAliases.filter(alias => 
+                        alias.hasSourceDataConcerns === true
+                    );
+                    
+                    console.debug('🔍 Search filter results:', {
+                        searchTerm: searchTerm,
+                        totalFiltered: sortedAliases.length,
+                        confirmed: filteredConfirmed.length,
+                        unconfirmed: filteredUnconfirmed.length,
+                        concern: filteredConcern.length
+                    });
+                    
+                    // Display filtered results
+                    const mainAliasData = [...filteredConfirmed, ...filteredUnconfirmed];
+                    const concernAliasData = filteredConcern;
+                    
+                    // Sort data
+                    const sortAliases = (aliases) => aliases.sort((a, b) => {
+                        const scoreA = a.frequency || a.cveCount || a.source_cve?.length || 0;
+                        const scoreB = b.frequency || b.cveCount || b.source_cve?.length || 0;
+                        if (scoreB !== scoreA) return scoreB - scoreA;
+                        
+                        const productA = (a.product || '').toLowerCase();
+                        const productB = (b.product || '').toLowerCase();
+                        return productA.localeCompare(productB);
+                    });
+                    
+                    const sortedMainData = sortAliases(mainAliasData);
+                    const sortedConcernData = sortAliases(concernAliasData);
+                    
+                    // Display filtered data
+                    if (sortedMainData.length > 0) {
+                        displayAliasesByFrequency(sortedMainData);
+                    } else {
+                        document.getElementById('aliasGroups').innerHTML = '<div class="white-card"><p>No results found for your search.</p></div>';
+                    }
+                    
+                    if (sortedConcernData.length > 0) {
+                        displaySourceDataConcerns(sortedConcernData);
+                    } else {
+                        document.getElementById('sourceDataConcernGroups').innerHTML = '';
+                    }
+                }
+                
+                // Reset search UI
                 
                 // Restore buttons
                 searchButton.textContent = originalSearchText;
@@ -2108,44 +3285,6 @@
                 searchButton.disabled = false;
                 clearButton.disabled = false;
             }, 10);
-        }
-
-        function filterAliases(filterText) {
-            if (!allSortedAliases) return;
-
-            let cleanResults = allSortedAliases;
-            let concerningResults = allConcerningAliases || [];
-            
-            if (filterText.trim()) {
-                const searchTerm = filterText.trim().toLowerCase();
-                cleanResults = allSortedAliases.filter(alias => 
-                    alias._searchText.includes(searchTerm)
-                );
-                concerningResults = (allConcerningAliases || []).filter(alias => 
-                    alias._searchText.includes(searchTerm)
-                );
-            }
-
-            // Use faster DOM updates instead of full rebuild
-            updateAliasDisplay(cleanResults, concerningResults);
-        }
-
-        function updateAliasDisplay(cleanResults, concerningResults) {
-            // Fast update: only rebuild if results are significantly different
-            const container = document.getElementById('aliasGroups');
-            const concernContainer = document.getElementById('sourceDataConcernGroups');
-            
-            // Clear and rebuild (this is still the bottleneck, but optimized)
-            container.innerHTML = '';
-            if (concernContainer) concernContainer.innerHTML = '';
-            
-            if (cleanResults.length > 0) {
-                displayAliasesByFrequency(cleanResults);
-            }
-            
-            if (concerningResults.length > 0) {
-                displaySourceDataConcerns(concerningResults);
-            }
         }
 
         // CPE formatting functions (from processData.py)
@@ -2185,10 +3324,13 @@
         }
 
         function formatFor23CPE(rawAttribute) {
-            if (!rawAttribute) return '';
+            if (!rawAttribute || rawAttribute.trim() === '') return '*';
             
             // Normalize to ASCII first
             let attribute = normalizeToASCII(rawAttribute);
+            
+            // If normalization resulted in empty string, return wildcard
+            if (!attribute || attribute.trim() === '') return '*';
             
             // CPE escaping rules
             const cpeEscape = {
@@ -2229,7 +3371,61 @@
                 result += cpeEscape[char] || char;
             }
             
-            return result;
+            // Ensure we never return empty string - use wildcard instead
+            return result.trim() || '*';
+        }
+
+        /**
+         * Sanitize CPE string by fixing common corruption patterns
+         * @param {string} cpeString - The CPE string to sanitize
+         * @returns {string} - Sanitized CPE string
+         */
+        function sanitizeCPE(cpeString) {
+            if (!cpeString) return cpeString;
+            
+            // Fix double colons (::) by replacing with :*:
+            let sanitized = cpeString.replace(/::/g, ':*:');
+            
+            // Fix triple or more colons by replacing with :*:
+            sanitized = sanitized.replace(/:{3,}/g, ':*:');
+            
+            // Ensure we have exactly 13 components
+            const parts = sanitized.split(':');
+            if (parts.length < 13) {
+                // Pad with wildcards if too short
+                while (parts.length < 13) {
+                    parts.push('*');
+                }
+                sanitized = parts.join(':');
+            } else if (parts.length > 13) {
+                // Trim to 13 components if too long
+                sanitized = parts.slice(0, 13).join(':');
+            }
+            
+            // Replace any empty components with wildcards
+            const finalParts = sanitized.split(':').map(part => part === '' ? '*' : part);
+            
+            return finalParts.join(':');
+        }
+
+        /**
+         * Validate and automatically fix CPE string corruption
+         * @param {string} cpeString - The CPE string to validate and fix
+         * @returns {object} - Object with fixed CPE string and validation result
+         */
+        function validateAndFixCPE(cpeString) {
+            // First sanitize to fix obvious corruption
+            const sanitized = sanitizeCPE(cpeString);
+            
+            // Then validate the sanitized version
+            const validation = validateCpeString(sanitized);
+            
+            return {
+                original: cpeString,
+                fixed: sanitized,
+                validation: validation,
+                wasCorrupted: cpeString !== sanitized
+            };
         }
 
         function generateSuggestedCPE(alias) {
@@ -2238,8 +3434,8 @@
             
             // Handle platform mapping for target_hw
             let targetHw = '*';
-            if (alias.platforms && !isPlaceholderValue(alias.platforms)) {
-                const platform = alias.platforms.toLowerCase();
+            if (alias.platform && !isPlaceholderValue(alias.platform)) {
+                const platform = alias.platform.toLowerCase();
                 if (platform.includes('x64') || platform.includes('64-bit')) {
                     targetHw = 'x64';
                 } else if (platform.includes('32-bit') || platform.includes('x86')) {
@@ -2248,7 +3444,7 @@
                     targetHw = 'arm';
                 } else {
                     // Keep platform as-is for complex platform strings
-                    targetHw = formatFor23CPE(alias.platforms);
+                    targetHw = formatFor23CPE(alias.platform);
                 }
             }
             
@@ -2298,10 +3494,9 @@
                             }
                         });
                         
-                        // Handle platform field - normalize to "platform" regardless of source field name
-                        const platformValue = alias.platform || alias.platforms;
-                        if (platformValue && !isPlaceholderValue(platformValue)) {
-                            cleanAlias.platform = platformValue;
+                        // Handle platform field - standardized on "platform" property
+                        if (alias.platform && !isPlaceholderValue(alias.platform)) {
+                            cleanAlias.platform = alias.platform;
                         }
                         
                         return cleanAlias;
@@ -2534,19 +3729,56 @@
                 return;
             }
 
+            // Clear any existing search filter state
+            clearSearchFilter();
+
+            // Show processing overlay for file loading
+            showProcessingOverlay(
+                'Loading Data File...'
+            );
+
             const startTime = Date.now();
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
+                    updateProcessingProgress(25, 'Parsing JSON data...');
+                    
                     const jsonData = JSON.parse(e.target.result);
                     if (!jsonData.aliasGroups) {
                         throw new Error('Invalid file format: missing aliasGroups');
                     }
                     
+                    updateProcessingProgress(50, 'Loading data into DataManager...');
+                    
+                    // Load data into DataManager (NEW SYSTEM)
+                    const loadResult = DataManager.loadData(jsonData);
+                    if (!loadResult.success) {
+                        throw new Error(`DataManager load failed: ${loadResult.error}`);
+                    }
+                    
+                    updateProcessingProgress(75, 'Updating statistics and display...');
+                    
+                    // Store for legacy compatibility and download function
                     currentData = jsonData;
-                    window.currentData = jsonData;  // Make available globally for download function
+                    window.currentData = jsonData;
+                    
                     hideError();
-                    displayData(jsonData);
+                    
+                    // Update stats using DataManager data
+                    updateStatsFromDataManager();
+                    
+                    // Display using new system
+                    const displayResult = updateDatasetDisplay(['confirmedMapping', 'unconfirmedAliases', 'sourceDataConcernAliases']);
+                    if (!displayResult.success) {
+                        console.warn(`Display update failed: ${displayResult.error}`);
+                    }
+                    
+                    updateProcessingProgress(90, 'Initializing charts and interface...');
+                    
+                    // Initialize charts and UI using query functions
+                    initializeChartsAndUI();
+                    
+                    updateProcessingProgress(100, 'Complete!');
                     
                     // Update load time
                     const loadTimeMs = Date.now() - startTime;
@@ -2554,11 +3786,542 @@
                     if (loadTimeEl) {
                         loadTimeEl.textContent = loadTimeMs + 'ms ago';
                     }
+                    
+                    // Hide overlay after short delay
+                    setTimeout(() => {
+                        hideProcessingOverlay();
+                    }, 800);
+                    
                 } catch (error) {
+                    hideProcessingOverlay();
                     showError('Error loading file: ' + error.message);
                 }
             };
             reader.readAsText(file);
+        }
+
+        // ========== DATAMANAGER STATS INTEGRATION ==========
+        
+        /**
+         * Query functions to gather data from the three distinct datasets
+         */
+        const DataQueries = {
+            // Get all aliases from all three datasets (properly handling nested confirmed mappings)
+            getAllAliases: function() {
+                const confirmed = DataManager.getDataset('confirmedMapping');
+                const unconfirmed = DataManager.getDataset('unconfirmedAliases');
+                const concern = DataManager.getDataset('sourceDataConcernAliases');
+                
+                console.debug(`[getAllAliases] Confirmed: ${confirmed.length}, Unconfirmed: ${unconfirmed.length}, Concern: ${concern.length}`);
+                
+                // getDataset already flattens confirmed mappings, so no need to flatten again
+                return [...confirmed, ...unconfirmed, ...concern];
+            },
+            
+            // Get total unique alias count across all datasets (deduplicating by alias key)
+            getTotalAliasCount: function() {
+                const allAliases = this.getAllAliases();
+                
+                // Create a set of unique alias keys to handle potential duplicates across datasets
+                const uniqueAliasKeys = new Set();
+                
+                // Helper function to create a comparable key for an alias (same as in coverage calculation)
+                const isPlaceholderValue = (value) => {
+                    return !value || value === '' || value === 'n/a' || value === 'N/A' || 
+                           value === null || value === undefined;
+                };
+                
+                const createAliasKey = (alias) => {
+                    const keyParts = [];
+                    cve5Properties.forEach(prop => {
+                        if (alias[prop] && !isPlaceholderValue(alias[prop])) {
+                            keyParts.push(`${prop}:${alias[prop]}`);
+                        }
+                    });
+                    return keyParts.sort().join('|');
+                };
+                
+                // Count unique aliases across all datasets
+                allAliases.forEach(alias => {
+                    const aliasKey = createAliasKey(alias);
+                    if (aliasKey) { // Only count aliases with meaningful data
+                        uniqueAliasKeys.add(aliasKey);
+                    }
+                });
+                
+                console.debug('🔍 Total unique aliases calculation:', {
+                    totalAliasesFromDatasets: allAliases.length,
+                    uniqueAliasKeys: uniqueAliasKeys.size,
+                    deduplicationReduction: allAliases.length - uniqueAliasKeys.size
+                });
+                
+                return uniqueAliasKeys.size;
+            },
+            
+            // Calculate confirmed mapping coverage percentage (intersection-based calculation)
+            getConfirmedCoveragePercent: function() {
+                console.debug(`[getConfirmedCoveragePercent] Starting coverage calculation...`);
+                const confirmed = DataManager.getDataset('confirmedMapping');
+                console.debug(`[getConfirmedCoveragePercent] Retrieved ${confirmed.length} confirmed aliases`);
+                
+                // Get all source aliases for analysis
+                const allSourceAliases = this.getAllAliases();
+                console.debug(`[getConfirmedCoveragePercent] Retrieved ${allSourceAliases.length} total source aliases`);
+                
+                // Local helper functions for consistent behavior
+                const isPlaceholderValue = (value) => {
+                    return !value || value === '' || value === 'n/a' || value === 'N/A' || 
+                           value === null || value === undefined;
+                };
+                
+                // Helper function to create a comparable key for an alias
+                const createAliasKey = (alias) => {
+                    const keyParts = [];
+                    cve5Properties.forEach(prop => {
+                        if (alias[prop] && !isPlaceholderValue(alias[prop])) {
+                            keyParts.push(`${prop}:${alias[prop]}`);
+                        }
+                    });
+                    return keyParts.sort().join('|');
+                };
+                
+                // Get all unique aliases for total count
+                const uniqueSourceAliases = new Set();
+                allSourceAliases.forEach(alias => {
+                    const aliasKey = createAliasKey(alias);
+                    if (aliasKey) {
+                        uniqueSourceAliases.add(aliasKey);
+                    }
+                });
+                const totalCount = uniqueSourceAliases.size;
+                
+                // Get all aliases covered by confirmed mappings
+                const coveredAliases = new Set();
+                const confirmedAliasKeys = []; // Collect keys for debugging
+                confirmed.forEach((alias, index) => {
+                    // confirmed is already flattened - each item is an alias, not a mapping with nested aliases
+                    const aliasKey = createAliasKey(alias);
+                    if (aliasKey) { // Only add non-empty keys
+                        coveredAliases.add(aliasKey);
+                        confirmedAliasKeys.push(aliasKey);
+                    }
+                    // Debug first few aliases to understand structure
+                    if (index < 2) {
+                        console.debug(`🔍 Sample confirmed alias ${index}:`, alias, `-> key: "${aliasKey}"`);
+                        console.debug(`🔍 Confirmed alias properties:`, Object.keys(alias));
+                        console.debug(`🔍 Vendor: "${alias.vendor}", Product: "${alias.product}", Platform: "${alias.platform}"`);
+                    }
+                });
+                
+                // Count how many unique source aliases are covered by confirmed mappings
+                const coveredCount = coveredAliases.size;
+                
+                console.debug('🔍 Coverage calculation:', {
+                    totalUniqueAliases: totalCount,
+                    confirmedMappingEntries: confirmed.length,
+                    uniqueCoveredAliases: coveredCount,
+                    percentage: totalCount > 0 ? ((coveredCount / totalCount) * 100).toFixed(2) : '0',
+                    percentageForDisplay: totalCount > 0 ? ((coveredCount / totalCount) * 100).toFixed(1) : '0',
+                    exactPercentage: totalCount > 0 ? (coveredCount / totalCount) * 100 : 0,
+                    calculationTime: new Date().toISOString(),
+                    sampleCoveredKeys: Array.from(coveredAliases).slice(0, 3),
+                    sampleConfirmedKeys: confirmedAliasKeys.slice(0, 3),
+                    supportedProperties: cve5Properties
+                });
+                
+                return totalCount > 0 ? 
+                    ((coveredCount / totalCount) * 100).toFixed(1) + '%' : '0%';
+            },
+            
+            // Get dataset counts for dashboard display (intersection-based confirmed count)
+            getDatasetCounts: function() {
+                const confirmed = DataManager.getDataset('confirmedMapping');
+                const allSourceAliases = this.getAllAliases();
+                
+                // Use consistent property list
+                const isPlaceholderValue = (value) => {
+                    return !value || value === '' || value === 'n/a' || value === 'N/A' || 
+                           value === null || value === undefined;
+                };
+                
+                // Helper function to create a comparable key for an alias
+                const createAliasKey = (alias) => {
+                    const keyParts = [];
+                    cve5Properties.forEach(prop => {
+                        if (alias[prop] && !isPlaceholderValue(alias[prop])) {
+                            keyParts.push(`${prop}:${alias[prop]}`);
+                        }
+                    });
+                    return keyParts.sort().join('|');
+                };
+                
+                // Get all aliases covered by confirmed mappings
+                const coveredAliases = new Set();
+                confirmed.forEach(mapping => {
+                    if (mapping.aliases && Array.isArray(mapping.aliases)) {
+                        mapping.aliases.forEach(alias => {
+                            const aliasKey = createAliasKey(alias);
+                            if (aliasKey) { // Only add non-empty keys
+                                coveredAliases.add(aliasKey);
+                            }
+                        });
+                    }
+                });
+                
+                // Count how many source aliases are covered
+                let coveredCount = 0;
+                allSourceAliases.forEach(sourceAlias => {
+                    const sourceKey = createAliasKey(sourceAlias);
+                    if (sourceKey && coveredAliases.has(sourceKey)) {
+                        coveredCount++;
+                    }
+                });
+                
+                return {
+                    confirmed: coveredCount,
+                    unconfirmed: DataManager.getDataset('unconfirmedAliases').length,
+                    concerning: DataManager.getDataset('sourceDataConcernAliases').length
+                };
+            }
+        };
+        
+        /**
+         * Update the coverage tooltip with detailed calculation information
+         */
+        function updateCoverageTooltip(datasetCounts, totalAliases, coveragePercentage) {
+            try {
+                const tooltipCalculationElement = document.getElementById('tooltipCalculation');
+                const tooltipBreakdownElement = document.getElementById('tooltipCoverageBreakdown');
+                if (!tooltipCalculationElement || !tooltipBreakdownElement) {
+                    console.warn('🔍 Coverage tooltip elements not found');
+                    return;
+                }
+                
+                // Use the passed values directly - no recalculation
+                const confirmedCount = DataManager.getDataset('confirmedMapping').length;
+                const unconfirmedCount = DataManager.getDataset('unconfirmedAliases').length;
+                const concernCount = DataManager.getDataset('sourceDataConcernAliases').length;
+                
+                // Extract numeric value from percentage string if needed
+                const numericPercentage = typeof coveragePercentage === 'string' ? 
+                    parseFloat(coveragePercentage.replace('%', '')) : coveragePercentage;
+                
+                // Calculate matched count from percentage
+                const matchedCount = Math.round((numericPercentage / 100) * totalAliases);
+                
+                // Update calculation section
+                const calculationText = `${matchedCount} ÷ ${totalAliases} = ${coveragePercentage}`;
+                tooltipCalculationElement.innerHTML = calculationText;
+                
+                // Update breakdown section
+                const breakdownText = `• Total Unique Aliases (across all datasets): ${totalAliases}<br>• Aliases Covered by Confirmed Mappings: ${matchedCount}<br>• Confirmed Mapping Coverage: ${coveragePercentage}`;
+                tooltipBreakdownElement.innerHTML = breakdownText;
+                
+                console.debug('🔍 Updated coverage tooltip with calculation details');
+                
+            } catch (error) {
+                console.error('🔍 Coverage tooltip update failed:', error.message);
+            }
+        }
+        
+        /**
+         * Update the alias breakdown tooltip with detailed count information
+         */
+        function updateAliasTooltip(datasetCounts, totalAliases) {
+            try {
+                const tooltipCalculationElement = document.getElementById('tooltipAliasCalculation');
+                const tooltipBreakdownElement = document.getElementById('tooltipAliasBreakdown');
+                if (!tooltipCalculationElement || !tooltipBreakdownElement) {
+                    console.warn('🔍 Alias tooltip elements not found');
+                    return;
+                }
+                
+                // Get actual dataset counts (not intersection-based)
+                const confirmedData = DataManager.getDataset('confirmedMapping');
+                const unconfirmedData = DataManager.getDataset('unconfirmedAliases');
+                const concernData = DataManager.getDataset('sourceDataConcernAliases');
+                
+                // DataManager.getDataset('confirmedMapping') returns flattened aliases, not mapping structures
+                const actualConfirmedCount = confirmedData.length;
+                const unconfirmedCount = unconfirmedData.length;
+                const concernCount = concernData.length;
+                
+                // Current Calculation section
+                const calculationText = `${actualConfirmedCount} + ${unconfirmedCount} + ${concernCount} = ${totalAliases}`;
+                
+                // Breakdown section  
+                const breakdownText = `• Confirmed Mapping Aliases: ${actualConfirmedCount}<br>• Unconfirmed Aliases: ${unconfirmedCount}<br>• Unconfirmed Aliases - Data Concens : ${concernCount}`;
+                
+                tooltipCalculationElement.innerHTML = calculationText;
+                tooltipBreakdownElement.innerHTML = breakdownText;
+                
+                console.debug('🔍 Updated alias tooltip with breakdown details');
+                
+            } catch (error) {
+                console.error('🔍 Alias tooltip update failed:', error.message);
+            }
+        }
+        
+        /**
+         * Calculate confirmed mapping aliases that are also source data concerns
+         */
+        function calculateConfirmedConcerns() {
+            try {
+                const confirmedAliases = DataManager.getDataset('confirmedMapping');
+                
+                // Count confirmed aliases that have data quality issues
+                let concernCount = 0;
+                const concernDetails = [];
+                
+                confirmedAliases.forEach(alias => {
+                    const concerns = detectSourceDataConcerns(alias);
+                    if (concerns && concerns.length > 0) {
+                        concernCount++;
+                        concernDetails.push({
+                            vendor: alias.vendor,
+                            product: alias.product,
+                            platform: alias.platform,
+                            cpeBaseString: alias.cpeBaseString,
+                            concerns: concerns
+                        });
+                    }
+                });
+                
+                const totalConfirmed = confirmedAliases.length;
+                const percentage = totalConfirmed > 0 ? ((concernCount / totalConfirmed) * 100).toFixed(1) : '0.0';
+                
+                return {
+                    count: concernCount,
+                    total: totalConfirmed,
+                    percentage: percentage,
+                    details: concernDetails
+                };
+                
+            } catch (error) {
+                console.error('🔍 Confirmed concerns calculation failed:', error.message);
+                return { count: 0, total: 0, percentage: '0.0', details: [] };
+            }
+        }
+        
+        /**
+         * Calculate external aliases that are also source data concerns
+         */
+        function calculateExternalConcerns() {
+            try {
+                const unconfirmedAliases = DataManager.getDataset('unconfirmedAliases');
+                const sourceDataConcernAliases = DataManager.getDataset('sourceDataConcernAliases');
+                
+                // Combine both external datasets
+                const allExternalAliases = [...unconfirmedAliases, ...sourceDataConcernAliases];
+                
+                // Count external aliases that have data quality issues
+                let concernCount = 0;
+                const concernDetails = [];
+                
+                allExternalAliases.forEach(alias => {
+                    const concerns = detectSourceDataConcerns(alias);
+                    if (concerns && concerns.length > 0) {
+                        concernCount++;
+                        concernDetails.push({
+                            vendor: alias.vendor,
+                            product: alias.product,
+                            platform: alias.platform,
+                            cpeBaseString: alias.cpeBaseString,
+                            concerns: concerns
+                        });
+                    }
+                });
+                
+                const totalExternal = allExternalAliases.length;
+                const percentage = totalExternal > 0 ? ((concernCount / totalExternal) * 100).toFixed(1) : '0.0';
+                
+                return {
+                    count: concernCount,
+                    total: totalExternal,
+                    percentage: percentage,
+                    details: concernDetails
+                };
+                
+            } catch (error) {
+                console.error('🔍 External concerns calculation failed:', error.message);
+                return { count: 0, total: 0, percentage: '0.0', details: [] };
+            }
+        }
+        
+        /**
+         * Update the concern tooltip with detailed information
+         */
+        function updateConcernTooltip(concernData) {
+            try {
+                const tooltipCalculationElement = document.getElementById('tooltipConcernCalculation');
+                const tooltipBreakdownElement = document.getElementById('tooltipConcernBreakdown');
+                if (!tooltipCalculationElement || !tooltipBreakdownElement) {
+                    console.warn('🔍 Concern tooltip elements not found');
+                    return;
+                }
+                
+                // Update calculation section
+                const calculationText = `${concernData.count} ÷ ${concernData.total} = ${concernData.percentage}%`;
+                tooltipCalculationElement.innerHTML = calculationText;
+                
+                // Update breakdown section
+                const breakdownText = `• Confirmed Mapping Aliases with Data Concerns: ${concernData.count}<br>• Total Confirmed Mapping Aliases: ${concernData.total}<br>• Confirmed Mapping Data Concerns Percentage: ${concernData.percentage}%`;
+                tooltipBreakdownElement.innerHTML = breakdownText;
+                
+                console.debug('🔍 Updated concern tooltip with calculation details');
+                
+            } catch (error) {
+                console.error('🔍 Concern tooltip update failed:', error.message);
+            }
+        }
+        
+        /**
+         * Update the external concern tooltip with detailed information
+         */
+        function updateExternalConcernTooltip(externalConcernData) {
+            try {
+                const tooltipCalculationElement = document.getElementById('tooltipExternalConcernCalculation');
+                const tooltipBreakdownElement = document.getElementById('tooltipExternalConcernBreakdown');
+                if (!tooltipCalculationElement || !tooltipBreakdownElement) {
+                    console.warn('🔍 External concern tooltip elements not found');
+                    return;
+                }
+                
+                // Get dataset counts for detailed breakdown
+                const unconfirmedCount = DataManager.getDataset('unconfirmedAliases').length;
+                const concernAliasesCount = DataManager.getDataset('sourceDataConcernAliases').length;
+                
+                // Update calculation section
+                const calculationText = `${externalConcernData.count} ÷ ${externalConcernData.total} = ${externalConcernData.percentage}%`;
+                tooltipCalculationElement.innerHTML = calculationText;
+                
+                // Update breakdown section with more detail
+                const breakdownText = `• Unconfirmed Aliases with Data Concerns: ${externalConcernData.count}<br>• Total External Aliases: ${externalConcernData.total}<br>&nbsp;&nbsp;- Unconfirmed Aliases: ${unconfirmedCount}<br>&nbsp;&nbsp;- Unconfirmed Aliases - Data Concerns : ${concernAliasesCount}<br>• Unconfirmed Alias - Data Concerns Percentage: ${externalConcernData.percentage}%`;
+                tooltipBreakdownElement.innerHTML = breakdownText;
+                
+                console.debug('🔍 Updated external concern tooltip with calculation details');
+                
+            } catch (error) {
+                console.error('🔍 External concern tooltip update failed:', error.message);
+            }
+        }
+        
+        /**
+         * Update dashboard stats using DataManager data via query functions
+         */
+        function updateStatsFromDataManager() {
+            try {
+                console.debug('🎯 DASHBOARD: Starting statistics update');
+                
+                // Check if DataManager has data
+                const confirmedData = DataManager.getDataset('confirmedMapping');
+                const unconfirmedData = DataManager.getDataset('unconfirmedAliases');
+                const concernData = DataManager.getDataset('sourceDataConcernAliases');
+                
+                console.debug('📊 Dataset sizes:', {
+                    confirmed: confirmedData.length,
+                    unconfirmed: unconfirmedData.length,
+                    concern: concernData.length
+                });
+                
+                // Use query functions to get needed data (force fresh calculation)
+                const totalAliases = DataQueries.getTotalAliasCount();
+                const confirmedMappingCoverage = DataQueries.getConfirmedCoveragePercent();
+                const datasetCounts = DataQueries.getDatasetCounts();
+                
+                console.debug('🔍 Fresh calculation results:', {
+                    totalAliases,
+                    confirmedMappingCoverage,
+                    timestamp: new Date().toISOString()
+                });
+                
+                // Calculate confirmed mapping data concerns
+                const confirmedConcernData = calculateConfirmedConcerns();
+                
+                // Calculate external data concerns
+                const externalConcernData = calculateExternalConcerns();
+                
+                console.debug('📈 Calculated stats:', { 
+                    totalAliases, 
+                    confirmedMappingCoverage, 
+                    confirmedConcerns: confirmedConcernData,
+                    externalConcerns: externalConcernData 
+                });
+                
+                // Update DOM elements
+                const totalAliasesEl = document.getElementById('totalAliases');
+                const confirmedMappingCoverageEl = document.getElementById('confirmedMappingCoverage');
+                const confirmedConcernCountEl = document.getElementById('confirmedConcernCount');
+                const externalConcernCountEl = document.getElementById('externalConcernCount');
+                
+                console.debug('🔍 DOM Elements found:', {
+                    totalAliasesEl: !!totalAliasesEl,
+                    confirmedMappingCoverageEl: !!confirmedMappingCoverageEl,
+                    confirmedConcernCountEl: !!confirmedConcernCountEl,
+                    externalConcernCountEl: !!externalConcernCountEl
+                });
+                
+                if (!totalAliasesEl || !confirmedMappingCoverageEl || !confirmedConcernCountEl || !externalConcernCountEl) {
+                    console.warn('🎯 DASHBOARD: Missing DOM elements for statistics');
+                    return;
+                }
+                
+                // Log current values before update with detailed analysis
+                const currentCoverage = confirmedMappingCoverageEl.textContent;
+                const newCoverage = confirmedMappingCoverage;
+                const coverageChanged = currentCoverage !== newCoverage;
+                
+                console.debug(`🔄 DOM UPDATE BEFORE: Total: "${totalAliasesEl.textContent}", Coverage: "${currentCoverage}"`);
+                console.debug(`🔄 DOM UPDATE PLANNED: Total: "${totalAliases}", Coverage: "${newCoverage}"`);
+                console.debug(`🔄 COVERAGE CHANGE CHECK: "${currentCoverage}" → "${newCoverage}" (Changed: ${coverageChanged})`);
+                
+                totalAliasesEl.textContent = totalAliases;
+                confirmedMappingCoverageEl.textContent = confirmedMappingCoverage;
+                confirmedConcernCountEl.textContent = `${confirmedConcernData.count} (${confirmedConcernData.percentage}%)`;
+                externalConcernCountEl.textContent = `${externalConcernData.count} (${externalConcernData.percentage}%)`;
+                
+                // Log values after update to confirm DOM was actually changed
+                console.debug(`🔄 DOM UPDATE AFTER: Total: "${totalAliasesEl.textContent}", Coverage: "${confirmedMappingCoverageEl.textContent}"`);
+                console.debug(`🔄 DOM UPDATE VERIFICATION: Coverage set to "${confirmedMappingCoverage}" and DOM now shows "${confirmedMappingCoverageEl.textContent}"`);
+                console.debug(`🔄 UPDATE SUMMARY: ${coverageChanged ? 'COVERAGE CHANGED' : 'COVERAGE UNCHANGED'} from "${currentCoverage}" to "${confirmedMappingCoverageEl.textContent}"`);
+                
+                // Update tooltips with detailed calculations
+                updateAliasTooltip(datasetCounts, totalAliases);
+                updateCoverageTooltip(datasetCounts, totalAliases, confirmedMappingCoverage);
+                updateConcernTooltip(confirmedConcernData);
+                updateExternalConcernTooltip(externalConcernData);
+                
+                console.info(`🎯 DASHBOARD: Updated stats - ${totalAliases} aliases, ${confirmedMappingCoverage} coverage`);
+                
+            } catch (error) {
+                console.error('🎯 DASHBOARD ERROR: Statistics update failed:', error.message);
+            }
+        }
+        
+        /**
+         * Initialize charts and UI using query functions
+         */
+        function initializeChartsAndUI() {
+            try {
+                console.debug('🎯 DASHBOARD: Starting charts and UI initialization');
+                
+                // Show main content and hide loading
+                loadingMessage.style.display = 'none';
+                mainContent.style.display = 'block';
+                
+                // Generate charts using query functions
+                const allAliases = DataQueries.getAllAliases();
+                
+                console.debug('📊 Chart data:', { allAliases: allAliases.length });
+                
+                // Initialize filter system
+                initializeFilter();
+                
+                console.info('🎯 DASHBOARD: Charts and UI initialized successfully');
+                
+            } catch (error) {
+                console.error('🎯 DASHBOARD ERROR: Charts/UI initialization failed:', error.message);
+            }
         }
 
         function showError(message) {
@@ -2570,476 +4333,81 @@
             errorMessage.style.display = 'none';
         }
 
-        function displayData(data) {
-            loadingMessage.style.display = 'none';
-            mainContent.style.display = 'block';
-
-            // Calculate statistics
-            const totalProducts = data.aliasGroups.length;
-            const totalAliases = data.aliasGroups.reduce((sum, mapping) => sum + mapping.aliases.length, 0);
-            const metadata = data.metadata || {};
+        // ========== PROCESSING OVERLAY FUNCTIONS ==========
+        
+        function showProcessingOverlay(title = 'Processing Data', message = 'Please wait while we process your request...') {
+            const overlay = document.getElementById('processingOverlay');
+            const titleElement = document.getElementById('processingTitle');
+            const messageElement = document.getElementById('processingMessage');
+            const progressBar = document.getElementById('processingProgressBar');
+            const detailsElement = document.getElementById('processingDetails');
             
-            // Calculate confirmed mapping coverage from confirmedMappings array
-            let confirmedAliasCount = 0;
-            if (data.confirmedMappings) {
-                data.confirmedMappings.forEach(mapping => {
-                    mapping.aliases.forEach(alias => {
-                        // Count aliases that have source CVE data (indicating they have confirmed mappings)
-                        if (alias.source_cve && alias.source_cve.length > 0) {
-                            confirmedAliasCount++;
-                        }
-                    });
-                });
+            if (!overlay) {
+                console.error('Processing overlay element not found!');
+                return;
             }
             
-            const confirmedMappingCoverage = totalAliases > 0 ? 
-                ((confirmedAliasCount / totalAliases) * 100).toFixed(1) + '%' : '0%';
-
-            // Update stats
-            document.getElementById('totalProducts').textContent = totalProducts;
-            document.getElementById('totalAliases').textContent = totalAliases;
-            document.getElementById('confirmedMappingCoverage').textContent = confirmedMappingCoverage;
-
-            // Flatten all aliases and sort by CVE count for simple, effective organization
-            const allAliases = [];
-            const concerningAliases = [];
-            const cleanAliases = [];
+            titleElement.textContent = title;
+            messageElement.textContent = message;
+            progressBar.style.width = '0%';
+            detailsElement.textContent = '';
             
-            data.aliasGroups.forEach(mapping => {
-                mapping.aliases.forEach(alias => {
-                    // Mark as unconfirmed by default (these are from aliasGroups)
-                    const isConfirmedMapping = false;
-                    
-                    // Create optimized search text index for fast filtering
-                    const searchFields = [
-                        alias.alias || '',
-                        alias.product || '',
-                        alias.vendor || '',
-                        alias.version || '',
-                        alias.update || '',
-                        alias.edition || '',
-                        alias.language || ''
-                    ];
-                    const searchText = searchFields.join(' ').toLowerCase();
-                    
-                    const processedAlias = {
-                        ...alias,
-                        cveCount: alias.source_cve.length,
-                        uniqueCveCount: new Set(alias.source_cve).size,
-                        aliasGroup: alias.alias_group || mapping.alias_group || 'Unknown',
-                        isConfirmedMapping: isConfirmedMapping,
-                        _searchText: searchText
-                    };
-                    
-                    // Detect source data concerns
-                    const concerns = detectSourceDataConcerns(alias);
-                    processedAlias.concerns = concerns;
-                    
-                    allAliases.push(processedAlias);
-                    
-                    // Separate concerning from clean aliases
-                    if (concerns.length > 0) {
-                        concerningAliases.push(processedAlias);
-                    } else {
-                        cleanAliases.push(processedAlias);
-                    }
-                });
-            });
-
-            // Add confirmed mappings from the confirmedMappings array
-            if (data.confirmedMappings) {
-                data.confirmedMappings.forEach(confirmedMapping => {
-                    // Process confirmedMapping.cve field for CVE context
-                    const mappingCve = confirmedMapping.cve || '';
-                    
-                    // Process confirmedMapping.platform field for platform data
-                    const mappingPlatform = confirmedMapping.platform || '';
-                    
-                    // Process confirmedMapping.aliases array for alias data
-                    const mappingAliases = confirmedMapping.aliases || [];
-                    
-                    confirmedMapping.aliases.forEach(alias => {
-                        // All entries from confirmedMappings array are confirmed mappings (whether they have CVE data or not)
-                        const isConfirmedMapping = true;
-                        const hasCveData = alias.source_cve && alias.source_cve.length > 0;
-                        
-                        // Create optimized search text index for fast filtering
-                        const searchFields = [
-                            alias.alias || '',
-                            alias.product || '',
-                            alias.vendor || '',
-                            alias.version || '',
-                            alias.update || '',
-                            alias.edition || '',
-                            alias.language || '',
-                            alias.platform || '',
-                            alias.platforms || ''
-                        ];
-                        const searchText = searchFields.join(' ').toLowerCase();
-                        
-                        const processedAlias = {
-                            ...alias,
-                            cveCount: alias.source_cve ? alias.source_cve.length : 0,
-                            uniqueCveCount: alias.source_cve ? new Set(alias.source_cve).size : 0,
-                            aliasGroup: hasCveData ? 'Confirmed_Mapping_WithData' : 'Confirmed_Mapping_NoData',
-                            isConfirmedMapping: isConfirmedMapping,
-                            hasCveData: hasCveData,
-                            cpeBaseString: confirmedMapping.cpebasestring,
-                            frequency: alias.frequency || 0,
-                            _searchText: searchText
-                        };
-                        
-                        // Detect source data concerns
-                        const concerns = detectSourceDataConcerns(alias);
-                        processedAlias.concerns = concerns;
-                        
-                        allAliases.push(processedAlias);
-                        
-                        // Separate concerning from clean aliases
-                        if (concerns.length > 0) {
-                            concerningAliases.push(processedAlias);
-                        } else {
-                            cleanAliases.push(processedAlias);
-                        }
-                    });
-                });
+            overlay.style.display = 'flex';
+            overlay.style.visibility = 'visible';
+        }
+        
+        function updateProcessingProgress(progress, details = '') {
+            const progressBar = document.getElementById('processingProgressBar');
+            const detailsElement = document.getElementById('processingDetails');
+            
+            // Ensure progress is between 0 and 100
+            progress = Math.max(0, Math.min(100, progress));
+            progressBar.style.width = progress + '%';
+            
+            if (details) {
+                detailsElement.textContent = details;
             }
-
-            // Simple sorting by CVE count (highest first), then by product name for grouping
-            const sortAliases = (aliases) => aliases.sort((a, b) => {
-                // Primary sort: CVE count (highest first)
-                if (b.cveCount !== a.cveCount) {
-                    return b.cveCount - a.cveCount;
-                }
-                
-                // Secondary sort: Product name (alphabetical)
-                const productA = (a.product || '').toLowerCase();
-                const productB = (b.product || '').toLowerCase();
-                
-                return productA.localeCompare(productB);
-            });
-
-            const sortedAliases = sortAliases(allAliases);
-            const sortedCleanAliases = sortAliases(cleanAliases);
-            const sortedConcerningAliases = sortAliases(concerningAliases);
-
-            // Display top aliases chart (use clean aliases for the main chart)
-            displayTopAliasesChart(sortedCleanAliases.slice(0, 10));
-
-            // Display alias properties detected
-            displayAliasPropertiesDetected(allAliases);
+        }
+        
+        function hideProcessingOverlay() {
+            const overlay = document.getElementById('processingOverlay');
+            overlay.style.display = 'none';
+        }
+        
+        function showProcessingWithSteps(title, steps, currentStep = 0) {
+            showProcessingOverlay(title, steps[currentStep] || 'Processing...');
             
-            // Display property distribution chart
-            displayPropertyDistributionChart(allAliases);
-
-            // Display clean aliases grouped by frequency
-            allSortedAliases = sortedCleanAliases; // Store for filtering
-            allConcerningAliases = sortedConcerningAliases; // Store concerning aliases for filtering
-            displayAliasesByFrequency(sortedCleanAliases);
-            
-            // Display source data concerns section if there are concerning aliases
-            if (sortedConcerningAliases.length > 0) {
-                displaySourceDataConcerns(sortedConcerningAliases);
+            if (steps.length > 0) {
+                const progress = (currentStep / steps.length) * 100;
+                updateProcessingProgress(progress, `Step ${currentStep + 1} of ${steps.length}`);
             }
-            
-            // Initialize filter after displaying aliases
-            initializeFilter();
         }
 
-        function displayTopAliasesChart(topAliases) {
-            const ctx = document.getElementById('topProductsChart').getContext('2d');
-            
-            if (topProductsChart) {
-                topProductsChart.destroy();
-            }
-
-            const labels = topAliases.map(alias => 
-                [getDisplayValue(alias.vendor), getDisplayValue(alias.product, 'Product')].filter(v => v).join(' ') || 'Placeholder Content'
-            );
-            const data = topAliases.map(alias => alias.cveCount);
-            
-            topProductsChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'CVE Count',
-                        data: data,
-                        backgroundColor: 'rgba(76, 175, 80, 0.8)',
-                        borderColor: 'rgba(46, 125, 50, 1)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Number of CVEs'
-                            }
-                        },
-                        x: {
-                            display: false  // Hide X axis labels
-                        }
-                    },
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: 'Top 10 Aliases by CVE Count'
-                        }
-                    }
-                }
-            });
-        }
-
-        function analyzePropertyDistribution(aliases) {
-            // CVE 5.X schema properties for affected products (excluding versions and defaultStatus)
-            const distribution = {};
-
-            aliases.forEach(alias => {
-                // Identify which properties have meaningful values
-                const presentProperties = [];
-                cve5Properties.forEach(prop => {
-                    if (alias[prop] && 
-                        alias[prop] !== '' && 
-                        alias[prop] !== null && 
-                        alias[prop] !== 'N/A' && 
-                        alias[prop] !== 'n/a' && 
-                        alias[prop] !== undefined) {
-                        
-                        // For arrays, check if they have content
-                        if (Array.isArray(alias[prop])) {
-                            if (alias[prop].length > 0) presentProperties.push(prop);
-                        } else {
-                            presentProperties.push(prop);
-                        }
-                    }
-                });
-
-                // Create a combination key based on the properties present
-                const combinationKey = presentProperties.length > 0 ? 
-                    presentProperties.sort().join(' + ') : 
-                    'no properties';
-                
-                distribution[combinationKey] = (distribution[combinationKey] || 0) + 1;
-            });
-
-            // Sort by frequency (most common combinations first)
-            const sortedEntries = Object.entries(distribution)
-                .sort(([,a], [,b]) => b - a);
-
-            return {
-                labels: sortedEntries.map(([label]) => label),
-                values: sortedEntries.map(([, value]) => value)
-            };
-        }
-
-        function displayPropertyDistributionChart(allAliases) {
-            // Use the placeholder created in the properties analysis
-            let chartContainer = document.getElementById('propertyDistributionChartPlaceholder');
-            if (!chartContainer) {
-                // Fallback: Create a container if placeholder doesn't exist
-                chartContainer = document.createElement('div');
-                chartContainer.id = 'propertyDistributionChartContainer';
-                chartContainer.className = 'chart-container-400';
-                chartContainer.innerHTML = '<canvas id="propertyDistributionChart"></canvas>';
-                
-                // Insert after the top products chart
-                const topProductsContainer = document.getElementById('topProductsChart').parentElement;
-                topProductsContainer.parentElement.insertBefore(chartContainer, topProductsContainer.nextSibling);
-            } else {
-                // Update the placeholder with the actual chart
-                chartContainer.innerHTML = '<canvas id="propertyDistributionChart" style="max-height: 100%;"></canvas>';
-            }
-
-            const ctx = document.getElementById('propertyDistributionChart').getContext('2d');
-            
-            if (propertyDistributionChart && typeof propertyDistributionChart.destroy === 'function') {
-                propertyDistributionChart.destroy();
-            }
-
-            const { labels, values } = analyzePropertyDistribution(allAliases);
-            
-            propertyDistributionChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        data: values,
-                        backgroundColor: [
-                            '#4CAF50', '#66BB6A', '#81C784', '#A5D6A7', 
-                            '#C8E6C9', '#E8F5E8', '#F1F8E9', '#F9FBE7'
-                        ],
-                        borderColor: '#2E7D32',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: 'Property Combination Distribution'
-                        },
-                        legend: {
-                            position: 'right'
-                        }
-                    }
-                }
-            });
-        }
-
-        function displayAliasPropertiesDetected(allAliases) {
-            const container = document.getElementById('topProductsList');
-            container.innerHTML = '';
-
-            // CVE 5.X schema properties for affected products (excluding versions and defaultStatus)
-            // Track both individual properties and property combinations
-            const propertyStats = {};
-            const combinationStats = {};
-
-            // Comprehensive placeholder patterns (from sourceDataConcern system)
-            allAliases.forEach((alias, index) => {
-                const presentProperties = [];
-                
-                cve5Properties.forEach(prop => {
-                    if (!propertyStats[prop]) {
-                        propertyStats[prop] = 0;
-                    }
-                    
-                    // Only count if property has a meaningful value (not placeholder data)
-                    if (alias[prop] && !isPlaceholderValue(alias[prop])) {
-                        // For arrays, check if they have content and non-placeholder values
-                        if (Array.isArray(alias[prop])) {
-                            const meaningfulValues = alias[prop].filter(item => !isPlaceholderValue(item));
-                            if (meaningfulValues.length > 0) {
-                                propertyStats[prop]++;
-                                presentProperties.push(prop);
-                            }
-                        } else {
-                            propertyStats[prop]++;
-                            presentProperties.push(prop);
-                        }
-                    }
-                });
-
-                // Track combinations
-                if (presentProperties.length > 0) {
-                    const combinationKey = presentProperties.sort().join(' + ');
-                    combinationStats[combinationKey] = (combinationStats[combinationKey] || 0) + 1;
-                }
-            });
-
-            // Sort properties by frequency
-            const sortedProperties = Object.entries(propertyStats)
-                .sort(([,a], [,b]) => b - a)
-                .filter(([,count]) => count > 0);
-
-            // Sort combinations by frequency
-            const sortedCombinations = Object.entries(combinationStats)
-                .sort(([,a], [,b]) => b - a);
-
-            // Create responsive layout container
-            const responsiveContainer = document.createElement('div');
-            responsiveContainer.className = 'responsive-grid';
-
-            // Create chart column (left side)
-            const chartColumn = document.createElement('div');
-            chartColumn.className = 'chart-column';
-
-            // Create data column (right side)
-            const dataColumn = document.createElement('div');
-            dataColumn.className = 'data-column';
-
-            // Individual Properties Section
-            const individualSection = document.createElement('div');
-            individualSection.innerHTML = '<h6 class="stats-label mb-10">Individual Property Frequency</h6>';
-            
-            const propertiesList = document.createElement('div');
-            propertiesList.className = 'white-card-300 green-border-left';
-            
-            const propertyItems = sortedProperties.map(([property, count]) => {
-                const percentage = ((count / allAliases.length) * 100).toFixed(1);
-                return `<div class="stats-item">
-                    <span class="stats-label">${property}</span>
-                    <span class="color-666">${count} (${percentage}%)</span>
-                </div>`;
-            }).join('');
-            
-            propertiesList.innerHTML = propertyItems;
-            individualSection.appendChild(propertiesList);
-
-            // Property Combinations Section
-            const combinationsSection = document.createElement('div');
-            combinationsSection.innerHTML = '<h6 style="color: #2E7D32; margin-bottom: 10px;">Property Combinations Found</h6>';
-            
-            const combinationsList = document.createElement('div');
-            combinationsList.className = 'white-card-300 green-border-left-light';
-            
-            const combinationItems = sortedCombinations.map(([combination, count]) => {
-                const percentage = ((count / allAliases.length) * 100).toFixed(1);
-                return `<div class="stats-item-alt">
-                    <span class="stats-label text-sm">${combination}</span>
-                    <span class="color-666">${count} (${percentage}%)</span>
-                </div>`;
-            }).join('');
-            
-            combinationsList.innerHTML = combinationItems;
-            combinationsSection.appendChild(combinationsList);
-
-            // Create container for doughnut chart that will be added later
-            const chartPlaceholder = document.createElement('div');
-            chartPlaceholder.id = 'propertyDistributionChartPlaceholder';
-            chartPlaceholder.className = 'white-card green-border-left-dark chart-placeholder';
-            chartPlaceholder.innerHTML = '<p style="color: #666; text-align: center;">Property Distribution Chart will appear here</p>';
-
-            // Add sections to columns
-            chartColumn.appendChild(chartPlaceholder);
-            dataColumn.appendChild(individualSection);
-            dataColumn.appendChild(combinationsSection);
-
-            // Add columns to responsive container
-            responsiveContainer.appendChild(chartColumn);
-            responsiveContainer.appendChild(dataColumn);
-
-            // Add responsive container to main container
-            container.appendChild(responsiveContainer);
-
-            // Add responsive styles for smaller screens
-            const mediaQuery = document.createElement('style');
-            mediaQuery.textContent = `
-                @media (max-width: 768px) {
-                    #topProductsList > div:last-child {
-                        grid-template-columns: 1fr !important;
-                    }
-                    #topProductsList > div:last-child > div {
-                        margin-bottom: 20px;
-                    }
-                }
-            `;
-            document.head.appendChild(mediaQuery);
-        }
 
         function displayAliasesByFrequency(sortedAliases) {
             const container = document.getElementById('aliasGroups');
             container.innerHTML = '';
 
-            // Store current alias data for selection functionality
-            storeCurrentAliasData(sortedAliases);
+            // Filter out any invalid or corrupted aliases before storing
+            const validAliases = sortedAliases.filter(alias => {
+                // An alias must have at least an ID and some identifying information
+                return alias && 
+                       alias.id && 
+                       (alias.vendor || alias.product || alias.alias || alias.packageName);
+            });
 
-            if (sortedAliases.length === 0) {
+            // Store current alias data for selection functionality
+            storeCurrentAliasData(validAliases);
+
+            if (validAliases.length === 0) {
                 container.innerHTML = '<div class="no-data">No alias data available</div>';
                 return;
             }
 
             // Separate confirmed mappings from other aliases
-            const confirmedMappings = sortedAliases.filter(alias => 
+            const confirmedMappings = validAliases.filter(alias => 
                 alias.isConfirmedMapping === true);
-            const otherAliases = sortedAliases.filter(alias => 
+            const otherAliases = validAliases.filter(alias => 
                 alias.isConfirmedMapping !== true);
 
             // Create sections - confirmed mappings first (grouped by CPE), then consolidated others
@@ -3048,13 +4416,26 @@
             if (confirmedMappings.length > 0) {
                 // Group confirmed mappings by CPE base string
                 const cpeGroups = {};
-                confirmedMappings.forEach(alias => {
-                    const cpeKey = alias.cpeBaseString || alias.cpe_base_string || alias.cpebasestring || 'unknown';
+                console.log(`Processing ${confirmedMappings.length} confirmed mappings for display grouping`);
+                confirmedMappings.forEach((alias, index) => {
+                    console.log(`Confirmed mapping ${index + 1}:`, {
+                        vendor: alias.vendor,
+                        product: alias.product,
+                        cpeBaseString: alias.cpeBaseString,
+                        hasProperty: !!alias.cpeBaseString
+                    });
+                    if (!alias.cpeBaseString) {
+                        console.warn(`Confirmed mapping alias missing cpeBaseString, skipping:`, alias);
+                        return; // Skip this alias instead of throwing error
+                    }
+                    const cpeKey = alias.cpeBaseString;
                     if (!cpeGroups[cpeKey]) {
                         cpeGroups[cpeKey] = [];
                     }
                     cpeGroups[cpeKey].push(alias);
                 });
+                
+                console.log(`Created ${Object.keys(cpeGroups).length} CPE groups:`, Object.keys(cpeGroups));
                 
                 // Add a single parent section for all confirmed mappings
                 sections.push({
@@ -3232,7 +4613,7 @@
                                     item.vendor === alias.vendor && 
                                     item.product === alias.product && 
                                     item.frequency === alias.frequency &&
-                                    item.platforms === alias.platforms &&
+                                    item.platform === alias.platform &&
                                     item.version === alias.version &&
                                     item.update === alias.update &&
                                     item.edition === alias.edition &&
@@ -3263,16 +4644,16 @@
                             // Create comprehensive alias summary using the same logic
                             const aliasProps = [];
                             
-                            // Core properties - only show if they exist
-                            if (alias.vendor) {
-                                aliasProps.push(`<strong>Vendor:</strong> ${alias.vendor}`);
-                            }
-                            if (alias.product) {
-                                aliasProps.push(`<strong>Product:</strong> ${alias.product}`);
-                            }
-                            if (alias.platform || alias.platforms) {
-                                aliasProps.push(`<strong>Platform:</strong> ${alias.platform || alias.platforms}`);
-                            }
+                    // Core properties - only show if they exist and are not placeholders
+                    if (alias.vendor && alias.vendor !== '' && alias.vendor !== 'N/A' && alias.vendor !== 'n/a' && alias.vendor !== 'unknown') {
+                        aliasProps.push(`<strong>Vendor:</strong> ${alias.vendor}`);
+                    }
+                    if (alias.product && alias.product !== '' && alias.product !== 'N/A' && alias.product !== 'n/a' && alias.product !== 'unknown') {
+                        aliasProps.push(`<strong>Product:</strong> ${alias.product}`);
+                    }
+                    if (alias.platform && alias.platform !== '' && alias.platform !== 'N/A' && alias.platform !== 'n/a' && alias.platform !== 'unknown' && alias.platform !== '*') {
+                        aliasProps.push(`<strong>Platform:</strong> ${alias.platform}`);
+                    }
                             
                             // Additional CVE 5.X properties that might be present
                             const additionalFields = ['collectionURL', 'packageName', 'programRoutines', 
@@ -3401,7 +4782,7 @@
                             item.vendor === alias.vendor && 
                             item.product === alias.product && 
                             item.frequency === alias.frequency &&
-                            item.platforms === alias.platforms &&
+                            item.platform === alias.platform &&
                             item.version === alias.version &&
                             item.update === alias.update &&
                             item.edition === alias.edition &&
@@ -3439,15 +4820,15 @@
                     }
                     // Note: Removed frequency-based priority and group display as requested
                     
-                    // Core properties - only show if they exist
-                    if (alias.vendor) {
+                    // Core properties - only show if they exist and are not placeholders
+                    if (alias.vendor && alias.vendor !== '' && alias.vendor !== 'N/A' && alias.vendor !== 'n/a' && alias.vendor !== 'unknown') {
                         aliasProps.push(`<strong>Vendor:</strong> ${alias.vendor}`);
                     }
-                    if (alias.product) {
+                    if (alias.product && alias.product !== '' && alias.product !== 'N/A' && alias.product !== 'n/a' && alias.product !== 'unknown') {
                         aliasProps.push(`<strong>Product:</strong> ${alias.product}`);
                     }
-                    if (alias.platform || alias.platforms) {
-                        aliasProps.push(`<strong>Platform:</strong> ${alias.platform || alias.platforms}`);
+                    if (alias.platform && alias.platform !== '' && alias.platform !== 'N/A' && alias.platform !== 'n/a' && alias.platform !== 'unknown' && alias.platform !== '*') {
+                        aliasProps.push(`<strong>Platform:</strong> ${alias.platform}`);
                     }
                     
                     // Additional CVE 5.X properties that might be present
@@ -3490,7 +4871,7 @@
                             <div class="flex-between gap-10">
                                 <div class="flex-start">
                                     ${!isConfirmed ? `<input type="checkbox" class="alias-selection-checkbox" 
-                                           onchange="toggleAliasSelection(this, ${globalIndex})" 
+                                           onchange="toggleAliasSelection(this, ${alias.id}, '${alias.aliasGroup}', 'unconfirmedAliases')" 
                                            onclick="event.stopPropagation()"
                                            class="mt-2">` : ''}
                                     <div class="flex-1">
@@ -3587,8 +4968,8 @@
             sectionHeader.innerHTML = `
                 <div class="section-header-flex">
                     <div style="text-align: left; flex: 1;">
-                        <span style="font-weight: 600;">Source Data Concerns (${concerningAliases.length} aliases)</span>
-                        <div style="font-size: 0.8em; opacity: 0.9; margin-top: 1px;">Aliases requiring upstream data contributor attention</div>
+                        <span style="font-weight: 600;">Unconfirmed Aliases - Data Concerns (${concerningAliases.length} aliases)</span>
+                        <div style="font-size: 0.8em; opacity: 0.9; margin-top: 1px;">Aliases that likely require upstream data contributor attention</div>
                     </div>
                     <span id="${toggleId}-toggle" class="collapsible-toggle" style="font-size: 1.1em; flex-shrink: 0;">▼</span>
                 </div>
@@ -3641,7 +5022,7 @@
                         <div class="section-header-flex-start">
                             <div style="display: flex; align-items: flex-start; gap: 8px;">
                                 <input type="checkbox" class="alias-selection-checkbox" 
-                                       onchange="toggleAliasSelection(this, '${concernGlobalIndex}')" 
+                                       onchange="toggleAliasSelection(this, ${alias.id}, '${alias.aliasGroup}', 'sourceDataConcernAliases')" 
                                        onclick="event.stopPropagation()"
                                        style="margin-top: 2px;"
                                        data-alias-data='${JSON.stringify(alias).replace(/'/g, "&apos;")}'>
@@ -3654,7 +5035,7 @@
                                     <div style="font-size: 0.85em; line-height: 1.3;">
                                         ${!isPlaceholderValue(alias.vendor) ? `<strong>Vendor:</strong> ${alias.vendor}<br>` : ''}
                                         ${!isPlaceholderValue(alias.product) ? `<strong>Product:</strong> ${alias.product}<br>` : ''}
-                                        ${!isPlaceholderValue(alias.platforms) ? `<strong>Platform:</strong> ${alias.platforms}<br>` : ''}
+                                        ${!isPlaceholderValue(alias.platform) ? `<strong>Platform:</strong> ${alias.platform}<br>` : ''}
                                     </div>
                                 </div>
                             </div>
@@ -3864,14 +5245,18 @@
             });
         }
 
-        function toggleAliasSelection(checkbox, aliasIndex) {
+        function toggleAliasSelection(checkbox, aliasId, aliasGroup, sourceDataset) {
             // Stop event propagation to prevent row expansion
             event.stopPropagation();
             
+            const selectionKey = `${aliasId}:${sourceDataset}`;
+            
             if (checkbox.checked) {
-                selectedAliases.add(aliasIndex);
+                // Store the ID and source dataset for efficient lookup
+                selectedAliases.add(selectionKey);
             } else {
-                selectedAliases.delete(aliasIndex);
+                // Remove the selection
+                selectedAliases.delete(selectionKey);
             }
             updateSelectionPanel();
             
@@ -3898,25 +5283,41 @@
             
             // Update selection list
             listDiv.innerHTML = '';
-            selectedAliases.forEach(index => {
-                if (currentAliasData && currentAliasData[index]) {
-                    const alias = currentAliasData[index];
-                    const aliasTitle = alias.vendor && alias.product ? 
+            selectedAliases.forEach(selectionKey => {
+                // Parse the selection key: "id:sourceDataset"
+                const [aliasId, sourceDataset] = selectionKey.split(':');
+                const numericId = parseInt(aliasId);
+                
+                // Find the alias using ID in the specified dataset
+                let alias = null;
+                let aliasTitle = '';
+                
+                if (DataManager.datasets[sourceDataset]) {
+                    alias = DataManager.datasets[sourceDataset].find(item => item.id === numericId);
+                }
+                
+                if (alias) {
+                    aliasTitle = alias.vendor && alias.product ? 
                         `${alias.vendor} ${alias.product}` :
                         alias.product || alias.vendor || 
                         alias.packageName || alias.programFiles || 
-                        `Alias ${index + 1}`;
-                    
-                    const item = document.createElement('div');
-                    item.className = 'selection-item';
-                    item.innerHTML = `
-                        <span>${aliasTitle}</span>
-                    `;
-                    listDiv.appendChild(item);
+                        alias.aliasGroup || 'Unknown Alias';
+                } else {
+                    aliasTitle = `Unknown Alias (ID: ${aliasId})`;
                 }
+                
+                const item = document.createElement('div');
+                item.className = 'selection-item';
+                item.innerHTML = `
+                    <span>${aliasTitle}</span>
+                `;
+                listDiv.appendChild(item);
             });
 
             consolidateBtn.disabled = selectedAliases.size < 1;
+            
+            // Update modal button state when selection changes
+            updateModalButtonState();
         }
 
         function consolidateAliases() {
@@ -3925,10 +5326,21 @@
                 return;
             }
 
-            // Collect all selected aliases
-            const aliasesToConsolidate = Array.from(selectedAliases).map(index => 
-                currentAliasData[index]
-            ).filter(alias => alias);
+            // Collect all selected aliases using ID and source dataset
+            const aliasesToConsolidate = Array.from(selectedAliases).map(selectionKey => {
+                // Parse the selection key: "id:sourceDataset"
+                const [aliasId, sourceDataset] = selectionKey.split(':');
+                const numericId = parseInt(aliasId);
+                
+                // Find the alias using ID in the specified dataset
+                let alias = null;
+                
+                if (DataManager.datasets[sourceDataset]) {
+                    alias = DataManager.datasets[sourceDataset].find(item => item.id === numericId);
+                }
+                
+                return alias;
+            }).filter(alias => alias);
 
             // Store the raw consolidated data
             currentConsolidatedData = [];
@@ -3950,11 +5362,11 @@
                 });
 
                 // Handle special properties - only include if they exist, convert arrays to strings
-                if (!isPlaceholderValue(alias.platforms)) {
-                    if (Array.isArray(alias.platforms)) {
-                        aliasEntry.platform = alias.platforms[0]; // Take first platform
+                if (!isPlaceholderValue(alias.platform)) {
+                    if (Array.isArray(alias.platform)) {
+                        aliasEntry.platform = alias.platform[0]; // Take first platform
                     } else {
-                        aliasEntry.platform = alias.platforms;
+                        aliasEntry.platform = alias.platform;
                     }
                 }
                 
@@ -4020,6 +5432,9 @@
             updateConsolidatedOutput();
             document.getElementById('outputModal').style.display = 'flex';
             
+            // Initialize button state
+            updateModalButtonState();
+            
             // Initialize draggable functionality
             makeDraggable();
         }
@@ -4028,26 +5443,25 @@
             const select = document.getElementById('existingCpeSelect');
             select.innerHTML = '<option value="">Or select from existing CPE strings...</option>';
 
-            // Use the global window.currentData which should have the original loaded data
-            const dataToUse = window.currentData || currentData;
-            
-            // Check for confirmed mappings data
-            if (!dataToUse || !dataToUse.confirmedMappings) {
+            // Use DataManager's confirmed mapping dataset
+            if (!DataManager || !DataManager.datasets || !DataManager.datasets.confirmedMapping) {
                 return;
             }
 
             const existingCpeStrings = new Set();
 
             // Collect all existing CPE base strings from confirmed mappings
-            dataToUse.confirmedMappings.forEach(mapping => {
-                // Handle both cpeBaseString and cpebasestring (case variations)
-                const cpeString = mapping.cpeBaseString || mapping.cpebasestring;
-                if (cpeString) {
-                    existingCpeStrings.add(cpeString);
+            DataManager.datasets.confirmedMapping.forEach(mapping => {
+                // Support both property name formats for compatibility
+                const cpeString = mapping.cpeBaseString || mapping.cpe_base_string;
+                if (!cpeString) {
+                    console.warn('Missing CPE base string in confirmed mapping:', mapping);
+                    return;
                 }
+                existingCpeStrings.add(cpeString);
             });
 
-            // Add options to dropdown
+            // Add options to dropdown, sorted alphabetically
             Array.from(existingCpeStrings).sort().forEach(cpeString => {
                 const option = document.createElement('option');
                 option.value = cpeString;
@@ -4084,9 +5498,9 @@
                 // Combine existing aliases with new ones
                 const allAliases = [...existingAliases, ...currentConsolidatedData];
                 
-                // Include cpebasestring in the structure
+                // Include cpeBaseString in the structure
                 outputData = {
-                    "cpebasestring": finalCpe,
+                    "cpeBaseString": finalCpe,
                     "aliases": allAliases
                 };
             } else {
@@ -4110,13 +5524,17 @@
         }
 
         function getExistingAliasesForCpe(cpeBaseString) {
-            if (!currentData || !currentData.aliasGroups) return [];
+            // Modal now only operates on confirmed mappings with CPE strings
+            if (!DataManager.confirmedMapping) return [];
 
             const existingAliases = [];
 
-            currentData.aliasGroups.forEach(mapping => {
-                // Check if this mapping has the matching CPE base string
-                if (mapping.cpe_base_string === cpeBaseString) {
+            DataManager.confirmedMapping.forEach(alias => {
+                // Check if this alias has the matching CPE base string
+                if (!alias.cpeBaseString) {
+                    throw new Error(`Missing required cpeBaseString in confirmed mapping alias: ${JSON.stringify(alias)}`);
+                }
+                if (alias.cpeBaseString === cpeBaseString) {
                     if (mapping.aliases) {
                         // Add all aliases from this mapping
                         mapping.aliases.forEach(alias => {
@@ -4134,11 +5552,11 @@
                             });
 
                             // Handle special properties
-                            if (alias.platforms && alias.platforms !== '' && alias.platforms !== 'unknown' && alias.platforms !== 'n/a') {
-                                if (Array.isArray(alias.platforms)) {
-                                    cleanAlias.platform = alias.platforms[0];
+                            if (alias.platform && alias.platform !== '' && alias.platform !== 'unknown' && alias.platform !== 'n/a') {
+                                if (Array.isArray(alias.platform)) {
+                                    cleanAlias.platform = alias.platform[0];
                                 } else {
-                                    cleanAlias.platform = alias.platforms;
+                                    cleanAlias.platform = alias.platform;
                                 }
                             }
                             
@@ -4159,9 +5577,12 @@
                     }
                 }
                 
-                // Also check individual aliases with cpe_base_string
+                // Also check individual aliases with cpeBaseString
                 if (mapping.aliases) {
                     mapping.aliases.forEach(alias => {
+                        if (!alias.cpe_base_string) {
+                            throw new Error(`Missing required cpe_base_string in alias: ${JSON.stringify(alias)}`);
+                        }
                         if (alias.cpe_base_string === cpeBaseString) {
                             const cleanAlias = {};
                             
@@ -4175,11 +5596,11 @@
                                 }
                             });
 
-                            if (alias.platforms && alias.platforms !== '' && alias.platforms !== 'unknown' && alias.platforms !== 'n/a') {
-                                if (Array.isArray(alias.platforms)) {
-                                    cleanAlias.platform = alias.platforms[0];
+                            if (alias.platform && alias.platform !== '' && alias.platform !== 'unknown' && alias.platform !== 'n/a') {
+                                if (Array.isArray(alias.platform)) {
+                                    cleanAlias.platform = alias.platform[0];
                                 } else {
-                                    cleanAlias.platform = alias.platforms;
+                                    cleanAlias.platform = alias.platform;
                                 }
                             }
 
@@ -4209,33 +5630,183 @@
             currentConsolidatedData = null;
         }
 
-        function copyToClipboard() {
-            const content = document.getElementById('outputContent').textContent;
-            const copyBtn = document.getElementById('outputModal').querySelector('.modal-btn-primary');
-            const originalText = copyBtn.textContent;
-            
-            navigator.clipboard.writeText(content).then(() => {
-                // Visual feedback instead of alert
-                copyBtn.textContent = '✓ Copied!';
-                copyBtn.style.background = '#4CAF50';
+        function updateConfirmedMappings() {
+            try {
+                // Get the CPE base string from input
+                const cpeInput = document.getElementById('cpeBaseString');
+                let cpeBaseString = cpeInput.value.trim();
                 
-                // Reset after 2 seconds
-                setTimeout(() => {
-                    copyBtn.textContent = originalText;
-                    copyBtn.style.background = '';
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy: ', err);
-                // Error feedback
-                copyBtn.textContent = '✗ Copy Failed';
-                copyBtn.style.background = '#ff4444';
+                // Normalize the CPE string
+                cpeBaseString = normalizeCpeString(cpeBaseString);
                 
-                // Reset after 2 seconds
+                // Double-check validation (should already be valid due to button state)
+                const validation = validateCpeString(cpeBaseString);
+                if (!validation.valid) {
+                    console.error('Button should be disabled for invalid CPE:', validation);
+                    return; // Exit silently since button should be disabled
+                }
+                
+                // Double-check aliases selection (should already have aliases due to button state)
+                if (selectedAliases.size === 0) {
+                    console.error('Button should be disabled when no aliases selected');
+                    return; // Exit silently since button should be disabled
+                }
+                
+                const updateBtn = document.getElementById('outputModal').querySelector('.modal-btn-primary');
+                const originalText = updateBtn.textContent;
+                
+                // Show processing overlay
+                showProcessingOverlay(
+                    'Updating Confirmed Mappings',
+                    `Processing ${selectedAliases.size} selected aliases...`
+                );
+                
+                // Also update button state
+                updateBtn.textContent = 'Processing...';
+                updateBtn.disabled = true;
+                
+                // Use setTimeout to allow overlay to render, then process asynchronously
+                setTimeout(async () => {
+                    await processSelectedAliasesAsync(cpeBaseString, updateBtn, originalText);
+                }, 100);
+                
+            } catch (error) {
+                console.error('updateConfirmedMappings failed:', error);
+                
+                // Hide processing overlay
+                hideProcessingOverlay();
+                
+                const updateBtn = document.getElementById('outputModal').querySelector('.modal-btn-primary');
+                
+                // Show error feedback
+                updateBtn.textContent = '✗ Update Failed';
+                updateBtn.style.background = '#ff4444';
+                
+                // Reset after 3 seconds
                 setTimeout(() => {
-                    copyBtn.textContent = originalText;
-                    copyBtn.style.background = '';
-                }, 2000);
-            });
+                    updateBtn.textContent = 'Update Confirmed Mappings';
+                    updateBtn.style.background = '';
+                    updateBtn.disabled = false;
+                }, 3000);
+                
+                // Show error to user
+                alert(`Update failed: ${error.message}`);
+            }
+        }
+
+        // Async processing function that yields to UI thread
+        async function processSelectedAliasesAsync(cpeBaseString, updateBtn, originalText) {
+            try {
+                let successCount = 0;
+                let errorCount = 0;
+                const errors = [];
+                
+                console.log(`Processing ${selectedAliases.size} selected aliases for CPE: ${cpeBaseString}`);
+                console.log('Selected aliases:', Array.from(selectedAliases));
+                
+                const aliasArray = Array.from(selectedAliases);
+                
+                for (let i = 0; i < aliasArray.length; i++) {
+                    const selectionKey = aliasArray[i];
+                    
+                    // Parse the selection key: "id:sourceDataset"
+                    const [aliasId, sourceDataset] = selectionKey.split(':');
+                    const numericId = parseInt(aliasId);
+                    
+                    console.log(`Processing alias ${numericId} from ${sourceDataset} (attempt ${i + 1}/${aliasArray.length})`);
+                    
+                    // Update progress
+                    const currentProgress = (i / aliasArray.length) * 100;
+                    updateProcessingProgress(
+                        currentProgress,
+                        `Processing alias ${i + 1} of ${aliasArray.length}`
+                    );
+                    
+                    // Use DataManager helper function to move the alias
+                    const result = DataManager.mergeWithConfirmed(numericId, sourceDataset, cpeBaseString);
+                    
+                    if (result.success) {
+                        successCount++;
+                        console.log(`✓ Successfully processed alias ${numericId} (${successCount}/${aliasArray.length})`);
+                    } else {
+                        errorCount++;
+                        errors.push(`ID ${aliasId}: ${result.error}`);
+                        console.error(`✗ Failed to process alias ${numericId}: ${result.error}`);
+                    }
+                    
+                    // Yield control back to UI thread after each alias
+                    if (i < aliasArray.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                }
+                
+                // Update to 100% complete
+                updateProcessingProgress(100, `Completed: ${successCount} successful, ${errorCount} errors`);
+                
+                console.log(`Final processing results: ${successCount} successful, ${errorCount} errors`);
+                console.log('Processing summary:', { 
+                    totalSelected: aliasArray.length, 
+                    successful: successCount, 
+                    errors: errorCount,
+                    errorDetails: errors 
+                });
+                
+                // Show results
+                if (errorCount === 0) {
+                    updateBtn.textContent = `✓ Updated ${successCount} aliases!`;
+                    updateBtn.style.background = '#4CAF50';
+                    
+                    // Update overlay message for refresh phase
+                    const messageElement = document.getElementById('processingMessage');
+                    messageElement.textContent = 'Refreshing display and updating statistics...';
+                    
+                    // Yield before refresh to show message update
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    // Refresh the display and stats to show updated data
+                    updateStatsFromDataManager();
+                    const displayResult = updateDatasetDisplay(['confirmedMapping', 'unconfirmedAliases', 'sourceDataConcernAliases']);
+                    if (!displayResult.success) {
+                        console.warn(`Display refresh failed: ${displayResult.error}`);
+                    }
+                    
+                    // Hide overlay and clean up after short delay
+                    setTimeout(() => {
+                        hideProcessingOverlay();
+                        selectedAliases.clear();
+                        updateSelectionPanel();
+                        closeOutputModal();
+                        updateBtn.textContent = originalText;
+                        updateBtn.style.background = '';
+                        updateBtn.disabled = false;
+                    }, 1500);
+                } else {
+                    hideProcessingOverlay();
+                    throw new Error(`${errorCount} errors occurred: ${errors.join('; ')}`);
+                }
+                
+            } catch (error) {
+                console.error('processSelectedAliasesAsync failed:', error);
+                
+                // Hide processing overlay
+                hideProcessingOverlay();
+                
+                // Show error feedback
+                updateBtn.textContent = '✗ Update Failed';
+                updateBtn.style.background = '#ff4444';
+                
+                // Reset after 3 seconds
+                setTimeout(() => {
+                    updateBtn.textContent = 'Update Confirmed Mappings';
+                    updateBtn.style.background = '';
+                    updateBtn.disabled = false;
+                    // Re-validate button state
+                    updateModalButtonState();
+                }, 3000);
+                
+                // Log error instead of showing alert
+                console.error(`Update failed: ${error.message}`);
+            }
         }
 
         // Store alias data when displaying
@@ -4286,7 +5857,7 @@
         <h4>Selected Aliases (<span id="selectionCount">0</span>)</h4>
         <div class="selection-list" id="selectionList"></div>
         <button class="consolidate-btn" id="consolidateBtn" onclick="consolidateAliases()">
-            Generate Consolidated Mapping
+            Update Confirmed Mappings
         </button>
     </div>
 
@@ -4294,7 +5865,7 @@
     <div class="output-modal" id="outputModal">
         <div class="output-modal-content white-card" id="modalContent">
             <div class="modal-header" id="modalHeader">
-                <h3>Consolidated Mapping Output</h3>
+                <h3>Update Confirmed Mappings</h3>
             </div>
             <div style="margin-bottom: 16px;">
                 <label for="cpeBaseString" style="display: block; margin-bottom: 4px; font-weight: 500;">CPE Base String:</label>
@@ -4321,10 +5892,24 @@
             </div>
             <pre id="outputContent" class="code-output"></pre>
             <div class="modal-actions">
-                <button class="modal-btn modal-btn-primary" onclick="copyToClipboard()">Copy to Clipboard</button>
+                <button class="modal-btn modal-btn-primary" onclick="updateConfirmedMappings()">Update Confirmed Mappings</button>
                 <button class="modal-btn modal-btn-secondary" onclick="closeOutputModal()">Close</button>
             </div>
         </div>
     </div>
+
+    <!-- Processing Overlay (positioned at body level for maximum z-index effectiveness) -->
+    <div id="processingOverlay" class="processing-overlay">
+        <div class="processing-card">
+            <div class="processing-spinner"></div>
+            <div id="processingTitle" class="processing-title">Processing Data</div>
+            <div id="processingMessage" class="processing-message">Please wait while we process your request...</div>
+            <div class="processing-progress">
+                <div id="processingProgressBar" class="processing-progress-bar" style="width: 0%;"></div>
+            </div>
+            <div id="processingDetails" class="processing-details"></div>
+        </div>
+    </div>
+
 </body>
 </html>

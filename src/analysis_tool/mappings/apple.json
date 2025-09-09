@@ -2,6 +2,87 @@
     "cnaId": "286789f9-fbc2-4510-9f9a-43facdede74c",
     "confirmedMappings": [
         {
+            "cpeBaseString": "cpe:2.3:o:apple:macos:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "macOS"
+                },
+                {
+                    "product": "macOS"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "Security Update - Catalina"
+                },
+                {
+                    "product": "macOS High Sierra"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "Security Update - Mojave"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:apple:ipados:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "iOS and iPadOS"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "iPadOS"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "iOS iOS and iPadOS"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "iOSandiPadOS"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:apple:iphone_os:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "iOS and iPadOS"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "iOS"
+                },
+                {
+                    "product": "iOS"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "iOS-1"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "iOSandiPadOS"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:apple:watchos:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "watchOS"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "watchOS-1"
+                }
+            ]
+        },
+        {
             "cpeBaseString": "cpe:2.3:o:apple:tvos:*:*:*:*:*:*:*:* ",
             "aliases": [
                 {
@@ -11,45 +92,18 @@
             ]
         },
         {
-            "cpeBaseString": "cpe:2.3:o:apple:macos:*:*:*:*:*:*:*:*",
+            "cpeBaseString": "cpe:2.3:a:apple:safari:*:*:*:*:*:*:*:*",
             "aliases": [
                 {
                     "vendor": "Apple",
-                    "product": "macOS"
-                }
-            ]
-        },
-        {
-            "cpeBaseString": "cpe:2.3:o:apple:ipados:*:*:*:*:*:*:*:*",
-            "aliases": [
+                    "product": "Safari"
+                },
                 {
-                    "vendor": "Apple",
-                    "product": "iPadOS"
+                    "product": "Safari"
                 },
                 {
                     "vendor": "Apple",
-                    "product": "iOSandiPadOS"
-                },
-                {
-                    "vendor": "Apple",
-                    "product": "iOS and iPadOS"
-                }
-            ]
-        },
-        {
-            "cpeBaseString": "cpe:2.3:o:apple:iphone_os:*:*:*:*:*:*:*:*",
-            "aliases": [
-                {
-                    "vendor": "Apple",
-                    "product": "iOS"
-                },
-                {
-                    "vendor": "Apple",
-                    "product": "iOSandiPadOS"
-                },
-                {
-                    "vendor": "Apple",
-                    "product": "iOS and iPadOS"
+                    "product": "Safari (v and )"
                 }
             ]
         },
@@ -63,20 +117,37 @@
             ]
         },
         {
-            "cpeBaseString": "cpe:2.3:o:apple:watchos:*:*:*:*:*:*:*:*",
+            "cpeBaseString": "cpe:2.3:a:apple:itunes:*:*:*:*:*:windows:*:*",
             "aliases": [
                 {
                     "vendor": "Apple",
-                    "product": "watchOS"
+                    "product": "iTunes for Windows"
                 }
             ]
         },
         {
-            "cpeBaseString": "cpe:2.3:o:apple:safari:*:*:*:*:*:*:*:*",
+            "cpeBaseString": "cpe:2.3:a:apple:icloud:*:*:*:*:*:windows:*:*",
             "aliases": [
                 {
                     "vendor": "Apple",
-                    "product": "Safari"
+                    "product": "iCloud for Windows"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "iCloud for Windows (Legacy)"
+                },
+                {
+                    "vendor": "Apple",
+                    "product": "iCloud for Windows (Microsoft Store)"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:apple:xcode:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "Xcode"
                 }
             ]
         }

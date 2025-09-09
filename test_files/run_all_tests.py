@@ -54,16 +54,12 @@ class TestSuiteRunner:
                 'command': ['python', 'test_files\\test_update_patterns.py']
             },
             {
-                'name': 'Confirmed Mappings',
-                'command': ['python', 'test_files\\test_confirmed_mappings.py']
-            },
-            {
-                'name': 'Curator',
-                'command': ['python', 'test_files\\test_curator.py']
-            },
-            {
                 'name': 'Confirmed Mapping Dashboard',
                 'command': ['python', 'test_files\\test_confirmed_mapping_dashboard.py']
+            },
+            {
+                'name': 'Confirmed Mapping Curator',
+                'command': ['python', 'test_files\\test_confirmed_mapping_curator.py']
             },
             {
                 'name': 'Provenance Assistance',

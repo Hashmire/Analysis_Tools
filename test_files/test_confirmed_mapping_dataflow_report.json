@@ -1,0 +1,179 @@
+{
+  "test_name": "test_confirmed_mapping_dataflow",
+  "description": "Confirmed mapping dashboard dataflow validation",
+  "test_date": "2025-09-06",
+  "validation_source": "User test results with console output",
+  "test_scenarios": [
+    {
+      "name": "Single Unconfirmed Selection",
+      "description": "Select single alias from unconfirmed section",
+      "selection_count": 1,
+      "source_dataset": "unconfirmedAliases",
+      "target_cpe": "cpe:2.3:o:single-unconfirmed:custom-cpebasestring-test:*:*:*:*:*:*:*:*",
+      "expected_aliases": [
+        "MediaPlayer for Windows"
+      ],
+      "console_patterns": [
+        "Processing 1 selected aliases for CPE",
+        "Successfully processed alias 1 (1/1)",
+        "After removal: unconfirmedAliases has 4 items"
+      ]
+    },
+    {
+      "name": "Single Source Concern Selection",
+      "description": "Select single alias from source data concern section",
+      "selection_count": 1,
+      "source_dataset": "sourceDataConcernAliases",
+      "target_cpe": "cpe:2.3:o:single-sourcedataconcern:custom-cpebasestring-test::*:*:*:*:*:*:*",
+      "expected_aliases": [
+        "MobileOS, SystemOS, MediaOS, WearableOS"
+      ],
+      "console_patterns": [
+        "Processing 1 selected aliases for CPE",
+        "Successfully processed alias 49 (1/1)",
+        "After removal: sourceDataConcernAliases has 4 items"
+      ]
+    },
+    {
+      "name": "Multi-Unconfirmed Selection",
+      "description": "Select multiple aliases from unconfirmed section",
+      "selection_count": 2,
+      "source_dataset": "unconfirmedAliases",
+      "target_cpe": "cpe:2.3:o:multi-unconfirmed:custom-cpebasestring-test:*:*:*:*:*:*:*:*",
+      "expected_aliases": [
+        "CloudSync for Windows",
+        "CloudSync for Windows (Legacy)"
+      ],
+      "console_patterns": [
+        "Processing 2 selected aliases for CPE",
+        "Successfully processed alias 2 (1/2)",
+        "Successfully processed alias 3 (2/2)",
+        "After removal: unconfirmedAliases has"
+      ]
+    },
+    {
+      "name": "Multi-Source Concern Selection",
+      "description": "Select multiple aliases from source data concern section",
+      "selection_count": 2,
+      "source_dataset": "sourceDataConcernAliases",
+      "target_cpe": "cpe:2.3:o:multi-sourcedataconcern:custom-cpebasestring-test::*:*:*:*:*:*:*",
+      "expected_aliases": [
+        "MobileOS, MediaOS, WearableOS, WebBrowser",
+        "CloudSync for Windows (Store Edition)"
+      ],
+      "console_patterns": [
+        "Processing 2 selected aliases for CPE",
+        "Successfully processed alias 50 (1/2)",
+        "Successfully processed alias 6 (2/2)",
+        "After removal: sourceDataConcernAliases has"
+      ]
+    },
+    {
+      "name": "Multi-Cross-Section Selection",
+      "description": "Select aliases from multiple sections (cross-section)",
+      "selection_count": 4,
+      "source_datasets": [
+        "sourceDataConcernAliases",
+        "unconfirmedAliases"
+      ],
+      "target_cpe": "cpe:2.3:o:multi-cross-section:custom-cpebasestring-test::*:*:*:*:*:*:*",
+      "expected_aliases": [
+        "SystemOS",
+        "Security Update - SystemOS",
+        "MobileOS, MediaOS, WebBrowser",
+        "StreamingApp for Android"
+      ],
+      "console_patterns": [
+        "Processing 4 selected aliases for CPE",
+        "Successfully processed alias 51 (1/4)",
+        "Successfully processed alias 8 (2/4)",
+        "Successfully processed alias 48 (3/4)",
+        "Successfully processed alias 4 (4/4)"
+      ]
+    }
+  ],
+  "data_progression": [
+    {
+      "confirmed": 11,
+      "unconfirmed": 44,
+      "concerning": 30,
+      "coverage": "12.9%"
+    },
+    {
+      "confirmed": 12,
+      "unconfirmed": 43,
+      "concerning": 30,
+      "coverage": "14.1%"
+    },
+    {
+      "confirmed": 13,
+      "unconfirmed": 43,
+      "concerning": 29,
+      "coverage": "15.3%"
+    },
+    {
+      "confirmed": 15,
+      "unconfirmed": 41,
+      "concerning": 29,
+      "coverage": "17.6%"
+    },
+    {
+      "confirmed": 17,
+      "unconfirmed": 41,
+      "concerning": 27,
+      "coverage": "20.0%"
+    },
+    {
+      "confirmed": 21,
+      "unconfirmed": 39,
+      "concerning": 25,
+      "coverage": "24.7%"
+    }
+  ],
+  "data_structure": {
+    "datasets": {
+      "confirmedMapping": "nested: [{cpeBaseString, aliases: [...]}]",
+      "unconfirmedAliases": "flat: [alias1, alias2, ...]",
+      "sourceDataConcernAliases": "flat: [alias1, alias2, ...]"
+    },
+    "displayData": {
+      "confirmedMapping": "same as datasets (nested)",
+      "unconfirmedAliases": "same as datasets (flat)",
+      "sourceDataConcernAliases": "same as datasets (flat)"
+    },
+    "getDataset_function": {
+      "confirmedMapping": "flattens nested structure for display",
+      "others": "returns flat arrays directly"
+    }
+  },
+  "console_patterns": [
+    "Processing 1 selected aliases for CPE:",
+    "Successfully processed alias \\d+ \\(1/1\\)",
+    "Processing 2 selected aliases for CPE:",
+    "Successfully processed alias \\d+ \\(1/2\\)",
+    "Successfully processed alias \\d+ \\(2/2\\)",
+    "Processing 4 selected aliases for CPE:",
+    "Successfully processed alias \\d+ \\(1/4\\)",
+    "Successfully processed alias \\d+ \\(4/4\\)",
+    "After removal: unconfirmedAliases has \\d+ items, confirmedMapping has \\d+ items",
+    "After removal: sourceDataConcernAliases has \\d+ items, confirmedMapping has \\d+ items",
+    "Merged alias \\d+ from \\w+ to confirmed mapping:",
+    "Processing \\d+ confirmed mappings for display grouping",
+    "Created \\d+ CPE groups:",
+    "Rendering \\d+ aliases for CPE:",
+    "Display updated for datasets: confirmedMapping, unconfirmedAliases, sourceDataConcernAliases",
+    "Loaded data: \\d+ confirmed, \\d+ unconfirmed, \\d+ concerning aliases",
+    "Stats updated: \\d+ products, \\d+ aliases, \\d+\\.\\d+% confirmed coverage"
+  ],
+  "key_validations": [
+    "Single alias selection works correctly",
+    "Multi-alias selection processes all aliases",
+    "Cross-section selection handles mixed sources",
+    "Data removal and addition maintain consistency",
+    "Display refresh updates correctly after changes",
+    "Statistics calculations remain accurate",
+    "Nested vs flat data structures handled properly",
+    "Console output shows complete processing workflow"
+  ],
+  "test_status": "PASSED - All scenarios validated against user results"
+}

@@ -175,7 +175,7 @@ class SourceMappingCurator:
             
         vendor = alias_data.get('vendor', '').lower()
         product = alias_data.get('product', '').lower()
-        platform = alias_data.get('platforms', '').lower() if 'platforms' in alias_data else ''
+        platform = alias_data.get('platform', '').lower() if 'platform' in alias_data else ''
         
         # Create lookup key matching the format used in _build_confirmed_mappings_lookup
         lookup_key = f"{vendor}:{product}:{platform}"
@@ -202,7 +202,7 @@ class SourceMappingCurator:
         for alias_key, alias_data in self.extracted_mappings.items():
             vendor = alias_data.get('vendor', '').lower()
             product = alias_data.get('product', '').lower()
-            platform = alias_data.get('platforms', '').lower() if 'platforms' in alias_data else ''
+            platform = alias_data.get('platform', '').lower() if 'platform' in alias_data else ''
             
             # Fast O(1) lookup
             lookup_key = f"{vendor}:{product}:{platform}"
@@ -526,7 +526,7 @@ class SourceMappingCurator:
             stats_updates['product'] = stats_updates.get('product', 0) + 1
                 
         if platform is not None and not self._is_placeholder_value(platform):
-            alias_data['platforms'] = platform
+            alias_data['platform'] = platform
         
         # Additional CVE 5.X fields - only include if they exist and are meaningful
         # Note: defaultStatus is excluded as it doesn't represent alias data
@@ -711,6 +711,60 @@ class SourceMappingCurator:
         
         return standard_mappings
             
+    def _calculate_platform_statistics(self, confirmed_aliases, unconfirmed_mappings):
+        """Calculate platform distribution statistics for metadata"""
+        platform_stats = {
+            'total_platforms_extracted': 0,
+            'unique_platforms': set(),
+            'platform_distribution': {},
+            'confirmed_platforms': set(),
+            'unconfirmed_platforms': set(),
+            'top_platforms': []
+        }
+        
+        # Analyze confirmed aliases
+        for alias in confirmed_aliases:
+            platform = alias.get('platform')
+            if platform and not self._is_placeholder_value(platform):
+                platform_norm = platform.lower().strip()
+                platform_stats['unique_platforms'].add(platform_norm)
+                platform_stats['confirmed_platforms'].add(platform_norm)
+                platform_stats['total_platforms_extracted'] += 1
+                
+                if platform_norm not in platform_stats['platform_distribution']:
+                    platform_stats['platform_distribution'][platform_norm] = {
+                        'confirmed': 0, 'unconfirmed': 0, 'total': 0
+                    }
+                platform_stats['platform_distribution'][platform_norm]['confirmed'] += 1
+                platform_stats['platform_distribution'][platform_norm]['total'] += 1
+        
+        # Analyze unconfirmed aliases
+        for alias_data in unconfirmed_mappings.values():
+            platform = alias_data.get('platform')
+            if platform and not self._is_placeholder_value(platform):
+                platform_norm = platform.lower().strip()
+                platform_stats['unique_platforms'].add(platform_norm)
+                platform_stats['unconfirmed_platforms'].add(platform_norm)
+                platform_stats['total_platforms_extracted'] += 1
+                
+                if platform_norm not in platform_stats['platform_distribution']:
+                    platform_stats['platform_distribution'][platform_norm] = {
+                        'confirmed': 0, 'unconfirmed': 0, 'total': 0
+                    }
+                platform_stats['platform_distribution'][platform_norm]['unconfirmed'] += 1
+                platform_stats['platform_distribution'][platform_norm]['total'] += 1
+        
+        # Calculate top platforms by total usage
+        platform_list = [(platform, stats['total']) for platform, stats in platform_stats['platform_distribution'].items()]
+        platform_stats['top_platforms'] = sorted(platform_list, key=lambda x: x[1], reverse=True)[:10]
+        
+        # Convert sets to lists for JSON serialization
+        platform_stats['unique_platforms'] = list(platform_stats['unique_platforms'])
+        platform_stats['confirmed_platforms'] = list(platform_stats['confirmed_platforms'])
+        platform_stats['unconfirmed_platforms'] = list(platform_stats['unconfirmed_platforms'])
+        
+        return platform_stats
+        
     def _generate_output(self):
         """Generate the final confirmed mappings output with optimized confirmed mapping processing"""
         self.log_data_processing("Generating confirmed mappings output")
@@ -756,6 +810,9 @@ class SourceMappingCurator:
         # Generate standard confirmed mappings format
         standard_confirmed_mappings = self._generate_standard_confirmed_mappings_format(confirmed_aliases)
         
+        # Calculate platform distribution statistics
+        platform_stats = self._calculate_platform_statistics(confirmed_aliases, unconfirmed_mappings)
+        
         # Create output structure
         output_data = {
             'metadata': {
@@ -769,7 +826,9 @@ class SourceMappingCurator:
                 'placeholder_aliases_filtered': sum(self.filtering_stats.values()),
                 'product_groups_created': len(alias_groups),
                 'run_id': self.run_id,
-                'confirmed_mappings_file_loaded': bool(self.confirmed_mappings)
+                'confirmed_mappings_file_loaded': bool(self.confirmed_mappings),
+                'platform_statistics': platform_stats,
+                'filtering_details': self.filtering_stats
             },
             'aliasGroups': alias_groups,
             'confirmedMappings': standard_confirmed_mappings
