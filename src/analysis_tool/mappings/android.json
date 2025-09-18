@@ -1,0 +1,39 @@
+{
+    "cnaId": "baff130e-b8d5-4e15-b3d3-c3cf5d5545c6",
+    "confirmedMappings": [
+        {
+            "cpeBaseString": "cpe:2.3:o:google:android:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "product": "Android"
+                },
+                {
+                    "vendor": "Google Inc.",
+                    "product": "Android"
+                },
+                {
+                    "vendor": "Google",
+                    "product": "Android"
+                },
+                {
+                    "vendor": "Android",
+                    "product": "Android"
+                },
+                {
+                    "product": "Android "
+                },
+                {
+                    "vendor": "Google",
+                    "product": "Andrioid"
+                },
+                {
+                    "vendor": "*** n/a ***",
+                    "product": "Android"
+                },
+                {
+                    "product": "Android Android-N/A"
+                }
+            ]
+        }
+    ]
+}

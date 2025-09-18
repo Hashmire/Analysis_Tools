@@ -150,6 +150,42 @@
                     "product": "Xcode"
                 }
             ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:apple:music:*:*:*:*:*:android:*:*",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "Apple Music for Android"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:claris:filemaker_server:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Claris",
+                    "product": "FileMaker Server"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:apple:garageband:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "GarageBand"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:apple:music:*:*:*:*:*:windows:*:*",
+            "aliases": [
+                {
+                    "vendor": "Apple",
+                    "product": "Apple Music for Windows"
+                }
+            ]
         }
     ]
 }

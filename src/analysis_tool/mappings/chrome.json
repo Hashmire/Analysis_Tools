@@ -1,0 +1,23 @@
+{
+    "cnaId": "ebfee0ef-53dd-4cf3-9e2a-08a5bd7a7e28",
+    "confirmedMappings": [
+        {
+            "cpeBaseString": "cpe:2.3:a:google:chrome:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Google",
+                    "product": "Chrome"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:microsoft:edge_chromium:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Microsoft",
+                    "product": "Microsoft Edge (Chromium-based)"
+                }
+            ]
+        }
+    ]
+}

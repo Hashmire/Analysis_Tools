@@ -1,0 +1,88 @@
+{
+    "cnaId": "ceab7361-8a18-47b1-92ba-4d7d25f6715a",
+    "confirmedMappings": [
+        {
+            "cpeBaseString": "cpe:2.3:a:gitlab:gitlab:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "GitLab",
+                    "product": "GitLab"
+                },
+                {
+                    "vendor": "GitLab",
+                    "product": "GitLab"
+                },
+                {
+                    "vendor": "GitLab",
+                    "product": "GitLab CE/EE"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:wireshark:wireshark:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Wireshark Foundation",
+                    "product": "Wireshark"
+                },
+                {
+                    "vendor": "The Wireshark Foundation",
+                    "product": "Wireshark"
+                },
+                {
+                    "vendor": "SharkFest Foundation",
+                    "product": "Wireshark"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:libtiff:libtiff:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "libtiff",
+                    "product": "libtiff"
+                },
+                {
+                    "vendor": "TIFF Software Distribution",
+                    "product": "libtiff"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:gitlab:gitlab:*:*:*:*:enterprise:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "GitLab",
+                    "product": "GitLab EE"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:gitlab:runner:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "GitLab",
+                    "product": "GitLab Runner"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:conduit:conduit:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "The Conduit Contributors",
+                    "product": "Conduit"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:craftycontrol:crafty_controller:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Arcadia Technology, LLC",
+                    "product": "Crafty Controller"
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,261 @@
+{
+    "cnaId": "d1c1063e-7a18-46af-9102-31f8928bc633",
+    "confirmedMappings": [
+        {
+            "cpeBaseString": "cpe:2.3:o:cisco:ios_xe:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco IOS XE Software"
+                },
+                {
+                    "product": "Cisco IOS XE"
+                },
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco IOS XE Software "
+                },
+                {
+                    "product": "Cisco IOS XE Software"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:cisco:firepower_threat_defense:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Firepower Threat Defense Software"
+                },
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Firepower Threat Defense (FTD) Software"
+                },
+                {
+                    "product": "Cisco Firepower Threat Defense"
+                },
+                {
+                    "product": "Cisco Firepower Threat Defense Software"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:cisco:adaptive_security_appliance_software:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Adaptive Security Appliance (ASA) Software"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:cisco:firepower_management_center:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Firepower Management Center"
+                },
+                {
+                    "product": "Cisco Firepower Management Center"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:cisco:identity_services_engine:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Identity Services Engine Software"
+                },
+                {
+                    "product": "Cisco Identity Services Engine"
+                },
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Identity Services Engine Software "
+                },
+                {
+                    "product": "Cisco Identity Services Engine (ISE)"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:cisco:ios_xr:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco IOS XR Software"
+                },
+                {
+                    "product": "Cisco IOS XR"
+                },
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco IOS XR Software "
+                },
+                {
+                    "product": "Cisco IOS XR Software"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:cisco:nx-os:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco NX-OS Software"
+                },
+                {
+                    "product": "Cisco NX-OS"
+                },
+                {
+                    "product": "Cisco NX-OS Software"
+                },
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco NX-OS Software "
+                },
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco NX-OS System Software"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:cisco:nexus_dashboard:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Data Center Network Manager"
+                },
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Nexus Dashboard"
+                },
+                {
+                    "product": "Cisco Data Center Network Manager Software"
+                },
+                {
+                    "product": "Cisco Data Center Network Manager"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:cisco:unified_communications_manager:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Unified Communications Manager"
+                },
+                {
+                    "product": "Cisco Unified Communications Manager"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:cisco:webex_meetings:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Webex Meetings"
+                },
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Webex Meetings "
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:cisco:ios:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco IOS"
+                },
+                {
+                    "vendor": "Cisco",
+                    "product": "IOS"
+                },
+                {
+                    "product": "Cisco IOS"
+                },
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco IOS Software"
+                },
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco IOS "
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:cisco:email_security_appliance:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Email Security Appliance (ESA)"
+                },
+                {
+                    "vendor": "Cisco Systems, Inc.",
+                    "product": "Email Security Appliance (ESA)"
+                },
+                {
+                    "product": "Cisco Email Security Appliance (ESA)"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:cisco:application_policy_infrastructure_controller:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Application Policy Infrastructure Controller (APIC)"
+                },
+                {
+                    "vendor": "Cisco Systems, Inc.",
+                    "product": "Application Policy Infrastructure Controller (APIC)"
+                },
+                {
+                    "product": "Cisco Application Policy Infrastructure Controller"
+                },
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Application Policy Infrastructure Controller (APIC) "
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:cisco:unity_connection:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "Cisco Unity Connection"
+                },
+                {
+                    "product": "Cisco Unity Connection"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:clamav:clamav:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Cisco",
+                    "product": "ClamAV"
+                },
+                {
+                    "vendor": "Cisco",
+                    "product": "Clam AntiVirus (ClamAV)"
+                },
+                {
+                    "vendor": "ClamAV",
+                    "product": "ClamAV"
+                },
+                {
+                    "product": "ClamAV"
+                }
+            ]
+        }
+    ]
+}

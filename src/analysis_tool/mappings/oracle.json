@@ -1,0 +1,239 @@
+{
+    "cnaId": "43595867-4340-4103-b7a2-9a5208d29a85",
+    "confirmedMappings": [
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:mysql_server:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "MySQL Server"
+                },
+                {
+                    "vendor": "Oracle",
+                    "product": "MySQL Server"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:vm_virtualbox:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "VM VirtualBox"
+                },
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Oracle VM VirtualBox"
+                },
+                {
+                    "vendor": "Oracle",
+                    "product": "VM VirtualBox"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:peoplesoft_enterprise_peopletools:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "PeopleSoft Enterprise PT PeopleTools"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:weblogic_server:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "WebLogic Server"
+                },
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Oracle WebLogic Server"
+                },
+                {
+                    "vendor": "Oracle",
+                    "product": "WebLogic Server"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:oracle:solaris:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Solaris Operating System"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:outside_in_technology:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Outside In Technology"
+                },
+                {
+                    "vendor": "Oracle",
+                    "product": "Outside In Technology"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:mysql_cluster:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "MySQL Cluster"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:database_server:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Database - Enterprise Edition"
+                },
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Oracle Database"
+                },
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Oracle Database Server"
+                },
+                {
+                    "vendor": "Oracle",
+                    "product": "Oracle Database"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:bi_publisher:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "BI Publisher (formerly XML Publisher)"
+                },
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Oracle BI Publisher"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:flexcube_universal_banking:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "FLEXCUBE Universal Banking"
+                },
+                {
+                    "vendor": "Oracle",
+                    "product": "FLEXCUBE Universal Banking"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:business_intelligence:*:*:*:*:enterprise:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Business Intelligence Enterprise Edition"
+                },
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Oracle Business Intelligence Enterprise Edition"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:marketing:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Marketing"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:customer_relationship_management_technical_foundation:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "CRM Technical Foundation"
+                },
+                {
+                    "vendor": "Oracle",
+                    "product": "CRM Technical Foundation"
+                },
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Oracle CRM Technical Foundation"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:advanced_outbound_telephony:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle",
+                    "product": "Advanced Outbound Telephony"
+                },
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Advanced Outbound Telephony"
+                },
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Oracle Advanced Outbound Telephony"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:trade_management:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Trade Management"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:hospitality_simphony:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Hospitality Simphony"
+                },
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Oracle Hospitality Simphony"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:primavera_p6_enterprise_project_portfolio_management:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Primavera P6 Enterprise Project Portfolio Management"
+                },
+                {
+                    "vendor": "Oracle",
+                    "product": "Primavera P6 Enterprise Project Portfolio Management"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:oracle:primavera_portfolio_management:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Oracle Corporation",
+                    "product": "Primavera Portfolio Management"
+                }
+            ]
+        }
+    ]
+}

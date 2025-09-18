@@ -1,0 +1,323 @@
+{
+    "cnaId": "6abe59d8-c742-4dff-8ce8-9b0ca1073da8",
+    "confirmedMappings": [
+        {
+            "cpeBaseString": "cpe:2.3:o:fortinet:fortios:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiOS"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiOS"
+                },
+                {
+                    "vendor": "Fortinet, Inc.",
+                    "product": "FortiOS"
+                },
+                {
+                    "vendor": "Fortinet, Inc.",
+                    "product": "Fortinet FortiOS"
+                },
+                {
+                    "product": "Fortinet FortiOS"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortiproxy:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiProxy"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiProxy"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortimanager:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiManager"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiManager"
+                },
+                {
+                    "product": "Fortinet FortiManager"
+                },
+                {
+                    "vendor": "Fortinet, Inc.",
+                    "product": "Fortinet FortiManager"
+                },
+                {
+                    "product": "FortiManager"
+                },
+                {
+                    "vendor": "Fortinet, Inc.",
+                    "product": "FortiManager"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortianalyzer:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiAnalyzer"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiAnalyzer"
+                },
+                {
+                    "product": "FortiAnalyzer"
+                },
+                {
+                    "product": "Fortinet FortiAnalyzer"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortiweb:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiWeb"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiWeb"
+                },
+                {
+                    "product": "Fortinet FortiWeb"
+                },
+                {
+                    "vendor": "Fortinet, Inc.",
+                    "product": "Fortinet FortiWeb"
+                },
+                {
+                    "vendor": "Fortinet, Inc.",
+                    "product": "FortiWeb"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortisandbox:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiSandbox"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiSandbox"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortiadc:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiADC"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiADC"
+                },
+                {
+                    "product": "FortiADC"
+                },
+                {
+                    "product": "Fortinet FortiADC"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortinac:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiNAC"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiNAC"
+                },
+                {
+                    "product": "Fortinet FortiNAC"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortiportal:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiPortal"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiPortal"
+                },
+                {
+                    "vendor": "Fortinet, Inc.",
+                    "product": "Fortinet FortiPortal"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:forticlient:*:*:*:*:*:windows:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiClientWindows"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiClientWindows"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiClient for Windows"
+                },
+                {
+                    "product": "Fortinet FortiClient for Windows"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiClient for Windows"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:o:fortinet:fortipam:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiPAM"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortisiem:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiSIEM"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiSIEM"
+                },
+                {
+                    "product": "Fortinet FortiSIEM"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortimail:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiMail"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiMail"
+                },
+                {
+                    "product": "Fortinet FortiMail"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:forticlientems:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiClientEMS"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiClientEMS"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiClient EMS"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortisoar:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiSOAR"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiSOAR"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortiwlm:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiWLM"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "Fortinet FortiWLM"
+                },
+                {
+                    "vendor": "Fortinet, Inc.",
+                    "product": "Fortinet FortiWLM"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortiswitchmanager:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiSwitchManager"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortirecorder:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiRecorder"
+                },
+                {
+                    "product": "Fortinet FortiRecorder"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:fortinet:fortivoice:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiVoice"
+                },
+                {
+                    "vendor": "Fortinet",
+                    "product": "FortiVoiceEnterprise"
+                }
+            ]
+        }
+    ]
+}
