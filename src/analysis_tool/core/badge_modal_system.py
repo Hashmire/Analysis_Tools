@@ -53,8 +53,11 @@ NON_SPECIFIC_VERSION_VALUES = [
     'n/a', 'not available', 'not applicable', 'unavailable',
     'na', 'nil', 'tbd', 'to be determined', 'pending',
     'not specified', 'not determined', 'not known', 'not listed',
-    'not provided', 'missing', 'empty', 'null'
+    'not provided', 'missing', 'empty', 'null', '-'
 ]
+
+# Define comparator patterns used for detecting comparison operators in data fields
+COMPARATOR_PATTERNS = ['<', '>', '=', '<=', '=<', '=>', '>=', '!=']
 
 # Define version text patterns at module level for reuse
 VERSION_TEXT_PATTERNS = [
@@ -1251,8 +1254,7 @@ def analyze_version_characteristics(raw_platform_data):
         'update_patterns': []
     }
     
-    # Extended list of comparators to check for
-    comparators = ['<', '>', '=', '<=', '=<', '=>', '>=', '!=']
+    # Extended list of comparators to check for - using production constant
     
     processed_concerns = set()  
     processed_update_patterns = set()  # Track update patterns separately
@@ -1312,7 +1314,7 @@ def analyze_version_characteristics(raw_platform_data):
                     
                 field_value_lower = field_value.lower()
                 # Check ALL pattern types
-                has_comparator = any(comp in field_value_lower for comp in comparators)
+                has_comparator = any(comp in field_value_lower for comp in COMPARATOR_PATTERNS)
                 has_text_pattern = any(text_comp in field_value_lower for text_comp in VERSION_TEXT_PATTERNS)
                 
                 # Extract all transformation patterns from the update_patterns list using the helper function
@@ -1331,19 +1333,18 @@ def analyze_version_characteristics(raw_platform_data):
                 has_update_pattern = any(pattern.match(field_value) for pattern in update_pattern_regexes)
                 
                 # Collect all applicable concerns
-                if has_comparator:
-                    matching_comps = [comp for comp in comparators if comp in field_value_lower]
-                    concern = f"Comparator in {field}: {field_value} (found: {', '.join(matching_comps)})"
-                    processed_concerns.add(html.escape(concern))
-                
                 if has_text_pattern:
+                    # Check for version text patterns (placeholders now handled directly in create_source_data_concerns_badge)
                     matching_patterns = [text_comp for text_comp in VERSION_TEXT_PATTERNS if text_comp in field_value_lower]
-                    limited_patterns = matching_patterns[:3]
-                    pattern_text = ', '.join(limited_patterns)
-                    if len(matching_patterns) > 3:
-                        pattern_text += f" (+{len(matching_patterns) - 3} more)"
-                    concern = f"Text in {field}: {field_value} (patterns: {pattern_text})"
-                    processed_concerns.add(html.escape(concern))
+                    # Exclude placeholder patterns from text pattern detection
+                    non_placeholder_patterns = [pattern for pattern in matching_patterns if pattern not in NON_SPECIFIC_VERSION_VALUES]
+                    if non_placeholder_patterns:
+                        limited_patterns = non_placeholder_patterns[:3]
+                        pattern_text = ', '.join(limited_patterns)
+                        if len(non_placeholder_patterns) > 3:
+                            pattern_text += f" (+{len(non_placeholder_patterns) - 3} more)"
+                        concern = f"Text in {field}: {field_value} (patterns: {pattern_text})"
+                        processed_concerns.add(html.escape(concern))
                 
                 # Add update pattern concerns
                 if has_update_pattern:
@@ -1373,10 +1374,6 @@ def analyze_version_characteristics(raw_platform_data):
                         nested_value_lower = nested_value.lower()
                         
                         # Check nested values for concerns
-                        if any(comp in nested_value_lower for comp in comparators):
-                            concern = f"Comparator in {field}.{nested_key}: {nested_value}"
-                            processed_concerns.add(html.escape(concern))
-                        
                         if any(text_comp in nested_value_lower for text_comp in VERSION_TEXT_PATTERNS):
                             concern = f"Text in {field}.{nested_key}: {nested_value}"
                             processed_concerns.add(html.escape(concern))
@@ -3168,6 +3165,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     Returns:
         HTML string for the badge, or None if no source data concerns detected
     """
+    
     # Collect all source data concerns
     concerns_data = {
         "placeholderData": [],
@@ -3177,89 +3175,243 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         "wildcardBranches": [],
         "cpeArrayConcerns": [],
         "duplicateEntries": [],
-        "platformDataConcerns": [],
         "missingAffectedProducts": []
     }
     
     concerns_count = 0
     concern_types = []
     
-    # 1. Placeholder Data Detection (Vendor/Product placeholder values)
+    # Vendor Placeholder Data Detection 
     if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str):
-        vendor_lower = raw_platform_data['vendor'].lower()
+        vendor_value = raw_platform_data['vendor'].strip()
+        vendor_lower = vendor_value.lower()
+        # Use exact matching for placeholder detection - these are specific bad data entry practices
         is_placeholder = vendor_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
-        is_single_dash = raw_platform_data['vendor'].strip() == '-'
         
-        if is_placeholder or is_single_dash:
-            issue_type = "single dash placeholder" if is_single_dash else "placeholder value"
+        if is_placeholder:
+            detected_pattern = next(v for v in NON_SPECIFIC_VERSION_VALUES if v.lower() == vendor_lower)
             concerns_data["placeholderData"].append({
                 "field": "vendor",
-                "value": raw_platform_data['vendor'],
-                "issue": f"Vendor field contains {issue_type} '{raw_platform_data['vendor']}' which prevents proper CPE matching"
+                "sourceValue": vendor_value,
+                "detectedPattern": detected_pattern
             })
             concerns_count += 1
-        
+    # Product Placeholder Data Detection    
     if 'product' in raw_platform_data and isinstance(raw_platform_data['product'], str):
-        product_lower = raw_platform_data['product'].lower()
+        product_value = raw_platform_data['product'].strip()
+        product_lower = product_value.lower()
+        # Use exact matching for placeholder detection - these are specific bad data entry practices
         is_placeholder = product_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
-        is_single_dash = raw_platform_data['product'].strip() == '-'
         
-        if is_placeholder or is_single_dash:
-            issue_type = "single dash placeholder" if is_single_dash else "placeholder value"
+        if is_placeholder:
+            detected_pattern = next(v for v in NON_SPECIFIC_VERSION_VALUES if v.lower() == product_lower)
             concerns_data["placeholderData"].append({
                 "field": "product", 
-                "value": raw_platform_data['product'],
-                "issue": f"Product field contains {issue_type} '{raw_platform_data['product']}' which prevents proper CPE matching"
+                "sourceValue": product_value,
+                "detectedPattern": detected_pattern
             })
             concerns_count += 1
     
     if concerns_data["placeholderData"]:
-        concern_types.append("Placeholder Data")
+        concern_types.append("Placeholder Detection")
     
-    # 2. Versions Array Data Concerns
-    if characteristics['version_concerns']:
-        for concern in characteristics['version_concerns']:
-            if "contains text comparators" in concern.lower():
-                concerns_data["versionTextPatterns"].append({
-                    "concern": concern,
-                    "category": "Text Comparators",
-                    "issue": "Version contains text-based comparison patterns that prevent proper version matching"
-                })
-            elif "version granularity" in concern.lower():
-                concerns_data["versionGranularity"].append({
-                    "concern": concern,
-                    "category": "Version Granularity", 
-                    "issue": "Version granularity issues may affect matching precision"
-                })
-            elif "wildcard" in concern.lower():
-                concerns_data["wildcardBranches"].append({
-                    "concern": concern,
-                    "category": "Wildcard Branches",
-                    "issue": "Wildcard patterns detected in version data"
-                })
-            else:
-                # Generic version concerns
-                concerns_data["versionTextPatterns"].append({
-                    "concern": concern,
-                    "category": "Version Data",
-                    "issue": "Version data contains formatting or structural issues"
-                })
+    # Version Placeholder Data Detection - moved to be consistent with other placeholders
+    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
+        version_fields = ['version', 'lessThan', 'lessThanOrEqual']
         
-        concerns_count += len(characteristics['version_concerns'])
+        for version_entry in raw_platform_data['versions']:
+            if isinstance(version_entry, dict):
+                # Check standard version fields
+                for field in version_fields:
+                    field_value = version_entry.get(field)
+                    if isinstance(field_value, str) and field_value.strip():
+                        field_value_lower = field_value.strip().lower()
+                        # Use exact matching for placeholder detection - these are specific bad data entry practices
+                        is_placeholder = field_value_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+                        
+                        if is_placeholder:
+                            detected_pattern = next(v for v in NON_SPECIFIC_VERSION_VALUES if v.lower() == field_value_lower)
+                            concerns_data["placeholderData"].append({
+                                "field": field,
+                                "sourceValue": field_value,
+                                "detectedPattern": detected_pattern
+                            })
+                            concerns_count += 1
+                
+                # Check changes array for version status changes
+                if 'changes' in version_entry and isinstance(version_entry['changes'], list):
+                    for idx, change in enumerate(version_entry['changes']):
+                        if isinstance(change, dict):
+                            change_at_value = change.get('at')
+                            if isinstance(change_at_value, str) and change_at_value.strip():
+                                field_value_lower = change_at_value.strip().lower()
+                                # Use exact matching for placeholder detection
+                                is_placeholder = field_value_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+                                
+                                if is_placeholder:
+                                    detected_pattern = next(v for v in NON_SPECIFIC_VERSION_VALUES if v.lower() == field_value_lower)
+                                    concerns_data["placeholderData"].append({
+                                        "field": f"changes[{idx}].at",
+                                        "sourceValue": change_at_value,
+                                        "detectedPattern": detected_pattern
+                                    })
+                                    concerns_count += 1
         
-        if concerns_data["versionTextPatterns"]:
-            concern_types.append("Version Text Patterns")
-        if concerns_data["versionGranularity"]:
-            concern_types.append("Version Granularity")
-        if concerns_data["wildcardBranches"]:
-            concern_types.append("Wildcard Branches")
+        # Update concern types if version field placeholder patterns were found
+        if concerns_data["placeholderData"] and "Placeholder Detection" not in concern_types:
+            concern_types.append("Placeholder Detection")
     
-    # 2a. Enhanced Version Character Validation
+    # Platform Placeholder Data Detection
+    if 'platforms' in raw_platform_data and isinstance(raw_platform_data['platforms'], list):
+        for platform_item in raw_platform_data['platforms']:
+            if isinstance(platform_item, str):
+                platform_lower = platform_item.lower().strip()
+                # Use exact matching for placeholder detection - these are specific bad data entry practices
+                is_placeholder = platform_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+                
+                if is_placeholder:
+                    detected_pattern = next(v for v in NON_SPECIFIC_VERSION_VALUES if v.lower() == platform_lower)
+                    concerns_data["placeholderData"].append({
+                        "field": "platforms",
+                        "sourceValue": platform_item,
+                        "detectedPattern": detected_pattern
+                    })
+                    concerns_count += 1
+                    
+                    # Update concern types if not already added
+                    if "Placeholder Detection" not in concern_types:
+                        concern_types.append("Placeholder Detection")
+    
+    # Package Name Placeholder Data Detection
+    if 'packageName' in raw_platform_data and isinstance(raw_platform_data['packageName'], str):
+        package_value = raw_platform_data['packageName'].strip()
+        package_lower = package_value.lower()
+        # Use exact matching for placeholder detection - these are specific bad data entry practices
+        is_placeholder = package_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+        
+        if is_placeholder:
+            detected_pattern = next(v for v in NON_SPECIFIC_VERSION_VALUES if v.lower() == package_lower)
+            concerns_data["placeholderData"].append({
+                "field": "packageName", 
+                "sourceValue": package_value,
+                "detectedPattern": detected_pattern
+            })
+            concerns_count += 1
+            
+            # Update concern types if not already added
+            if "Placeholder Detection" not in concern_types:
+                concern_types.append("Placeholder Detection")
+    
+    # Comparator Pattern Detection - using production constant
+    
+    # Check vendor for comparator patterns
+    if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str):
+        vendor_value = raw_platform_data['vendor'].strip()
+        if vendor_value:
+            vendor_lower = vendor_value.lower()
+            matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in vendor_lower]
+            if matching_comparators:
+                concerns_data["versionComparators"].append({
+                    "field": "vendor",
+                    "sourceValue": vendor_value,
+                    "detectedPattern": ', '.join(matching_comparators)
+                })
+                concerns_count += 1
+    
+    # Check product for comparator patterns
+    if 'product' in raw_platform_data and isinstance(raw_platform_data['product'], str):
+        product_value = raw_platform_data['product'].strip()
+        if product_value:
+            product_lower = product_value.lower()
+            matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in product_lower]
+            if matching_comparators:
+                concerns_data["versionComparators"].append({
+                    "field": "product",
+                    "sourceValue": product_value,
+                    "detectedPattern": ', '.join(matching_comparators)
+                })
+                concerns_count += 1
+    
+    # Check platforms array for comparator patterns
+    if 'platforms' in raw_platform_data and isinstance(raw_platform_data['platforms'], list):
+        for platform_item in raw_platform_data['platforms']:
+            if isinstance(platform_item, str):
+                platform_value = platform_item.strip()
+                if platform_value:
+                    platform_lower = platform_value.lower()
+                    matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in platform_lower]
+                    if matching_comparators:
+                        concerns_data["versionComparators"].append({
+                            "field": "platforms",
+                            "sourceValue": platform_value,
+                            "detectedPattern": ', '.join(matching_comparators)
+                        })
+                        concerns_count += 1
+    
+    # Check packageName for comparator patterns
+    if 'packageName' in raw_platform_data and isinstance(raw_platform_data['packageName'], str):
+        package_value = raw_platform_data['packageName'].strip()
+        if package_value:
+            package_lower = package_value.lower()
+            matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in package_lower]
+            if matching_comparators:
+                concerns_data["versionComparators"].append({
+                    "field": "packageName",
+                    "sourceValue": package_value,
+                    "detectedPattern": ', '.join(matching_comparators)
+                })
+                concerns_count += 1
+    
+    # Update concern types if any comparator patterns were found
+    if concerns_data["versionComparators"]:
+        concern_types.append("Comparator Detection")
+
+    # Check version fields for comparator patterns  
+    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
+        version_fields = ['version', 'lessThan', 'lessThanOrEqual']
+        
+        for version_entry in raw_platform_data['versions']:
+            if isinstance(version_entry, dict):
+                # Check standard version fields
+                for field in version_fields:
+                    field_value = version_entry.get(field)
+                    if isinstance(field_value, str) and field_value.strip():
+                        field_lower = field_value.lower()
+                        matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in field_lower]
+                        if matching_comparators:
+                            concerns_data["versionComparators"].append({
+                                "field": field,
+                                "sourceValue": field_value,
+                                "detectedPattern": ', '.join(matching_comparators)
+                            })
+                            concerns_count += 1
+                
+                # Check changes array for version status changes
+                if 'changes' in version_entry and isinstance(version_entry['changes'], list):
+                    for idx, change in enumerate(version_entry['changes']):
+                        if isinstance(change, dict):
+                            change_at_value = change.get('at')
+                            if isinstance(change_at_value, str) and change_at_value.strip():
+                                field_lower = change_at_value.lower()
+                                matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in field_lower]
+                                if matching_comparators:
+                                    concerns_data["versionComparators"].append({
+                                        "field": f"changes[{idx}].at",
+                                        "sourceValue": change_at_value,
+                                        "detectedPattern": ', '.join(matching_comparators)
+                                    })
+                                    concerns_count += 1
+        
+        # Update concern types if version field comparator patterns were found
+        if concerns_data["versionComparators"] and "Comparator Detection" not in concern_types:
+            concern_types.append("Comparator Detection")
+
+    # Enhanced Version Character Validation
     # Check for invalid characters in version fields beyond text patterns
     if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
         import re
-        # Pattern for clearly invalid characters (not spaces or common version chars)
-        invalid_char_pattern = r'[<>,;|\\"`\'{}[\]()&$#@!%^*+=?~]'
+        # Pattern for possibly invalid characters (not spaces or common version chars)
+        invalid_char_pattern = r'[,;|\\"`\'{}[\]()&$#@%^*+?~]'
         
         for version_entry in raw_platform_data['versions']:
             if isinstance(version_entry, dict):
@@ -3290,7 +3442,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         if concerns_data["versionTextPatterns"] and "Version Text Patterns" not in concern_types:
             concern_types.append("Version Text Patterns")
     
-    # 3. CPEs Array Data Concerns
+    # CPEs Array Data Concerns
     if 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
         cpe_issues = []
         cpes_list = raw_platform_data['cpes']
@@ -3376,7 +3528,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             concerns_count += len(cpe_issues)
             concern_types.append("CPE Array Concerns")
     
-    # 4. Duplicate Entries Detection
+    # Duplicate Entries Detection
     duplicate_indices = platform_metadata.get('duplicateRowIndices', [])
     if duplicate_indices:
         concerns_data["duplicateEntries"].append({
@@ -3387,16 +3539,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         concerns_count += 1
         concern_types.append("Duplicate Entries")
     
-    # 5. Platform Data Concerns
-    if platform_metadata.get('platformDataConcern', False):
-        concerns_data["platformDataConcerns"].append({
-            "issue": "Unexpected Platforms data detected in affected entry",
-            "metadata": platform_metadata
-        })
-        concerns_count += 1
-        concern_types.append("Platform Data Concerns")
-    
-    # 6. Missing Affected Products Check
+    # Missing Affected Products Check
     if 'versions' in raw_platform_data or 'defaultStatus' in raw_platform_data:
         has_affected_product = False
         

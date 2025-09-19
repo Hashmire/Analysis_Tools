@@ -1977,26 +1977,37 @@ class BadgeModalFactory {
     }
 
     static generatePlaceholderDataContent(concern) {
+        // Determine if this is an array field (platforms) or regular field
+        const isArrayField = concern.field === 'platforms';
+        
+        let problemText = `Property contains placeholder data which prevents ${concern.field} identification.`;
+        let resolutionText = `Replace placeholder data with an appropriate ${concern.field} value.`;
+        
+        if (isArrayField) {
+            problemText = `Array entry contains placeholder data which prevents ${concern.field} identification.`;
+            resolutionText = `Replace placeholder data with an appropriate ${concern.field} value or leave ${concern.field} array empty.`;
+        }
+        
         return `
-            <div class="concern-content compact-layout">
-                <div class="problem-description mb-1">
-                    <strong class="text-danger" style="font-size: 0.85rem;">Problem:</strong>
-                    <span class="ms-2" style="font-size: 0.85rem;">Field contains 'n/a' or 'N/A' preventing proper CPE matching</span>
+            <div class="concern-content">
+                <div class="problem-description mb-2">
+                    <strong class="text-danger">Problem:</strong>
+                    <p class="mb-2">${problemText}</p>
                 </div>
-                <div class="problematic-data mb-1">
-                    <div class="row g-1">
-                        <div class="col-3">
-                            <strong class="text-warning" style="font-size: 0.85rem;">Data:</strong>
+                <div class="problematic-data mb-2">
+                    <strong class="text-warning">Problematic Data:</strong>
+                    <div class="data-display mt-1">
+                        <div class="mb-2">
+                            Pattern <strong>${concern.detectedPattern}</strong> detected in <strong>${concern.field}</strong> content
                         </div>
-                        <div class="col-9">
-                            <code class="text-dark bg-light px-1 py-1 rounded border me-2" style="font-size: 0.8rem;">${concern.field}</code>
-                            <code class="text-dark bg-light px-1 py-1 rounded border" style="font-size: 0.8rem;">${concern.value}</code>
+                        <div class="code-block bg-light p-2 rounded border">
+                            <code>"${concern.field}": "${concern.sourceValue}"</code>
                         </div>
                     </div>
                 </div>
                 <div class="resolution-guidance">
-                    <strong class="text-success" style="font-size: 0.85rem;">Resolution:</strong>
-                    <span class="text-muted ms-2" style="font-size: 0.8rem;">Replace with actual ${concern.field} name or descriptive identifier</span>
+                    <strong class="text-success">Resolution:</strong>
+                    <div class="mb-0 text-muted">${resolutionText}</div>
                 </div>
             </div>
         `;
@@ -2036,32 +2047,43 @@ class BadgeModalFactory {
     }
 
     static generateVersionComparatorsContent(concern) {
+        // Determine problem description based on field type
+        const cpeBaseStringFields = ['vendor', 'product', 'packageName', 'platforms'];
+        // Version parsing fields include both direct fields and changes array fields
+        const isVersionParsingField = ['version', 'lessThan', 'lessThanOrEqual'].includes(concern.field) || 
+                                     concern.field.match(/^changes\[\d+\]\.at$/);
+        
+        let problemText = `${concern.field} contains comparison operators which may impact processing.`;
+        let resolutionText = "Remove comparison operators from field values.";
+        
+        if (cpeBaseStringFields.includes(concern.field)) {
+            problemText = `${concern.field} contains comparison operators which may impact platform identification.`;
+            resolutionText = `Remove comparison operators within ${concern.field} content.`;
+        } else if (isVersionParsingField) {
+            problemText = `${concern.field} contains comparison operators which may impact version identification and CPE-AS generation.`;
+            resolutionText = `Use the <code>defaultStatus</code>, <code>version</code>, <code>lessThan</code>, <code>lessThanOrEqual</code>, <code>changes[*].at</code> and/or <code>changes[*].status</code> syntax to precisely represent the intended range boundaries.<br/>Example: <code>"version": "&lt;=1.2.3"</code> should become <code>"lessThanOrEqual": "1.2.3"</code>.`;
+        }
+        
         return `
             <div class="concern-content">
                 <div class="problem-description mb-2">
                     <strong class="text-danger">Problem:</strong>
-                    <p class="mb-2">Version contains comparison operators that should use structured range fields.</p>
+                    <p class="mb-2">${problemText}</p>
                 </div>
                 <div class="problematic-data mb-2">
                     <strong class="text-warning">Problematic Data:</strong>
                     <div class="data-display mt-1">
-                        <div class="row">
-                            <div class="col-3"><strong>Version:</strong></div>
-                            <div class="col-9"><code class="text-dark bg-light px-2 py-1 rounded border">${concern.version}</code></div>
+                        <div class="mb-2">
+                            Pattern <strong>${concern.detectedPattern}</strong> detected in <strong>${concern.field}</strong> content
                         </div>
-                        <div class="row mt-1">
-                            <div class="col-3"><strong>Operator:</strong></div>
-                            <div class="col-9"><span class="badge bg-warning text-dark">${concern.operator}</span></div>
+                        <div class="code-block bg-light p-2 rounded border">
+                            <code>"${concern.field}": "${concern.sourceValue}"</code>
                         </div>
                     </div>
                 </div>
                 <div class="resolution-guidance">
                     <strong class="text-success">Resolution:</strong>
-                    <ul class="mb-0 text-muted">
-                        <li>Use lessThan, lessThanOrEqual, greaterThan, greaterThanOrEqual fields</li>
-                        <li>Example: "${concern.version}" → use appropriate range field</li>
-                        <li>Separate version number from comparison logic</li>
-                    </ul>
+                    <div class="mb-0 text-muted">${resolutionText}</div>
                 </div>
             </div>
         `;

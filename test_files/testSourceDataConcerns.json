@@ -24,30 +24,10 @@
       "descriptions": [
         {
           "lang": "en",
-          "value": "This CVE record is designed to test all Source Data Concerns categories including placeholder data, version patterns, CPE array concerns, and various edge cases for data quality validation."
+          "value": "This CVE record is designed to test all Source Data Concerns categories including version patterns, CPE array concerns, and various edge cases for data quality validation."
         }
       ],
       "affected": [
-        {
-          "vendor": "PlaceholderData-Test1",
-          "product": "TBD-Product",
-          "versions": [
-            {
-              "version": "1.0.0",
-              "status": "affected"
-            }
-          ]
-        },
-        {
-          "vendor": "PlaceholderData-Test2", 
-          "product": "placeholder-software",
-          "versions": [
-            {
-              "version": "unspecified",
-              "status": "affected"
-            }
-          ]
-        },
         {
           "vendor": "VersionTextPatterns-Test1",
           "product": "software-with-version-text",
@@ -228,31 +208,172 @@
           ]
         },
         {
-          "vendor": "MultipleEdgeCases-Test1",
-          "product": "n/a",
+          "vendor": "ComparatorDetection-CPE-Base-String",
+          "product": ">= 1.0-vulnerable",
           "versions": [
             {
-              "version": "unknown",
+              "version": "1.0",
               "status": "affected"
             }
           ]
         },
         {
-          "vendor": "EdgeCase-Special",
-          "product": "product_with_underscores",
+          "vendor": "< legacy-vendor",
+          "product": "ComparatorDetection-Vendor-Field",
           "versions": [
             {
-              "version": "v1.0-beta",
+              "version": "2.0",
               "status": "affected"
             }
           ]
         },
         {
-          "vendor": "EdgeCase-Numeric",
-          "product": "123-product",
+          "vendor": "ComparatorDetection-Platform-Field",
+          "product": "multi-platform-app",
+          "platforms": [
+            "Windows >= 10",
+            "Linux < 5.0",
+            "macOS != 12.0"
+          ],
           "versions": [
             {
-              "version": "1.0.0-SNAPSHOT",
+              "version": "1.5",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "ComparatorDetection-Package-Field",
+          "product": "package-manager-tool",
+          "packageName": "<= version-2.1.0-package",
+          "versions": [
+            {
+              "version": "2.1.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "ComparatorDetection-Version-Fields",
+          "product": "version-comparison-software",
+          "versions": [
+            {
+              "version": "> 1.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "ComparatorDetection-Multiple-Operators",
+          "product": "complex-comparison-app",
+          "versions": [
+            {
+              "version": "< 2.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "ComparatorDetection-LessThan-Field",
+          "product": "range-based-vulnerability",
+          "versions": [
+            {
+              "version": "*",
+              "lessThan": ">= 3.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "ComparatorDetection-LessThanOrEqual-Field", 
+          "product": "inclusive-range-app",
+          "versions": [
+            {
+              "version": "*",
+              "lessThanOrEqual": "!= 2.5.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "ComparatorDetection-GreaterThan-Field",
+          "product": "minimum-version-tool",
+          "versions": [
+            {
+              "version": "*",
+              "greaterThan": "< 1.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "ComparatorDetection-GreaterThanOrEqual-Field",
+          "product": "minimum-inclusive-app",
+          "versions": [
+            {
+              "version": "*", 
+              "greaterThanOrEqual": "<= 0.9.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "ComparatorDetection-Mixed-Operators",
+          "product": "= complex-logic-software >=",
+          "platforms": [
+            "Windows != 8.1",
+            "< Linux-old"
+          ],
+          "versions": [
+            {
+              "version": "!= specific-version",
+              "lessThan": "> boundary-marker",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "ComparatorDetection-Edge-Cases",
+          "product": "edge-case-testing <= app",
+          "versions": [
+            {
+              "version": "=< legacy-format",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "ComparatorDetection-Nested-Structures",
+          "product": "nested-version-data",
+          "versions": [
+            {
+              "version": "1.0",
+              "status": "affected",
+              "changes": [
+                {
+                  "at": ">= 1.0.1",
+                  "status": "unaffected"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "vendor": "Multi-Word-Vendor",
+          "product": "Test-Product-Name",
+          "versions": [
+            {
+              "version": "1.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "Vendor",
+          "product": "Product",
+          "versions": [
+            {
+              "version": "1.0-beta",
               "status": "affected"
             }
           ]

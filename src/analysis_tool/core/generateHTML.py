@@ -2024,7 +2024,6 @@ def update_cpeQueryHTML_column(dataframe):
                     "wildcardBranches": [],
                     "cpeArrayConcerns": [],
                     "duplicateEntries": [],
-                    "platformDataConcerns": [],
                     "missingAffectedProducts": [],
                     "overlappingRanges": []
                 },

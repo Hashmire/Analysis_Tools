@@ -1,0 +1,72 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1",
+  "cveMetadata": {
+    "cveId": "CVE-9999-00002",
+    "assignerOrgId": "comparator-detection-test-org-12345",
+    "state": "PUBLISHED",
+    "assignerShortName": "ComparatorTestOrg",
+    "datePublished": "2024-01-16T10:00:00.000Z",
+    "dateUpdated": "2024-01-16T12:30:00.000Z",
+    "dateReserved": "2024-01-10T08:00:00.000Z",
+    "serial": 2
+  },
+  "containers": {
+    "cna": {
+      "providerMetadata": {
+        "orgId": "comparator-detection-test-org-12345",
+        "shortName": "ComparatorTestOrg",
+        "dateUpdated": "2024-01-16T12:30:00.000Z"
+      },
+      "dateAssigned": "2024-01-10T08:00:00.000Z",
+      "datePublic": "2024-01-16T10:00:00.000Z",
+      "title": "Dedicated Comparator Detection Test Cases",
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "This CVE record is specifically designed to test comparator pattern detection across all supported fields: vendor, product, packageName, platforms, and version fields. Each test case targets specific comparator patterns from COMPARATOR_PATTERNS."
+        }
+      ],
+      "affected": [
+    { "vendor": "foo>=bar", "product": "Test Product", "versions": [{ "version": "1.0.0", "status": "affected" }] },
+    { "vendor": "Test Vendor", "product": "baz<=qux", "versions": [{ "version": "2.0.0", "status": "affected" }] },
+    { "vendor": "Test Vendor", "product": "Test Product", "packageName": "lib=core", "versions": [{ "version": "3.0.0", "status": "affected" }] },
+    { "vendor": "Test Vendor", "product": "Test Product", "platforms": [">=linux"], "versions": [{ "version": "4.0.0", "status": "affected" }] },
+    { "vendor": "Test Vendor", "product": "Test Product", "versions": [{ "version": "<1.2.3", "status": "affected" }] },
+    { "vendor": "Test Vendor", "product": "Test Product", "versions": [{ "version": "5.0.0", "lessThan": ">=6.0.0", "status": "affected" }] },
+    { "vendor": "Test Vendor", "product": "Test Product", "versions": [{ "version": "7.0.0", "lessThanOrEqual": "!=8.0.0", "status": "affected" }] },
+    { "vendor": "Test Vendor", "product": "Test Product", "versions": [{ "version": "9.0.0", "changes": [{ "at": "=10.0.0", "status": "unaffected" }] }] },
+    { "vendor": "Test Vendor", "product": "Test Product", "platforms": ["win32", "<macos"], "versions": [{ "version": "11.0.0", "status": "affected" }] },
+    { "vendor": "Test Vendor", "product": "Test Product", "packageName": "lib-core", "versions": [{ "version": "12.0.0", "status": "affected" }] },
+
+        
+    { "vendor": "Test Vendor", "product": "Test Product", "versions": [
+      { "version": ">=1.0.0", "status": "affected" },
+      { "version": "<=2.0.0", "status": "affected" },
+      { "version": "3.0.0", "lessThan": "!=4.0.0", "status": "affected" }
+    ] },
+
+        
+    { "vendor": "Test Vendor", "product": "Test Product", "versions": [
+      { "version": "5.0.0", "changes": [
+        { "at": ">6.0.0", "status": "unaffected" },
+        { "at": "<=7.0.0", "status": "unaffected" },
+        { "at": "!=8.0.0", "status": "unaffected" }
+      ] }
+    ] },
+
+        
+    { "vendor": "Test Vendor", "product": "Test Product", "packageName": "lib=core", "platforms": ["<win32", ">=linux"], "versions": [
+      { "version": "<1.0.0", "lessThan": ">2.0.0", "lessThanOrEqual": "=<3.0.0", "changes": [
+        { "at": "!=4.0.0", "status": "unaffected" },
+        { "at": "=5.0.0", "status": "unaffected" }
+      ] },
+      { "version": ">=6.0.0", "lessThan": "<=7.0.0", "lessThanOrEqual": "=>8.0.0", "changes": [
+        { "at": "<9.0.0", "status": "unaffected" },
+        { "at": ">=10.0.0", "status": "unaffected" }
+      ] }
+    ] }
+      ]
+    }
+  }
+}
