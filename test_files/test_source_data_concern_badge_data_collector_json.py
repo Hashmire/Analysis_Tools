@@ -1147,21 +1147,10 @@ class SourceDataConcernJSONTestSuite:
                     'concern_types': ['duplicateEntries']
                 },
                 
-                # Source 6: Platform Data - Platform Data Concerns and Missing Products
+                # Source 6: Missing Products Check
                 {
                     'table_index': 11,
-                    'source_id': 'platform-data',
-                    'vendor': 'platform_vendor',
-                    'product': 'embedded_system',
-                    'concerns_data': self.create_test_concerns_data('platformDataConcerns', [
-                        {'concern': 'unexpected_data', 'category': 'data_structure', 'issue': 'Unexpected platform data detected'}
-                    ]),
-                    'concerns_count': 1,
-                    'concern_types': ['platformDataConcerns']
-                },
-                {
-                    'table_index': 12,
-                    'source_id': 'platform-data',
+                    'source_id': 'missing-products',
                     'vendor': 'missing_vendor',
                     'product': 'incomplete_app',
                     'concerns_data': self.create_test_concerns_data('missingAffectedProducts', [
@@ -1324,10 +1313,10 @@ class SourceDataConcernJSONTestSuite:
             self.assert_true(metadata['total_platform_entries'] >= 15, "Many platform entries")
             self.assert_true(metadata['entries_with_concerns'] >= 10, "Many entries with concerns")
             
-            # Verify concern type coverage (all 10 types)
+            # Verify concern type coverage (9 types - removed platformDataConcerns)
             concern_types = [ct['concern_type'] for ct in metadata['concern_type_counts']]
             expected_types = ['placeholderData', 'versionTextPatterns', 'cpeArrayConcerns', 'versionGranularity', 
-                             'versionComparators', 'wildcardBranches', 'duplicateEntries', 'platformDataConcerns',
+                             'versionComparators', 'wildcardBranches', 'duplicateEntries',
                              'missingAffectedProducts', 'overlappingRanges']
             
             coverage_count = 0
@@ -1335,7 +1324,7 @@ class SourceDataConcernJSONTestSuite:
                 if expected_type in concern_types:
                     coverage_count += 1
             
-            self.assert_true(coverage_count >= 8, f"Most concern types covered ({coverage_count}/10)")
+            self.assert_true(coverage_count >= 7, f"Most concern types covered ({coverage_count}/9)")
             
             # Print comprehensive summary
             print(f"\n📁 Comprehensive Dashboard Test File Generated:")

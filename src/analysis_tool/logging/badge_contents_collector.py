@@ -371,7 +371,6 @@ class BadgeContentsCollector:
             'Wildcard Branches': 'wildcardBranches',
             'CPE Array Concerns': 'cpeArrayConcerns',
             'Duplicate Entries': 'duplicateEntries',
-            'Platform Data Concerns': 'platformDataConcerns',
             'Missing Affected Products': 'missingAffectedProducts',
             'Overlapping Ranges': 'overlappingRanges'
         }

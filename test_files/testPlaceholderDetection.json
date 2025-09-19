@@ -1,0 +1,61 @@
+ {
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1",
+  "cveMetadata": {
+    "cveId": "CVE-9999-00001",
+    "assignerOrgId": "placeholder-detection-test-org-12345",
+    "state": "PUBLISHED",
+    "assignerShortName": "PlaceholderTestOrg",
+    "datePublished": "2024-01-15T10:00:00.000Z",
+    "dateUpdated": "2024-01-15T12:30:00.000Z",
+    "dateReserved": "2024-01-10T08:00:00.000Z",
+    "serial": 1
+  },
+  "containers": {
+    "cna": {
+      "providerMetadata": {
+        "orgId": "placeholder-detection-test-org-12345",
+        "shortName": "PlaceholderTestOrg",
+        "dateUpdated": "2024-01-15T12:30:00.000Z"
+      },
+      "dateAssigned": "2024-01-10T08:00:00.000Z",
+      "datePublic": "2024-01-15T10:00:00.000Z",
+      "title": "Dedicated Placeholder Detection Test Cases",
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "This CVE record is specifically designed to test placeholder data detection across all supported fields: vendor, product, packageName, platforms, and version fields. Each test case targets specific placeholder patterns from NON_SPECIFIC_VERSION_VALUES."
+        }
+      ],
+      "affected": [
+  { "vendor": "n/a", "product": "Test Product", "versions": [{ "version": "1.0.0", "status": "affected" }] },
+  { "vendor": "Test Vendor", "product": "N/A", "versions": [{ "version": "2.0.0", "status": "affected" }] },
+  { "vendor": "Test Vendor", "product": "Test Product", "packageName": "unknown", "versions": [{ "version": "3.0.0", "status": "affected" }] },
+  { "vendor": "Test Vendor", "product": "Test Product", "platforms": ["unspecified"], "versions": [{ "version": "4.0.0", "status": "affected" }] },
+  { "vendor": "Test Vendor", "product": "Test Product", "versions": [{ "version": "unknown", "status": "affected" }] },
+
+  { "vendor": "N/A", "product": "Test Product", "versions": [{ "version": "5.0.0", "status": "affected" }] },
+  { "vendor": "Test Vendor", "product": "n/a", "versions": [{ "version": "6.0.0", "status": "affected" }] },
+  { "vendor": "Test Vendor", "product": "Test Product", "packageName": "N/A", "versions": [{ "version": "7.0.0", "status": "affected" }] },
+  { "vendor": "Test Vendor", "product": "Test Product", "platforms": ["N/A"], "versions": [{ "version": "8.0.0", "status": "affected" }] },
+  { "vendor": "Test Vendor", "product": "Test Product", "versions": [{ "version": "N/A", "status": "affected" }] },
+
+  { "vendor": "n/a", "product": "N/A", "versions": [{ "version": "unknown", "status": "affected" }] },
+  { "vendor": "Test Vendor", "product": "Test Product", "platforms": ["unspecified", "various", "none"], "versions": [{ "version": "9.0.0", "status": "affected" }] },
+  { "vendor": "n/a", "product": "Test Product", "versions": [{ "version": "none", "status": "affected" }, { "version": "unknown", "status": "affected" }] },
+  { "vendor": "Test Vendor", "product": "Test Product", "versions": [{ "version": "10.0.0", "status": "affected", "changes": [{ "at": "unspecified", "status": "unaffected" }, { "at": "unknown", "status": "unaffected" }] }] },
+
+    { "vendor": "n/a", "product": "not available", "packageName": "unknown", "platforms": ["various", "unspecified", "Windows", "Linux"], "versions": [
+      { "version": "undefined", "lessThan": "pending", "status": "affected", "changes": [
+        { "at": "tbd", "status": "unaffected" },
+        { "at": "1.2.3", "status": "unaffected" }
+      ] },
+      { "version": "1.2.3", "status": "affected" }
+    ] },
+
+  { "vendor": "Valid-Vendor", "product": "Valid Product Name", "packageName": "valid-package", "platforms": ["Windows", "Linux"], "versions": [{ "version": "1.2.3", "lessThan": "1.3.0", "status": "affected" }] },
+  { "vendor": "Multi-Word-Vendor", "product": "Test-Product-Name", "packageName": "hyphenated-package-name", "platforms": ["x86_64"], "versions": [{ "version": "1.0-beta", "status": "affected" }] }
+      ]
+    }
+  }
+}

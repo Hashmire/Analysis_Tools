@@ -13,6 +13,7 @@ import json
 # Import Analysis Tool 
 from . import gatherData
 from . import generateHTML
+from .badge_modal_system import NON_SPECIFIC_VERSION_VALUES
 from ..storage.cpe_cache import CPECache, get_global_cache_manager
 from ..storage.nvd_source_manager import get_source_name, get_source_info, get_all_sources_for_cve
 
@@ -686,10 +687,21 @@ def suggestCPEData(apiKey, rawDataset, case):
                                 
                             # Mark that we found platform data (even if it's "unknown")
                             platform_found_but_not_recognized = True
+                            
+                            # First check if this is a recognized placeholder value (case-insensitive)
+                            platform_lower = platform_string.strip()
+                            is_placeholder = platform_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+                            
+                            if is_placeholder:
+                                # This is a recognized placeholder - don't mark as unrecognized
+                                platform_found_but_not_recognized = False
+                                # Continue to next platform item since placeholders don't generate CPE strings
+                                continue
                                 
                             # Handle common architecture terms in platform strings
                             if "32-bit" in platform_string or "x32" in platform_string or "x86" in platform_string:
                                 platform_values_searched = True
+                                platform_found_but_not_recognized = False  # Successfully recognized
                                 targetHW = "x86"
                                 rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
                                 scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
@@ -698,6 +710,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                                 
                             if "64-bit" in platform_string or "x64" in platform_string or "x86_64" in platform_string:
                                 platform_values_searched = True
+                                platform_found_but_not_recognized = False  # Successfully recognized
                                 targetHW = "x64"
                                 rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
                                 scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
@@ -706,6 +719,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                                 
                             if "arm" in platform_string and "arm64" not in platform_string:
                                 platform_values_searched = True
+                                platform_found_but_not_recognized = False  # Successfully recognized
                                 targetHW = "arm"
                                 rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
                                 scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
@@ -714,6 +728,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                                 
                             if "arm64" in platform_string:
                                 platform_values_searched = True
+                                platform_found_but_not_recognized = False  # Successfully recognized
                                 targetHW = "arm64"
                                 rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
                                 scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
@@ -726,8 +741,13 @@ def suggestCPEData(apiKey, rawDataset, case):
                             unrecognized_platforms = [p for p in platform_data['platforms'] if p]
                             for unrecognized_platform in unrecognized_platforms:
                                 issues['unexpected_platforms'].append((index, source_role, unrecognized_platform))
-                            if 'platformDataConcern' not in rawDataset.at[index, 'platformEntryMetadata']:
-                                rawDataset.at[index, 'platformEntryMetadata']['platformDataConcern'] = True
+                                # Log unsupported platform value as warning instead of creating concern
+                                logger.warning(f"Unsupported platform value detected: '{unrecognized_platform}' in {source_role} (Row {index}). Platform not recognized by current mapping logic.", group="DATA_PROC")
+                                
+                                # Record in dataset contents collector for reporting
+                                collector = get_dataset_contents_collector()
+                                if collector:
+                                    collector.record_cve_warning(f"Unrecognized platform '{unrecognized_platform}' in {source_role} (Row {index})", "platform_processing")
 
                     # When processing platform data
                     if 'platforms' in platform_data and isinstance(platform_data['platforms'], list):
@@ -737,8 +757,32 @@ def suggestCPEData(apiKey, rawDataset, case):
                             if platform_item and isinstance(platform_item, str):
                                 original_platform = platform_item
                                 
+                                # First check if this is a placeholder value
+                                platform_lower = platform_item.lower().strip()
+                                is_placeholder = platform_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+                                
+                                if is_placeholder:
+                                    # Console warning for placeholder values - attribution handled in badge generation
+                                    logger.warning(f"Platform placeholder detected: '{platform_item}' in {source_role} (Row {index}). "
+                                                  f"Source data concern attribution will be handled during badge generation.", 
+                                                  group="DATA_PROC")
+                                    continue  # Skip mapping attempt for placeholder values
+                                
                                 # Try to map the platform using the curateCPEAttributes function
                                 curated_platform, was_mapped = curateCPEAttributes('platform', platform_item, None)
+                                
+                                # Console warning for unexpected platform values (not known placeholders, not mappable)
+                                if not was_mapped:
+                                    # Check if this is a known valid platform that just failed to map
+                                    known_platforms = ['x86', 'x64', 'arm64', 'arm', 'windows', 'linux', 'macos', 'android', 'ios']
+                                    platform_normalized = platform_item.lower().strip()
+                                    is_known_platform = any(known in platform_normalized for known in known_platforms)
+                                    
+                                    if not is_known_platform and not is_placeholder:
+                                        logger.warning(f"Unexpected platform value detected: '{platform_item}' in {source_role} (Row {index}). "
+                                                      f"Not a known placeholder, not mappable via curateCPEAttributes. "
+                                                      f"Consider reviewing if this should be added to known platform patterns.", 
+                                                      group="DATA_PROC")
                                 
                                 if was_mapped:
                                     platform_values_searched = True
@@ -758,15 +802,21 @@ def suggestCPEData(apiKey, rawDataset, case):
                                     })
                                 else:
                                     all_platforms_mapped = False
-                        # Set the platformDataConcern flag if any platform couldn't be mapped
+                        # Log unmapped platforms as warnings instead of setting platformDataConcern flag
                         if platform_data['platforms'] and not all_platforms_mapped:
-                            # Track unmapped platforms as unexpected platform issues
+                            # Track unmapped platforms and log as warnings
                             for platform_item in platform_data['platforms']:
                                 if platform_item and isinstance(platform_item, str):
                                     curated_platform, was_mapped = curateCPEAttributes('platform', platform_item, None)
                                     if not was_mapped:
                                         issues['unexpected_platforms'].append((index, source_role, platform_item))
-                            rawDataset.at[index, 'platformEntryMetadata']['platformDataConcern'] = True
+                                        # Log unsupported platform value as warning instead of creating concern
+                                        logger.warning(f"Unsupported platform value detected: '{platform_item}' in {source_role} (Row {index}). Platform could not be mapped via curateCPEAttributes.", group="DATA_PROC")
+                                        
+                                        # Record in dataset contents collector for reporting
+                                        collector = get_dataset_contents_collector()
+                                        if collector:
+                                            collector.record_cve_warning(f"Unmapped platform '{platform_item}' in {source_role} (Row {index})", "platform_processing")
 
                     # Generate CPE Match Strings based on available content for 'packageName'
                     if 'packageName' in platform_data and isinstance(platform_data['packageName'], str):
