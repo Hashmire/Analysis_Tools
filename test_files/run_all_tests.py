@@ -58,6 +58,10 @@ class TestSuiteRunner:
                 'command': ['python', 'test_files\\test_sdc_version_granularity_detection.py']
             },
             {
+                'name': 'SDC Whitespace Detection',
+                'command': ['python', 'test_files\\test_sdc_whitespace_detection.py']
+            },
+            {
                 'name': 'Update Patterns',
                 'command': ['python', 'test_files\\test_update_patterns.py']
             },

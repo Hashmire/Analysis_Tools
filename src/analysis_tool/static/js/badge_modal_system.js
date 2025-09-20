@@ -1444,6 +1444,15 @@ class BadgeModalFactory {
                     });
                 }
                 
+                if (concernsData.whitespaceIssues && concernsData.whitespaceIssues.length > 0) {
+                    tabs.push({
+                        id: 'whitespaceIssues',
+                        label: 'Whitespace Issues',
+                        badge: concernsData.whitespaceIssues.length,
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.whitespaceIssues, 'whitespaceIssues', sourceRole)
+                    });
+                }
+                
                 if (concernsData.versionGranularity && concernsData.versionGranularity.length > 0) {
                     tabs.push({
                         id: 'versionGranularity',
@@ -1942,6 +1951,8 @@ class BadgeModalFactory {
                 content += BadgeModalFactory.generateVersionTextPatternsContent(concern);
             } else if (concernType === 'versionComparators') {
                 content += BadgeModalFactory.generateVersionComparatorsContent(concern);
+            } else if (concernType === 'whitespaceIssues') {
+                content += BadgeModalFactory.generateWhitespaceIssuesContent(concern);
             } else if (concernType === 'versionGranularity') {
                 content += BadgeModalFactory.generateVersionGranularityContent(concern);
             } else if (concernType === 'wildcardBranches') {
@@ -2167,6 +2178,67 @@ class BadgeModalFactory {
                         </div>
                         <div class="code-block bg-light p-2 rounded border">
                             <code>"${concern.field}": "${concern.sourceValue}"</code>
+                        </div>
+                    </div>
+                </div>
+                <div class="resolution-guidance">
+                    <strong class="text-success">Resolution:</strong>
+                    <div class="mb-0 text-muted">${resolutionText}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    static visualizeWhitespace(text) {
+        // Replace whitespace characters with visible symbols for debugging
+        return text
+            .replace(/ /g, '!')           // Replace spaces with !
+            .replace(/\t/g, '►')          // Replace tabs with ►
+            .replace(/\n/g, '↵')          // Replace newlines with ↵
+            .replace(/\r/g, '◄');         // Replace carriage returns with ◄
+    }
+
+    static generateWhitespaceIssuesContent(concern) {
+        // Determine problem description based on field type
+        const cpeBaseStringFields = ['vendor', 'product', 'packageName'];
+        const isVersionField = concern.field.includes('version') || 
+                              concern.field.includes('lessThan') || 
+                              concern.field.includes('lessThanOrEqual') ||
+                              concern.field.includes('changes') && concern.field.includes('.at');
+        const isPlatformsField = concern.field.includes('platforms');
+        
+        // Extract whitespace type from detectedPattern (leading, trailing, excessive, etc.)
+        let whitespaceType = "whitespace";
+        if (concern.detectedPattern) {
+            if (concern.detectedPattern.includes('leading') && concern.detectedPattern.includes('trailing')) {
+                whitespaceType = "leading/trailing whitespace";
+            } else if (concern.detectedPattern.includes('leading')) {
+                whitespaceType = "leading whitespace";
+            } else if (concern.detectedPattern.includes('trailing')) {
+                whitespaceType = "trailing whitespace";
+            } else if (concern.detectedPattern.includes('excessive')) {
+                whitespaceType = "excessive whitespace";
+            }
+        }
+        
+        let problemText = `<strong>${concern.field}</strong> has ${whitespaceType}.`;
+        let resolutionText = `Remove whitespace from <strong>${concern.field}</strong> content.`;
+        
+        return `
+            <div class="concern-content">
+                <div class="problem-description mb-2">
+                    <strong class="text-danger">Problem:</strong>
+                    <p class="mb-2">${problemText}</p>
+                </div>
+                <div class="problematic-data mb-2">
+                    <strong class="text-warning">Data:</strong>
+                    <div class="data-display mt-1">
+                        <div class="mb-2">
+                            Pattern <strong>${concern.detectedPattern}</strong> detected in <strong>${concern.field}</strong> content.
+                        </div>
+                        <div class="code-block bg-light p-2 rounded border mb-2">
+                            <div class="mb-1">Source: <code>"${concern.field}": "${concern.sourceValue}"</code></div>
+                            <div>Replaced: <code>"${concern.field}": "${BadgeModalFactory.visualizeWhitespace(concern.sourceValue)}"</code></div>
                         </div>
                     </div>
                 </div>
@@ -2619,6 +2691,10 @@ class BadgeModalManager {
         if (concernsData.versionComparators && concernsData.versionComparators.length > 0) {
             issueCount += concernsData.versionComparators.length;
             concernTypes.push('Version Comparators');
+        }
+        if (concernsData.whitespaceIssues && concernsData.whitespaceIssues.length > 0) {
+            issueCount += concernsData.whitespaceIssues.length;
+            concernTypes.push('Whitespace Issues');
         }
         if (concernsData.versionGranularity && concernsData.versionGranularity.length > 0) {
             issueCount += concernsData.versionGranularity.length;
