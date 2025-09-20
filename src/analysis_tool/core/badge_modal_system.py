@@ -1055,8 +1055,6 @@ def is_modal_only_case(raw_platform_data: Dict) -> bool:
                 not version.get('changes') and  # No complex version.changes
                 not version.get('lessThanOrEqual') and  # No range constraints
                 not version.get('lessThan') and  # No range constraints
-                not version.get('greaterThan') and  # No range constraints
-                not version.get('greaterThanOrEqual') and  # No range constraints
                 version.get('versionType', 'semver') in ['custom', 'semver']):
                 all_versions_patterns += 1
         
@@ -1082,8 +1080,7 @@ def is_modal_only_case(raw_platform_data: Dict) -> bool:
         
         # version: "*" with additional constraints (needs wildcard processing but still modal-only)
         if (version.get('version') == '*' and 
-            (version.get('lessThanOrEqual') or version.get('lessThan') or 
-             version.get('greaterThan') or version.get('greaterThanOrEqual'))):
+            (version.get('lessThanOrEqual') or version.get('lessThan'))):
             logger.debug("Modal-only case detected: version '*' with additional constraints", group="DATA_PROC")
             return True
     
@@ -1417,59 +1414,6 @@ def analyze_version_characteristics(raw_platform_data):
     if len(wildcard_branches) > 1:
         branch_ranges = ", ".join(wildcard_branches)
         processed_concerns.add(f"Multiple overlapping branch ranges with wildcard starts: {branch_ranges}")
-    
-    # === INCONSISTENT VERSION GRANULARITY CHECK ===
-    version_granularities = {}  # Track different version granularity patterns
-    base_versions = set()  # Track base versions (e.g., "3.3" from "3.3.0" or "3.3 Patch 1")
-    version_examples = {}  # Track examples for each base version and granularity
-    
-    for v in versions:
-        if isinstance(v, dict) and 'version' in v and isinstance(v['version'], str):
-            version_str = v['version'].strip()
-            if not version_str or version_str == '*':
-                continue
-                
-            # Extract base version number (before any patches/updates)
-            # Handle cases like "3.0.0 p1", "3.3 Patch 1", "3.1.0", etc.
-            base_match = re.match(r'^(\d+\.\d+)(?:\.(\d+))?', version_str)
-            if base_match:
-                major_minor = base_match.group(1)  # e.g., "3.0", "3.3"
-                patch_part = base_match.group(2)   # e.g., "0" from "3.0.0", None from "3.3"
-                
-                # Determine granularity: 2-part (3.3) vs 3-part (3.3.0)
-                if patch_part is not None:
-                    granularity = "3-part"
-                else:
-                    granularity = "2-part"
-                
-                # Track this base version and its granularity
-                base_versions.add(major_minor)
-                if major_minor not in version_granularities:
-                    version_granularities[major_minor] = set()
-                    version_examples[major_minor] = {}
-                version_granularities[major_minor].add(granularity)
-                
-                # Store examples for this granularity
-                if granularity not in version_examples[major_minor]:
-                    version_examples[major_minor][granularity] = []
-                if len(version_examples[major_minor][granularity]) < 2:  # Limit to 2 examples
-                    version_examples[major_minor][granularity].append(version_str)
-    
-    # Check for inconsistent granularity within the same base version
-    inconsistent_bases = []
-    for base_version, granularities in version_granularities.items():
-        if len(granularities) > 1:
-            granularity_descriptions = []
-            for granularity in sorted(list(granularities)):
-                examples = version_examples[base_version][granularity]
-                examples_str = ", ".join(examples)
-                granularity_descriptions.append(f"{granularity} ({examples_str})")
-            
-            inconsistent_bases.append(f"{base_version}: {', '.join(granularity_descriptions)}")
-    
-    if inconsistent_bases:
-        concern = f"Inconsistent version granularity: {', '.join(inconsistent_bases)}"
-        processed_concerns.add(concern)
     
     # === ASSIGN COLLECTED DATA TO CHARACTERISTICS ===
     # Assign version concerns to characteristics
@@ -3302,8 +3246,87 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             if "Placeholder Detection" not in concern_types:
                 concern_types.append("Placeholder Detection")
     
-    # Comparator Pattern Detection - using production constant
-    
+    # === Version Granularity Detection ===
+    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
+        import re  # Local import to avoid scoping issues
+        version_granularities = {}  # base_version -> {granularity: [ {field: value}, ... ]}
+        version_fields = ['version', 'lessThan', 'lessThanOrEqual']
+        
+        for version_entry in raw_platform_data['versions']:
+            if isinstance(version_entry, dict):
+                # Check standard version fields
+                for field in version_fields:
+                    if field in version_entry and isinstance(version_entry[field], str):
+                        version_str = version_entry[field].strip()
+                        if not version_str or version_str == '*':
+                            continue
+                        # Extract base version number (major version only)
+                        # Handle both single-part (e.g., "2") and multi-part (e.g., "1.0.1.0.5.6.7.8.9.10.11.12.13") versions
+                        base_match = re.match(r'^(\d+)', version_str)
+                        if base_match:
+                            major_version = base_match.group(1)  # e.g., "1", "2", "3"
+                            # Count the number of parts by splitting on dots
+                            parts = version_str.split('.')
+                            granularity_count = len(parts)
+                            granularity = f"{granularity_count}-part"
+                            if major_version not in version_granularities:
+                                version_granularities[major_version] = {}
+                            if granularity not in version_granularities[major_version]:
+                                version_granularities[major_version][granularity] = []
+                            version_granularities[major_version][granularity].append({
+                                "field": field,
+                                "sourceValue": version_str
+                            })
+                
+                # Check changes array for version status changes
+                if 'changes' in version_entry and isinstance(version_entry['changes'], list):
+                    for idx, change in enumerate(version_entry['changes']):
+                        if isinstance(change, dict) and 'at' in change:
+                            at_value = change['at']
+                            if isinstance(at_value, str) and at_value.strip():
+                                version_str = at_value.strip()
+                                if version_str and version_str != '*':
+                                    # Extract base version number (major version only) 
+                                    # Handle both single-part (e.g., "2") and multi-part (e.g., "1.0.1.0.5.6.7.8.9.10.11.12.13") versions
+                                    base_match = re.match(r'^(\d+)', version_str)
+                                    if base_match:
+                                        major_version = base_match.group(1)  # e.g., "1", "2", "3"
+                                        # Count the number of parts by splitting on dots
+                                        parts = version_str.split('.')
+                                        granularity_count = len(parts)
+                                        granularity = f"{granularity_count}-part"
+                                        if major_version not in version_granularities:
+                                            version_granularities[major_version] = {}
+                                        if granularity not in version_granularities[major_version]:
+                                            version_granularities[major_version][granularity] = []
+                                        version_granularities[major_version][granularity].append({
+                                            "field": f"changes[{idx}].at",
+                                            "sourceValue": version_str
+                                        })
+        
+        # Only flag bases with >1 granularity (inconsistent granularity)
+        for base, granularities in version_granularities.items():
+            if len(granularities) > 1:
+                # Add each field/value pair that contributes to the granularity mismatch
+                for granularity_type, field_list in granularities.items():
+                    for field_info in field_list:
+                        # Extract granularity count from type (e.g., "2-part" -> "2")
+                        granularity_count = granularity_type.split('-')[0]
+                        concerns_data["versionGranularity"].append({
+                            "field": field_info["field"],
+                            "sourceValue": field_info["sourceValue"],
+                            "detectedPattern": {
+                                "base": base,
+                                "granularity": granularity_count
+                            }
+                        })
+                        concerns_count += 1
+        
+        # Update concern types if version granularity patterns were found
+        if concerns_data["versionGranularity"]:
+            concern_types.append("Version Granularity")
+
+    # === Comparator Pattern Detection ===
     # Check vendor for comparator patterns
     if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str):
         vendor_value = raw_platform_data['vendor'].strip()
@@ -3415,7 +3438,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         
         for version_entry in raw_platform_data['versions']:
             if isinstance(version_entry, dict):
-                version_fields = ['version', 'lessThan', 'lessThanOrEqual', 'greaterThan', 'greaterThanOrEqual']
+                version_fields = ['version', 'lessThan', 'lessThanOrEqual']
                 for field in version_fields:
                     field_value = version_entry.get(field)
                     if isinstance(field_value, str) and field_value.strip():

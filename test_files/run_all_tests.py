@@ -36,7 +36,7 @@ class TestSuiteRunner:
         self.results: List[Dict] = []
         
         # Define all test suites
-    self.test_suites = [
+        self.test_suites = [
             {
                 'name': 'Logging System',
                 'command': ['python', 'test_files\\test_logging_system.py']
@@ -52,6 +52,10 @@ class TestSuiteRunner:
             {
                 'name': 'SDC Comparator Detection',
                 'command': ['python', 'test_files\\test_sdc_comparator_detection.py']
+            },
+            {
+                'name': 'SDC Version Granularity Detection',
+                'command': ['python', 'test_files\\test_sdc_version_granularity_detection.py']
             },
             {
                 'name': 'Update Patterns',

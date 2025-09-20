@@ -31,7 +31,7 @@ class BadgeModal {
             title: 'Modal',
             icon: '📋',
             size: 'modal-lg',
-            maxHeight: '60vh',
+            maxHeight: '85vh',
             headerColor: '#198754',
             enableDragging: true,
             enableTabs: false,
@@ -262,7 +262,7 @@ class BadgeModal {
             
             tabContentHtml += `
                 <div class="tab-pane fade ${isActive ? 'show active' : ''}" id="${tabId}" role="tabpanel">
-                    <div class="p-2 tab-content-scrollable" style="max-height: 70vh; overflow-y: auto;">
+                    <div class="p-2 tab-content-scrollable" style="max-height: calc(${this.config.maxHeight} - 180px); overflow-y: auto;">
                         ${tab.content}
                     </div>
                 </div>
@@ -499,6 +499,7 @@ class BadgeModalFactory {
             title: 'CPE Base String References',
             icon: '📋',
             headerColor: '#0d6efd',
+            maxHeight: '90vh', // Increased height for reference lists
             enableTabs: true,
             generateHeaderContent: (displayValue, additionalData) => {
                 const totalCount = additionalData.totalCount || 0;
@@ -1389,6 +1390,7 @@ class BadgeModalFactory {
             title: 'Source Data Concerns',
             icon: '🟪',
             headerColor: '#9C27B0', // Material Design purple that fits with other modal colors
+            maxHeight: '90vh', // Increased height for content-heavy modals
             enableTabs: true,
             generateHeaderContent: (displayValue, additionalData) => {
                 const issueCount = additionalData.issueCount || 0;
@@ -1516,6 +1518,7 @@ class BadgeModalFactory {
             title: 'Supporting Information',
             icon: '🔍',
             headerColor: '#6c757d', // Gray theme
+            maxHeight: '90vh', // Increased height for supporting information tables
             enableTabs: true,
             generateHeaderContent: (displayValue, additionalData) => {
                 const totalItems = additionalData.totalItems || 0;
@@ -1914,9 +1917,13 @@ class BadgeModalFactory {
                 </div>
         `;
 
-        concerns.forEach((concern, index) => {
-            // Generate issue-specific styling and content
-            const issueNumber = index + 1;
+        // Special handling for version granularity - group by base version
+        if (concernType === 'versionGranularity') {
+            content += BadgeModalFactory.generateVersionGranularityGroupedContent(concerns, sourceRole);
+        } else {
+            concerns.forEach((concern, index) => {
+                // Generate issue-specific styling and content
+                const issueNumber = index + 1;
             
             content += `
                 <div class="source-concern-item mb-2 p-2 border rounded" style="border-left: 4px solid #9C27B0 !important;">
@@ -1970,9 +1977,91 @@ class BadgeModalFactory {
             }
 
             content += `</div>`;
-        });
+            });
+        }
 
         content += `</div>`;
+        return content;
+    }
+
+    static generateVersionGranularityGroupedContent(concerns, sourceRole = 'Unknown Source') {
+        if (!concerns || concerns.length === 0) {
+            return '<p class="text-muted">No version granularity concerns detected</p>';
+        }
+
+        // Group concerns by base version
+        const groupedByBase = {};
+        concerns.forEach(concern => {
+            const base = concern.detectedPattern?.base || 'unknown';
+            if (!groupedByBase[base]) {
+                groupedByBase[base] = [];
+            }
+            groupedByBase[base].push(concern);
+        });
+
+        let content = '';
+        Object.keys(groupedByBase).forEach((base, baseIndex) => {
+            const baseGroup = groupedByBase[base];
+            const issueNumber = baseIndex + 1;
+            
+            // Sort by increasing granularity (most broad first)
+            baseGroup.sort((a, b) => {
+                const granA = parseInt(a.detectedPattern?.granularity) || 0;
+                const granB = parseInt(b.detectedPattern?.granularity) || 0;
+                return granA - granB;
+            });
+
+            // Create one issue wrapper per base group
+            content += `
+                <div class="source-concern-item mb-2 p-2 border rounded" style="border-left: 4px solid #9C27B0 !important;">
+                    <div class="concern-header mb-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0 text-danger fw-bold" style="font-size: 0.9rem;">Issue #${issueNumber}</h6>
+                            <span class="badge bg-purple text-white" style="background-color: #9C27B0; font-size: 0.65rem;">${sourceRole.toUpperCase()}</span>
+                        </div>
+                    </div>
+                    <div class="concern-content">
+                        <div class="problem-description mb-2">
+                            <strong class="text-danger">Problem:</strong>
+                            <p class="mb-2">Base Group "${base}" contains version granularity differences which may affect platform matching precision.</p>
+                        </div>
+                        <div class="problematic-data mb-2">
+                            <strong class="text-warning">Data:</strong>
+                            <div class="data-display mt-1">
+                                <div class="code-block bg-light p-2 rounded border">
+                                    <div class="mb-2" style="color: #6c757d; font-weight: 600; font-size: 0.9rem;">Base Group: ${base}</div>
+            `;
+
+            // Calculate the maximum field length for alignment
+            let maxFieldLength = 0;
+            baseGroup.forEach((concern) => {
+                if (concern.field.length > maxFieldLength) {
+                    maxFieldLength = concern.field.length;
+                }
+            });
+
+            // Display all field/value pairs with aligned sourceValue strings
+            baseGroup.forEach((concern, index) => {
+                const fieldPadded = concern.field.padEnd(maxFieldLength);
+                content += `                    <code class="d-block${index < baseGroup.length - 1 ? ' mb-1' : ''}" style="font-family: 'Courier New', monospace;">"${fieldPadded}": "${concern.sourceValue}"</code>
+`;
+            });
+
+            content += `                                </div>
+                            </div>
+                        </div>
+                        <div class="resolution-guidance">
+                            <strong class="text-success">Resolution:</strong>
+                            <div class="mb-0 text-muted">
+                                Standardize version granularity consistency across related version sequences.<br/>
+                                Example: <code>1.0, 1.0.1, 1.1.0.0</code> should become <code>1.0.0.0, 1.0.1.0, 1.1.0.0</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
         return content;
     }
 
@@ -2090,72 +2179,36 @@ class BadgeModalFactory {
     }
 
     static generateVersionGranularityContent(concern) {
-        // Parse the concern text to extract version granularity information
-        const concernText = concern.concern || '';
-        
-        // Create simple columnar display for version comparison
-        let formattedData = '';
-        
-        if (concernText.includes('Inconsistent version granularity:')) {
-            try {
-                // Extract all versions from parentheses and create columnar display
-                const versionMatches = concernText.match(/\([^)]+\)/g);
-                
-                if (versionMatches) {
-                    // Extract all individual versions from the parentheses
-                    const allVersions = [];
-                    versionMatches.forEach(match => {
-                        // Remove parentheses and split by comma
-                        const versions = match.replace(/[()]/g, '').split(',');
-                        versions.forEach(version => {
-                            const cleanVersion = version.trim();
-                            if (cleanVersion && !allVersions.includes(cleanVersion)) {
-                                allVersions.push(cleanVersion);
-                            }
-                        });
-                    });
-                    
-                    // Create columnar display
-                    formattedData = `<div style="font-family: monospace;">`;
-                    
-                    // Display each version on its own line for easy comparison  
-                    allVersions.forEach(version => {
-                        formattedData += `<div style="padding: 1px 0;">${version}</div>`;
-                    });
-                    
-                    formattedData += '</div>';
-                } else {
-                    // Fallback if parsing fails
-                    formattedData = `<code style="background: #f8f9fa; padding: 8px; border-radius: 4px; font-size: 0.85rem; display: block; white-space: pre-wrap;">${concernText}</code>`;
-                }
-            } catch (e) {
-                // If parsing fails, use simple formatted text
-                formattedData = `<code style="background: #f8f9fa; padding: 8px; border-radius: 4px; font-size: 0.85rem; display: block; white-space: pre-wrap;">${concernText}</code>`;
-            }
-        } else {
-            // For non-standard version granularity concerns, display as-is
-            formattedData = `<code style="background: #f8f9fa; padding: 8px; border-radius: 4px; font-size: 0.85rem; display: block; white-space: pre-wrap;">${concernText}</code>`;
+        // Display version granularity concern with minimal structure
+        if (!concern || !concern.detectedPattern || !concern.detectedPattern.base || !concern.detectedPattern.granularity) {
+            return `<div class="concern-content compact-layout"><div class="text-muted">No version granularity data available.</div></div>`;
         }
+        
+        const base = concern.detectedPattern.base;
+        const granularity = concern.detectedPattern.granularity;
         
         return `
             <div class="concern-content compact-layout">
                 <div class="problem-description mb-2">
                     <strong class="text-danger" style="font-size: 0.85rem;">Problem:</strong>
-                    <span class="ms-2" style="font-size: 0.85rem;">${concern.issue || 'Version granularity issues may affect matching precision.'}</span>
+                    <span class="ms-2" style="font-size: 0.85rem;">Version granularity inconsistency within base version group.</span>
                 </div>
                 <div class="problematic-data mb-2">
                     <div class="version-data-section">
-                        <strong class="text-warning d-block mb-2" style="font-size: 0.85rem;">Granularity Analysis:</strong>
-                        ${formattedData}
+                        <strong class="text-warning d-block mb-2" style="font-size: 0.85rem;">Detected Issue:</strong>
+                        <div class="ms-2">
+                            <code>"${concern.field}": "${concern.sourceValue}"</code> 
+                            <span class="text-muted ms-2">(${granularity}-part granularity in base "${base}")</span>
+                        </div>
                     </div>
                 </div>
                 <div class="resolution-guidance">
                     <strong class="text-success" style="font-size: 0.85rem;">Resolution:</strong>
                     <div class="text-muted ms-2" style="font-size: 0.8rem;">
                         <ul class="mb-0 mt-1">
-                            <li>Standardize version format consistency across related versions</li>
-                            <li>Use consistent granularity levels (all 2-part or all 3-part within a base version)</li>
-                            <li>Consider normalizing version patterns to avoid matching ambiguity</li>
+                            <li>Standardize version granularity consistency across the "${base}" base version group.</li>
+                            <li>Use consistent part counts within related version sequences.</li>
+                            <li>Example: <code>1.0, 1.0.1, 1.1.0.0</code> should become <code>1.0.0.0, 1.0.1.0, 1.1.0.0</code></li>
                         </ul>
                     </div>
                 </div>
