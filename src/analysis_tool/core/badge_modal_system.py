@@ -3116,6 +3116,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         "versionTextPatterns": [],
         "versionComparators": [],
         "versionGranularity": [],
+        "whitespaceIssues": [],
         "wildcardBranches": [],
         "cpeArrayConcerns": [],
         "duplicateEntries": [],
@@ -3429,6 +3430,113 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         if concerns_data["versionComparators"] and "Comparator Detection" not in concern_types:
             concern_types.append("Comparator Detection")
 
+    # Comprehensive Whitespace Detection
+    # Check all supported fields for whitespace issues
+    
+    # Helper function to detect whitespace issues
+    def detect_whitespace_issues(field_value):
+        """Detect and classify whitespace issues in a field value"""
+        if not isinstance(field_value, str) or not field_value:
+            return None
+            
+        issues = []
+        if field_value.startswith(' '):
+            issues.append("leading")
+        if field_value.endswith(' '):
+            issues.append("trailing")
+        if '  ' in field_value:  # Multiple consecutive spaces
+            issues.append("excessive")
+            
+        if issues:
+            return '/'.join(issues)
+        return None
+    
+    # Check vendor field
+    if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str):
+        vendor_value = raw_platform_data['vendor']
+        whitespace_type = detect_whitespace_issues(vendor_value)
+        if whitespace_type:
+            concerns_data["whitespaceIssues"].append({
+                "field": "vendor",
+                "sourceValue": vendor_value,
+                "detectedPattern": f"'{vendor_value}' ({whitespace_type})"
+            })
+            concerns_count += 1
+    
+    # Check product field  
+    if 'product' in raw_platform_data and isinstance(raw_platform_data['product'], str):
+        product_value = raw_platform_data['product']
+        whitespace_type = detect_whitespace_issues(product_value)
+        if whitespace_type:
+            concerns_data["whitespaceIssues"].append({
+                "field": "product",
+                "sourceValue": product_value,
+                "detectedPattern": f"'{product_value}' ({whitespace_type})"
+            })
+            concerns_count += 1
+    
+    # Check packageName field
+    if 'packageName' in raw_platform_data and isinstance(raw_platform_data['packageName'], str):
+        package_value = raw_platform_data['packageName']
+        whitespace_type = detect_whitespace_issues(package_value)
+        if whitespace_type:
+            concerns_data["whitespaceIssues"].append({
+                "field": "packageName",
+                "sourceValue": package_value,
+                "detectedPattern": f"'{package_value}' ({whitespace_type})"
+            })
+            concerns_count += 1
+    
+    # Check platforms array
+    if 'platforms' in raw_platform_data and isinstance(raw_platform_data['platforms'], list):
+        for idx, platform_item in enumerate(raw_platform_data['platforms']):
+            if isinstance(platform_item, str):
+                whitespace_type = detect_whitespace_issues(platform_item)
+                if whitespace_type:
+                    concerns_data["whitespaceIssues"].append({
+                        "field": f"platforms[{idx}]",
+                        "sourceValue": platform_item,
+                        "detectedPattern": f"'{platform_item}' ({whitespace_type})"
+                    })
+                    concerns_count += 1
+    
+    # Check version-related fields
+    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
+        for version_idx, version_entry in enumerate(raw_platform_data['versions']):
+            if isinstance(version_entry, dict):
+                # Check standard version fields
+                version_fields = ['version', 'lessThan', 'lessThanOrEqual']
+                for field in version_fields:
+                    field_value = version_entry.get(field)
+                    if isinstance(field_value, str):
+                        whitespace_type = detect_whitespace_issues(field_value)
+                        if whitespace_type:
+                            concerns_data["whitespaceIssues"].append({
+                                "field": f"versions[{version_idx}].{field}",
+                                "sourceValue": field_value,
+                                "detectedPattern": f"'{field_value}' ({whitespace_type})"
+                            })
+                            concerns_count += 1
+                
+                # Check changes array
+                if 'changes' in version_entry and isinstance(version_entry['changes'], list):
+                    for change_idx, change in enumerate(version_entry['changes']):
+                        if isinstance(change, dict):
+                            at_value = change.get('at')
+                            if isinstance(at_value, str):
+                                whitespace_type = detect_whitespace_issues(at_value)
+                                if whitespace_type:
+                                    concerns_data["whitespaceIssues"].append({
+                                        "field": f"versions[{version_idx}].changes[{change_idx}].at",
+                                        "sourceValue": at_value,
+                                        "detectedPattern": f"'{at_value}' ({whitespace_type})"
+                                    })
+                                    concerns_count += 1
+    
+    # Update concern types if whitespace issues were found
+    if concerns_data["whitespaceIssues"]:
+        concern_types.append("Whitespace Issues")
+
     # Enhanced Version Character Validation
     # Check for invalid characters in version fields beyond text patterns
     if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
@@ -3449,15 +3557,6 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                 "concern": f"Invalid characters in {field}: {field_value} (chars: {', '.join(invalid_chars)})",
                                 "category": "Character Validation",
                                 "issue": "Version field contains invalid characters that prevent proper processing"
-                            })
-                            concerns_count += 1
-                        
-                        # Check for excessive whitespace issues
-                        if field_value != field_value.strip() or '  ' in field_value:
-                            concerns_data["versionTextPatterns"].append({
-                                "concern": f"Whitespace issues in {field}: '{field_value}'",
-                                "category": "Character Validation", 
-                                "issue": "Version field has leading/trailing/excessive whitespace"
                             })
                             concerns_count += 1
         
