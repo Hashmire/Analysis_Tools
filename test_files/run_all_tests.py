@@ -7,14 +7,24 @@ All test suites use a standardized output format for consistent parsing.
 
 Each test suite outputs: TEST_RESULTS: PASSED=X TOTAL=Y SUITE="Name"
 
+Environment Variables:
+    UNIFIED_TEST_RUNNER:
+        - Automatically set to '1' when running through this unified runner
+        - Controls detailed output suppression in individual test suites
+        - When set: test suites show minimal output for clean unified reporting
+        - When unset: test suites show detailed output for debugging
+        - Individual test suites check: os.environ.get('UNIFIED_TEST_RUNNER')
+
 Browser Behavior:
-- When running through this unified runner, browser auto-opening is disabled 
-  to prevent multiple browser tabs from opening during test execution
-- To enable browser opening, run individual test suites directly
-- This is controlled via the UNIFIED_TEST_RUNNER environment variable
+    - When running through this unified runner, browser auto-opening is disabled 
+      to prevent multiple browser tabs from opening during test execution
+    - Individual test suites add --no-browser flag when UNIFIED_TEST_RUNNER is set
+    - To enable browser opening, run individual test suites directly
+    - This prevents 15+ browser tabs from opening during full test suite execution
 
 Usage:
-    python run_all_tests.py
+    python run_all_tests.py                    # Run all tests with summary output
+    python test_files/test_suite_name.py       # Run individual test with detailed output
 """
 
 import subprocess
@@ -50,8 +60,12 @@ class TestSuiteRunner:
                 'command': ['python', 'test_files\\test_sdc_placeholder_detection.py']
             },
             {
-                'name': 'SDC Comparator Detection',
-                'command': ['python', 'test_files\\test_sdc_comparator_detection.py']
+                'name': 'SDC Mathematical Comparator Detection',
+                'command': ['python', 'test_files\\test_sdc_mathematical_comparator_detection.py']
+            },
+            {
+                'name': 'SDC Text Comparator Detection',
+                'command': ['python', 'test_files\\test_sdc_text_comparator_detection.py']
             },
             {
                 'name': 'SDC Version Granularity Detection',
@@ -60,6 +74,10 @@ class TestSuiteRunner:
             {
                 'name': 'SDC Whitespace Detection',
                 'command': ['python', 'test_files\\test_sdc_whitespace_detection.py']
+            },
+            {
+                'name': 'SDC Invalid Character Detection',
+                'command': ['python', 'test_files\\test_sdc_invalid_character_detection.py']
             },
             {
                 'name': 'Update Patterns',

@@ -1,0 +1,348 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1",
+  "cveMetadata": {
+    "cveId": "CVE-9999-00004",
+    "assignerOrgId": "invalid-character-detection-test-org-12345",
+    "state": "PUBLISHED",
+    "assignerShortName": "InvalidCharTestOrg",
+    "datePublished": "2024-01-16T10:00:00.000Z",
+    "dateUpdated": "2024-01-16T12:30:00.000Z",
+    "dateReserved": "2024-01-10T08:00:00.000Z",
+    "serial": 4
+  },
+  "containers": {
+    "cna": {
+      "providerMetadata": {
+        "orgId": "invalid-character-detection-test-org-12345",
+        "shortName": "InvalidCharTestOrg",
+        "dateUpdated": "2024-01-16T12:30:00.000Z"
+      },
+      "dateAssigned": "2024-01-10T08:00:00.000Z",
+      "datePublic": "2024-01-16T10:00:00.000Z",
+      "title": "Dedicated Invalid Character Detection Test Cases",
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "This CVE record is specifically designed to test invalid character pattern detection across all supported fields: vendor, product, packageName, platforms, and version fields (version, lessThan, lessThanOrEqual, changes[].at). Each test case targets specific invalid characters including control characters, non-printable characters, and unusual Unicode characters."
+        }
+      ],
+      "affected": [
+        {
+          "vendor": "Test\u0000Vendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Test\u0001Product",
+          "versions": [
+            {
+              "version": "2.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "packageName": "test\u0002package",
+          "versions": [
+            {
+              "version": "3.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "platforms": ["linux\u0003", "windows\u0004"],
+          "versions": [
+            {
+              "version": "4.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "1.0.0\u0005",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "lessThan": "2.0.0\u0006",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "lessThanOrEqual": "3.0.0\u0007",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "changes": [
+                {
+                  "at": "4.0.0\u0008",
+                  "status": "unaffected"
+                },
+                {
+                  "at": "5.0.0\u0009",
+                  "status": "unaffected"
+                }
+              ],
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "platforms": ["win32\u000A", "macos\u000B", "linux\u000C"],
+          "versions": [
+            {
+              "version": "8.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "9.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "1.0.0\u000D",
+              "status": "affected"
+            },
+            {
+              "version": "2.0.0\u000E",
+              "status": "affected"
+            },
+            {
+              "version": "3.0.0",
+              "lessThan": "3.0.0\u000F",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "5.0.0",
+              "changes": [
+                {
+                  "at": "6.0.0\u0010",
+                  "status": "unaffected"
+                },
+                {
+                  "at": "7.0.0\u0011",
+                  "status": "unaffected"
+                },
+                {
+                  "at": "8.0.0\u0012",
+                  "status": "unaffected"
+                }
+              ],
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "Test\u0013Vendor",
+          "product": "Test\u0014Product",
+          "packageName": "test\u0015pkg",
+          "platforms": ["win32\u0016", "macos\u0017"],
+          "versions": [
+            {
+              "version": "1.0.0\u0018",
+              "lessThan": "2.0.0\u0019",
+              "lessThanOrEqual": "3.0.0\u001A",
+              "changes": [
+                {
+                  "at": "4.0.0\u001B",
+                  "status": "unaffected"
+                },
+                {
+                  "at": "5.0.0\u001C",
+                  "status": "unaffected"
+                }
+              ],
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "1.0 beta",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "2.0/final",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "lessThan": "3.0[stable]",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "lessThanOrEqual": "4.0,final",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "changes": [
+                {
+                  "at": "5.0{patch}",
+                  "status": "unaffected"
+                },
+                {
+                  "at": "6.0@release",
+                  "status": "unaffected"
+                }
+              ],
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "1.0#dev",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "2.0$build",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "3.0%stable",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "4.0^final",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "5.0&patch",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "6.0=release",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "versions": [
+            {
+              "version": "abc123-dev_2.5:final.patch+hotfix(v1)~stable",
+              "status": "affected"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
