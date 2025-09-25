@@ -1429,7 +1429,7 @@ class BadgeModalFactory {
                 if (concernsData.versionTextPatterns && concernsData.versionTextPatterns.length > 0) {
                     tabs.push({
                         id: 'versionTextPatterns',
-                        label: 'Version Text Patterns',
+                        label: 'Text Comparators',
                         badge: concernsData.versionTextPatterns.length,
                         content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.versionTextPatterns, 'versionTextPatterns', sourceRole)
                     });
@@ -1453,6 +1453,15 @@ class BadgeModalFactory {
                     });
                 }
                 
+                if (concernsData.invalidCharacters && concernsData.invalidCharacters.length > 0) {
+                    tabs.push({
+                        id: 'invalidCharacters',
+                        label: 'Invalid Characters',
+                        badge: concernsData.invalidCharacters.length,
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.invalidCharacters, 'invalidCharacters', sourceRole)
+                    });
+                }
+                
                 if (concernsData.versionGranularity && concernsData.versionGranularity.length > 0) {
                     tabs.push({
                         id: 'versionGranularity',
@@ -1462,14 +1471,6 @@ class BadgeModalFactory {
                     });
                 }
                 
-                if (concernsData.wildcardBranches && concernsData.wildcardBranches.length > 0) {
-                    tabs.push({
-                        id: 'wildcardBranches',
-                        label: 'Wildcard Branches',
-                        badge: concernsData.wildcardBranches.length,
-                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.wildcardBranches, 'wildcardBranches', sourceRole)
-                    });
-                }
                 
                 if (concernsData.cpeArrayConcerns && concernsData.cpeArrayConcerns.length > 0) {
                     tabs.push({
@@ -1486,15 +1487,6 @@ class BadgeModalFactory {
                         label: 'Duplicate Entries',
                         badge: concernsData.duplicateEntries.length,
                         content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.duplicateEntries, 'duplicateEntries', sourceRole)
-                    });
-                }
-                
-                if (concernsData.platformDataConcerns && concernsData.platformDataConcerns.length > 0) {
-                    tabs.push({
-                        id: 'platformDataConcerns',
-                        label: 'Platform Data Issues',
-                        badge: concernsData.platformDataConcerns.length,
-                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.platformDataConcerns, 'platformDataConcerns', sourceRole)
                     });
                 }
                 
@@ -1953,16 +1945,14 @@ class BadgeModalFactory {
                 content += BadgeModalFactory.generateVersionComparatorsContent(concern);
             } else if (concernType === 'whitespaceIssues') {
                 content += BadgeModalFactory.generateWhitespaceIssuesContent(concern);
+            } else if (concernType === 'invalidCharacters') {
+                content += BadgeModalFactory.generateInvalidCharactersContent(concern);
             } else if (concernType === 'versionGranularity') {
                 content += BadgeModalFactory.generateVersionGranularityContent(concern);
-            } else if (concernType === 'wildcardBranches') {
-                content += BadgeModalFactory.generateWildcardBranchesContent(concern);
             } else if (concernType === 'cpeArrayConcerns') {
                 content += BadgeModalFactory.generateCpeArrayConcernsContent(concern);
             } else if (concernType === 'duplicateEntries') {
                 content += BadgeModalFactory.generateDuplicateEntriesContent(concern);
-            } else if (concernType === 'platformDataConcerns') {
-                content += BadgeModalFactory.generatePlatformDataConcernsContent(concern);
             } else if (concernType === 'missingAffectedProducts') {
                 content += BadgeModalFactory.generateMissingAffectedProductsContent(concern);
             } else if (concernType === 'overlappingRanges') {
@@ -2034,7 +2024,7 @@ class BadgeModalFactory {
                     <div class="concern-content">
                         <div class="problem-description mb-2">
                             <strong class="text-danger">Problem:</strong>
-                            <p class="mb-2">Base Group "${base}" contains version granularity differences which may affect platform matching precision.</p>
+                            <p class="mb-2">Version related fields within entry contain granularity differences which may affect platform matching precision.</p>
                         </div>
                         <div class="problematic-data mb-2">
                             <strong class="text-warning">Data:</strong>
@@ -2053,8 +2043,10 @@ class BadgeModalFactory {
 
             // Display all field/value pairs with aligned sourceValue strings
             baseGroup.forEach((concern, index) => {
-                const fieldPadded = concern.field.padEnd(maxFieldLength);
-                content += `                    <code class="d-block${index < baseGroup.length - 1 ? ' mb-1' : ''}" style="font-family: 'Courier New', monospace;">"${fieldPadded}": "${concern.sourceValue}"</code>
+                // Pad the entire field name + quotes + colon for proper alignment
+                const fieldWithQuotes = `"${concern.field}"`;
+                const fieldPadded = fieldWithQuotes.padEnd(maxFieldLength + 2); // +2 for quotes
+                content += `                    <code class="d-block${index < baseGroup.length - 1 ? ' mb-1' : ''}" style="font-family: 'Courier New', monospace;">${fieldPadded}: "${concern.sourceValue}"</code>
 `;
             });
 
@@ -2064,8 +2056,8 @@ class BadgeModalFactory {
                         <div class="resolution-guidance">
                             <strong class="text-success">Resolution:</strong>
                             <div class="mb-0 text-muted">
-                                Standardize version granularity consistency across related version sequences.<br/>
-                                Example: <code>1.0, 1.0.1, 1.1.0.0</code> should become <code>1.0.0.0, 1.0.1.0, 1.1.0.0</code>
+                                Standardize version granularity across related version sequences while maintaining necessary precision.<br/>
+                                Example: <code>1.0, 1.0.1, 1.1.0.0</code> should be represented as <code>1.0.0.0, 1.0.1.0, 1.1.0.0</code>
                             </div>
                         </div>
                     </div>
@@ -2118,28 +2110,24 @@ class BadgeModalFactory {
             <div class="concern-content">
                 <div class="problem-description mb-2">
                     <strong class="text-danger">Problem:</strong>
-                    <p class="mb-2">${concern.issue || 'Version contains text-based comparison patterns that prevent proper version matching'}</p>
+                    <p class="mb-2">${concern.field} contains text based comparator which may impact version identification and CPE-AS generation.</p>
                 </div>
                 <div class="problematic-data mb-2">
                     <strong class="text-warning">Problematic Data:</strong>
                     <div class="data-display mt-1">
-                        <div class="row">
-                            <div class="col-3"><strong>Issue Details:</strong></div>
-                            <div class="col-9"><code class="text-dark bg-light px-2 py-1 rounded border">${concern.concern}</code></div>
+                        <div class="mb-2">
+                            Pattern <strong>${concern.detectedPattern}</strong> detected in <strong>${concern.field}</strong> content
                         </div>
-                        <div class="row mt-1">
-                            <div class="col-3"><strong>Category:</strong></div>
-                            <div class="col-9"><span class="badge bg-warning text-dark">${concern.category}</span></div>
+                        <div class="code-block bg-light p-2 rounded border">
+                            <code>"${concern.field}": "${concern.sourceValue}"</code>
                         </div>
                     </div>
                 </div>
                 <div class="resolution-guidance">
                     <strong class="text-success">Resolution:</strong>
                     <ul class="mb-0 text-muted">
-                        <li>Use structured version ranges with lessThan/lessThanOrEqual fields</li>
-                        <li>Replace text descriptions with specific version numbers</li>
-                        <li>Extract version number from text-based patterns</li>
-                        <li>Use proper version range notation</li>
+                        <li>Use the <code>defaultStatus</code>, <code>version</code>, <code>lessThan</code>, <code>lessThanOrEqual</code>, <code>changes[*].at</code> and/or <code>changes[*].status</code> syntax to precisely represent the intended range boundaries.</li>
+                        <li>Example: <code>"version": "before 1.2.3"</code> should be represented as <code>"lessThan": "1.2.3"</code>.</li>
                     </ul>
                 </div>
             </div>
@@ -2153,14 +2141,14 @@ class BadgeModalFactory {
         const isVersionParsingField = ['version', 'lessThan', 'lessThanOrEqual'].includes(concern.field) || 
                                      concern.field.match(/^changes\[\d+\]\.at$/);
         
-        let problemText = `${concern.field} contains comparison operators which may impact processing.`;
-        let resolutionText = "Remove comparison operators from field values.";
+        let problemText = `${concern.field} contains mathematical comparators which may impact processing.`;
+        let resolutionText = "Remove mathematical comparators from field values.";
         
         if (cpeBaseStringFields.includes(concern.field)) {
-            problemText = `${concern.field} contains comparison operators which may impact platform identification.`;
-            resolutionText = `Remove comparison operators within ${concern.field} content.`;
+            problemText = `${concern.field} contains mathematical comparators which may impact platform identification.`;
+            resolutionText = `Remove mathematical comparators within ${concern.field} content.`;
         } else if (isVersionParsingField) {
-            problemText = `${concern.field} contains comparison operators which may impact version identification and CPE-AS generation.`;
+            problemText = `${concern.field} contains mathematical comparators which may impact version identification and CPE-AS generation.`;
             resolutionText = `Use the <code>defaultStatus</code>, <code>version</code>, <code>lessThan</code>, <code>lessThanOrEqual</code>, <code>changes[*].at</code> and/or <code>changes[*].status</code> syntax to precisely represent the intended range boundaries.<br/>Example: <code>"version": "&lt;=1.2.3"</code> should become <code>"lessThanOrEqual": "1.2.3"</code>.`;
         }
         
@@ -2189,15 +2177,6 @@ class BadgeModalFactory {
         `;
     }
 
-    static visualizeWhitespace(text) {
-        // Replace whitespace characters with visible symbols for debugging
-        return text
-            .replace(/ /g, '!')           // Replace spaces with !
-            .replace(/\t/g, '►')          // Replace tabs with ►
-            .replace(/\n/g, '↵')          // Replace newlines with ↵
-            .replace(/\r/g, '◄');         // Replace carriage returns with ◄
-    }
-
     static generateWhitespaceIssuesContent(concern) {
         // Determine problem description based on field type
         const cpeBaseStringFields = ['vendor', 'product', 'packageName'];
@@ -2207,17 +2186,18 @@ class BadgeModalFactory {
                               concern.field.includes('changes') && concern.field.includes('.at');
         const isPlatformsField = concern.field.includes('platforms');
         
-        // Extract whitespace type from detectedPattern (leading, trailing, excessive, etc.)
+        // Extract whitespace types and replaced text from structured detectedPattern
         let whitespaceType = "whitespace";
-        if (concern.detectedPattern) {
-            if (concern.detectedPattern.includes('leading') && concern.detectedPattern.includes('trailing')) {
-                whitespaceType = "leading/trailing whitespace";
-            } else if (concern.detectedPattern.includes('leading')) {
-                whitespaceType = "leading whitespace";
-            } else if (concern.detectedPattern.includes('trailing')) {
-                whitespaceType = "trailing whitespace";
-            } else if (concern.detectedPattern.includes('excessive')) {
-                whitespaceType = "excessive whitespace";
+        let replacedText = concern.sourceValue;
+        
+        if (concern.detectedPattern && typeof concern.detectedPattern === 'object') {
+            const types = concern.detectedPattern.whitespaceTypes || [];
+            replacedText = concern.detectedPattern.replacedText || concern.sourceValue;
+            
+            if (types.length > 1) {
+                whitespaceType = types.join('/') + ' whitespace';
+            } else if (types.length === 1) {
+                whitespaceType = types[0] + ' whitespace';
             }
         }
         
@@ -2234,11 +2214,11 @@ class BadgeModalFactory {
                     <strong class="text-warning">Data:</strong>
                     <div class="data-display mt-1">
                         <div class="mb-2">
-                            Pattern <strong>${concern.detectedPattern}</strong> detected in <strong>${concern.field}</strong> content.
+                            Pattern <strong>${whitespaceType}</strong> detected in <strong>${concern.field}</strong> content.
                         </div>
                         <div class="code-block bg-light p-2 rounded border mb-2">
                             <div class="mb-1">Source: <code>"${concern.field}": "${concern.sourceValue}"</code></div>
-                            <div>Replaced: <code>"${concern.field}": "${BadgeModalFactory.visualizeWhitespace(concern.sourceValue)}"</code></div>
+                            <div>Replaced: <code>"${concern.field}": "${replacedText}"</code></div>
                         </div>
                     </div>
                 </div>
@@ -2250,8 +2230,33 @@ class BadgeModalFactory {
         `;
     }
 
+    static generateInvalidCharactersContent(concern) {
+        return `
+            <div class="concern-content">
+                <div class="problem-description mb-2">
+                    <strong class="text-danger">Problem:</strong>
+                    <p class="mb-2">${concern.field} contains invalid characters that prevent proper processing.</p>
+                </div>
+                <div class="problematic-data mb-2">
+                    <strong class="text-warning">Problematic Data:</strong>
+                    <div class="data-display mt-1">
+                        <div class="mb-2">
+                            Invalid character <strong>'${concern.detectedPattern}'</strong> detected in <strong>${concern.field}</strong> content
+                        </div>
+                        <div class="code-block bg-light p-2 rounded border">
+                            <code>"${concern.field}": "${concern.sourceValue}"</code>
+                        </div>
+                    </div>
+                </div>
+                <div class="resolution-guidance">
+                    <strong class="text-success">Resolution:</strong>
+                    <div class="mb-0 text-muted">Remove invalid characters and use only allowed characters: letters, numbers, hyphens, asterisks, underscores, colons, dots, plus signs, parentheses, and tildes.</div>
+                </div>
+            </div>
+        `;
+    }
+
     static generateVersionGranularityContent(concern) {
-        // Display version granularity concern with minimal structure
         if (!concern || !concern.detectedPattern || !concern.detectedPattern.base || !concern.detectedPattern.granularity) {
             return `<div class="concern-content compact-layout"><div class="text-muted">No version granularity data available.</div></div>`;
         }
@@ -2288,41 +2293,6 @@ class BadgeModalFactory {
         `;
     }
 
-    static generateWildcardBranchesContent(concern) {
-        return `
-            <div class="concern-content">
-                <div class="problem-description mb-2">
-                    <strong class="text-danger">Problem:</strong>
-                    <p class="mb-2">Multiple overlapping wildcard version branches create ambiguous range definitions.</p>
-                </div>
-                <div class="problematic-data mb-2">
-                    <strong class="text-warning">Problematic Data:</strong>
-                    <div class="data-display mt-1">
-                        <div class="row">
-                            <div class="col-3"><strong>Branches:</strong></div>
-                            <div class="col-9">
-                                ${concern.branches.map(branch => 
-                                    `<code class="text-dark bg-light px-2 py-1 rounded border me-1">${branch}</code>`
-                                ).join('')}
-                            </div>
-                        </div>
-                        <div class="row mt-1">
-                            <div class="col-3"><strong>Overlap Type:</strong></div>
-                            <div class="col-9"><span class="badge bg-warning text-dark">${concern.overlapType}</span></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="resolution-guidance">
-                    <strong class="text-success">Resolution:</strong>
-                    <ul class="mb-0 text-muted">
-                        <li>Consolidate overlapping ranges into single, clear range definitions</li>
-                        <li>Use specific version ranges instead of multiple wildcard patterns</li>
-                        <li>Define non-overlapping version branches</li>
-                    </ul>
-                </div>
-            </div>
-        `;
-    }
 
     static generateCpeArrayConcernsContent(concern) {
         return `
@@ -2392,38 +2362,6 @@ class BadgeModalFactory {
         `;
     }
 
-    static generatePlatformDataConcernsContent(concern) {
-        return `
-            <div class="concern-content">
-                <div class="problem-description mb-2">
-                    <strong class="text-danger">Problem:</strong>
-                    <p class="mb-2">Unexpected platform data structure detected that cannot be processed by current logic.</p>
-                </div>
-                <div class="problematic-data mb-2">
-                    <strong class="text-warning">Problematic Data:</strong>
-                    <div class="data-display mt-1">
-                        <div class="row">
-                            <div class="col-3"><strong>Data Type:</strong></div>
-                            <div class="col-9"><span class="badge bg-warning text-dark">${concern.dataType}</span></div>
-                        </div>
-                        <div class="row mt-1">
-                            <div class="col-3"><strong>Issue:</strong></div>
-                            <div class="col-9">${concern.issueDescription}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="resolution-guidance">
-                    <strong class="text-success">Resolution:</strong>
-                    <ul class="mb-0 text-muted">
-                        <li>Review platform data structure for compliance with expected schema</li>
-                        <li>Contact source data provider for schema clarification</li>
-                        <li>May require tool enhancement to support new platform data patterns</li>
-                    </ul>
-                </div>
-            </div>
-        `;
-    }
-
     static generateMissingAffectedProductsContent(concern) {
         return `
             <div class="concern-content">
@@ -2457,79 +2395,51 @@ class BadgeModalFactory {
     }
 
     static generateOverlappingRangesContent(concern) {
-        // Generate cross-reference links for related table indices
-        const crossRefLinks = concern.related_table_indices && concern.related_table_indices.length > 0 
-            ? concern.related_table_indices.map(index => `<a href="#" onclick="event.preventDefault(); document.querySelector('[id^=\\'rowDataTable_${index}\\']').scrollIntoView({behavior: 'smooth', block: 'center'});" class="badge bg-info text-white me-1" style="font-size: 0.7rem; text-decoration: none;">Row ${index}</a>`).join(' ')
-            : '<span class="text-muted">None</span>';
-
-        // Format range information for visual display
-        const rangeDisplay = concern.affected_ranges && concern.affected_ranges.length > 0
-            ? concern.affected_ranges.map(range => {
-                // Skip non-specific version values like "unspecified"
-                if (range.version) {
-                    const versionStr = String(range.version).toLowerCase().trim();
-                    const nonSpecificValues = ['unspecified', 'unknown', 'na', 'n/a', '*', 'all', 'any'];
-                    if (!nonSpecificValues.includes(versionStr)) {
-                        return `<code class="bg-light px-1 rounded">v${range.version}</code>`;
-                    }
-                }
-                
-                // Build range description from bounds
-                const parts = [];
-                if (range.greaterThan) parts.push(`>${range.greaterThan}`);
-                else if (range.greaterThanOrEqual) parts.push(`>=${range.greaterThanOrEqual}`);
-                
-                if (range.lessThan) parts.push(`<${range.lessThan}`);
-                else if (range.lessThanOrEqual) parts.push(`<=${range.lessThanOrEqual}`);
-                
-                return `<code class="bg-light px-1 rounded">${parts.join(' AND ') || 'unbounded'}</code>`;
-            }).join(' ⇄ ')
-            : '<span class="text-muted">No range details available</span>';
+        const detectedPattern = concern.detectedPattern || {};
+        const overlapType = detectedPattern.overlapType || 'overlap';
+        const range1 = detectedPattern.range1 || 'N/A';
+        const range2 = detectedPattern.range2 || 'N/A';
+        const range1Source = detectedPattern.range1Source || 'N/A';
+        const range2Source = detectedPattern.range2Source || 'N/A';
 
         return `
             <div class="concern-content">
                 <div class="problem-description mb-2">
                     <strong class="text-danger">Problem:</strong>
-                    <p class="mb-2">${concern.range_description || 'Version ranges overlap and could potentially be consolidated'}</p>
+                    <p class="mb-2">Overlapping version ranges create ambiguous range definitions which may affect platform matching precision.</p>
                 </div>
                 <div class="problematic-data mb-2">
-                    <strong class="text-warning">Overlapping Ranges:</strong>
+                    <strong class="text-warning">Data:</strong>
                     <div class="data-display mt-1">
                         <div class="row">
-                            <div class="col-3"><strong>Overlap Type:</strong></div>
-                            <div class="col-9">
-                                <span class="badge ${concern.overlap_type === 'identical' ? 'bg-danger' : concern.overlap_type === 'contains' || concern.overlap_type === 'contained' ? 'bg-warning' : 'bg-info'} text-white" style="font-size: 0.7rem;">
-                                    ${concern.overlap_type ? concern.overlap_type.toUpperCase() : 'OVERLAP'}
+                            <div class="col-4"><strong>Overlap Type:</strong></div>
+                            <div class="col-8">
+                                <span class="badge ${overlapType === 'identical_ranges' ? 'bg-danger' : overlapType.includes('contains') ? 'bg-warning' : 'bg-info'} text-white" style="font-size: 0.7rem;">
+                                    ${overlapType.replace(/_/g, ' ').toUpperCase()}
                                 </span>
                             </div>
                         </div>
                         <div class="row mt-1">
-                            <div class="col-3"><strong>CPE Base:</strong></div>
-                            <div class="col-9"><code class="bg-light px-1 rounded" style="font-size: 0.8rem;">${concern.cpe_base || 'N/A'}</code></div>
+                            <div class="col-4"><strong>Range 1:</strong></div>
+                            <div class="col-8"><code class="bg-light px-1 rounded" style="font-size: 0.8rem;">${range1}</code> (from ${range1Source})</div>
                         </div>
                         <div class="row mt-1">
-                            <div class="col-3"><strong>Visual Ranges:</strong></div>
-                            <div class="col-9" style="font-size: 0.85rem;">${rangeDisplay}</div>
-                        </div>
-                        <div class="row mt-1">
-                            <div class="col-3"><strong>Cross-References:</strong></div>
-                            <div class="col-9">${crossRefLinks}</div>
+                            <div class="col-4"><strong>Range 2:</strong></div>
+                            <div class="col-8"><code class="bg-light px-1 rounded" style="font-size: 0.8rem;">${range2}</code> (from ${range2Source})</div>
                         </div>
                     </div>
                 </div>
                 <div class="resolution-guidance">
-                    <strong class="text-success">Suggestion:</strong>
-                    <p class="mb-0 text-muted" style="font-size: 0.85rem;">${concern.suggestion || 'Review ranges for potential consolidation'}</p>
+                    <strong class="text-success">Resolution:</strong>
+                    <div class="mb-0 text-muted" style="font-size: 0.85rem;">
+                        Use the <code>defaultStatus</code>, <code>version</code>, <code>lessThan</code>, <code>lessThanOrEqual</code>, <code>changes[*].at</code> and/or <code>changes[*].status</code> syntax to precisely represent the explicit range boundaries.
+                    </div>
                 </div>
             </div>
         `;
     }
 }
 
-/**
- * Clean modal management - no global functions, no fallbacks
- * HTML should call BadgeModalFactory.openReferencesModal() directly
- */
 
 // Initialize global storage
 window.BADGE_MODAL_DATA = window.BADGE_MODAL_DATA || {};
@@ -2686,7 +2596,7 @@ class BadgeModalManager {
         }
         if (concernsData.versionTextPatterns && concernsData.versionTextPatterns.length > 0) {
             issueCount += concernsData.versionTextPatterns.length;
-            concernTypes.push('Version Text Patterns');
+            concernTypes.push('Text Comparators');
         }
         if (concernsData.versionComparators && concernsData.versionComparators.length > 0) {
             issueCount += concernsData.versionComparators.length;
@@ -2696,13 +2606,13 @@ class BadgeModalManager {
             issueCount += concernsData.whitespaceIssues.length;
             concernTypes.push('Whitespace Issues');
         }
+        if (concernsData.invalidCharacters && concernsData.invalidCharacters.length > 0) {
+            issueCount += concernsData.invalidCharacters.length;
+            concernTypes.push('Invalid Characters');
+        }
         if (concernsData.versionGranularity && concernsData.versionGranularity.length > 0) {
             issueCount += concernsData.versionGranularity.length;
             concernTypes.push('Version Granularity');
-        }
-        if (concernsData.wildcardBranches && concernsData.wildcardBranches.length > 0) {
-            issueCount += concernsData.wildcardBranches.length;
-            concernTypes.push('Wildcard Branches');
         }
         if (concernsData.cpeArrayConcerns && concernsData.cpeArrayConcerns.length > 0) {
             issueCount += concernsData.cpeArrayConcerns.length;
@@ -2711,10 +2621,6 @@ class BadgeModalManager {
         if (concernsData.duplicateEntries && concernsData.duplicateEntries.length > 0) {
             issueCount += concernsData.duplicateEntries.length;
             concernTypes.push('Duplicate Entries');
-        }
-        if (concernsData.platformDataConcerns && concernsData.platformDataConcerns.length > 0) {
-            issueCount += concernsData.platformDataConcerns.length;
-            concernTypes.push('Platform Data Issues');
         }
         if (concernsData.missingAffectedProducts && concernsData.missingAffectedProducts.length > 0) {
             issueCount += concernsData.missingAffectedProducts.length;

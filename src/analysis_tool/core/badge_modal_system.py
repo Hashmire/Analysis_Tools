@@ -59,49 +59,15 @@ NON_SPECIFIC_VERSION_VALUES = [
 # Define comparator patterns used for detecting comparison operators in data fields
 COMPARATOR_PATTERNS = ['<', '>', '=', '<=', '=<', '=>', '>=', '!=']
 
-# Define version text patterns at module level for reuse
-VERSION_TEXT_PATTERNS = [
-    # Range indicators
-    'through', 'thru', 'to', 'between', 'and',
-    
-    # Upper bound indicators
-    'before', 'prior to', 'earlier than', 'up to', 'until', 
-    'not after', 'older than', 'below',
-    
-    # Lower bound indicators
-    'after', 'since', 'later than', 'newer than', 
-    'starting with', 'from', 'above',
-    
-    # Approximation indicators
-    'about', 'approximately', 'circa', 'around', 'roughly',
-    
-    # Inclusive/exclusive indicators
-    'inclusive', 'exclusive', 'including', 'excluding',
-    
-    # Non-specific versions
-    'all versions', 'any version', 'multiple versions',
-    
-    # Reference directives
-    'see references', 'see advisory', 'refer to', 'check', 'as noted',
-    
-    # Missing/Unknown values (use the shared constant)
-    *NON_SPECIFIC_VERSION_VALUES,
-    
-    # Descriptive statements
-    'supported', 'unstable', 'development', 'beta', 'release candidate', 'nightly',
-    
-    # Date-based indicators that aren't version numbers
-    'builds', 'release', 'pre-', 'post-',
-    
-    # Unclear bounds
-    'earliest', 'recent', 'legacy', 'past', 'future', 'latest',
-    
-    # Commitish references
-    'commit', 'git hash', 'branch',
-    
-    # Version range text indicators
-    '_and_prior', '_and_later', '_and_earlier', '_and_newer',
-    'and_prior', 'and_later', 'and_earlier', 'and_newer'
+# Define text comparator patterns for version fields (sorted by length descending to prioritize longer phrases)
+TEXT_COMPARATOR_PATTERNS = [
+    # Multi-word patterns first (longer phrases)
+    'see references', 'see advisory', 'prior to', 'earlier than', 'later than', 
+    'newer than', 'refer to', 'up to',
+    # Single-word patterns
+    'through', 'thru', 'between', 'before', 'until', 'below', 'after', 
+    'since', 'from', 'above', 'about', 'approximately', 'circa', 'around', 
+    'roughly', 'check', 'noted', 'and', 'to'
 ]
 
 
@@ -1225,8 +1191,7 @@ def analyze_version_characteristics(raw_platform_data):
             'wildcard_patterns': [],
             'special_version_types': [],
             'version_families': set(),
-            'status_types': set(),
-            'version_concerns': []
+            'status_types': set()
         }
     
     versions = raw_platform_data.get('versions', [])
@@ -1247,14 +1212,13 @@ def analyze_version_characteristics(raw_platform_data):
         'special_version_types': [],
         'version_families': set(),
         'status_types': set(),
-        'version_concerns': [],
         'update_patterns': []
     }
     
     # Extended list of comparators to check for - using production constant
     
-    processed_concerns = set()  
-    processed_update_patterns = set()  # Track update patterns separately
+    # Track patterns for settings analysis only
+    processed_update_patterns = set()  # Track update patterns for settings
     
     for version in versions:
         if not isinstance(version, dict):
@@ -1292,7 +1256,7 @@ def analyze_version_characteristics(raw_platform_data):
                         characteristics['version_families'].add(match.group(1))
                         break
         
-        # === DETAILED VERSION CONCERNS DETECTION (PER VERSION) ===
+        # Update pattern detection for settings analysis (using proper pattern matching)
         for field in ['version', 'lessThan', 'lessThanOrEqual']:
             if field not in version:
                 continue
@@ -1303,16 +1267,11 @@ def analyze_version_characteristics(raw_platform_data):
             if field_value is None:
                 continue
             
-            # Handle string values
+            # Handle string values for update pattern detection
             if isinstance(field_value, str):
                 # Skip empty strings
                 if not field_value.strip():
                     continue
-                    
-                field_value_lower = field_value.lower()
-                # Check ALL pattern types
-                has_comparator = any(comp in field_value_lower for comp in COMPARATOR_PATTERNS)
-                has_text_pattern = any(text_comp in field_value_lower for text_comp in VERSION_TEXT_PATTERNS)
                 
                 # Extract all transformation patterns from the update_patterns list using the helper function
                 # This ensures we use the same comprehensive patterns for detection as for transformation
@@ -1329,96 +1288,29 @@ def analyze_version_characteristics(raw_platform_data):
                 
                 has_update_pattern = any(pattern.match(field_value) for pattern in update_pattern_regexes)
                 
-                # Collect all applicable concerns
-                if has_text_pattern:
-                    # Check for version text patterns (placeholders now handled directly in create_source_data_concerns_badge)
-                    matching_patterns = [text_comp for text_comp in VERSION_TEXT_PATTERNS if text_comp in field_value_lower]
-                    # Exclude placeholder patterns from text pattern detection
-                    non_placeholder_patterns = [pattern for pattern in matching_patterns if pattern not in NON_SPECIFIC_VERSION_VALUES]
-                    if non_placeholder_patterns:
-                        limited_patterns = non_placeholder_patterns[:3]
-                        pattern_text = ', '.join(limited_patterns)
-                        if len(non_placeholder_patterns) > 3:
-                            pattern_text += f" (+{len(non_placeholder_patterns) - 3} more)"
-                        concern = f"Text in {field}: {field_value} (patterns: {pattern_text})"
-                        processed_concerns.add(html.escape(concern))
-                
-                # Add update pattern concerns
+                # Set flag for settings analysis
                 if has_update_pattern:
-                    characteristics['has_update_patterns'] = True  # Set the flag!
+                    characteristics['has_update_patterns'] = True
                     
-                    # Use the transformation function to get the actual transformation
+                    # Use the transformation function to get the actual transformation for settings tracking
                     base_version, update_component, transformed_version = transform_version_with_update_pattern(field_value)
                     
                     if base_version and update_component and transformed_version:
-                        # Show the actual transformation (before → after)
-                        concern = f"Update pattern for {field}: {field_value} → {transformed_version}"
-                        processed_update_patterns.add(html.escape(concern))
+                        # Show the actual transformation (before → after) for settings tracking
+                        update_info = f"Update pattern for {field}: {field_value} → {transformed_version}"
+                        processed_update_patterns.add(html.escape(update_info))
                     else:
                         # Soft failure: Log warning and skip this transformation
                         # This happens when regex patterns incorrectly match firmware identifiers, etc.
                         logger.warning(f"Update pattern matched but transformation failed for {field}={field_value}. Skipping transformation for this field.", group="DATA_PROC")
                         
-                        # Add a descriptive concern instead of failing
-                        concern = f"Unprocessable update pattern in {field}: {field_value} (transformation skipped)"
-                        processed_concerns.add(html.escape(concern))
-            
-            # Handle dictionary values (nested version objects)
-            elif isinstance(field_value, dict):
-                # Recursively check nested string values
-                for nested_key, nested_value in field_value.items():
-                    if isinstance(nested_value, str) and nested_value.strip():
-                        nested_value_lower = nested_value.lower()
-                        
-                        # Check nested values for concerns
-                        if any(text_comp in nested_value_lower for text_comp in VERSION_TEXT_PATTERNS):
-                            concern = f"Text in {field}.{nested_key}: {nested_value}"
-                            processed_concerns.add(html.escape(concern))
-                    
-                    # Handle deeply nested structures
-                    elif isinstance(nested_value, dict):
-                        for deep_key, deep_value in nested_value.items():
-                            if isinstance(deep_value, str) and deep_value.strip():
-                                deep_value_lower = deep_value.lower()
-                                if any(text_comp in deep_value_lower for text_comp in VERSION_TEXT_PATTERNS):
-                                    concern = f"Text in {field}.{nested_key}.{deep_key}: {deep_value}"
-                                    processed_concerns.add(html.escape(concern))
-            
-            # Handle list values (arrays of version objects)
-            elif isinstance(field_value, list):
-                for i, list_item in enumerate(field_value):
-                    if isinstance(list_item, str) and list_item.strip():
-                        list_item_lower = list_item.lower()
-                        if any(text_comp in list_item_lower for text_comp in VERSION_TEXT_PATTERNS):
-                            concern = f"Text in {field}[{i}]: {list_item}"
-                            processed_concerns.add(html.escape(concern))
-                    elif isinstance(list_item, dict):
-                        for list_key, list_value in list_item.items():
-                            if isinstance(list_value, str) and list_value.strip():
-                                list_value_lower = list_value.lower()
-                                if any(text_comp in list_value_lower for text_comp in VERSION_TEXT_PATTERNS):
-                                    concern = f"Text in {field}[{i}].{list_key}: {list_value}"
-                                    processed_concerns.add(html.escape(concern))
-            
-            # Log unexpected types
-            elif field_value is not None:  
-                logger.error(f"DataFrame type coercion detected in version field '{field}': expected string, got {type(field_value).__name__}. This indicates pandas DataFrame processing issue.", group="data_processing")
+                        # Add a descriptive info for settings tracking
+                        update_info = f"Unprocessable update pattern in {field}: {field_value} (transformation skipped)"
+                        processed_update_patterns.add(html.escape(update_info))
     
-    # === MULTIPLE WILDCARD BRANCHES CHECK ===
-    wildcard_branches = []
-    for v in versions:
-        if isinstance(v, dict) and v.get('version') == '*' and ('lessThan' in v or 'lessThanOrEqual' in v):
-            branch_end = v.get('lessThan') or v.get('lessThanOrEqual')
-            wildcard_branches.append(branch_end)
-    
-    if len(wildcard_branches) > 1:
-        branch_ranges = ", ".join(wildcard_branches)
-        processed_concerns.add(f"Multiple overlapping branch ranges with wildcard starts: {branch_ranges}")
     
     # === ASSIGN COLLECTED DATA TO CHARACTERISTICS ===
-    # Assign version concerns to characteristics
-    characteristics['version_concerns'] = list(processed_concerns)
-    # Assign update patterns to characteristics
+    # Update patterns tracking for settings analysis
     characteristics['update_patterns'] = list(processed_update_patterns)
     
     # === DERIVED CHARACTERISTICS ===
@@ -3094,6 +2986,436 @@ def store_json_settings_html(table_id, raw_platform_data=None):
 
 # ===== SOURCE DATA CONCERNS MODAL SYSTEM =====
 
+# ===== RANGE OVERLAP DETECTION FUNCTIONS =====
+
+def detect_cross_affected_entry_overlaps(affected_entries: List[Dict]) -> List[Dict]:
+    """
+    Detect overlapping ranges across different affected entries with identical alias properties.
+    
+    Compares all affected array entries to find those with identical alias data:
+    - vendor (case-insensitive)
+    - product (case-insensitive) 
+    - platforms[*] (set equality, any order)
+    - repo
+    - packageName
+    - collectionURL
+    
+    For entries with identical alias properties, checks their versions for overlapping ranges.
+    
+    Returns list of overlap concerns with identical alias data included for debugging.
+    """
+    from packaging import version
+    
+    overlaps = []
+    
+    # Helper function to create identity key from all provided alias properties
+    def get_alias_key(entry):
+        """
+        Create identity key from all provided alias properties.
+        
+        Two entries are considered identical if ALL their alias properties match exactly.
+        This is a conservative approach that only flags entries as duplicates when they
+        are demonstrably identical based on the data actually provided.
+        
+        Alias properties: vendor, product, platforms, repo, packageName, collectionURL
+        """
+        if not isinstance(entry, dict):
+            return None
+            
+        # Extract all potential alias properties, normalizing for consistent comparison
+        vendor = entry.get('vendor', '').lower().strip() if entry.get('vendor') else None
+        product = entry.get('product', '').lower().strip() if entry.get('product') else None
+        repo = entry.get('repo', '').strip() if entry.get('repo') else None
+        package_name = entry.get('packageName', '').strip() if entry.get('packageName') else None
+        collection_url = entry.get('collectionURL', '').strip() if entry.get('collectionURL') else None
+        
+        # Normalize platforms array (set equality, order-independent)
+        platforms = entry.get('platforms', [])
+        if isinstance(platforms, list):
+            platforms_normalized = tuple(sorted([p.strip() for p in platforms if isinstance(p, str)]))
+        else:
+            platforms_normalized = tuple()
+        
+        # Create identity tuple from all alias properties
+        # None values are preserved to distinguish between missing vs empty values
+        return (vendor, product, platforms_normalized, repo, package_name, collection_url)
+    
+    def get_alias_object(entry):
+        """Extract alias properties as object for debugging output"""
+        alias_obj = {}
+        if entry.get('vendor'):
+            alias_obj['vendor'] = entry['vendor']
+        if entry.get('product'):
+            alias_obj['product'] = entry['product']
+        if entry.get('platforms'):
+            alias_obj['platforms'] = entry['platforms']
+        if entry.get('repo'):
+            alias_obj['repo'] = entry['repo']
+        if entry.get('packageName'):
+            alias_obj['packageName'] = entry['packageName']
+        if entry.get('collectionURL'):
+            alias_obj['collectionURL'] = entry['collectionURL']
+        return alias_obj
+    
+    # Group affected entries by identical alias properties
+    alias_groups = {}
+    for entry_idx, entry in enumerate(affected_entries):
+        if not isinstance(entry, dict):
+            continue
+            
+        alias_key = get_alias_key(entry)
+        if alias_key is None:
+            continue
+            
+        if alias_key not in alias_groups:
+            alias_groups[alias_key] = []
+        
+        alias_groups[alias_key].append({
+            'index': entry_idx,
+            'entry': entry,
+            'alias_object': get_alias_object(entry)
+        })
+    
+    # For each group with multiple entries, check for version overlaps
+    for alias_key, group_entries in alias_groups.items():
+        if len(group_entries) < 2:
+            continue  # No overlaps possible with single entry
+        
+        # Compare versions between all pairs in this alias group
+        for i in range(len(group_entries)):
+            for j in range(i + 1, len(group_entries)):
+                entry1 = group_entries[i]
+                entry2 = group_entries[j]
+                
+                versions1 = entry1['entry'].get('versions', [])
+                versions2 = entry2['entry'].get('versions', [])
+                
+                if not isinstance(versions1, list) or not isinstance(versions2, list):
+                    continue
+                
+                # Collect all ranges from both entries (including changes arrays)
+                ranges1 = []
+                ranges2 = []
+                
+                # Extract ranges from entry1
+                for v1_idx, version1 in enumerate(versions1):
+                    if not isinstance(version1, dict):
+                        continue
+                    
+                    # Main version range (only if it has boundaries)
+                    if any(field in version1 for field in ['lessThan', 'lessThanOrEqual']):
+                        ranges1.append({**version1, 'source': f"affected[{entry1['index']}].versions[{v1_idx}]"})
+                    
+                    # Changes array ranges
+                    if 'changes' in version1 and isinstance(version1['changes'], list):
+                        for c_idx, change in enumerate(version1['changes']):
+                            if isinstance(change, dict) and 'at' in change:
+                                ranges1.append({
+                                    'version': change['at'],
+                                    'status': change.get('status', 'unknown'),
+                                    'source': f"affected[{entry1['index']}].versions[{v1_idx}].changes[{c_idx}]"
+                                })
+                
+                # Extract ranges from entry2
+                for v2_idx, version2 in enumerate(versions2):
+                    if not isinstance(version2, dict):
+                        continue
+                    
+                    # Main version range (only if it has boundaries)
+                    if any(field in version2 for field in ['lessThan', 'lessThanOrEqual']):
+                        ranges2.append({**version2, 'source': f"affected[{entry2['index']}].versions[{v2_idx}]"})
+                    
+                    # Changes array ranges
+                    if 'changes' in version2 and isinstance(version2['changes'], list):
+                        for c_idx, change in enumerate(version2['changes']):
+                            if isinstance(change, dict) and 'at' in change:
+                                ranges2.append({
+                                    'version': change['at'],
+                                    'status': change.get('status', 'unknown'),
+                                    'source': f"affected[{entry2['index']}].versions[{v2_idx}].changes[{c_idx}]"
+                                })
+                
+                # Compare all ranges between the two entries
+                for range1 in ranges1:
+                    for range2 in ranges2:
+                        overlap_result = check_range_overlap_semantic(range1, range2)
+                        
+                        if overlap_result:
+                            # Add identical alias data to the detected pattern
+                            overlap_result['detectedPattern']['identicalAlias'] = entry1['alias_object']
+                            
+                            # Update field reference to show cross-entry nature
+                            overlap_result['field'] = f"affected[{entry1['index']}].versions[*]"
+                            
+                            overlaps.append(overlap_result)
+    
+    return overlaps
+
+
+def detect_comprehensive_range_overlaps(versions: List[Dict]) -> List[Dict]:
+    """
+    Comprehensive range overlap detection including wildcard patterns and numeric ranges.
+    Returns unified list of overlap concerns for overlappingRanges.
+    
+    CRITICAL: Applies update pattern transformations BEFORE overlap detection to avoid
+    false positives where legitimate update patterns create apparent overlaps.
+    """
+    from packaging import version
+    
+    overlaps = []
+    
+    # 1. APPLY UPDATE PATTERN TRANSFORMATIONS FIRST
+    # Transform all version strings using update patterns before checking overlaps
+    transformed_versions = []
+    for v_idx, v in enumerate(versions):
+        if not isinstance(v, dict):
+            transformed_versions.append(v)
+            continue
+            
+        # Create a transformed copy of the version entry
+        transformed_v = v.copy()
+        
+        # Transform version fields that might contain update patterns
+        for field in ['version', 'lessThan', 'lessThanOrEqual']:
+            if field in v and isinstance(v[field], str) and v[field]:
+                base_version, update_component, transformed_version = transform_version_with_update_pattern(v[field])
+                if base_version and transformed_version:
+                    # Use the base version for overlap detection (strip update patterns)
+                    transformed_v[field] = base_version
+        
+        # Also transform changes array 'at' fields
+        if 'changes' in v and isinstance(v['changes'], list):
+            transformed_changes = []
+            for change in v['changes']:
+                if isinstance(change, dict) and 'at' in change and isinstance(change['at'], str):
+                    base_version, update_component, transformed_version = transform_version_with_update_pattern(change['at'])
+                    transformed_change = change.copy()
+                    if base_version:
+                        # Use the base version for overlap detection
+                        transformed_change['at'] = base_version
+                    transformed_changes.append(transformed_change)
+                else:
+                    transformed_changes.append(change)
+            transformed_v['changes'] = transformed_changes
+        
+        transformed_versions.append(transformed_v)
+    
+    # 2. WILDCARD OVERLAP DETECTION (on transformed versions)
+    wildcard_ranges = []
+    for v_idx, v in enumerate(transformed_versions):
+        if isinstance(v, dict) and v.get('version') == '*' and ('lessThan' in v or 'lessThanOrEqual' in v):
+            branch_end = v.get('lessThan') or v.get('lessThanOrEqual')
+            if branch_end:
+                wildcard_ranges.append({
+                    'source': f'versions[{v_idx}]',
+                    'version': '*',
+                    'lessThan': v.get('lessThan'),
+                    'lessThanOrEqual': v.get('lessThanOrEqual'),
+                    'status': v.get('status', 'unknown'),
+                    'version_idx': v_idx,
+                    'branch_end': branch_end
+                })
+    
+    # Check for wildcard overlaps (multiple * with different bounds)
+    if len(wildcard_ranges) > 1:
+        unique_branches = list(set([r['branch_end'] for r in wildcard_ranges]))
+        if len(unique_branches) > 1:
+            overlaps.append({
+                "field": "versions", 
+                "sourceValue": wildcard_ranges,
+                "detectedPattern": {
+                    "overlapType": "wildcard_multiple_bounds",
+                    "branches": sorted(unique_branches)
+                },
+                "overlap_type": "wildcard_multiple_bounds",
+                "affected_ranges": wildcard_ranges,
+                "range_description": f"Multiple wildcard patterns with different upper bounds: {', '.join(sorted(unique_branches))}",
+                "related_table_indices": [r['version_idx'] for r in wildcard_ranges]
+            })
+    
+    # 3. NUMERIC RANGE OVERLAP DETECTION (on transformed versions)
+    numeric_ranges = []
+    
+    # Extract numeric ranges from transformed versions and changes arrays
+    for v_idx, v in enumerate(transformed_versions):
+        if not isinstance(v, dict):
+            continue
+            
+        # Main version range (only process actual ranges, not explicit single versions)
+        version_str = v.get('version', '0')
+        if version_str != '*' and version_str not in NON_SPECIFIC_VERSION_VALUES:
+            # Only consider this a range if it has range boundaries (lessThan/lessThanOrEqual)
+            # Explicit single versions without boundaries are not ranges
+            has_range_boundaries = any(field in v for field in ['lessThan', 'lessThanOrEqual'])
+            if has_range_boundaries:
+                try:
+                    range_data = {
+                        'source': f'versions[{v_idx}]',
+                        'version': version_str,
+                        'lessThan': v.get('lessThan'),
+                        'lessThanOrEqual': v.get('lessThanOrEqual'),
+                        'status': v.get('status', 'unknown'),
+                        'version_idx': v_idx
+                    }
+                    numeric_ranges.append(range_data)
+                except:
+                    pass
+        
+        # Changes array ranges (using transformed data)
+        if 'changes' in v and isinstance(v['changes'], list):
+            for c_idx, change in enumerate(v['changes']):
+                if isinstance(change, dict) and 'at' in change:
+                    at_value = change['at']
+                    if at_value and at_value != '*' and at_value not in NON_SPECIFIC_VERSION_VALUES:
+                        try:
+                            change_range = {
+                                'source': f'versions[{v_idx}].changes[{c_idx}]',
+                                'version': at_value,
+                                'status': change.get('status', 'unknown'),
+                                'version_idx': v_idx,
+                                'change_idx': c_idx
+                            }
+                            numeric_ranges.append(change_range)
+                        except:
+                            pass
+    
+    # Compare numeric ranges for overlaps
+    for i, range1 in enumerate(numeric_ranges):
+        for j, range2 in enumerate(numeric_ranges[i + 1:], i + 1):
+            overlap = check_range_overlap_semantic(range1, range2)
+            if overlap:
+                overlaps.append(overlap)
+    
+    return overlaps
+
+def check_range_overlap_semantic(range1: Dict, range2: Dict) -> Optional[Dict]:
+    """
+    Check if two version ranges overlap using semantic version comparison.
+    Returns overlap details if found, None otherwise.
+    """
+    from packaging import version
+    
+    # Skip overlap detection for git version types (commit hashes don't follow semver)
+    range1_version_type = range1.get('versionType', '')
+    range2_version_type = range2.get('versionType', '')
+    if range1_version_type == 'git' or range2_version_type == 'git':
+        return None
+    
+    try:
+        # Parse versions
+        v1_start = version.parse(str(range1['version']))
+        v2_start = version.parse(str(range2['version']))
+        
+        # Get end bounds
+        v1_end = None
+        v1_end_inclusive = False
+        if range1.get('lessThan'):
+            v1_end = version.parse(str(range1['lessThan']))
+            v1_end_inclusive = False
+        elif range1.get('lessThanOrEqual'):
+            v1_end = version.parse(str(range1['lessThanOrEqual']))
+            v1_end_inclusive = True
+        
+        v2_end = None
+        v2_end_inclusive = False
+        if range2.get('lessThan'):
+            v2_end = version.parse(str(range2['lessThan']))
+            v2_end_inclusive = False
+        elif range2.get('lessThanOrEqual'):
+            v2_end = version.parse(str(range2['lessThanOrEqual']))
+            v2_end_inclusive = True
+        
+        # Check for overlaps - only process actual ranges with boundaries
+        overlap_type = None
+        
+        # Both must be ranges (have end bounds) to be considered for overlap
+        if v1_end is None or v2_end is None:
+            # Skip: at least one is an explicit single version without boundaries
+            return None
+        
+        # Range vs Range overlaps (both have boundaries)
+        if v1_end is not None and v2_end is not None:
+            # Check if ranges overlap
+            if (v1_start < v2_end or (v2_end_inclusive and v1_start == v2_end)) and \
+               (v2_start < v1_end or (v1_end_inclusive and v2_start == v1_end)):
+                if v1_start == v2_start and v1_end == v2_end and v1_end_inclusive == v2_end_inclusive:
+                    overlap_type = "identical_ranges"
+                elif v1_start <= v2_start and v1_end >= v2_end:
+                    overlap_type = "range1_contains_range2"
+                elif v2_start <= v1_start and v2_end >= v1_end:
+                    overlap_type = "range2_contains_range1"
+                else:
+                    overlap_type = "partial_overlap"
+        
+        if overlap_type:
+            return {
+                "field": "versions",
+                "sourceValue": f"{range1['source']} & {range2['source']}",
+                "detectedPattern": {
+                    "overlapType": overlap_type,
+                    "range1Source": range1['source'],
+                    "range2Source": range2['source'],
+                    "range1": f"{range1['version']} to {range1.get('lessThan') or range1.get('lessThanOrEqual')}",
+                    "range2": f"{range2['version']} to {range2.get('lessThan') or range2.get('lessThanOrEqual')}"
+                }
+            }
+    
+    except Exception:
+        # If version parsing fails, skip this comparison
+        pass
+    
+    return None
+
+# ===== SOURCE DATA CONCERNS FUNCTIONS =====
+
+def preprocess_platform_data_for_analysis(raw_platform_data: Dict) -> Dict:
+    """
+    Preprocess platform data by applying update pattern transformations before source data concern analysis.
+    
+    This ensures all source data concern checks work with normalized versions rather than raw update patterns,
+    preventing false positives where legitimate update patterns appear as overlaps or other issues.
+    
+    Only processes version-related fields - vendor/product/platforms fields are preserved as-is.
+    
+    Args:
+        raw_platform_data: The raw platform data dictionary
+        
+    Returns:
+        Deep copy of platform data with update patterns normalized in version fields only
+    """
+    import copy
+    
+    # Create a deep copy to avoid modifying the original data
+    curated_data = copy.deepcopy(raw_platform_data)
+    
+    # Process version fields if they exist (only versions and changes arrays need curation)
+    if 'versions' in curated_data and isinstance(curated_data['versions'], list):
+        for version_entry in curated_data['versions']:
+            if not isinstance(version_entry, dict):
+                continue
+                
+            # Transform version fields that might contain update patterns
+            for field in ['version', 'lessThan', 'lessThanOrEqual']:
+                if field in version_entry and isinstance(version_entry[field], str) and version_entry[field]:
+                    original_version = version_entry[field]
+                    base_version, update_component, transformed_version = transform_version_with_update_pattern(original_version)
+                    if base_version and base_version != original_version:
+                        # Use the base version for analysis (strip update patterns)
+                        version_entry[field] = base_version
+            
+            # Also transform changes array 'at' fields
+            if 'changes' in version_entry and isinstance(version_entry['changes'], list):
+                for change in version_entry['changes']:
+                    if isinstance(change, dict) and 'at' in change and isinstance(change['at'], str):
+                        original_at = change['at']
+                        base_version, update_component, transformed_version = transform_version_with_update_pattern(original_at)
+                        if base_version and base_version != original_at:
+                            # Use the base version for analysis
+                            change['at'] = base_version
+    
+    return curated_data
+
+
 def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict, characteristics: Dict, 
                                      platform_metadata: Dict, row: Dict) -> Optional[str]:
     """
@@ -3110,6 +3432,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         HTML string for the badge, or None if no source data concerns detected
     """
     
+    # CRITICAL: Preprocess platform data to apply update pattern transformations
+    # This prevents false positives where legitimate update patterns appear as overlaps or data concerns
+    curated_platform_data = preprocess_platform_data_for_analysis(raw_platform_data)
+    
     # Collect all source data concerns
     concerns_data = {
         "placeholderData": [],
@@ -3117,7 +3443,8 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         "versionComparators": [],
         "versionGranularity": [],
         "whitespaceIssues": [],
-        "wildcardBranches": [],
+        "invalidCharacters": [],
+        "overlappingRanges": [],
         "cpeArrayConcerns": [],
         "duplicateEntries": [],
         "missingAffectedProducts": []
@@ -3126,7 +3453,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     concerns_count = 0
     concern_types = []
     
-    # Vendor Placeholder Data Detection 
+    # Vendor Placeholder Data Detection
     if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str):
         vendor_value = raw_platform_data['vendor'].strip()
         vendor_lower = vendor_value.lower()
@@ -3160,11 +3487,11 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     if concerns_data["placeholderData"]:
         concern_types.append("Placeholder Detection")
     
-    # Version Placeholder Data Detection - moved to be consistent with other placeholders
-    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
+    # Version Placeholder Data Detection 
+    if 'versions' in curated_platform_data and isinstance(curated_platform_data['versions'], list):
         version_fields = ['version', 'lessThan', 'lessThanOrEqual']
         
-        for version_entry in raw_platform_data['versions']:
+        for version_entry in curated_platform_data['versions']:
             if isinstance(version_entry, dict):
                 # Check standard version fields
                 for field in version_fields:
@@ -3208,7 +3535,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     
     # Platform Placeholder Data Detection
     if 'platforms' in raw_platform_data and isinstance(raw_platform_data['platforms'], list):
-        for platform_item in raw_platform_data['platforms']:
+        for idx, platform_item in enumerate(raw_platform_data['platforms']):
             if isinstance(platform_item, str):
                 platform_lower = platform_item.lower().strip()
                 # Use exact matching for placeholder detection - these are specific bad data entry practices
@@ -3217,7 +3544,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                 if is_placeholder:
                     detected_pattern = next(v for v in NON_SPECIFIC_VERSION_VALUES if v.lower() == platform_lower)
                     concerns_data["placeholderData"].append({
-                        "field": "platforms",
+                        "field": f"platforms[{idx}]",
                         "sourceValue": platform_item,
                         "detectedPattern": detected_pattern
                     })
@@ -3248,12 +3575,12 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                 concern_types.append("Placeholder Detection")
     
     # === Version Granularity Detection ===
-    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
+    if 'versions' in curated_platform_data and isinstance(curated_platform_data['versions'], list):
         import re  # Local import to avoid scoping issues
         version_granularities = {}  # base_version -> {granularity: [ {field: value}, ... ]}
         version_fields = ['version', 'lessThan', 'lessThanOrEqual']
         
-        for version_entry in raw_platform_data['versions']:
+        for version_entry in curated_platform_data['versions']:
             if isinstance(version_entry, dict):
                 # Check standard version fields
                 for field in version_fields:
@@ -3308,14 +3635,26 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         # Only flag bases with >1 granularity (inconsistent granularity)
         for base, granularities in version_granularities.items():
             if len(granularities) > 1:
-                # Add each field/value pair that contributes to the granularity mismatch
+                # Group all unique versions by granularity for visual alignment
+                granularity_groups = {}
                 for granularity_type, field_list in granularities.items():
+                    granularity_count = granularity_type.split('-')[0]
+                    if granularity_count not in granularity_groups:
+                        granularity_groups[granularity_count] = {}
+                    
                     for field_info in field_list:
-                        # Extract granularity count from type (e.g., "2-part" -> "2")
-                        granularity_count = granularity_type.split('-')[0]
+                        version = field_info['sourceValue']
+                        if version not in granularity_groups[granularity_count]:
+                            granularity_groups[granularity_count][version] = field_info['field']
+                
+                # Add entries grouped by granularity for visual alignment
+                for granularity_count in sorted(granularity_groups.keys()):
+                    unique_versions = granularity_groups[granularity_count]
+                    for version in sorted(unique_versions.keys()):
+                        field = unique_versions[version]
                         concerns_data["versionGranularity"].append({
-                            "field": field_info["field"],
-                            "sourceValue": field_info["sourceValue"],
+                            "field": field,
+                            "sourceValue": version,
                             "detectedPattern": {
                                 "base": base,
                                 "granularity": granularity_count
@@ -3325,7 +3664,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         
         # Update concern types if version granularity patterns were found
         if concerns_data["versionGranularity"]:
-            concern_types.append("Version Granularity")
+            concern_types.append("Version Granularity Detection")
 
     # === Comparator Pattern Detection ===
     # Check vendor for comparator patterns
@@ -3358,7 +3697,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     
     # Check platforms array for comparator patterns
     if 'platforms' in raw_platform_data and isinstance(raw_platform_data['platforms'], list):
-        for platform_item in raw_platform_data['platforms']:
+        for idx, platform_item in enumerate(raw_platform_data['platforms']):
             if isinstance(platform_item, str):
                 platform_value = platform_item.strip()
                 if platform_value:
@@ -3366,7 +3705,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                     matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in platform_lower]
                     if matching_comparators:
                         concerns_data["versionComparators"].append({
-                            "field": "platforms",
+                            "field": f"platforms[{idx}]",
                             "sourceValue": platform_value,
                             "detectedPattern": ', '.join(matching_comparators)
                         })
@@ -3388,13 +3727,13 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     
     # Update concern types if any comparator patterns were found
     if concerns_data["versionComparators"]:
-        concern_types.append("Comparator Detection")
+        concern_types.append("Mathematical Comparator Detection")
 
     # Check version fields for comparator patterns  
-    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
+    if 'versions' in curated_platform_data and isinstance(curated_platform_data['versions'], list):
         version_fields = ['version', 'lessThan', 'lessThanOrEqual']
         
-        for version_entry in raw_platform_data['versions']:
+        for version_entry in curated_platform_data['versions']:
             if isinstance(version_entry, dict):
                 # Check standard version fields
                 for field in version_fields:
@@ -3427,11 +3766,66 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                     concerns_count += 1
         
         # Update concern types if version field comparator patterns were found
-        if concerns_data["versionComparators"] and "Comparator Detection" not in concern_types:
-            concern_types.append("Comparator Detection")
+        if concerns_data["versionComparators"] and "Mathematical Comparator Detection" not in concern_types:
+            concern_types.append("Mathematical Comparator Detection")
 
-    # Comprehensive Whitespace Detection
-    # Check all supported fields for whitespace issues
+    # === Text Comparator Detection ===
+    # Check version fields for text-based comparison patterns
+    if 'versions' in curated_platform_data and isinstance(curated_platform_data['versions'], list):
+        version_fields = ['version', 'lessThan', 'lessThanOrEqual']
+        
+        for version_entry in curated_platform_data['versions']:
+            if isinstance(version_entry, dict):
+                # Check standard version fields
+                for field in version_fields:
+                    field_value = version_entry.get(field)
+                    if isinstance(field_value, str) and field_value.strip():
+                        field_lower = field_value.lower()
+                        # Check each pattern and report individually
+                        for pattern in TEXT_COMPARATOR_PATTERNS:
+                            if pattern in field_lower:
+                                concerns_data["versionTextPatterns"].append({
+                                    "field": field,
+                                    "sourceValue": field_value,
+                                    "detectedPattern": pattern
+                                })
+                                concerns_count += 1
+                
+                # Check changes array for version status changes
+                if 'changes' in version_entry and isinstance(version_entry['changes'], list):
+                    for idx, change in enumerate(version_entry['changes']):
+                        if isinstance(change, dict):
+                            # Check changes[].at field
+                            change_at_value = change.get('at')
+                            if isinstance(change_at_value, str) and change_at_value.strip():
+                                field_lower = change_at_value.lower()
+                                # Check each pattern and report individually
+                                for pattern in TEXT_COMPARATOR_PATTERNS:
+                                    if pattern in field_lower:
+                                        concerns_data["versionTextPatterns"].append({
+                                            "field": f"changes[{idx}].at",
+                                            "sourceValue": change_at_value,
+                                            "detectedPattern": pattern
+                                        })
+                                        concerns_count += 1
+                            
+                            # Check changes[].status field
+                            change_status_value = change.get('status')
+                            if isinstance(change_status_value, str) and change_status_value.strip():
+                                field_lower = change_status_value.lower()
+                                # Check each pattern and report individually
+                                for pattern in TEXT_COMPARATOR_PATTERNS:
+                                    if pattern in field_lower:
+                                        concerns_data["versionTextPatterns"].append({
+                                            "field": f"changes[{idx}].status",
+                                            "sourceValue": change_status_value,
+                                            "detectedPattern": pattern
+                                        })
+                                        concerns_count += 1
+        
+        # Update concern types if text comparator patterns were found
+        if concerns_data["versionTextPatterns"]:
+            concern_types.append("Text Comparator Detection")
     
     # Helper function to detect whitespace issues
     def detect_whitespace_issues(field_value):
@@ -3448,42 +3842,52 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             issues.append("excessive")
             
         if issues:
-            return '/'.join(issues)
+            # Generate replaced text with visible whitespace markers
+            replaced_text = field_value
+            replaced_text = replaced_text.replace(' ', '!')  # Replace spaces with !
+            replaced_text = replaced_text.replace('\t', '►')  # Replace tabs with ►
+            replaced_text = replaced_text.replace('\n', '↵')  # Replace newlines with ↵
+            replaced_text = replaced_text.replace('\r', '◄')  # Replace carriage returns with ◄
+            
+            return {
+                "whitespaceTypes": issues,
+                "replacedText": replaced_text
+            }
         return None
     
     # Check vendor field
     if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str):
         vendor_value = raw_platform_data['vendor']
-        whitespace_type = detect_whitespace_issues(vendor_value)
-        if whitespace_type:
+        whitespace_data = detect_whitespace_issues(vendor_value)
+        if whitespace_data:
             concerns_data["whitespaceIssues"].append({
                 "field": "vendor",
                 "sourceValue": vendor_value,
-                "detectedPattern": f"'{vendor_value}' ({whitespace_type})"
+                "detectedPattern": whitespace_data
             })
             concerns_count += 1
     
     # Check product field  
     if 'product' in raw_platform_data and isinstance(raw_platform_data['product'], str):
         product_value = raw_platform_data['product']
-        whitespace_type = detect_whitespace_issues(product_value)
-        if whitespace_type:
+        whitespace_data = detect_whitespace_issues(product_value)
+        if whitespace_data:
             concerns_data["whitespaceIssues"].append({
                 "field": "product",
                 "sourceValue": product_value,
-                "detectedPattern": f"'{product_value}' ({whitespace_type})"
+                "detectedPattern": whitespace_data
             })
             concerns_count += 1
     
     # Check packageName field
     if 'packageName' in raw_platform_data and isinstance(raw_platform_data['packageName'], str):
         package_value = raw_platform_data['packageName']
-        whitespace_type = detect_whitespace_issues(package_value)
-        if whitespace_type:
+        whitespace_data = detect_whitespace_issues(package_value)
+        if whitespace_data:
             concerns_data["whitespaceIssues"].append({
                 "field": "packageName",
                 "sourceValue": package_value,
-                "detectedPattern": f"'{package_value}' ({whitespace_type})"
+                "detectedPattern": whitespace_data
             })
             concerns_count += 1
     
@@ -3491,12 +3895,12 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     if 'platforms' in raw_platform_data and isinstance(raw_platform_data['platforms'], list):
         for idx, platform_item in enumerate(raw_platform_data['platforms']):
             if isinstance(platform_item, str):
-                whitespace_type = detect_whitespace_issues(platform_item)
-                if whitespace_type:
+                whitespace_data = detect_whitespace_issues(platform_item)
+                if whitespace_data:
                     concerns_data["whitespaceIssues"].append({
                         "field": f"platforms[{idx}]",
                         "sourceValue": platform_item,
-                        "detectedPattern": f"'{platform_item}' ({whitespace_type})"
+                        "detectedPattern": whitespace_data
                     })
                     concerns_count += 1
     
@@ -3509,12 +3913,12 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                 for field in version_fields:
                     field_value = version_entry.get(field)
                     if isinstance(field_value, str):
-                        whitespace_type = detect_whitespace_issues(field_value)
-                        if whitespace_type:
+                        whitespace_data = detect_whitespace_issues(field_value)
+                        if whitespace_data:
                             concerns_data["whitespaceIssues"].append({
                                 "field": f"versions[{version_idx}].{field}",
                                 "sourceValue": field_value,
-                                "detectedPattern": f"'{field_value}' ({whitespace_type})"
+                                "detectedPattern": whitespace_data
                             })
                             concerns_count += 1
                 
@@ -3524,45 +3928,110 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                         if isinstance(change, dict):
                             at_value = change.get('at')
                             if isinstance(at_value, str):
-                                whitespace_type = detect_whitespace_issues(at_value)
-                                if whitespace_type:
+                                whitespace_data = detect_whitespace_issues(at_value)
+                                if whitespace_data:
                                     concerns_data["whitespaceIssues"].append({
                                         "field": f"versions[{version_idx}].changes[{change_idx}].at",
                                         "sourceValue": at_value,
-                                        "detectedPattern": f"'{at_value}' ({whitespace_type})"
+                                        "detectedPattern": whitespace_data
+                                    })
+                                    concerns_count += 1
+                            
+                            # Check status fields
+                            status_value = change.get('status')
+                            if isinstance(status_value, str):
+                                whitespace_data = detect_whitespace_issues(status_value)
+                                if whitespace_data:
+                                    concerns_data["whitespaceIssues"].append({
+                                        "field": f"versions[{version_idx}].changes[{change_idx}].status",
+                                        "sourceValue": status_value,
+                                        "detectedPattern": whitespace_data
                                     })
                                     concerns_count += 1
     
     # Update concern types if whitespace issues were found
     if concerns_data["whitespaceIssues"]:
-        concern_types.append("Whitespace Issues")
+        concern_types.append("Whitespace Detection")
 
-    # Enhanced Version Character Validation
-    # Check for invalid characters in version fields beyond text patterns
-    if 'versions' in raw_platform_data and isinstance(raw_platform_data['versions'], list):
-        import re
-        # Pattern for possibly invalid characters (not spaces or common version chars)
-        invalid_char_pattern = r'[,;|\\"`\'{}[\]()&$#@%^*+?~]'
+    # === RANGE OVERLAP DETECTION ===
+    if 'versions' in curated_platform_data and isinstance(curated_platform_data['versions'], list):
+        versions = curated_platform_data.get('versions', [])
         
-        for version_entry in raw_platform_data['versions']:
+        # Comprehensive range overlap detection (includes wildcards and numeric ranges)
+        range_overlaps = detect_comprehensive_range_overlaps(versions)
+        if range_overlaps:
+            concerns_data["overlappingRanges"].extend(range_overlaps)
+            concerns_count += len(range_overlaps)
+    
+    # === CROSS-AFFECTED-ENTRY OVERLAP DETECTION ===
+    # Check for overlapping ranges across different affected entries with identical alias properties
+    if 'affected' in raw_platform_data and isinstance(raw_platform_data['affected'], list):
+        # Preprocess each affected entry to normalize update patterns before cross-entry analysis
+        curated_affected_entries = []
+        for entry in raw_platform_data['affected']:
+            if isinstance(entry, dict):
+                curated_entry = preprocess_platform_data_for_analysis(entry)
+                curated_affected_entries.append(curated_entry)
+        
+        cross_entry_overlaps = detect_cross_affected_entry_overlaps(curated_affected_entries)
+        if cross_entry_overlaps:
+            concerns_data["overlappingRanges"].extend(cross_entry_overlaps)
+            concerns_count += len(cross_entry_overlaps)
+    
+    # Update concern types for range overlaps
+    if concerns_data["overlappingRanges"]:
+        concern_types.append("Overlapping Ranges")
+
+    # === INVALID CHARACTER DETECTION ===
+    if 'versions' in curated_platform_data and isinstance(curated_platform_data['versions'], list):
+        import re
+        # Allow-list pattern for valid version characters
+        # Allows: alphanumeric, hyphens, asterisks, underscores, colons, dots, plus, parentheses, tildes
+        valid_version_pattern = r'^(\*|[a-zA-Z0-9]+[-*_:.+()~a-zA-Z0-9]*)$'
+        
+        for version_entry in curated_platform_data['versions']:
             if isinstance(version_entry, dict):
                 version_fields = ['version', 'lessThan', 'lessThanOrEqual']
                 for field in version_fields:
                     field_value = version_entry.get(field)
                     if isinstance(field_value, str) and field_value.strip():
-                        # Check for invalid characters
-                        if re.search(invalid_char_pattern, field_value):
-                            invalid_chars = list(set(re.findall(invalid_char_pattern, field_value)))
-                            concerns_data["versionTextPatterns"].append({
-                                "concern": f"Invalid characters in {field}: {field_value} (chars: {', '.join(invalid_chars)})",
-                                "category": "Character Validation",
-                                "issue": "Version field contains invalid characters that prevent proper processing"
-                            })
-                            concerns_count += 1
-        
-        # Update concern types if we added new character validation issues
-        if concerns_data["versionTextPatterns"] and "Version Text Patterns" not in concern_types:
-            concern_types.append("Version Text Patterns")
+                        # Check if version matches valid pattern
+                        if not re.match(valid_version_pattern, field_value):
+                            # Find specific invalid characters by excluding valid ones
+                            invalid_chars = list(set(re.findall(r'[^a-zA-Z0-9\-*_:.+()~]', field_value)))
+                            if invalid_chars:  # Only add if we actually found invalid characters
+                                # Use proper format for individual invalid characters
+                                for invalid_char in invalid_chars:
+                                    concerns_data["invalidCharacters"].append({
+                                        "field": field,
+                                        "sourceValue": field_value,
+                                        "detectedPattern": invalid_char
+                                    })
+                                    concerns_count += 1
+                
+                # Check changes array for invalid characters
+                if 'changes' in version_entry and isinstance(version_entry['changes'], list):
+                    for idx, change in enumerate(version_entry['changes']):
+                        if isinstance(change, dict):
+                            change_at_value = change.get('at')
+                            if isinstance(change_at_value, str) and change_at_value.strip():
+                                # Check if version matches valid pattern
+                                if not re.match(valid_version_pattern, change_at_value):
+                                    # Find specific invalid characters by excluding valid ones
+                                    invalid_chars = list(set(re.findall(r'[^a-zA-Z0-9\-*_:.+()~]', change_at_value)))
+                                    if invalid_chars:  # Only add if we actually found invalid characters
+                                        # Use proper format for individual invalid characters
+                                        for invalid_char in invalid_chars:
+                                            concerns_data["invalidCharacters"].append({
+                                                "field": f"changes[{idx}].at",
+                                                "sourceValue": change_at_value,
+                                                "detectedPattern": invalid_char
+                                            })
+                                            concerns_count += 1
+    
+    # Update concern types for invalid character detection
+    if concerns_data["invalidCharacters"]:
+        concern_types.append("Invalid Character Detection")
     
     # CPEs Array Data Concerns
     if 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
@@ -3624,7 +4093,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                 # Check version component for text patterns
                 if len(parts) >= 6:
                     version = parts[5]
-                    if any(text_comp in version.lower() for text_comp in VERSION_TEXT_PATTERNS):
+                    if any(text_comp in version.lower() for text_comp in TEXT_COMPARATOR_PATTERNS):
                         cpe_issues.append({
                             "cpe": cpe,
                             "position": idx,
