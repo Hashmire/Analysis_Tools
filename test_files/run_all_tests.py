@@ -92,6 +92,14 @@ class TestSuiteRunner:
             {
                 'name': 'Source Data Concern Dashboard',
                 'command': ['python', 'test_files\\test_source_data_concern_dashboard.py']
+            },
+            {
+                'name': 'Overlapping Ranges Detection (Unit)',
+                'command': ['python', 'test_files\\test_overlapping_ranges.py']
+            },
+            {
+                'name': 'Registry Structure Validation',
+                'command': ['python', 'test_files\\test_registry_structure_validation.py']
             }
         ]
 

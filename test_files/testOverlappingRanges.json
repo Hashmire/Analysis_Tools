@@ -1,0 +1,339 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1", 
+  "cveMetadata": {
+    "cveId": "CVE-1337-88888",
+    "assignerOrgId": "overlapping-ranges-test-org-12345",
+    "state": "PUBLISHED",
+    "assignerShortName": "OverlappingRangesTestOrg",
+    "datePublished": "2024-01-15T10:00:00.000Z",
+    "dateUpdated": "2024-01-15T12:30:00.000Z",
+    "dateReserved": "2024-01-10T08:00:00.000Z",
+    "serial": 1
+  },
+  "containers": {
+    "cna": {
+      "providerMetadata": {
+        "orgId": "overlapping-ranges-test-org-12345",
+        "shortName": "OverlappingRangesTestOrg",
+        "dateUpdated": "2024-01-15T12:30:00.000Z"
+      },
+      "dateAssigned": "2024-01-10T08:00:00.000Z",
+      "datePublic": "2024-01-15T10:00:00.000Z",
+      "title": "Comprehensive Overlapping Ranges Test Cases",
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "This CVE record is designed to comprehensively test overlapping ranges detection including wildcard patterns, numeric ranges, cross-entry overlaps, and update pattern handling."
+        }
+      ],
+      "affected": [
+        {
+          "vendor": "WildcardOverlaps-Test1",
+          "product": "multiple-wildcard-bounds",
+          "versions": [
+            {
+              "version": "*",
+              "lessThan": "2.0.0", 
+              "status": "affected"
+            },
+            {
+              "version": "*",
+              "lessThan": "3.0.0",
+              "status": "affected" 
+            },
+            {
+              "version": "*",
+              "lessThanOrEqual": "1.5.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "NumericRangeOverlaps-Test1",
+          "product": "identical-ranges",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "lessThan": "2.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "1.0.0", 
+              "lessThan": "2.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "NumericRangeOverlaps-Test2",
+          "product": "partial-overlap-ranges",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "lessThan": "3.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "2.0.0",
+              "lessThan": "4.0.0", 
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "NumericRangeOverlaps-Test3",
+          "product": "containment-ranges",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "lessThan": "5.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "2.0.0",
+              "lessThan": "3.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "UpdatePatternOverlaps-Test1",
+          "product": "update-pattern-normalization",
+          "versions": [
+            {
+              "version": "1.0.0 beta 2",
+              "lessThan": "2.0.0 rc 1",
+              "status": "affected"
+            },
+            {
+              "version": "1.0.0",
+              "lessThan": "2.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "ChangesArrayOverlaps-Test1", 
+          "product": "changes-array-duplicates",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "lessThan": "2.0.0",
+              "status": "affected",
+              "changes": [
+                {
+                  "at": "1.5.0",
+                  "status": "unaffected"
+                },
+                {
+                  "at": "1.5.0", 
+                  "status": "affected"
+                },
+                {
+                  "at": "1.7.0 alpha 1",
+                  "status": "unaffected"
+                },
+                {
+                  "at": "1.7.0",
+                  "status": "affected"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "vendor": "CrossEntryOverlaps-TestVendor",
+          "product": "CrossEntryOverlaps-TestProduct",
+          "platforms": ["Linux", "Windows"],
+          "versions": [
+            {
+              "version": "1.0.0",
+              "lessThan": "2.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "crossentryoverlaps-testvendor",
+          "product": "crossentryoverlaps-testproduct", 
+          "platforms": ["Windows", "Linux"],
+          "versions": [
+            {
+              "version": "1.5.0",
+              "lessThan": "2.5.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "repo": "https://github.com/test/overlapping-repo",
+          "packageName": "overlapping-test-package",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "lessThan": "2.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "repo": "https://github.com/test/overlapping-repo",
+          "packageName": "overlapping-test-package",
+          "versions": [
+            {
+              "version": "1.8.0",
+              "lessThan": "2.2.0", 
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "CrossEntryNoOverlap-VendorA",
+          "product": "CrossEntryNoOverlap-ProductA",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "lessThan": "2.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "CrossEntryNoOverlap-VendorB",
+          "product": "CrossEntryNoOverlap-ProductB", 
+          "versions": [
+            {
+              "version": "1.0.0",
+              "lessThan": "2.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "ComplexRangeOverlaps-Test1",
+          "product": "mixed-wildcard-numeric",
+          "versions": [
+            {
+              "version": "*",
+              "lessThan": "2.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "1.0.0",
+              "lessThan": "1.5.0",
+              "status": "affected"
+            },
+            {
+              "version": "1.2.0",
+              "lessThan": "1.8.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "VersionGranularityOverlaps-Test1", 
+          "product": "granular-version-overlaps",
+          "versions": [
+            {
+              "version": "2.1.0",
+              "lessThan": "2.2.0",
+              "status": "affected"
+            },
+            {
+              "version": "2.1.5",
+              "lessThan": "2.1.8",
+              "status": "affected"
+            },
+            {
+              "version": "2.1.6.1",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "EdgeCaseOverlaps-Test1",
+          "product": "boundary-conditions",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "lessThan": "2.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "2.0.0",
+              "lessThan": "3.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "EdgeCaseOverlaps-Test2",
+          "product": "lessThanOrEqual-boundary",  
+          "versions": [
+            {
+              "version": "1.0.0",
+              "lessThanOrEqual": "2.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "2.0.0",
+              "lessThan": "3.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "SingleVersionNoOverlap-Test1",
+          "product": "explicit-single-versions",
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected"
+            },
+            {
+              "version": "2.0.0", 
+              "status": "affected"
+            },
+            {
+              "version": "3.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "UpdatePatternComplex-Test1",
+          "product": "complex-update-patterns",
+          "versions": [
+            {
+              "version": "1.0.0.beta.1",
+              "lessThan": "1.1.0 rc 2",
+              "status": "affected",
+              "changes": [
+                {
+                  "at": "1.0.5 alpha 3",
+                  "status": "unaffected"
+                },
+                {
+                  "at": "1.0.5",
+                  "status": "affected"
+                }
+              ]
+            },
+            {
+              "version": "1.0.0",
+              "lessThan": "1.1.0",
+              "status": "affected",
+              "changes": [
+                {
+                  "at": "1.0.5",  
+                  "status": "unaffected"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

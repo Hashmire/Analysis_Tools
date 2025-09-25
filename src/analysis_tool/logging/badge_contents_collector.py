@@ -368,7 +368,6 @@ class BadgeContentsCollector:
             'Version Text Patterns': 'versionTextPatterns',
             'Version Comparators': 'versionComparators',
             'Version Granularity': 'versionGranularity',
-            'Wildcard Branches': 'wildcardBranches',
             'CPE Array Concerns': 'cpeArrayConcerns',
             'Duplicate Entries': 'duplicateEntries',
             'Missing Affected Products': 'missingAffectedProducts',
