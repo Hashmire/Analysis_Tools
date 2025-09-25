@@ -3444,10 +3444,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         "versionGranularity": [],
         "whitespaceIssues": [],
         "invalidCharacters": [],
-        "overlappingRanges": [],
-        "cpeArrayConcerns": [],
-        "duplicateEntries": [],
-        "missingAffectedProducts": []
+        "overlappingRanges": []
     }
     
     concerns_count = 0
@@ -3465,7 +3462,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             concerns_data["placeholderData"].append({
                 "field": "vendor",
                 "sourceValue": vendor_value,
-                "detectedPattern": detected_pattern
+                "detectedPattern": {"detectedValue": detected_pattern}
             })
             concerns_count += 1
     # Product Placeholder Data Detection    
@@ -3480,7 +3477,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             concerns_data["placeholderData"].append({
                 "field": "product", 
                 "sourceValue": product_value,
-                "detectedPattern": detected_pattern
+                "detectedPattern": {"detectedValue": detected_pattern}
             })
             concerns_count += 1
     
@@ -3506,7 +3503,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                             concerns_data["placeholderData"].append({
                                 "field": field,
                                 "sourceValue": field_value,
-                                "detectedPattern": detected_pattern
+                                "detectedPattern": {"detectedValue": detected_pattern}
                             })
                             concerns_count += 1
                 
@@ -3525,7 +3522,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                     concerns_data["placeholderData"].append({
                                         "field": f"changes[{idx}].at",
                                         "sourceValue": change_at_value,
-                                        "detectedPattern": detected_pattern
+                                        "detectedPattern": {"detectedValue": detected_pattern}
                                     })
                                     concerns_count += 1
         
@@ -3546,7 +3543,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                     concerns_data["placeholderData"].append({
                         "field": f"platforms[{idx}]",
                         "sourceValue": platform_item,
-                        "detectedPattern": detected_pattern
+                        "detectedPattern": {"detectedValue": detected_pattern}
                     })
                     concerns_count += 1
                     
@@ -3566,7 +3563,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             concerns_data["placeholderData"].append({
                 "field": "packageName", 
                 "sourceValue": package_value,
-                "detectedPattern": detected_pattern
+                "detectedPattern": {"detectedValue": detected_pattern}
             })
             concerns_count += 1
             
@@ -3677,7 +3674,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                 concerns_data["versionComparators"].append({
                     "field": "vendor",
                     "sourceValue": vendor_value,
-                    "detectedPattern": ', '.join(matching_comparators)
+                    "detectedPattern": {"detectedValue": ', '.join(matching_comparators)}
                 })
                 concerns_count += 1
     
@@ -3691,7 +3688,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                 concerns_data["versionComparators"].append({
                     "field": "product",
                     "sourceValue": product_value,
-                    "detectedPattern": ', '.join(matching_comparators)
+                    "detectedPattern": {"detectedValue": ', '.join(matching_comparators)}
                 })
                 concerns_count += 1
     
@@ -3707,7 +3704,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                         concerns_data["versionComparators"].append({
                             "field": f"platforms[{idx}]",
                             "sourceValue": platform_value,
-                            "detectedPattern": ', '.join(matching_comparators)
+                            "detectedPattern": {"detectedValue": ', '.join(matching_comparators)}
                         })
                         concerns_count += 1
     
@@ -3721,7 +3718,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                 concerns_data["versionComparators"].append({
                     "field": "packageName",
                     "sourceValue": package_value,
-                    "detectedPattern": ', '.join(matching_comparators)
+                    "detectedPattern": {"detectedValue": ', '.join(matching_comparators)}
                 })
                 concerns_count += 1
     
@@ -3745,7 +3742,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                             concerns_data["versionComparators"].append({
                                 "field": field,
                                 "sourceValue": field_value,
-                                "detectedPattern": ', '.join(matching_comparators)
+                                "detectedPattern": {"detectedValue": ', '.join(matching_comparators)}
                             })
                             concerns_count += 1
                 
@@ -3761,7 +3758,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                     concerns_data["versionComparators"].append({
                                         "field": f"changes[{idx}].at",
                                         "sourceValue": change_at_value,
-                                        "detectedPattern": ', '.join(matching_comparators)
+                                        "detectedPattern": {"detectedValue": ', '.join(matching_comparators)}
                                     })
                                     concerns_count += 1
         
@@ -3787,7 +3784,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                 concerns_data["versionTextPatterns"].append({
                                     "field": field,
                                     "sourceValue": field_value,
-                                    "detectedPattern": pattern
+                                    "detectedPattern": {"detectedValue": pattern}
                                 })
                                 concerns_count += 1
                 
@@ -4005,7 +4002,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                     concerns_data["invalidCharacters"].append({
                                         "field": field,
                                         "sourceValue": field_value,
-                                        "detectedPattern": invalid_char
+                                        "detectedPattern": {"detectedValue": invalid_char}
                                     })
                                     concerns_count += 1
                 
@@ -4025,140 +4022,13 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                             concerns_data["invalidCharacters"].append({
                                                 "field": f"changes[{idx}].at",
                                                 "sourceValue": change_at_value,
-                                                "detectedPattern": invalid_char
+                                                "detectedPattern": {"detectedValue": invalid_char}
                                             })
                                             concerns_count += 1
     
     # Update concern types for invalid character detection
     if concerns_data["invalidCharacters"]:
         concern_types.append("Invalid Character Detection")
-    
-    # CPEs Array Data Concerns
-    if 'cpes' in raw_platform_data and isinstance(raw_platform_data['cpes'], list):
-        cpe_issues = []
-        cpes_list = raw_platform_data['cpes']
-        
-        # Check for empty CPE array
-        if not cpes_list:
-            cpe_issues.append({
-                "issue": "Empty CPE array - no CPE strings provided",
-                "details": "CVE record contains empty cpes array which provides no version information"
-            })
-        else:
-            # Track for duplicate detection
-            seen_cpes = set()
-            
-            for idx, cpe in enumerate(cpes_list):
-                # Check for non-string CPE entries
-                if not isinstance(cpe, str):
-                    cpe_issues.append({
-                        "cpe": str(cpe),
-                        "position": idx,
-                        "issue": "Invalid CPE format - not a string",
-                        "details": f"CPE at position {idx} is {type(cpe).__name__}, expected string"
-                    })
-                    continue
-                
-                # Check for malformed CPE strings
-                if not cpe.startswith('cpe:'):
-                    cpe_issues.append({
-                        "cpe": cpe,
-                        "position": idx,
-                        "issue": "Malformed CPE string - missing 'cpe:' prefix",
-                        "details": "CPE string does not follow standard format"
-                    })
-                    continue
-                
-                # Parse CPE for detailed validation
-                parts = cpe.split(':')
-                if len(parts) < 6 or parts[0] != 'cpe' or parts[1] != '2.3':
-                    cpe_issues.append({
-                        "cpe": cpe,
-                        "position": idx,
-                        "issue": "Invalid CPE 2.3 format",
-                        "details": f"Expected format 'cpe:2.3:part:vendor:product:version:...', got {len(parts)} parts"
-                    })
-                    continue
-                
-                # Check for duplicate CPEs
-                if cpe in seen_cpes:
-                    cpe_issues.append({
-                        "cpe": cpe,
-                        "position": idx,
-                        "issue": "Duplicate CPE string",
-                        "details": "Identical CPE appears multiple times in array"
-                    })
-                seen_cpes.add(cpe)
-                
-                # Check version component for text patterns
-                if len(parts) >= 6:
-                    version = parts[5]
-                    if any(text_comp in version.lower() for text_comp in TEXT_COMPARATOR_PATTERNS):
-                        cpe_issues.append({
-                            "cpe": cpe,
-                            "position": idx,
-                            "version": version,
-                            "issue": "CPE contains improper version text patterns",
-                            "details": f"Version component '{version}' contains descriptive text"
-                        })
-                
-                # Check for placeholder/generic version data
-                if len(parts) >= 6:
-                    version = parts[5]
-                    if version.lower() in ['*', 'any', 'all', 'various', 'multiple', 'unspecified']:
-                        cpe_issues.append({
-                            "cpe": cpe,
-                            "position": idx,
-                            "version": version,
-                            "issue": "CPE uses generic version identifier",
-                            "details": f"Version component '{version}' is too generic for precise matching"
-                        })
-                        
-        if cpe_issues:
-            concerns_data["cpeArrayConcerns"] = cpe_issues
-            concerns_count += len(cpe_issues)
-            concern_types.append("CPE Array Concerns")
-    
-    # Duplicate Entries Detection
-    duplicate_indices = platform_metadata.get('duplicateRowIndices', [])
-    if duplicate_indices:
-        concerns_data["duplicateEntries"].append({
-            "indices": duplicate_indices,
-            "count": len(duplicate_indices),
-            "issue": "Multiple identical platform configurations found"
-        })
-        concerns_count += 1
-        concern_types.append("Duplicate Entries")
-    
-    # Missing Affected Products Check
-    if 'versions' in raw_platform_data or 'defaultStatus' in raw_platform_data:
-        has_affected_product = False
-        
-        # Check defaultStatus first
-        if raw_platform_data.get('defaultStatus') in ['affected', 'unknown']:
-            has_affected_product = True
-        
-        # Check individual version statuses
-        versions = raw_platform_data.get('versions', [])
-        if isinstance(versions, list):
-            for version in versions:
-                if isinstance(version, dict):
-                    version_status = version.get('status')
-                    if version_status in ['affected', 'unknown']:
-                        has_affected_product = True
-                        break
-        
-        # If no affected products found, flag as concern
-        if not has_affected_product:
-            concerns_data["missingAffectedProducts"].append({
-                "issue": "No affected product found",
-                "details": "CVE record contains no products marked as 'affected' or 'unknown'",
-                "defaultStatus": raw_platform_data.get('defaultStatus', 'Not specified'),
-                "versionCount": len(versions) if isinstance(versions, list) else 0,
-                "guidance": "Verify that at least one product version should be marked as affected or unknown"
-            })
-            concerns_count += 1
-            concern_types.append("Missing Affected Products")
     
     # If no concerns detected, return None
     if concerns_count == 0:

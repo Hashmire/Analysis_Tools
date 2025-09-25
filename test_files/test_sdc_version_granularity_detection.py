@@ -1,229 +1,356 @@
+#!/usr/bin/env python3
+"""
+SDC Version Granularity Detection Test Suite
+
+Tests version granularity detection by running test file and checking sourceDataConcernReport.json
+Outputs standardized test results: TEST_RESULTS: PASSED=X TOTAL=Y SUITE="Name"
+
+Usage:
+    python test_files/test_sdc_version_granularity_detection.py
+"""
+
 import sys
 import os
 import json
+import subprocess
+import glob
 from pathlib import Path
 
-# Add src to path for absolute imports
-src_path = Path(__file__).parent.parent / "src"
-sys.path.insert(0, str(src_path))
-
-from analysis_tool.core import badge_modal_system
-from analysis_tool.core.analysis_tool import process_test_file
-from analysis_tool.storage.nvd_source_manager import get_global_source_manager
-from analysis_tool.core import gatherData
-
-# Path to the dedicated version granularity detection test file
+# Path to the version granularity detection test file
 TEST_FILE = os.path.join(os.path.dirname(__file__), "testVersionGranularityDetection.json")
 
-# Ensure NVD Source Manager is initialized for test pipeline
-nvd_source_manager = get_global_source_manager()
-if not nvd_source_manager.is_initialized():
-    nvd_source_data = gatherData.gatherNVDSourceData("")
-    nvd_source_manager.initialize(nvd_source_data)
-
-def extract_source_data_concerns():
-    # Clear all registries before running
-    badge_modal_system.clear_all_registries()
-    # Ensure run directory is initialized for test runs
-    from analysis_tool.storage.run_organization import create_run_directory, get_current_run_paths
-    test_context = "test_version_granularity_detection"
-    run_path, run_id = create_run_directory(test_context, is_test=True)
-    # Run the production pipeline on the test file
-    html_path = process_test_file(TEST_FILE)
-    # Extract the registry after processing
-    registry = badge_modal_system.PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns']
-    return registry
-
-def pretty_print_concern_result(table_index, entry, actual, expected, test_name=None):
-    test_name = test_name or f"Entry_{table_index}"
-    pass_fail = "✅ PASS" if set(actual) == set(expected) else "❌ FAIL"
-    print(f"{pass_fail} - Test: {test_name}")
-    print(f"  CVE Affected Entry:   {json.dumps(entry, ensure_ascii=False)}")
-    print(f"  Expected Data:        {len(expected)} concerns | {expected}")
-    print(f"  Found:                {len(actual)} concerns | {actual}")
-    checks = []
-    match_count = 0
-    for exp in expected:
-        if exp in actual:
-            checks.append(f"    ✅ MATCH FOUND: {exp} - (matches expected)")
-            match_count += 1
-        else:
-            checks.append(f"    ❌ NO MATCH: {exp} not found in actual")
-    for act in actual:
-        if act not in expected:
-            checks.append(f"    ❌ UNEXPECTED: {act} found but not expected")
-    print(f"  Checks Performed:     {len(checks)} checks | {match_count} concern matches")
-    for c in checks:
-        print(c)
-    print()
-
-def main():
-    with open(TEST_FILE, "r", encoding="utf-8") as f:
-        test_data = json.load(f)
-    affected = test_data["containers"]["cna"]["affected"]
-    
-    # Hard-coded expected results based on what version granularity detection should find
-    # Entry 0: Basic Mixed Granularity - "1.0" (2-part), "1.0.1" (3-part), "2" (1-part), "1.0.1.0" (4-part)
-    # Base "1": "1.0" (2-part), "1.0.1" (3-part), "1.0.1.0" (4-part) - 3 concerns (inconsistent)
-    # Base "2": "2" (1-part) - only one granularity, no concerns
-    # 
-    # Entry 1: All Supported Fields - "1.0" (2-part), "1.0.1" (3-part), "1.0.1.0" (4-part), "1.0.1.0.5" (5-part), "1.1.0" (3-part), "1.1.0.0.1" (5-part)
-    # Base "1": all different granularities - 6 concerns
-    #
-    # Entry 2: Edge Cases - "3" (1-part), "3.0" (2-part), "3.0.0...1" (15-part), "3.1.2...15" (16-part), "5" (1-part), "5.0.0...0" (17-part)
-    # Base "3": "3" (1-part), "3.0" (2-part), "3.0.0...1" (15-part), "3.1.2...15" (16-part) - 4 concerns
-    # Base "5": "5" (1-part), "5.0.0...0" (17-part) - 2 concerns
-    #
-    # Entry 3: Multiple Base Versions - "1.0" (2-part), "1.0.1" (3-part), "2.1" (2-part), "2.1.0" (3-part), "10" (1-part), "10.0.0.0.0" (5-part)
-    # Base "1": "1.0" (2-part), "1.0.1" (3-part) - 2 concerns
-    # Base "2": "2.1" (2-part), "2.1.0" (3-part) - 2 concerns  
-    # Base "10": "10" (1-part), "10.0.0.0.0" (5-part) - 2 concerns
-    #
-    # Entry 4: Multi Product A - "4.0" (2-part), "4.0.1.2" (4-part)
-    # Base "4": "4.0" (2-part), "4.0.1.2" (4-part) - 2 concerns
-    #
-    # Entry 5: Multi Product B - "6" (1-part), "6.1.0" (3-part)
-    # Base "6": "6" (1-part), "6.1.0" (3-part) - 2 concerns
-    #
-    # Entry 6: Negative Case - Consistent Granularity - "7.1.0", "7.2.0", "7.3.0", "7.4.0" (all 3-part)
-    # Base "7": all same granularity - NO concerns (this is the negative test)
-    #
-    # Entry 7: Single Version - "8.0" (only one version)
-    # Base "8": only one version - NO concerns (no comparison possible)
-    #
-    # Entry 8: Wildcards - "*", "" (empty)
-    # Base: no numeric versions - NO concerns (wildcards/empty strings ignored)
-    #
-    # Entry 9: Complex Nested Changes - "9.0" (2-part) with changes "9.0.1" (3-part), "9.0.1.0" (4-part), "9.0.1.0.1" (5-part)
-    #                                    "9.1.0.0" (4-part) with changes "9.1.0.0.0" (5-part), "9.1.0.0.0.1" (6-part)
-    # Base "9": "9.0" (2-part), "9.0.1" (3-part), "9.0.1.0" (4-part), "9.0.1.0.1" (5-part), "9.1.0.0" (4-part), "9.1.0.0.0" (5-part), "9.1.0.0.0.1" (6-part) - 7 concerns
-    #
-    # Entry 10: Multiple Fields Per Entry - "11.0" (2-part), "11.0.1.0" (4-part), "11.0.1.0.5" (5-part), "11.1.0.0.0" (5-part)
-    # Base "11": "11.0" (2-part), "11.0.1.0" (4-part), "11.0.1.0.5" (5-part), "11.1.0.0.0" (5-part) - 4 concerns
-    #
-    # Entry 11: Complex Base Grouping - "1.0" (2-part), "11.0" (2-part), "11.0.1" (3-part), "100" (1-part), "100.0.0" (3-part), "1000.1" (2-part)
-    # Base "1": "1.0" (2-part) - only one, no concerns
-    # Base "11": "11.0" (2-part), "11.0.1" (3-part) - 2 concerns
-    # Base "100": "100" (1-part), "100.0.0" (3-part) - 2 concerns
-    # Base "1000": "1000.1" (2-part) - only one, no concerns
-    expected_map = {
-        0: [
-            "version: '1.0' (base: 1, granularity: 2)",
-            "version: '1.0.1' (base: 1, granularity: 3)", 
-            "version: '1.0.1.0' (base: 1, granularity: 4)"
-        ],
-        1: [
-            "version: '1.0' (base: 1, granularity: 2)",
-            "version: '1.0.1' (base: 1, granularity: 3)",
-            "lessThan: '1.0.1.0' (base: 1, granularity: 4)",
-            "lessThanOrEqual: '1.0.1.0.5' (base: 1, granularity: 5)",
-            "version: '1.1' (base: 1, granularity: 2)",
-            "changes[0].at: '1.1.0' (base: 1, granularity: 3)",
-            "changes[1].at: '1.1.0.0.1' (base: 1, granularity: 5)"
-        ],
-        2: [
-            "version: '3' (base: 3, granularity: 1)",
-            "version: '3.0' (base: 3, granularity: 2)",
-            "lessThan: '3.0.0.0.0.0.0.0.0.0.0.0.0.0.1' (base: 3, granularity: 15)",
-            "lessThanOrEqual: '3.1.2.3.4.5.6.7.8.9.10.11.12.13.14.15' (base: 3, granularity: 16)",
-            "version: '5' (base: 5, granularity: 1)",
-            "changes[0].at: '5.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0' (base: 5, granularity: 17)"
-        ],
-        3: [
-            "version: '1.0' (base: 1, granularity: 2)",
-            "version: '1.0.1' (base: 1, granularity: 3)",
-            "version: '2.1' (base: 2, granularity: 2)",
-            "version: '2.1.0' (base: 2, granularity: 3)",
-            "version: '10' (base: 10, granularity: 1)",
-            "lessThan: '10.0.0.0.0' (base: 10, granularity: 5)"
-        ],
-        4: [
-            "version: '4.0' (base: 4, granularity: 2)",
-            "version: '4.0.1.2' (base: 4, granularity: 4)"
-        ],
-        5: [
-            "version: '6' (base: 6, granularity: 1)",
-            "lessThanOrEqual: '6.1.0' (base: 6, granularity: 3)"
-        ],
-        6: [],  # Negative case: consistent granularity - no concerns expected
-        7: [],  # Negative case: single version - no concerns expected  
-        8: [],  # Negative case: wildcards/empty - no concerns expected
-        9: [
-            "version: '9.0' (base: 9, granularity: 2)",
-            "changes[0].at: '9.0.1' (base: 9, granularity: 3)",
-            "changes[1].at: '9.0.1.0' (base: 9, granularity: 4)",
-            "changes[2].at: '9.0.1.0.1' (base: 9, granularity: 5)",
-            "version: '9.1.0.0' (base: 9, granularity: 4)",
-            "changes[0].at: '9.1.0.0.0' (base: 9, granularity: 5)",
-            "changes[1].at: '9.1.0.0.0.1' (base: 9, granularity: 6)"
-        ],
-        10: [
-            "version: '11.0' (base: 11, granularity: 2)",
-            "lessThan: '11.0.1.0' (base: 11, granularity: 4)",
-            "lessThanOrEqual: '11.0.1.0.5' (base: 11, granularity: 5)",
-            "version: '11.1.0.0.0' (base: 11, granularity: 5)"
-        ],
-        11: [
-            "version: '11.0' (base: 11, granularity: 2)",
-            "version: '11.0.1' (base: 11, granularity: 3)",
-            "version: '100' (base: 100, granularity: 1)",
-            "version: '100.0.0' (base: 100, granularity: 3)"
-        ]
-    }
-    
-    test_titles = {
-        0: "Basic Mixed Granularities: 1.0, 1.0.1, 2, 1.0.1.0",
-        1: "All Supported Fields: version, lessThan, lessThanOrEqual, changes[].at", 
-        2: "Edge Cases: Single digits, 15+ granularity levels",
-        3: "Multiple Base Versions: 1.x, 2.x, 10.x with different patterns",
-        4: "Multi Product A: Mixed granularities",
-        5: "Multi Product B: Different granularity patterns",
-        6: "Negative Test: Consistent Granularity (should have no concerns)",
-        7: "Negative Test: Single Version (should have no concerns)",
-        8: "Negative Test: Wildcards/Empty (should have no concerns)",
-        9: "Complex Nested Changes Arrays: Multiple changes per version",
-        10: "Multiple Fields Per Entry: Combined version fields in single entry",
-        11: "Complex Base Grouping: 1.x vs 11.x vs 100.x vs 1000.x"
-    }
-    
-    registry = extract_source_data_concerns()
-    total = len(affected)
-    passed = 0
-    failed = 0
-    
-    for idx, entry in enumerate(affected):
-        actual = []
-        if idx in registry:
-            # Check what types of concerns exist
-            concerns_data = registry[idx].get('concerns', {})
-            
-            # Look for version granularity data in the correct location
-            vg_data = registry[idx].get('concerns', {}).get('versionGranularity', [])
-            
-            # Process version granularity concerns using the new detectedPattern structure
-            for concern in vg_data:
-                field = concern.get('field', 'unknown')
-                source_value = concern.get('sourceValue', 'unknown')
-                detected_pattern = concern.get('detectedPattern', {})
-                base = detected_pattern.get('base', 'unknown')
-                granularity = detected_pattern.get('granularity', 'unknown')
-                actual.append(f"{field}: '{source_value}' (base: {base}, granularity: {granularity})")
+def run_test_and_get_report():
+    """Run the test file and extract the sourceDataConcernReport.json"""
+    try:
+        # Run the tool using the standard command line interface
+        cmd = [sys.executable, "run_tools.py", "--test-file", TEST_FILE, "--no-cache"]
         
-        expected = expected_map.get(idx, [])
-        is_pass = set(actual) == set(expected)
-        if is_pass:
-            passed += 1
-        else:
-            failed += 1
+        # Check if running under unified test runner to control browser behavior
+        if os.environ.get('UNIFIED_TEST_RUNNER'):
+            # Add --no-browser when running under unified test runner
+            cmd.append("--no-browser")
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent)
+        
+        if result.returncode != 0:
+            print(f"❌ Tool execution failed with return code {result.returncode}")
+            print(f"STDOUT: {result.stdout}")
+            print(f"STDERR: {result.stderr}")
+            return None
             
-        test_title = test_titles.get(idx, f"Entry_{idx}")
-        pretty_print_concern_result(idx, entry, actual, expected, test_name=f"Entry_{idx} | {test_title}")
+        # Find the most recent run directory
+        runs_dir = Path(__file__).parent.parent / "runs"
+        run_dirs = [d for d in runs_dir.glob("*") if d.is_dir()]
+        if not run_dirs:
+            print("❌ No run directories found")
+            return None
+            
+        latest_run = max(run_dirs, key=lambda x: x.stat().st_mtime)
+        report_path = latest_run / "logs" / "sourceDataConcernReport.json"
+        
+        if not report_path.exists():
+            print(f"❌ Report not found: {report_path}")
+            return None
+            
+        with open(report_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            print(f"✅ Report found: {report_path}")
+            return data
+            
+    except Exception as e:
+        print(f"❌ Test execution failed: {e}")
+        return None
+
+def get_test_cases():
+    """Define test cases with expected results based on testVersionGranularityDetection.json"""
+    return [
+        {
+            "description": "Basic Mixed Granularities: 1.0, 1.0.1, 2, 1.0.1.0",
+            "table_index": 0,
+            "expected_concerns": 3,
+            "expected_fields": ["version", "version", "version"],
+            "expected_source_values": ["1.0", "1.0.1", "1.0.1.0"],
+            "expected_bases": ["1", "1", "1"],
+            "expected_granularities": ["2", "3", "4"]
+        },
+        {
+            "description": "All Supported Fields: version, lessThan, lessThanOrEqual, changes[].at",
+            "table_index": 1,
+            "expected_concerns": 7,
+            "expected_fields": ["version", "version", "lessThan", "lessThanOrEqual", "version", "changes[0].at", "changes[1].at"],
+            "expected_source_values": ["1.0", "1.0.1", "1.0.1.0", "1.0.1.0.5", "1.1", "1.1.0", "1.1.0.0.1"],
+            "expected_bases": ["1", "1", "1", "1", "1", "1", "1"],
+            "expected_granularities": ["2", "3", "4", "5", "2", "3", "5"]
+        },
+        {
+            "description": "Edge Cases: Single digits, 15+ granularity levels",
+            "table_index": 2,
+            "expected_concerns": 6,
+            "expected_fields": ["version", "version", "lessThan", "lessThanOrEqual", "version", "changes[0].at"],
+            "expected_source_values": ["3", "3.0", "3.0.0.0.0.0.0.0.0.0.0.0.0.0.1", "3.1.2.3.4.5.6.7.8.9.10.11.12.13.14.15", "5", "5.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0"],
+            "expected_bases": ["3", "3", "3", "3", "5", "5"],
+            "expected_granularities": ["1", "2", "15", "16", "1", "17"]
+        },
+        {
+            "description": "Multiple Base Versions: 1.x, 2.x, 10.x with different patterns",
+            "table_index": 3,
+            "expected_concerns": 6,
+            "expected_fields": ["version", "version", "version", "version", "version", "lessThan"],
+            "expected_source_values": ["1.0", "1.0.1", "2.1", "2.1.0", "10", "10.0.0.0.0"],
+            "expected_bases": ["1", "1", "2", "2", "10", "10"],
+            "expected_granularities": ["2", "3", "2", "3", "1", "5"]
+        },
+        {
+            "description": "Multi Product A: Mixed granularities",
+            "table_index": 4,
+            "expected_concerns": 2,
+            "expected_fields": ["version", "version"],
+            "expected_source_values": ["4.0", "4.0.1.2"],
+            "expected_bases": ["4", "4"],
+            "expected_granularities": ["2", "4"]
+        },
+        {
+            "description": "Multi Product B: Different granularity patterns",
+            "table_index": 5,
+            "expected_concerns": 2,
+            "expected_fields": ["version", "lessThanOrEqual"],
+            "expected_source_values": ["6", "6.1.0"],
+            "expected_bases": ["6", "6"],
+            "expected_granularities": ["1", "3"]
+        },
+        {
+            "description": "Negative Test: Consistent Granularity (should have no concerns)",
+            "table_index": 6,
+            "expected_concerns": 0
+        },
+        {
+            "description": "Negative Test: Single Version (should have no concerns)",
+            "table_index": 7,
+            "expected_concerns": 0
+        },
+        {
+            "description": "Negative Test: Wildcards/Empty (should have no concerns)",
+            "table_index": 8,
+            "expected_concerns": 0
+        },
+        {
+            "description": "Complex Nested Changes Arrays: Multiple changes per version",
+            "table_index": 9,
+            "expected_concerns": 7,
+            "expected_fields": ["version", "changes[0].at", "changes[1].at", "changes[2].at", "version", "changes[0].at", "changes[1].at"],
+            "expected_source_values": ["9.0", "9.0.1", "9.0.1.0", "9.0.1.0.1", "9.1.0.0", "9.1.0.0.0", "9.1.0.0.0.1"],
+            "expected_bases": ["9", "9", "9", "9", "9", "9", "9"],
+            "expected_granularities": ["2", "3", "4", "5", "4", "5", "6"]
+        },
+        {
+            "description": "Multiple Fields Per Entry: Combined version fields in single entry",
+            "table_index": 10,
+            "expected_concerns": 4,
+            "expected_fields": ["version", "lessThan", "lessThanOrEqual", "version"],
+            "expected_source_values": ["11.0", "11.0.1.0", "11.0.1.0.5", "11.1.0.0.0"],
+            "expected_bases": ["11", "11", "11", "11"],
+            "expected_granularities": ["2", "4", "5", "5"]
+        },
+        {
+            "description": "Complex Base Grouping: 1.x vs 11.x vs 100.x vs 1000.x",
+            "table_index": 11,
+            "expected_concerns": 4,
+            "expected_fields": ["version", "version", "version", "version"],
+            "expected_source_values": ["11.0", "11.0.1", "100", "100.0.0"],
+            "expected_bases": ["11", "11", "100", "100"],
+            "expected_granularities": ["2", "3", "1", "3"]
+        }
+    ]
+
+def validate_test_case(test_case, report_data):
+    """Validate a single test case against the report data"""
+    table_index = test_case['table_index']
     
-    percent = (passed / total) * 100 if total > 0 else 0
-    print("\n=== Test Summary ===")
-    print(f"TEST_RESULTS: PASSED={passed} TOTAL={total} SUITE=\"SDC VERSION GRANULARITY DETECTION\"")
-    print(f"Failed:  {failed}")
-    print(f"Percent: {percent:.1f}%\n")
+    # Find the platform entry for this table index
+    platform_entry = None
+    for cve in report_data.get('cve_data', []):
+        for entry in cve.get('platform_entries', []):
+            if entry.get('table_index') == table_index:
+                platform_entry = entry
+                break
+        if platform_entry:
+            break
+    
+    # If no platform entry is found and no concerns are expected, this is correct
+    if not platform_entry:
+        count_match = test_case['expected_concerns'] == 0
+        structure_match = True
+        value_match = True
+        concerns = []
+    else:
+        # Extract version granularity concerns
+        concerns = []
+        for concern_detail in platform_entry.get('concerns_detail', []):
+            if concern_detail.get('concern_type') == 'versionGranularity':
+                concerns.extend(concern_detail.get('concerns', []))
+        
+        # Test count validation
+        count_match = len(concerns) == test_case['expected_concerns']
+        
+        # If no concerns expected, just check count
+        if test_case['expected_concerns'] == 0:
+            structure_match = True
+            value_match = True
+        else:
+            # Structure and value validation
+            structure_match = True
+            value_match = True
+            
+            # Check structure for all concerns
+            for concern in concerns:
+                if not all(key in concern for key in ['field', 'sourceValue', 'detectedPattern']):
+                    structure_match = False
+                    break
+                pattern = concern['detectedPattern']
+                if 'base' not in pattern or 'granularity' not in pattern:
+                    structure_match = False
+                    break
+            
+            # Check values if structure is valid
+            if structure_match and len(concerns) == test_case['expected_concerns']:
+                # Create a mapping of actual concerns for flexible matching
+                actual_concerns = {}
+                for concern in concerns:
+                    field = concern['field']
+                    source_value = concern['sourceValue']
+                    pattern = concern['detectedPattern']
+                    
+                    key = f"{field}:{source_value}"
+                    actual_concerns[key] = {
+                        'base': pattern['base'],
+                        'granularity': pattern['granularity']
+                    }
+                
+                # Check if all expected concerns are present with correct values
+                for i in range(len(test_case['expected_fields'])):
+                    expected_key = f"{test_case['expected_fields'][i]}:{test_case['expected_source_values'][i]}"
+                    
+                    if expected_key not in actual_concerns:
+                        value_match = False
+                        break
+                    
+                    actual = actual_concerns[expected_key]
+                    if (actual['base'] != test_case['expected_bases'][i] or
+                        actual['granularity'] != test_case['expected_granularities'][i]):
+                        value_match = False
+                        break
+            else:
+                structure_match = False
+    
+    # Generate detailed output (similar to whitespace detection)
+    status = "✅ PASS" if count_match and structure_match and value_match else "❌ FAIL"
+    show_details = not os.environ.get('UNIFIED_TEST_RUNNER')
+    
+    if show_details:
+        print(f"{status} - Test: {test_case['description']}")
+        print(f"Checks Performed: {len(concerns)} findings | structure confirmation | value confirmation")
+        
+        # Create a mock affected entry for display purposes
+        test_entry_display = f"Table Index {table_index} entry"
+        print(f"CVE Affected Entry: {test_entry_display}")
+        
+        # Expected data format
+        if test_case['expected_concerns'] == 0:
+            expected_format = "No version granularity issues should be detected"
+        elif test_case['expected_concerns'] == 1:
+            expected_format = f"field: '{test_case['expected_fields'][0]}', sourceValue: '{test_case['expected_source_values'][0]}', detectedPattern: {{base: {test_case['expected_bases'][0]}, granularity: {test_case['expected_granularities'][0]}}}"
+        else:
+            expected_parts = []
+            for i in range(len(test_case['expected_fields'])):
+                expected_parts.append(f"({test_case['expected_fields'][i]}, {test_case['expected_source_values'][i]}, base: {test_case['expected_bases'][i]}, granularity: {test_case['expected_granularities'][i]})")
+            expected_format = f"concerns: {', '.join(expected_parts)}"
+        
+        print(f"Expected Data: {test_case['expected_concerns']} concerns | {expected_format}")
+        
+        # Found data format
+        if concerns:
+            if len(concerns) == 1:
+                concern = concerns[0]
+                pattern = concern['detectedPattern']
+                found_format = f"field: '{concern['field']}', sourceValue: '{concern['sourceValue']}', detectedPattern: {{base: {pattern['base']}, granularity: {pattern['granularity']}}}"
+            else:
+                found_parts = []
+                for concern in concerns:
+                    pattern = concern['detectedPattern']
+                    found_parts.append(f"({concern['field']}, {concern['sourceValue']}, base: {pattern['base']}, granularity: {pattern['granularity']})")
+                found_format = f"concerns: {', '.join(found_parts)}"
+            print(f"Found: {len(concerns)} concerns | {found_format}")
+        else:
+            print(f"Found: {len(concerns)} concerns | No concerns found")
+        
+        # Detailed validation results
+        if count_match:
+            print(f"✅ COUNT: {len(concerns)} concerns - (matches expected)")
+        else:
+            print(f"❌ COUNT: {len(concerns)} concerns - (expected {test_case['expected_concerns']})")
+        
+        if structure_match:
+            print(f"✅ STRUCTURE: field/sourceValue/detectedPattern.base/granularity - (matches expected)")
+        else:
+            print(f"❌ STRUCTURE: Missing or invalid structure - (expected field/sourceValue/detectedPattern.base/granularity)")
+        
+        if value_match:
+            print(f"✅ VALUES: All values match expected - (matches expected)")
+        else:
+            print(f"❌ VALUES: Value validation failed - (values do not match expected)")
+        
+        print()
+    
+    return count_match and structure_match and value_match
+
+def test_version_granularity_detection():
+    """Test version granularity detection functionality"""
+    # Only show detailed output if not running under unified test runner
+    show_details = not os.environ.get('UNIFIED_TEST_RUNNER')
+    
+    if show_details:
+        print("================================================================================")
+        print("VERSION GRANULARITY DETECTION TEST SUITE")
+        print("================================================================================")
+    
+    # Run test and get report
+    report_data = run_test_and_get_report()
+    if not report_data:
+        return False
+    
+    # Run test cases
+    test_cases = get_test_cases()
+    passed = 0
+    total = len(test_cases)
+    
+    for test_case in test_cases:
+        if validate_test_case(test_case, report_data):
+            passed += 1
+    
+    # Summary matching run_all_tests.py format
+    success = passed == total
+    
+    # Test breakdown (only show if not running under unified test runner)
+    if not os.environ.get('UNIFIED_TEST_RUNNER'):
+        positive_tests = len([tc for tc in test_cases if tc['expected_concerns'] > 0])
+        negative_tests = len([tc for tc in test_cases if tc['expected_concerns'] == 0])
+        
+        if success:
+            print(f"PASS SDC Version Granularity Detection (test duration) ({passed}/{total} tests)")
+            print(f"   {passed}/{total} tests passed")
+            print(f"   Test breakdown: {positive_tests} positive cases, {negative_tests} negative cases")
+        else:
+            print(f"FAIL SDC Version Granularity Detection (test duration) ({passed}/{total} tests)")
+            print(f"   {passed}/{total} tests passed")
+            print(f"   Test breakdown: {positive_tests} positive cases, {negative_tests} negative cases")
+        
+        print("================================================================================")
+    
+    # Output standardized test results for run_all_tests.py
+    print(f'TEST_RESULTS: PASSED={passed} TOTAL={total} SUITE="SDC Version Granularity Detection"')
+    
+    return success
 
 if __name__ == "__main__":
-    main()
+    success = test_version_granularity_detection()
+    sys.exit(0 if success else 1)

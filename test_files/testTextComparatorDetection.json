@@ -1,0 +1,64 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1",
+  "cveMetadata": {
+    "cveId": "CVE-9999-00004",
+    "assignerOrgId": "text-comparator-test-org-12345",
+    "state": "PUBLISHED",
+    "assignerShortName": "TextComparatorTestOrg",
+    "datePublished": "2024-01-16T10:00:00.000Z",
+    "dateUpdated": "2024-01-16T12:30:00.000Z",
+    "dateReserved": "2024-01-10T08:00:00.000Z",
+    "serial": 4
+  },
+  "containers": {
+    "cna": {
+      "providerMetadata": {
+        "orgId": "text-comparator-test-org-12345",
+        "shortName": "TextComparatorTestOrg",
+        "dateUpdated": "2024-01-16T12:30:00.000Z"
+      },
+      "dateAssigned": "2024-01-10T08:00:00.000Z",
+      "datePublic": "2024-01-16T10:00:00.000Z",
+      "title": "Text Comparator Detection Test Cases",
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "This CVE record contains specific test cases for text comparator pattern detection validation."
+        }
+      ],
+      "affected": [
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "prior to 1.2.3", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor", 
+          "product": "Test Product",
+          "versions": [{"version": "1.0.0", "lessThan": "earlier than 2.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product", 
+          "versions": [{"version": "2.0.0", "lessThanOrEqual": "through version 3.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "3.0.0", "changes": [{"at": "before 4.0.0", "status": "unaffected"}], "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product", 
+          "versions": [{"version": "after 5.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "22.0.0", "status": "affected"}]
+        }
+      ]
+    }
+  }
+}

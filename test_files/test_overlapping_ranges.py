@@ -1,330 +1,378 @@
 #!/usr/bin/env python3
 """
-Test Suite: Overlapping Ranges Detection Validation
-Purpose: Comprehensive validation of overlapping ranges detection functionality through
-         system integration testing using the badge contents collector approach.
+SDC Overlapping Ranges Detection Test Suite
 
-This test validates overlapping ranges detection by running actual CVE processing and
-examining the structured sourceDataConcernReport.json output to ensure:
-1. Overlapping version ranges are detected correctly
-2. Different overlap types are identified (partial, identical, containment)
-3. Cross-entry overlaps are detected when appropriate
-4. Results are captured in structured JSON format suitable for analysis
+Tests overlapping ranges detection by running test file and checking sourceDataConcernReport.json
+Outputs standardized test results: TEST_RESULTS: PASSED=X TOTAL=Y SUITE="Name"
 
-Architecture: Uses badge contents collector (production system) rather than isolated
-unit testing to validate actual system behavior and data flow.
+Usage:
+    python test_files/test_overlapping_ranges.py
 """
 
-import os
 import sys
+import os
 import json
 import subprocess
-import tempfile
+import glob
 from pathlib import Path
 
-# Add the src directory to Python path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+# Path to the overlapping ranges detection test file
+TEST_FILE = os.path.join(os.path.dirname(__file__), "testOverlappingRanges.json")
 
-def run_test_with_badge_contents(test_file):
-    """Run a test file and return the badge contents report data"""
-    
-    # Get the project root directory
-    project_root = Path(__file__).parent.parent
-    
-    # Run the test file with proper entry point
-    cmd = [sys.executable, "run_tools.py", "--test-file", test_file, "--no-cache"]
-    result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(project_root))
-    
-    if result.returncode != 0:
-        raise Exception(f"Test run failed: {result.stderr}")
-    
-    # Extract the badge contents report path from the output
-    lines = result.stdout.split('\n')
-    report_path = None
-    for line in lines:
-        if "Badge contents report finalized:" in line:
-            report_path = line.split("Badge contents report finalized: ")[1].strip()
-            break
-    
-    if not report_path:
-        raise Exception("Could not find badge contents report path in output")
-    
-    # Read the report data
-    with open(report_path, 'r') as f:
-        return json.load(f)
-
-def run_comprehensive_overlapping_ranges_test():
-    """Run comprehensive overlapping ranges detection test with single execution"""
-    
-    print("="*80)
-    print("OVERLAPPING RANGES DETECTION VALIDATION TEST SUITE")
-    print("="*80)
-    print("Due to the complex nature of the CVE Affected array processing in this suite, this may get verbose")
-    print()
-    
-    # Two test executions total - one with overlaps, one without
-    print("Executing overlapping ranges test data...")
-    overlapping_report = run_test_with_badge_contents("test_files/testOverlappingRanges.json")
-    print("Executing clean test data (no overlaps expected)...")
-    no_overlap_report = run_test_with_badge_contents("test_files/testPlaceholderDetection.json")
-    
-    print()
-    print("="*80)
-    print("TEST 1: Basic Overlapping Ranges Detection")
-    print("="*80)
-    
-    # Validate metadata from overlapping ranges test
-    metadata = overlapping_report["metadata"]
-    assert metadata["total_platform_entries"] == 18, f"Expected 18 platform entries, got {metadata['total_platform_entries']}"
-    assert metadata["entries_with_concerns"] == 9, f"Expected 9 entries with concerns, got {metadata['entries_with_concerns']}"
-    
-    # Check that overlapping ranges were detected
-    concern_types = metadata["concern_type_counts"]
-    overlapping_count = None
-    for concern in concern_types:
-        if concern["concern_type"] == "overlappingRanges":
-            overlapping_count = concern["count"]
-            break
-    
-    assert overlapping_count == 9, f"Expected 9 entries with overlapping ranges, got {overlapping_count}"
-    
-    # Validate CVE data structure
-    cve_data = overlapping_report["cve_data"][0]
-    assert cve_data["cve_id"] == "CVE-1337-88888"
-    
-    # Check platform entries with overlapping ranges - detailed validation
-    platform_entries = cve_data["platform_entries"]
-    overlapping_entries = [entry for entry in platform_entries if "overlappingRanges" in entry.get("concern_types", [])]
-    assert len(overlapping_entries) >= 2, f"Expected at least 2 entries with overlapping ranges, got {len(overlapping_entries)}"
-    
-    # Detailed per-entry validation with 1:1 JSON structure validation
-    checks_performed = 0
-    matches_found = 0
-    validation_errors = []
-    
-    for i, entry in enumerate(overlapping_entries[:5]):  # Show first 5 detailed entries
-        entry_num = entry["table_index"]
-        vendor = entry.get("vendor", "Unknown")
-        product = entry.get("product", "Unknown")
-        total_concerns = entry.get("total_concerns", 0)
-        
-        # Extract and validate actual JSON structure for overlapping ranges concerns
-        actual_concerns = []
-        expected_structure_errors = []
-        
-        for concern_detail in entry.get("concerns_detail", []):
-            if concern_detail["concern_type"] == "overlappingRanges":
-                for concern in concern_detail["concerns"]:
-                    # Validate against documented minimal pattern structure
-                    required_fields = ["field", "sourceValue"]
-                    actual_concern = {
-                        "field": concern.get("field"),
-                        "sourceValue": concern.get("sourceValue"),
-                        "detectedPattern": concern.get("detectedPattern", {})
-                    }
-                    
-                    # Check for required fields
-                    for field in required_fields:
-                        if field not in concern or concern[field] is None:
-                            expected_structure_errors.append(f"Missing required field: {field}")
-                    
-                    # If detectedPattern exists, validate its structure
-                    if "detectedPattern" in concern and concern["detectedPattern"]:
-                        pattern = concern["detectedPattern"]
-                        pattern_required = ["overlapType"]
-                        for field in pattern_required:
-                            if field not in pattern:
-                                expected_structure_errors.append(f"Missing detectedPattern field: {field}")
-                        
-                        # For partial_overlap and similar types, expect range info
-                        if pattern.get("overlapType") in ["partial_overlap", "identical_ranges", "range1_contains_range2"]:
-                            range_fields = ["range1Source", "range2Source", "range1", "range2"]
-                            for field in range_fields:
-                                if field not in pattern:
-                                    expected_structure_errors.append(f"Missing range field: {field}")
-                    
-                    actual_concerns.append(actual_concern)
-        
-        # Display detailed validation results
-        print(f"✅ PASS - Test: Entry_{entry_num} | Vendor: {vendor}")
-        print(f"  CVE Affected Entry:   {{\"vendor\": \"{vendor}\", \"product\": \"{product}\", \"table_index\": {entry_num}}}")
-        
-        # Show actual JSON structure
-        if actual_concerns:
-            first_concern = actual_concerns[0]
-            print(f"  Expected Structure:   {{\"field\": \"versions\", \"sourceValue\": \"versions[X] & versions[Y]\", \"detectedPattern\": {{\"overlapType\": \"...\", \"range1\": \"...\", \"range2\": \"...\"}}}}")
-            print(f"  Found Structure:      {{\"field\": \"{first_concern['field']}\", \"sourceValue\": \"{first_concern['sourceValue']}\", \"detectedPattern\": {{\"overlapType\": \"{first_concern['detectedPattern'].get('overlapType', 'N/A')}\", \"range1\": \"{first_concern['detectedPattern'].get('range1', 'N/A')}\", \"range2\": \"{first_concern['detectedPattern'].get('range2', 'N/A')}\"}}}}")
-            print(f"  Checks Performed:     {len(required_fields) + len(pattern_required if 'detectedPattern' in first_concern else [])} field checks | {len(expected_structure_errors)} validation errors")
-            
-            if expected_structure_errors:
-                print(f"❌ VALIDATION ERRORS: {expected_structure_errors}")
-                validation_errors.extend(expected_structure_errors)
-            else:
-                print(f"✅ MATCH FOUND: JSON structure matches expected minimal pattern - (all required fields present)")
-        else:
-            print(f"  Expected Structure:   overlappingRanges concern with detectedPattern")
-            print(f"  Found Structure:      No overlapping ranges concerns")
-            print(f"  Checks Performed:     1 checks | 1 structural error")
-            print(f"❌ VALIDATION ERROR: No overlapping ranges concerns found")
-            validation_errors.append("No overlapping ranges concerns found")
-        
-        checks_performed += 1
-        matches_found += len(actual_concerns)
-        print()
-    
-    if len(overlapping_entries) > 5:
-        print(f"... and {len(overlapping_entries) - 5} additional entries with overlapping ranges detected")
-        print()
-    
-    # Validate overall structure compliance
-    if validation_errors:
-        print(f"❌ STRUCTURE VALIDATION FAILED: {len(validation_errors)} errors found")
-        for error in validation_errors[:5]:  # Show first 5 errors
-            print(f"   - {error}")
-        if len(validation_errors) > 5:
-            print(f"   ... and {len(validation_errors) - 5} more errors")
-        raise AssertionError(f"JSON structure validation failed: {len(validation_errors)} errors found")
-    else:
-        print(f"✅ Basic detection summary: {overlapping_count} overlapping ranges detected across {len(overlapping_entries)} entries")
-        print(f"   Total validation checks: {checks_performed} entries | Total JSON structure matches: {matches_found} patterns")
-        print(f"   All JSON structures comply with documented minimal pattern format")
-    
-    print()
-    print("="*80)
-    print("TEST 2: Specific Overlap Pattern Validation") 
-    print("="*80)
-    
-    # Look for specific patterns in the same data
-    partial_overlap_found = False
-    identical_overlap_found = False
-    range1_contains_range2_found = False
-    pattern_examples = []
-    
-    for entry in platform_entries:
-        if "overlappingRanges" in entry.get("concern_types", []):
-            concerns_detail = entry["concerns_detail"]
-            for concern_group in concerns_detail:
-                if concern_group["concern_type"] == "overlappingRanges":
-                    for concern in concern_group["concerns"]:
-                        if "detectedPattern" in concern:
-                            pattern = concern["detectedPattern"]
-                            overlap_type = pattern.get("overlapType")
-                            vendor = entry.get("vendor", "Unknown")
-                            
-                            if overlap_type == "partial_overlap" and not partial_overlap_found:
-                                partial_overlap_found = True
-                                pattern_examples.append(f"partial_overlap in {vendor}: {pattern.get('range1', '')} overlaps {pattern.get('range2', '')}")
-                            elif overlap_type == "identical_ranges" and not identical_overlap_found:
-                                identical_overlap_found = True
-                                pattern_examples.append(f"identical_ranges in {vendor}: {pattern.get('range1', '')} = {pattern.get('range2', '')}")
-                            elif overlap_type == "range1_contains_range2" and not range1_contains_range2_found:
-                                range1_contains_range2_found = True
-                                pattern_examples.append(f"range1_contains_range2 in {vendor}: {pattern.get('range1', '')} contains {pattern.get('range2', '')}")
-    
-    # Display pattern validation results
-    for i, example in enumerate(pattern_examples):
-        entry_type = example.split(':')[0].split(' in ')[0]
-        print(f"✅ PASS - Test: Pattern_{i+1} | Type: {entry_type}")
-        print(f"  CVE Affected Entry:   Pattern detection in overlapping ranges analysis")
-        print(f"  Expected Data:        1 pattern | [\"{entry_type}\"]")
-        print(f"  Found:                1 pattern | [\"{entry_type}\"]")
-        print(f"  Checks Performed:     1 checks | 1 pattern match")
-        print(f"✅ MATCH FOUND: {example} - (matches expected)")
-        print()
-    
-    print(f"✅ Pattern validation summary:")
-    print(f"   - Partial overlaps: {partial_overlap_found}")
-    print(f"   - Identical ranges: {identical_overlap_found}")
-    print(f"   - Range containment: {range1_contains_range2_found}")
-    
-    print()
-    print("="*80)
-    print("TEST 3: Cross-Entry Detection Validation")
-    print("="*80)
-    
-    # Validate cross-entry detection based on the overlapping count
-    # We know from system logs that cross-entry detection works (tables 6 & 7)
-    assert overlapping_count >= 2, f"Expected evidence of cross-entry detection, got {overlapping_count} total overlaps"
-    
-    print(f"✅ PASS - Test: CrossEntry_1 | Vendor: CrossEntry Test Cases")
-    print(f"  CVE Affected Entry:   Cross-entry overlap detection between multiple platform entries")
-    print(f"  Expected Data:        ≥2 overlaps | [\"cross-entry overlap detection\"]")
-    print(f"  Found:                {overlapping_count} overlaps | [\"overlapping ranges across entries\"]")
-    print(f"  Checks Performed:     1 checks | {overlapping_count} total overlaps")
-    print(f"✅ MATCH FOUND: cross-entry overlap detection: '{overlapping_count} total overlaps detected' - (matches expected)")
-    print()
-    print(f"✅ Cross-entry validation summary: {overlapping_count} total overlaps detected")
-    print("   (Cross-entry overlap detection confirmed - partial overlap between cross-entry test tables)")
-    
-    print()
-    print("="*80)
-    print("TEST 4: Clean Results When No Overlaps Present")
-    print("="*80)
-    
-    # Validate no overlapping ranges in placeholder test
-    no_overlap_metadata = no_overlap_report["metadata"]
-    no_overlap_concern_types = no_overlap_metadata["concern_type_counts"]
-    no_overlap_overlapping_count = 0
-    for concern in no_overlap_concern_types:
-        if concern["concern_type"] == "overlappingRanges":
-            no_overlap_overlapping_count = concern["count"]
-            break
-    
-    assert no_overlap_overlapping_count == 0, f"Expected 0 overlapping ranges in clean test, got {no_overlap_overlapping_count}"
-    
-    # Show clean test validation in verbose format
-    clean_entries = no_overlap_report["cve_data"][0]["platform_entries"][:3]  # Show first 3 clean entries
-    for i, entry in enumerate(clean_entries):
-        entry_num = entry["table_index"]
-        vendor = entry.get("vendor", "Unknown")
-        product = entry.get("product", "Unknown")
-        
-        print(f"✅ PASS - Test: CleanEntry_{entry_num} | Vendor: {vendor}")
-        print(f"  CVE Affected Entry:   {{\"vendor\": \"{vendor}\", \"product\": \"{product}\", \"overlapping_ranges\": 0}}")
-        print(f"  Expected Data:        0 concerns | [\"no overlapping ranges\"]")
-        print(f"  Found:                0 concerns | [\"no overlapping ranges\"]")
-        print(f"  Checks Performed:     1 checks | 0 overlap matches")
-        print(f"✅ MATCH FOUND: no overlapping ranges: '0 overlaps detected' - (matches expected)")
-        print()
-    
-    print(f"✅ Clean results validation summary: {no_overlap_overlapping_count} overlaps in placeholder detection test (expected: 0)")
-    print(f"   Total clean entries validated: {len(clean_entries)} entries with no false positives")
-    
-    return {
-        "overlapping_ranges_detected": overlapping_count,
-        "patterns_found": {
-            "partial_overlap": partial_overlap_found,
-            "identical_ranges": identical_overlap_found,
-            "range1_contains_range2": range1_contains_range2_found
-        },
-        "entries_with_overlaps": len(overlapping_entries),
-        "clean_test_overlaps": no_overlap_overlapping_count
-    }
-
-def run_all_tests():
-    """Run all overlapping ranges detection tests"""
-    
+def run_test_and_get_report():
+    """Run the test file and extract the sourceDataConcernReport.json"""
     try:
-        results = run_comprehensive_overlapping_ranges_test()
-        print()
+        # Run the tool using the standard command line interface
+        cmd = [sys.executable, "run_tools.py", "--test-file", TEST_FILE, "--no-cache"]
         
-        print("="*80)
-        print("✅ ALL TESTS PASSED")
-        print("Overlapping ranges detection system validated successfully:")
-        print(f"  • {results['overlapping_ranges_detected']} overlapping ranges detected across {results['entries_with_overlaps']} entries") 
-        print(f"  • Patterns found: partial={results['patterns_found']['partial_overlap']}, identical={results['patterns_found']['identical_ranges']}, containment={results['patterns_found']['range1_contains_range2']}")
-        print(f"  • Clean test validation: {results['clean_test_overlaps']} overlaps (expected: 0)")
-        print("  • System integration capturing all findings in structured format")
-        print("  • Badge contents collector providing comprehensive analysis data")
-        print("="*80)
+        # Check if running under unified test runner to control browser behavior
+        if os.environ.get('UNIFIED_TEST_RUNNER'):
+            # Add --no-browser when running under unified test runner
+            cmd.append("--no-browser")
         
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent)
+        
+        if result.returncode != 0:
+            print(f"❌ Tool execution failed with return code {result.returncode}")
+            print(f"STDOUT: {result.stdout}")
+            print(f"STDERR: {result.stderr}")
+            return None
+            
+        # Find the most recent run directory
+        runs_dir = Path(__file__).parent.parent / "runs"
+        run_dirs = [d for d in runs_dir.glob("*") if d.is_dir()]
+        if not run_dirs:
+            print("❌ No run directories found")
+            return None
+            
+        latest_run = max(run_dirs, key=lambda x: x.stat().st_mtime)
+        report_path = latest_run / "logs" / "sourceDataConcernReport.json"
+        
+        if not report_path.exists():
+            print(f"❌ Report not found: {report_path}")
+            return None
+            
+        with open(report_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            print(f"✅ Report found: {report_path}")
+            return data
+            
     except Exception as e:
-        print(f"❌ TEST FAILED: {e}")
-        print("="*80)
+        print(f"❌ Test execution failed: {e}")
+        return None
+
+def get_test_cases():
+    """Define test cases with expected results based on testOverlappingRanges.json"""
+    return [
+        {
+            "description": "Wildcard Multiple Bounds: Multiple * patterns with different bounds",
+            "table_index": 0,
+            "expected_concerns": 1,
+            "expected_field": "versions",
+            "expected_overlap_type": "wildcard_multiple_bounds",
+            "expected_branches": ["1.5.0", "2.0.0", "3.0.0"]
+        },
+        {
+            "description": "Identical Ranges: Exact same version ranges",
+            "table_index": 1,
+            "expected_concerns": 1,
+            "expected_field": "versions",
+            "expected_source_value": "versions[0] & versions[1]",
+            "expected_overlap_type": "identical_ranges",
+            "expected_range1": "1.0.0 to 2.0.0",
+            "expected_range2": "1.0.0 to 2.0.0"
+        },
+        {
+            "description": "Partial Overlap: Ranges that partially overlap",
+            "table_index": 2,
+            "expected_concerns": 1,
+            "expected_field": "versions",
+            "expected_source_value": "versions[0] & versions[1]",
+            "expected_overlap_type": "partial_overlap",
+            "expected_range1": "1.0.0 to 3.0.0",
+            "expected_range2": "2.0.0 to 4.0.0"
+        },
+        {
+            "description": "Range Containment: One range contains another",
+            "table_index": 3,
+            "expected_concerns": 1,
+            "expected_field": "versions",
+            "expected_source_value": "versions[0] & versions[1]",
+            "expected_overlap_type": "range1_contains_range2",
+            "expected_range1": "1.0.0 to 5.0.0",
+            "expected_range2": "2.0.0 to 3.0.0"
+        },
+        {
+            "description": "Update Pattern Overlaps: Update patterns with overlaps",
+            "table_index": 4,
+            "expected_concerns": 1,
+            "expected_field": "versions",
+            "expected_source_value": "versions[0] & versions[1]",
+            "expected_overlap_type": "identical_ranges",
+            "expected_range1": "1.0.0 to 2.0.0",
+            "expected_range2": "1.0.0 to 2.0.0"
+        },
+        {
+            "description": "Changes Array: No overlapping ranges expected",
+            "table_index": 5,
+            "expected_concerns": 0
+        },
+        {
+            "description": "Cross Entry Case 1: No overlapping ranges within entry",
+            "table_index": 6,
+            "expected_concerns": 0
+        },
+        {
+            "description": "Cross Entry Case 2: No overlapping ranges within entry", 
+            "table_index": 7,
+            "expected_concerns": 0
+        },
+        {
+            "description": "Repo Package Entry 1: No overlapping ranges within entry",
+            "table_index": 8,
+            "expected_concerns": 0
+        },
+        {
+            "description": "Repo Package Entry 2: No overlapping ranges within entry",
+            "table_index": 9,
+            "expected_concerns": 0
+        },
+        {
+            "description": "No Overlap Vendor A: No overlapping ranges expected",
+            "table_index": 10,
+            "expected_concerns": 0
+        },
+        {
+            "description": "No Overlap Vendor B: No overlapping ranges expected",
+            "table_index": 11,
+            "expected_concerns": 0
+        },
+        {
+            "description": "Complex Mixed Overlaps: Mixed wildcard and numeric patterns",
+            "table_index": 12,
+            "expected_concerns": 1,
+            "expected_field": "versions",
+            "expected_source_value": "versions[1] & versions[2]",
+            "expected_overlap_type": "partial_overlap",
+            "expected_range1": "1.0.0 to 1.5.0",
+            "expected_range2": "1.2.0 to 1.8.0"
+        },
+        {
+            "description": "Version Granularity Overlaps: Fine-grained version overlaps",
+            "table_index": 13,
+            "expected_concerns": 1,
+            "expected_field": "versions",
+            "expected_source_value": "versions[0] & versions[1]",
+            "expected_overlap_type": "range1_contains_range2",
+            "expected_range1": "2.1.0 to 2.2.0",
+            "expected_range2": "2.1.5 to 2.1.8"
+        },
+        {
+            "description": "Edge Case Boundary: No overlapping ranges (adjacent)",
+            "table_index": 14,
+            "expected_concerns": 0
+        },
+        {
+            "description": "Edge Case LessThanOrEqual: Overlapping at boundary",
+            "table_index": 15,
+            "expected_concerns": 1,
+            "expected_field": "versions",
+            "expected_source_value": "versions[0] & versions[1]",
+            "expected_overlap_type": "partial_overlap",
+            "expected_range1": "1.0.0 to 2.0.0",
+            "expected_range2": "2.0.0 to 3.0.0"
+        },
+        {
+            "description": "Single Versions: No overlapping ranges expected",
+            "table_index": 16,
+            "expected_concerns": 0
+        },
+        {
+            "description": "Complex Update Patterns: Update pattern overlaps",
+            "table_index": 17,
+            "expected_concerns": 1,
+            "expected_field": "versions",
+            "expected_source_value": "versions[0] & versions[1]",
+            "expected_overlap_type": "identical_ranges",
+            "expected_range1": "1.0.0 to 1.1.0",
+            "expected_range2": "1.0.0 to 1.1.0"
+        }
+    ]
+
+def validate_test_case(test_case, report_data):
+    """Validate a single test case against the report data"""
+    table_index = test_case['table_index']
+    
+    # Find the platform entry for this table index
+    platform_entry = None
+    for cve in report_data.get('cve_data', []):
+        for entry in cve.get('platform_entries', []):
+            if entry.get('table_index') == table_index:
+                platform_entry = entry
+                break
+        if platform_entry:
+            break
+    
+    # If no platform entry is found and no concerns are expected, this is correct
+    if not platform_entry:
+        count_match = test_case['expected_concerns'] == 0
+        structure_match = True
+        value_match = True
+        concerns = []
+    else:
+        # Extract overlapping ranges concerns
+        concerns = []
+        for concern_detail in platform_entry.get('concerns_detail', []):
+            if concern_detail.get('concern_type') == 'overlappingRanges':
+                concerns.extend(concern_detail.get('concerns', []))
+        
+        # Test count validation
+        count_match = len(concerns) == test_case['expected_concerns']
+        
+        # If no concerns expected, just check count
+        if test_case['expected_concerns'] == 0:
+            structure_match = True
+            value_match = True
+        else:
+            # Structure and value validation
+            structure_match = True
+            value_match = True
+            
+            if test_case['expected_concerns'] == 1:
+                # Single concern case
+                if len(concerns) == 1:
+                    concern = concerns[0]
+                    structure_match = all(key in concern for key in ['field', 'detectedPattern'])
+                    if structure_match:
+                        pattern = concern['detectedPattern']
+                        structure_match = 'overlapType' in pattern
+                        
+                        if structure_match:
+                            # Validate based on overlap type
+                            overlap_type = pattern['overlapType']
+                            field_match = concern['field'] == test_case['expected_field']
+                            type_match = overlap_type == test_case['expected_overlap_type']
+                            
+                            # Type-specific validation
+                            if overlap_type == 'wildcard_multiple_bounds':
+                                branches_match = set(pattern.get('branches', [])) == set(test_case.get('expected_branches', []))
+                                value_match = field_match and type_match and branches_match
+                            else:
+                                source_value_match = concern.get('sourceValue') == test_case.get('expected_source_value', '')
+                                range1_match = pattern.get('range1') == test_case.get('expected_range1', '')
+                                range2_match = pattern.get('range2') == test_case.get('expected_range2', '')
+                                value_match = field_match and type_match and source_value_match and range1_match and range2_match
+                else:
+                    structure_match = False
+            else:
+                # Multiple concerns case - not expected in current test set
+                structure_match = False
+    
+    # Generate detailed output (similar to whitespace detection)
+    status = "✅ PASS" if count_match and structure_match and value_match else "❌ FAIL"
+    show_details = not os.environ.get('UNIFIED_TEST_RUNNER')
+    
+    if show_details:
+        print(f"{status} - Test: {test_case['description']}")
+        print(f"Checks Performed: {len(concerns)} findings | structure confirmation | value confirmation")
+        
+        # Create a mock affected entry for display purposes
+        test_entry_display = f"Table Index {table_index} entry"
+        print(f"CVE Affected Entry: {test_entry_display}")
+        
+        # Expected data format
+        if test_case['expected_concerns'] == 0:
+            expected_format = "No overlapping ranges should be detected"
+        else:
+            overlap_type = test_case['expected_overlap_type']
+            if overlap_type == 'wildcard_multiple_bounds':
+                expected_format = f"field: '{test_case['expected_field']}', detectedPattern: {{overlapType: '{overlap_type}', branches: {test_case.get('expected_branches', [])}}}"
+            else:
+                expected_format = f"field: '{test_case['expected_field']}', sourceValue: '{test_case.get('expected_source_value', '')}', detectedPattern: {{overlapType: '{overlap_type}', range1: '{test_case.get('expected_range1', '')}', range2: '{test_case.get('expected_range2', '')}'}}"
+        
+        print(f"Expected Data: {test_case['expected_concerns']} concerns | {expected_format}")
+        
+        # Found data format
+        if concerns:
+            concern = concerns[0]
+            pattern = concern['detectedPattern']
+            overlap_type = pattern['overlapType']
+            if overlap_type == 'wildcard_multiple_bounds':
+                found_format = f"field: '{concern['field']}', detectedPattern: {{overlapType: '{overlap_type}', branches: {pattern.get('branches', [])}}}"
+            else:
+                found_format = f"field: '{concern['field']}', sourceValue: '{concern.get('sourceValue', '')}', detectedPattern: {{overlapType: '{overlap_type}', range1: '{pattern.get('range1', '')}', range2: '{pattern.get('range2', '')}'}}"
+            print(f"Found: {len(concerns)} concerns | {found_format}")
+        else:
+            print(f"Found: {len(concerns)} concerns | No concerns found")
+        
+        # Detailed validation results
+        if count_match:
+            print(f"✅ COUNT: {len(concerns)} concerns - (matches expected)")
+        else:
+            print(f"❌ COUNT: {len(concerns)} concerns - (expected {test_case['expected_concerns']})")
+        
+        if structure_match:
+            print(f"✅ STRUCTURE: field/detectedPattern.overlapType - (matches expected)")
+        else:
+            print(f"❌ STRUCTURE: Missing or invalid structure - (expected field/detectedPattern.overlapType)")
+        
+        if value_match:
+            print(f"✅ VALUES: All values match expected - (matches expected)")
+        else:
+            print(f"❌ VALUES: Value validation failed - (values do not match expected)")
+        
+        print()
+    
+    return count_match and structure_match and value_match
+
+def test_overlapping_ranges_detection():
+    """Test overlapping ranges detection functionality"""
+    # Only show detailed output if not running under unified test runner
+    show_details = not os.environ.get('UNIFIED_TEST_RUNNER')
+    
+    if show_details:
+        print("================================================================================")
+        print("OVERLAPPING RANGES DETECTION TEST SUITE")
+        print("================================================================================")
+    
+    # Run test and get report
+    report_data = run_test_and_get_report()
+    if not report_data:
         return False
     
-    return True
+    # Run test cases
+    test_cases = get_test_cases()
+    passed = 0
+    total = len(test_cases)
+    
+    for test_case in test_cases:
+        if validate_test_case(test_case, report_data):
+            passed += 1
+    
+    # Summary matching run_all_tests.py format
+    success = passed == total
+    
+    # Test breakdown (only show if not running under unified test runner)
+    if not os.environ.get('UNIFIED_TEST_RUNNER'):
+        positive_tests = len([tc for tc in test_cases if tc['expected_concerns'] > 0])
+        negative_tests = len([tc for tc in test_cases if tc['expected_concerns'] == 0])
+        
+        if success:
+            print(f"PASS SDC Overlapping Ranges Detection (test duration) ({passed}/{total} tests)")
+            print(f"   {passed}/{total} tests passed")
+            print(f"   Test breakdown: {positive_tests} positive cases, {negative_tests} negative cases")
+        else:
+            print(f"FAIL SDC Overlapping Ranges Detection (test duration) ({passed}/{total} tests)")
+            print(f"   {passed}/{total} tests passed")
+            print(f"   Test breakdown: {positive_tests} positive cases, {negative_tests} negative cases")
+        
+        print("================================================================================")
+    
+    # Output standardized test results for run_all_tests.py
+    print(f'TEST_RESULTS: PASSED={passed} TOTAL={total} SUITE="SDC Overlapping Ranges Detection"')
+    
+    return success
 
 if __name__ == "__main__":
-    success = run_all_tests()
+    success = test_overlapping_ranges_detection()
     sys.exit(0 if success else 1)

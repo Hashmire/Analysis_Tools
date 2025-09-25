@@ -1471,34 +1471,6 @@ class BadgeModalFactory {
                     });
                 }
                 
-                
-                if (concernsData.cpeArrayConcerns && concernsData.cpeArrayConcerns.length > 0) {
-                    tabs.push({
-                        id: 'cpeArrayConcerns',
-                        label: 'CPE Array Issues',
-                        badge: concernsData.cpeArrayConcerns.length,
-                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.cpeArrayConcerns, 'cpeArrayConcerns', sourceRole)
-                    });
-                }
-                
-                if (concernsData.duplicateEntries && concernsData.duplicateEntries.length > 0) {
-                    tabs.push({
-                        id: 'duplicateEntries',
-                        label: 'Duplicate Entries',
-                        badge: concernsData.duplicateEntries.length,
-                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.duplicateEntries, 'duplicateEntries', sourceRole)
-                    });
-                }
-                
-                if (concernsData.missingAffectedProducts && concernsData.missingAffectedProducts.length > 0) {
-                    tabs.push({
-                        id: 'missingAffectedProducts',
-                        label: 'Missing Affected Products',
-                        badge: concernsData.missingAffectedProducts.length,
-                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.missingAffectedProducts, 'missingAffectedProducts', sourceRole)
-                    });
-                }
-                
                 if (concernsData.overlappingRanges && concernsData.overlappingRanges.length > 0) {
                     tabs.push({
                         id: 'overlappingRanges',
@@ -1949,12 +1921,6 @@ class BadgeModalFactory {
                 content += BadgeModalFactory.generateInvalidCharactersContent(concern);
             } else if (concernType === 'versionGranularity') {
                 content += BadgeModalFactory.generateVersionGranularityContent(concern);
-            } else if (concernType === 'cpeArrayConcerns') {
-                content += BadgeModalFactory.generateCpeArrayConcernsContent(concern);
-            } else if (concernType === 'duplicateEntries') {
-                content += BadgeModalFactory.generateDuplicateEntriesContent(concern);
-            } else if (concernType === 'missingAffectedProducts') {
-                content += BadgeModalFactory.generateMissingAffectedProductsContent(concern);
             } else if (concernType === 'overlappingRanges') {
                 content += BadgeModalFactory.generateOverlappingRangesContent(concern);
             } else {
@@ -2090,7 +2056,7 @@ class BadgeModalFactory {
                     <strong class="text-warning">Problematic Data:</strong>
                     <div class="data-display mt-1">
                         <div class="mb-2">
-                            Pattern <strong>${concern.detectedPattern}</strong> detected in <strong>${concern.field}</strong> content
+                            Pattern <strong>${concern.detectedPattern.detectedValue}</strong> detected in <strong>${concern.field}</strong> content
                         </div>
                         <div class="code-block bg-light p-2 rounded border">
                             <code>"${concern.field}": "${concern.sourceValue}"</code>
@@ -2116,7 +2082,7 @@ class BadgeModalFactory {
                     <strong class="text-warning">Problematic Data:</strong>
                     <div class="data-display mt-1">
                         <div class="mb-2">
-                            Pattern <strong>${concern.detectedPattern}</strong> detected in <strong>${concern.field}</strong> content
+                            Pattern <strong>${concern.detectedPattern.detectedValue}</strong> detected in <strong>${concern.field}</strong> content
                         </div>
                         <div class="code-block bg-light p-2 rounded border">
                             <code>"${concern.field}": "${concern.sourceValue}"</code>
@@ -2162,7 +2128,7 @@ class BadgeModalFactory {
                     <strong class="text-warning">Problematic Data:</strong>
                     <div class="data-display mt-1">
                         <div class="mb-2">
-                            Pattern <strong>${concern.detectedPattern}</strong> detected in <strong>${concern.field}</strong> content
+                            Pattern <strong>${concern.detectedPattern.detectedValue}</strong> detected in <strong>${concern.field}</strong> content
                         </div>
                         <div class="code-block bg-light p-2 rounded border">
                             <code>"${concern.field}": "${concern.sourceValue}"</code>
@@ -2241,7 +2207,7 @@ class BadgeModalFactory {
                     <strong class="text-warning">Problematic Data:</strong>
                     <div class="data-display mt-1">
                         <div class="mb-2">
-                            Invalid character <strong>'${concern.detectedPattern}'</strong> detected in <strong>${concern.field}</strong> content
+                            Invalid character <strong>'${concern.detectedPattern.detectedValue}'</strong> detected in <strong>${concern.field}</strong> content
                         </div>
                         <div class="code-block bg-light p-2 rounded border">
                             <code>"${concern.field}": "${concern.sourceValue}"</code>
@@ -2288,107 +2254,6 @@ class BadgeModalFactory {
                             <li>Example: <code>1.0, 1.0.1, 1.1.0.0</code> should become <code>1.0.0.0, 1.0.1.0, 1.1.0.0</code></li>
                         </ul>
                     </div>
-                </div>
-            </div>
-        `;
-    }
-
-
-    static generateCpeArrayConcernsContent(concern) {
-        return `
-            <div class="concern-content">
-                <div class="problem-description mb-2">
-                    <strong class="text-danger">Problem:</strong>
-                    <p class="mb-2">CPE string contains improper version text that violates CPE 2.3 specification.</p>
-                </div>
-                <div class="problematic-data mb-2">
-                    <strong class="text-warning">Problematic Data:</strong>
-                    <div class="data-display mt-1">
-                        <div class="row">
-                            <div class="col-3"><strong>CPE String:</strong></div>
-                            <div class="col-9"><code class="text-dark bg-light px-2 py-1 rounded border" style="word-break: break-all;">${concern.cpeString}</code></div>
-                        </div>
-                        <div class="row mt-1">
-                            <div class="col-3"><strong>Issue:</strong></div>
-                            <div class="col-9"><span class="badge bg-warning text-dark">${concern.issueType}</span></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="resolution-guidance">
-                    <strong class="text-success">Resolution:</strong>
-                    <ul class="mb-0 text-muted">
-                        <li>Use structured version information in versions array instead</li>
-                        <li>CPE version field should contain specific version numbers only</li>
-                        <li>Remove text patterns like "before", "through", etc. from CPE strings</li>
-                    </ul>
-                </div>
-            </div>
-        `;
-    }
-
-    static generateDuplicateEntriesContent(concern) {
-        return `
-            <div class="concern-content">
-                <div class="problem-description mb-2">
-                    <strong class="text-danger">Problem:</strong>
-                    <p class="mb-2">Multiple identical platform configurations found, leading to data redundancy.</p>
-                </div>
-                <div class="problematic-data mb-2">
-                    <strong class="text-warning">Problematic Data:</strong>
-                    <div class="data-display mt-1">
-                        <div class="row">
-                            <div class="col-3"><strong>Duplicate Rows:</strong></div>
-                            <div class="col-9">
-                                ${concern.duplicateIndices.map(index => 
-                                    `<span class="badge bg-secondary me-1">${index}</span>`
-                                ).join('')}
-                            </div>
-                        </div>
-                        <div class="row mt-1">
-                            <div class="col-3"><strong>Configuration:</strong></div>
-                            <div class="col-9"><code class="text-dark bg-light px-2 py-1 rounded border">${concern.configuration}</code></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="resolution-guidance">
-                    <strong class="text-success">Resolution:</strong>
-                    <ul class="mb-0 text-muted">
-                        <li>Remove duplicate platform configurations</li>
-                        <li>Consolidate identical entries into single platform definition</li>
-                        <li>Review source data generation process to prevent duplication</li>
-                    </ul>
-                </div>
-            </div>
-        `;
-    }
-
-    static generateMissingAffectedProductsContent(concern) {
-        return `
-            <div class="concern-content">
-                <div class="problem-description mb-2">
-                    <strong class="text-danger">Problem:</strong>
-                    <p class="mb-2">CVE record appears to lack explicit affected product information in containers/affected.</p>
-                </div>
-                <div class="problematic-data mb-2">
-                    <strong class="text-warning">Missing Information:</strong>
-                    <div class="data-display mt-1">
-                        <div class="row">
-                            <div class="col-3"><strong>Issue Type:</strong></div>
-                            <div class="col-9"><span class="badge bg-warning text-dark">Missing Affected Products</span></div>
-                        </div>
-                        <div class="row mt-1">
-                            <div class="col-3"><strong>Description:</strong></div>
-                            <div class="col-9">${concern.description || 'No affected products explicitly listed'}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="resolution-guidance">
-                    <strong class="text-success">Resolution:</strong>
-                    <ul class="mb-0 text-muted">
-                        <li>Verify CVE record contains containers/affected with product information</li>
-                        <li>Check if affected products are implied through other fields</li>
-                        <li>May require CNA coordination to add missing affected product data</li>
-                    </ul>
                 </div>
             </div>
         `;
@@ -2614,17 +2479,9 @@ class BadgeModalManager {
             issueCount += concernsData.versionGranularity.length;
             concernTypes.push('Version Granularity');
         }
-        if (concernsData.cpeArrayConcerns && concernsData.cpeArrayConcerns.length > 0) {
-            issueCount += concernsData.cpeArrayConcerns.length;
-            concernTypes.push('CPE Array Issues');
-        }
-        if (concernsData.duplicateEntries && concernsData.duplicateEntries.length > 0) {
-            issueCount += concernsData.duplicateEntries.length;
-            concernTypes.push('Duplicate Entries');
-        }
-        if (concernsData.missingAffectedProducts && concernsData.missingAffectedProducts.length > 0) {
-            issueCount += concernsData.missingAffectedProducts.length;
-            concernTypes.push('Missing Affected Products');
+        if (concernsData.overlappingRanges && concernsData.overlappingRanges.length > 0) {
+            issueCount += concernsData.overlappingRanges.length;
+            concernTypes.push('Overlapping Ranges');
         }
         
         modal.show(tableIndex, displayValue, { issueCount, concernTypes, sourceRole });

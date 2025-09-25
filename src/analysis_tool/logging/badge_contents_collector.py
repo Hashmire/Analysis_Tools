@@ -368,9 +368,6 @@ class BadgeContentsCollector:
             'Version Text Patterns': 'versionTextPatterns',
             'Version Comparators': 'versionComparators',
             'Version Granularity': 'versionGranularity',
-            'CPE Array Concerns': 'cpeArrayConcerns',
-            'Duplicate Entries': 'duplicateEntries',
-            'Missing Affected Products': 'missingAffectedProducts',
             'Overlapping Ranges': 'overlappingRanges'
         }
         # Convert to camelCase for any unmapped concern types instead of lowercase
