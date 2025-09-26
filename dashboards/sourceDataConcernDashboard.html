@@ -1894,26 +1894,23 @@
             }
         }
         
-        // Concern type display names mapping
+        // Concern type display names mapping (matches badge generation display names)
         const concernTypeNames = {
-            'placeholderData': 'Placeholder Data',
-            'versionTextPatterns': 'Version Text Patterns', 
-            'versionComparators': 'Version Comparators',
-            'versionGranularity': 'Version Granularity',
-            'wildcardBranches': 'Wildcard Branches',
-            'cpeArrayConcerns': 'CPE Array Concerns',
-            'duplicateEntries': 'Duplicate Entries',
-            'platformDataConcerns': 'Platform Data Concerns',
-            'missingAffectedProducts': 'Missing Affected Products',
+            'placeholderData': 'Placeholder Detection',
+            'mathematicalComparators': 'Mathematical Comparator Detection',
+            'textComparators': 'Text Comparator Detection', 
+            'whitespaceIssues': 'Whitespace Detection',
+            'invalidCharacters': 'Invalid Character Detection',
+            'versionGranularity': 'Version Granularity Detection',
             'overlappingRanges': 'Overlapping Ranges'
         };
 
         // ===== COMPREHENSIVE CONCERN CATEGORIZATION SYSTEM =====
         
         /**
-         * Categorize Version Text Patterns concerns into semantic sub-categories
+         * Categorize Text Comparator concerns into semantic sub-categories
          */
-        function categorizeVersionTextPatterns(concerns) {
+        function categorizeTextComparators(concerns) {
             const categories = {
                 'Range Indicators': [],
                 'Upper Bound Indicators': [],
@@ -2051,14 +2048,14 @@
             if (!concerns || concerns.length === 0) return {};
             
             switch (concernType) {
-                case 'versionTextPatterns':
-                    return categorizeVersionTextPatterns(concerns);
+                case 'textComparators':
+                    return categorizeTextComparators(concerns);
                 case 'cpeArrayConcerns':
                     return categorizeCPEArrayConcerns(concerns);
                 case 'placeholderData':
                     return categorizePlaceholderData(concerns);
-                case 'versionComparators':
-                    return { 'Text Comparators': concerns };
+                case 'mathematicalComparators':
+                    return { 'Mathematical Comparators': concerns };
                 case 'versionGranularity':
                     return { 'Granularity Mismatches': concerns };
                 case 'wildcardBranches':

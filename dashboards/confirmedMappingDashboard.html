@@ -1821,16 +1821,21 @@
                                     <div class="stat-label">Confirmed Mapping Coverage</div>
                                     <div class="tooltiptext" id="coverageTooltip">
                                         <div class="tooltip-section">
+                                            <span class="tooltip-highlight">Intersection-Based Coverage Calculation</span><br>
                                             <div class="tooltip-formula">
                                                 (Unique Aliases in Confirmed Mappings ÷ Total Unique Aliases) × 100%
                                             </div>
+                                        </div>
+                                        <div class="tooltip-section">
+                                            <span class="tooltip-highlight">Properties Compared:</span><br>
+                                            <span style="font-size: 0.85em;">vendor, product, platform, platforms, collectionURL, repo, packageName</span>
                                         </div>
                                         <div class="tooltip-section">
                                             <span class="tooltip-highlight">Current Calculation:</span><br>
                                             <span id="tooltipCalculation">Loading...</span>
                                         </div>
                                         <div class="tooltip-section">
-                                            <span class="tooltip-highlight">Breakdown:</span><br>
+                                            <span class="tooltip-highlight">Data Sources:</span><br>
                                             <span id="tooltipCoverageBreakdown">Loading...</span>
                                         </div>
                                     </div>
@@ -3814,8 +3819,17 @@
                 
                 console.debug(`[getAllAliases] Confirmed: ${confirmed.length}, Unconfirmed: ${unconfirmed.length}, Concern: ${concern.length}`);
                 
-                // getDataset already flattens confirmed mappings, so no need to flatten again
-                return [...confirmed, ...unconfirmed, ...concern];
+                // Flatten confirmed mappings to handle nested structure
+                const flattenedConfirmed = [];
+                confirmed.forEach(mapping => {
+                    if (mapping.aliases && Array.isArray(mapping.aliases)) {
+                        flattenedConfirmed.push(...mapping.aliases);
+                    } else {
+                        flattenedConfirmed.push(mapping);
+                    }
+                });
+                
+                return [...flattenedConfirmed, ...unconfirmed, ...concern];
             },
             
             // Get total unique alias count across all datasets (deduplicating by alias key)
@@ -3982,6 +3996,37 @@
                     unconfirmed: DataManager.getDataset('unconfirmedAliases').length,
                     concerning: DataManager.getDataset('sourceDataConcernAliases').length
                 };
+            },
+            
+            // Get unique product count across all datasets using Set-based deduplication
+            getUniqueProductCount: function() {
+                const allAliases = this.getAllAliases();
+                const uniqueProducts = new Set();
+                
+                allAliases.forEach(alias => {
+                    if (alias.vendor && alias.product) {
+                        const productKey = `${alias.vendor}:${alias.product}`;
+                        uniqueProducts.add(productKey);
+                    } else if (alias.product) {
+                        uniqueProducts.add(alias.product);
+                    }
+                });
+                
+                return uniqueProducts.size;
+            },
+            
+            // Get top aliases by CVE count for analytics
+            getTopAliasesByCVE: function(limit = 10) {
+                const allAliases = this.getAllAliases();
+                
+                // Sort by CVE count (frequency or source_cve length) in descending order
+                const sortedAliases = allAliases.sort((a, b) => {
+                    const scoreA = a.frequency || a.source_cve?.length || 0;
+                    const scoreB = b.frequency || b.source_cve?.length || 0;
+                    return scoreB - scoreA;
+                });
+                
+                return sortedAliases.slice(0, limit);
             }
         };
         
@@ -4013,8 +4058,8 @@
                 const calculationText = `${matchedCount} ÷ ${totalAliases} = ${coveragePercentage}`;
                 tooltipCalculationElement.innerHTML = calculationText;
                 
-                // Update breakdown section
-                const breakdownText = `• Total Unique Aliases (across all datasets): ${totalAliases}<br>• Aliases Covered by Confirmed Mappings: ${matchedCount}<br>• Confirmed Mapping Coverage: ${coveragePercentage}`;
+                // Update breakdown section with intersection analysis
+                const breakdownText = `• Total source aliases = ${totalAliases}<br>• Confirmed aliases: ${matchedCount}<br>• Unconfirmed aliases: ${totalAliases - matchedCount}<br>• Source concern aliases: ${DataManager.getDataset('sourceDataConcernAliases').length}<br>• Total source aliases: ${totalAliases}<br><br><strong>Intersection Analysis:</strong><br>• Unique confirmed patterns: ${matchedCount}<br>• Source aliases matched: ${matchedCount} out of ${totalAliases}<br>• Coverage efficiency: ${numericPercentage.toFixed(1)}% of aliases have confirmed mappings<br>• Breakdown: ${matchedCount} matched aliases out of ${totalAliases} total aliases`;
                 tooltipBreakdownElement.innerHTML = breakdownText;
                 
                 console.debug('🔍 Updated coverage tooltip with calculation details');
@@ -4311,8 +4356,9 @@
                 
                 // Generate charts using query functions
                 const allAliases = DataQueries.getAllAliases();
+                const topAliases = DataQueries.getTopAliasesByCVE(10);
                 
-                console.debug('📊 Chart data:', { allAliases: allAliases.length });
+                console.debug('📊 Chart data:', { allAliases: allAliases.length, topAliases: topAliases.length });
                 
                 // Initialize filter system
                 initializeFilter();

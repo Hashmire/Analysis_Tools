@@ -16,6 +16,10 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from typing import Dict, List, Set, Tuple, Any
 
+# Add src path for analysis_tool imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from analysis_tool.storage.run_organization import get_latest_test_run_directory
+
 class ModularRulesTestSuite:
     def __init__(self, test_file_path: str):
         self.test_file_path = Path(test_file_path)
@@ -28,7 +32,7 @@ class ModularRulesTestSuite:
         
     def generate_html(self):
         """Generate HTML file from test data using the analysis tool."""
-        print("🔄 Generating HTML from test data...")
+        print("[INFO] Generating HTML from test data...")
         
         # Get the project root path
         current_dir = Path.cwd()
@@ -74,29 +78,21 @@ class ModularRulesTestSuite:
             # Find the HTML file in the most recent test run directory
             cve_id = self.test_data.get('cveMetadata', {}).get('cveId', 'CVE-UNKNOWN')
             
-            # Look for the most recent TEST run directory
-            runs_dir = project_root / "runs"
-            if not runs_dir.exists():
-                self.add_result("HTML_GENERATION", False, f"Runs directory not found: {runs_dir}")
-                return False
-                
-            # Find the most recent TEST directory (newest timestamp first)
-            test_runs = sorted([d for d in runs_dir.iterdir() if d.is_dir() and 'TEST_' in d.name], 
-                             key=lambda x: x.name, reverse=True)
+            # Use consolidated-aware helper to find the latest test run directory
+            most_recent_test = get_latest_test_run_directory()
             
-            if not test_runs:
+            if not most_recent_test:
                 self.add_result("HTML_GENERATION", False, "No test run directories found")
                 return False
             
             # Check the most recent test run for the HTML file
-            most_recent_test = test_runs[0]
             self.html_file_path = most_recent_test / "generated_pages" / f"{cve_id}.html"
             
             if not self.html_file_path.exists():
                 self.add_result("HTML_GENERATION", False, f"Generated HTML file not found: {self.html_file_path}")
                 return False
             
-            print(f"✅ HTML generated successfully: {self.html_file_path}")
+            print(f"[OK] HTML generated successfully: {self.html_file_path}")
             self.add_result("HTML_GENERATION", True, f"Generated {cve_id}.html in test run {most_recent_test.name}")
             return True
             

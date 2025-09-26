@@ -364,14 +364,17 @@ class BadgeContentsCollector:
     def _concern_type_to_key(self, concern_type: str) -> str:
         """Convert concern type display name to data key."""
         mapping = {
-            'Placeholder Data': 'placeholderData',
-            'Version Text Patterns': 'versionTextPatterns',
-            'Version Comparators': 'versionComparators',
-            'Version Granularity': 'versionGranularity',
+            'Placeholder Detection': 'placeholderData',
+            'Mathematical Comparator Detection': 'mathematicalComparators',
+            'Text Comparator Detection': 'textComparators',
+            'Whitespace Detection': 'whitespaceIssues',
+            'Invalid Character Detection': 'invalidCharacters',
+            'Version Granularity Detection': 'versionGranularity',
             'Overlapping Ranges': 'overlappingRanges'
         }
-        # Convert to camelCase for any unmapped concern types instead of lowercase
-        return mapping.get(concern_type, concern_type.replace(' ', '').replace(concern_type[0], concern_type[0].lower(), 1) if concern_type else '')
+        if concern_type not in mapping:
+            raise ValueError(f"Unknown concern type: '{concern_type}'. Expected one of: {list(mapping.keys())}")
+        return mapping[concern_type]
     
     def finalize_report(self) -> Optional[str]:
         """

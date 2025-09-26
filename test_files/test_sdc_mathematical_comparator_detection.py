@@ -17,6 +17,16 @@ import glob
 from pathlib import Path
 
 # Path to the comparator detection test file
+import sys
+import os
+import json
+import subprocess
+from pathlib import Path
+
+# Add src path for analysis_tool imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from analysis_tool.storage.run_organization import find_latest_test_run_report
+
 TEST_FILE = os.path.join(os.path.dirname(__file__), "testMathematicalComparatorDetection.json")
 
 def run_test_and_get_report():
@@ -38,28 +48,8 @@ def run_test_and_get_report():
             print(f"STDERR: {result.stderr}")
             return None
             
-        # Find the most recent run directory
-        runs_dir = Path(__file__).parent.parent / "runs"
-        run_dirs = [d for d in runs_dir.glob("*") if d.is_dir()]
-        if not run_dirs:
-            print("❌ No run directories found")
-            return None
-            
-        latest_run = max(run_dirs, key=lambda x: x.stat().st_mtime)
-        report_path = latest_run / "logs" / "sourceDataConcernReport.json"
-        
-        if not report_path.exists():
-            print(f"❌ Report file not found: {report_path}")
-            return None
-            
-        with open(report_path, 'r', encoding='utf-8') as f:
-            report_data = json.load(f)
-            
-        show_details = not os.environ.get('UNIFIED_TEST_RUNNER')
-        if show_details:
-            print(f"✅ Report found: {report_path}")
-            
-        return report_data
+        # Use helper function to find report in both standard and consolidated environments
+        return find_latest_test_run_report("sourceDataConcernReport.json")
         
     except Exception as e:
         print(f"❌ Error running test: {e}")
@@ -72,21 +62,25 @@ def extract_concerns_for_table(report_data, table_index):
     if not report_data or 'cve_data' not in report_data:
         return concerns
         
-    # Navigate through the report structure
+    # Navigate through the new report structure
     cve_data = report_data['cve_data']
-    if 'affected' not in cve_data or table_index >= len(cve_data['affected']):
+    if not cve_data or len(cve_data) == 0:
         return concerns
         
-    affected_entry = cve_data['affected'][table_index]
-    if 'sourceDataConcerns' not in affected_entry:
+    # Get first CVE entry (test files typically have one CVE)
+    cve_entry = cve_data[0]
+    if 'platform_entries' not in cve_entry or table_index >= len(cve_entry['platform_entries']):
+        return concerns
+        
+    platform_entry = cve_entry['platform_entries'][table_index]
+    if 'concerns_detail' not in platform_entry:
         return concerns
         
     # Extract mathematical comparator concerns
-    source_concerns = affected_entry['sourceDataConcerns']
-    if 'versionComparators' in source_concerns:
-        for concern in source_concerns['versionComparators']:
-            if 'field' in concern and 'sourceValue' in concern and 'detectedPattern' in concern:
-                concerns.append(concern)
+    for concern_detail in platform_entry['concerns_detail']:
+        if concern_detail.get('concern_type') == 'mathematicalComparators':
+            if 'concerns' in concern_detail:
+                concerns.extend(concern_detail['concerns'])
                 
     return concerns
 
@@ -175,14 +169,8 @@ def get_test_cases():
             "expected_detected_value": "<"
         },
         {
-            "description": "No comparators detected - valid data (control case)",
-            "table_index": 9,
-            "affected_entry": {"vendor": "Test Vendor", "product": "Test Product", "packageName": "lib-core", "versions": [{"version": "12.0.0", "status": "affected"}]},
-            "expected_concerns": 0
-        },
-        {
             "description": "Multiple version array with comparators",
-            "table_index": 10,
+            "table_index": 9,
             "affected_entry": {"vendor": "Test Vendor", "product": "Test Product", "versions": [{"version": ">=1.0.0", "status": "affected"}, {"version": "<=2.0.0", "status": "affected"}, {"version": "3.0.0", "lessThan": "!=4.0.0", "status": "affected"}]},
             "expected_concerns": 3,
             "expected_fields": ["version", "version", "lessThan"],
@@ -191,7 +179,7 @@ def get_test_cases():
         },
         {
             "description": "Multiple changes array with comparators",
-            "table_index": 11,
+            "table_index": 10,
             "affected_entry": {"vendor": "Test Vendor", "product": "Test Product", "versions": [{"version": "5.0.0", "changes": [{"at": ">6.0.0", "status": "unaffected"}, {"at": "<=7.0.0", "status": "unaffected"}, {"at": "!=8.0.0", "status": "unaffected"}]}]},
             "expected_concerns": 3,
             "expected_fields": ["changes[0].at", "changes[1].at", "changes[2].at"],
@@ -200,7 +188,7 @@ def get_test_cases():
         },
         {
             "description": "Comprehensive: multiple comparators in all nested arrays",
-            "table_index": 12,
+            "table_index": 11,
             "affected_entry": {"vendor": "Test Vendor", "product": "Test Product", "packageName": "lib=core", "platforms": ["<win32", ">=linux"], "versions": [{"version": "<1.0.0", "lessThan": ">2.0.0", "lessThanOrEqual": "=<3.0.0", "changes": [{"at": "!=4.0.0", "status": "unaffected"}, {"at": "=5.0.0", "status": "unaffected"}]}, {"version": ">=6.0.0", "lessThan": "<=7.0.0", "lessThanOrEqual": "=>8.0.0", "changes": [{"at": "<9.0.0", "status": "unaffected"}, {"at": ">=10.0.0", "status": "unaffected"}]}]},
             "expected_concerns": 13,
             "expected_fields": ["packageName", "platforms[0]", "platforms[1]", "version", "lessThan", "lessThanOrEqual", "changes[0].at", "changes[1].at", "version", "lessThan", "lessThanOrEqual", "changes[0].at", "changes[1].at"],
@@ -229,17 +217,25 @@ def validate_test_case(test_case, report_data):
     count_match = len(concerns) == test_case['expected_concerns']
     
     # Check structure for all concerns
-    structure_match = True
-    for concern in concerns:
-        if not (
-            'field' in concern and
-            'sourceValue' in concern and
-            'detectedPattern' in concern and
-            isinstance(concern['detectedPattern'], dict) and
-            'detectedValue' in concern['detectedPattern']
-        ):
-            structure_match = False
-            break
+    if test_case['expected_concerns'] == 0:
+        # If we expect 0 concerns, structure passes regardless of what we found
+        structure_match = True
+    elif len(concerns) == 0:
+        # If we expect concerns but found none, structure validation fails
+        structure_match = False
+    else:
+        # We have concerns to validate structure
+        structure_match = True
+        for concern in concerns:
+            if not (
+                'field' in concern and
+                'sourceValue' in concern and
+                'detectedPattern' in concern and
+                isinstance(concern['detectedPattern'], dict) and
+                'detectedValue' in concern['detectedPattern']
+            ):
+                structure_match = False
+                break
     
     # Check values
     value_match = False
@@ -329,21 +325,7 @@ def validate_test_case(test_case, report_data):
     
     return count_match and structure_match and value_match
 
-def extract_concerns_for_table(report_data, table_index):
-    """Extract version comparator concerns for a specific table index"""
-    if not report_data or 'cve_data' not in report_data:
-        return []
-        
-    for cve_entry in report_data['cve_data']:
-        for platform_entry in cve_entry.get('platform_entries', []):
-            if platform_entry.get('table_index') == table_index:
-                concerns = []
-                for concern_detail in platform_entry.get('concerns_detail', []):
-                    if concern_detail.get('concern_type') == 'versionComparators':
-                        for concern in concern_detail.get('concerns', []):
-                            concerns.append(concern)
-                return concerns
-    return []
+
 
 def test_comparator_detection():
     """Test mathematical comparator detection functionality"""

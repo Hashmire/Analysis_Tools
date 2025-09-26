@@ -27,6 +27,10 @@ import json
 import subprocess
 from pathlib import Path
 
+# Add src path for analysis_tool imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from analysis_tool.storage.run_organization import find_latest_test_run_report
+
 # Test configuration
 TEST_FILE = os.path.join(os.path.dirname(__file__), "testTextComparatorDetection.json")
 
@@ -54,29 +58,8 @@ def run_test_and_get_report():
             print(f"STDERR: {result.stderr}")
             return None
         
-        # Find the most recent runs directory
-        runs_dir = Path(__file__).parent.parent / "runs"
-        if not runs_dir.exists():
-            print("❌ No runs directory found")
-            return None
-        
-        # Get the most recent directory (by modification time)
-        run_dirs = [d for d in runs_dir.iterdir() if d.is_dir()]
-        if not run_dirs:
-            print("❌ No run directories found")
-            return None
-        
-        latest_run_dir = max(run_dirs, key=lambda x: x.stat().st_mtime)
-        
-        # Look for the source data concern report in logs directory
-        report_file = latest_run_dir / "logs" / "sourceDataConcernReport.json"
-        if not report_file.exists():
-            print(f"❌ Source data concern report not found at {report_file}")
-            return None
-        
-        # Load and return the report data
-        with open(report_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        # Use helper function to find report in both standard and consolidated environments
+        return find_latest_test_run_report("sourceDataConcernReport.json")
     
     except Exception as e:
         print(f"❌ Error running test: {e}")
@@ -84,7 +67,7 @@ def run_test_and_get_report():
 
 
 def extract_version_text_patterns(report_data):
-    """Extract versionTextPatterns from the source data concern report."""
+    """Extract textComparators from the source data concern report."""
     patterns = []
     
     try:
@@ -101,9 +84,9 @@ def extract_version_text_patterns(report_data):
                 if 'concerns_detail' not in platform_entry:
                     continue
                     
-                # Look for versionTextPatterns concern type
+                # Look for textComparators concern type
                 for concern_detail in platform_entry['concerns_detail']:
-                    if concern_detail.get('concern_type') == 'versionTextPatterns':
+                    if concern_detail.get('concern_type') == 'textComparators':
                         if 'concerns' in concern_detail:
                             for concern in concern_detail['concerns']:
                                 # Handle both string and object detectedPattern formats
@@ -213,8 +196,15 @@ def validate_test_case(concerns, test_case):
     count_match = len(concerns) == test_case['expected_concerns']
     
     # Structure validation - check for the transformed field names from extraction
-    structure_match = True
-    if concerns:
+    if test_case['expected_concerns'] == 0:
+        # If we expect 0 concerns, structure passes regardless of what we found
+        structure_match = True
+    elif len(concerns) == 0:
+        # If we expect concerns but found none, structure validation fails
+        structure_match = False
+    else:
+        # We have concerns to validate structure
+        structure_match = True
         for concern in concerns:
             if not all(key in concern for key in ['fieldName', 'fieldValue', 'detectedPattern']):
                 structure_match = False

@@ -16,6 +16,10 @@ import subprocess
 import glob
 from pathlib import Path
 
+# Add src path for analysis_tool imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from analysis_tool.storage.run_organization import find_latest_test_run_report
+
 # Path to the overlapping ranges detection test file
 TEST_FILE = os.path.join(os.path.dirname(__file__), "testOverlappingRanges.json")
 
@@ -38,24 +42,8 @@ def run_test_and_get_report():
             print(f"STDERR: {result.stderr}")
             return None
             
-        # Find the most recent run directory
-        runs_dir = Path(__file__).parent.parent / "runs"
-        run_dirs = [d for d in runs_dir.glob("*") if d.is_dir()]
-        if not run_dirs:
-            print("❌ No run directories found")
-            return None
-            
-        latest_run = max(run_dirs, key=lambda x: x.stat().st_mtime)
-        report_path = latest_run / "logs" / "sourceDataConcernReport.json"
-        
-        if not report_path.exists():
-            print(f"❌ Report not found: {report_path}")
-            return None
-            
-        with open(report_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            print(f"✅ Report found: {report_path}")
-            return data
+        # Use helper function to find report in both standard and consolidated environments
+        return find_latest_test_run_report("sourceDataConcernReport.json")
             
     except Exception as e:
         print(f"❌ Test execution failed: {e}")

@@ -16,6 +16,10 @@ import subprocess
 import glob
 from pathlib import Path
 
+# Add src path for analysis_tool imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from analysis_tool.storage.run_organization import find_latest_test_run_report
+
 # Path to the version granularity detection test file
 TEST_FILE = os.path.join(os.path.dirname(__file__), "testVersionGranularityDetection.json")
 
@@ -38,24 +42,8 @@ def run_test_and_get_report():
             print(f"STDERR: {result.stderr}")
             return None
             
-        # Find the most recent run directory
-        runs_dir = Path(__file__).parent.parent / "runs"
-        run_dirs = [d for d in runs_dir.glob("*") if d.is_dir()]
-        if not run_dirs:
-            print("❌ No run directories found")
-            return None
-            
-        latest_run = max(run_dirs, key=lambda x: x.stat().st_mtime)
-        report_path = latest_run / "logs" / "sourceDataConcernReport.json"
-        
-        if not report_path.exists():
-            print(f"❌ Report not found: {report_path}")
-            return None
-            
-        with open(report_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            print(f"✅ Report found: {report_path}")
-            return data
+        # Use helper function to find report in both standard and consolidated environments
+        return find_latest_test_run_report("sourceDataConcernReport.json")
             
     except Exception as e:
         print(f"❌ Test execution failed: {e}")
@@ -192,15 +180,16 @@ def validate_test_case(test_case, report_data):
         # Test count validation
         count_match = len(concerns) == test_case['expected_concerns']
         
-        # If no concerns expected, just check count
+        # Structure validation
         if test_case['expected_concerns'] == 0:
+            # If we expect 0 concerns, structure passes regardless of what we found
             structure_match = True
-            value_match = True
+        elif len(concerns) == 0:
+            # If we expect concerns but found none, structure validation fails
+            structure_match = False
         else:
-            # Structure and value validation
+            # We have concerns to validate structure
             structure_match = True
-            value_match = True
-            
             # Check structure for all concerns
             for concern in concerns:
                 if not all(key in concern for key in ['field', 'sourceValue', 'detectedPattern']):
@@ -211,36 +200,39 @@ def validate_test_case(test_case, report_data):
                     structure_match = False
                     break
             
-            # Check values if structure is valid
-            if structure_match and len(concerns) == test_case['expected_concerns']:
-                # Create a mapping of actual concerns for flexible matching
-                actual_concerns = {}
-                for concern in concerns:
-                    field = concern['field']
-                    source_value = concern['sourceValue']
-                    pattern = concern['detectedPattern']
-                    
-                    key = f"{field}:{source_value}"
-                    actual_concerns[key] = {
-                        'base': pattern['base'],
-                        'granularity': pattern['granularity']
-                    }
+        # Value validation
+        if test_case['expected_concerns'] == 0:
+            value_match = len(concerns) == 0
+        elif structure_match and len(concerns) == test_case['expected_concerns']:
+            # Create a mapping of actual concerns for flexible matching
+            actual_concerns = {}
+            for concern in concerns:
+                field = concern['field']
+                source_value = concern['sourceValue']
+                pattern = concern['detectedPattern']
                 
-                # Check if all expected concerns are present with correct values
-                for i in range(len(test_case['expected_fields'])):
-                    expected_key = f"{test_case['expected_fields'][i]}:{test_case['expected_source_values'][i]}"
-                    
-                    if expected_key not in actual_concerns:
-                        value_match = False
-                        break
-                    
-                    actual = actual_concerns[expected_key]
-                    if (actual['base'] != test_case['expected_bases'][i] or
-                        actual['granularity'] != test_case['expected_granularities'][i]):
-                        value_match = False
-                        break
-            else:
-                structure_match = False
+                key = f"{field}:{source_value}"
+                actual_concerns[key] = {
+                    'base': pattern['base'],
+                    'granularity': pattern['granularity']
+                }
+            
+            # Check if all expected concerns are present with correct values
+            value_match = True
+            for i in range(len(test_case['expected_fields'])):
+                expected_key = f"{test_case['expected_fields'][i]}:{test_case['expected_source_values'][i]}"
+                
+                if expected_key not in actual_concerns:
+                    value_match = False
+                    break
+                
+                actual = actual_concerns[expected_key]
+                if (actual['base'] != test_case['expected_bases'][i] or
+                    actual['granularity'] != test_case['expected_granularities'][i]):
+                    value_match = False
+                    break
+        else:
+            value_match = False
     
     # Generate detailed output (similar to whitespace detection)
     status = "✅ PASS" if count_match and structure_match and value_match else "❌ FAIL"

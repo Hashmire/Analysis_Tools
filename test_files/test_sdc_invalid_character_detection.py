@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-SDC Invalid Character Detection Test Suite
+SDC Invalid Charac        # Use helper function to find report in both standard and consolidated environments
+        return find_latest_test_run_report("sourceDataConcernReport.json") Suite
 
 Tests invalid character data detection by running test file and checking sourceDataConcernReport.json
 Outputs standardized test results: TEST_RESULTS: PASSED=X TOTAL=Y SUITE="Name"
@@ -17,6 +18,16 @@ import glob
 from pathlib import Path
 
 # Path to the invalid character detection test file
+import sys
+import os
+import json
+import subprocess
+from pathlib import Path
+
+# Add src path for analysis_tool imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from analysis_tool.storage.run_organization import find_latest_test_run_report
+
 TEST_FILE = os.path.join(os.path.dirname(__file__), "testInvalidCharacterDetection.json")
 
 def run_test_and_get_report():
@@ -39,23 +50,8 @@ def run_test_and_get_report():
             return None
             
         # Find the most recent run directory
-        runs_dir = Path(__file__).parent.parent / "runs"
-        run_dirs = [d for d in runs_dir.glob("*") if d.is_dir()]
-        if not run_dirs:
-            print("❌ No run directories found")
-            return None
-            
-        latest_run = max(run_dirs, key=lambda x: x.stat().st_mtime)
-        report_path = latest_run / "logs" / "sourceDataConcernReport.json"
-        
-        if not report_path.exists():
-            print(f"❌ Report not found: {report_path}")
-            return None
-            
-        with open(report_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            print(f"[OK] Report found: {report_path}")
-            return data
+        # Use helper function to find report in both standard and consolidated environments
+        return find_latest_test_run_report("sourceDataConcernReport.json")
             
     except Exception as e:
         print(f"[ERROR] Test execution failed: {e}")
@@ -275,15 +271,16 @@ def validate_test_case(report_data, test_case):
         # Test count validation
         count_match = len(concerns) == test_case['expected_concerns']
         
-        # If no concerns expected, just check count
+        # Structure validation
         if test_case['expected_concerns'] == 0:
+            # If we expect 0 concerns, structure passes regardless of what we found
             structure_match = True
-            value_match = True
+        elif len(concerns) == 0:
+            # If we expect concerns but found none, structure validation fails
+            structure_match = False
         else:
-            # Structure and value validation
+            # We have concerns to validate structure
             structure_match = True
-            value_match = True
-            
             if test_case['expected_concerns'] == 1:
                 # Single concern case
                 if len(concerns) == 1:
@@ -292,13 +289,6 @@ def validate_test_case(report_data, test_case):
                     if structure_match:
                         pattern = concern['detectedPattern']
                         structure_match = 'detectedValue' in pattern
-                        
-                        if structure_match:
-                            value_match = (
-                                concern['field'] == test_case['expected_field'] and
-                                concern['sourceValue'] == test_case['expected_source_value'] and
-                                pattern['detectedValue'] == test_case['expected_detected_value']
-                            )
                 else:
                     structure_match = False
             else:
@@ -314,41 +304,58 @@ def validate_test_case(report_data, test_case):
                             structure_match = False
                             break
                     
-                    # Check if we can match all expected values (order-independent)
-                    if structure_match:
-                        # Create list of actual values for matching
-                        actual_values = []
-                        for concern in concerns:
-                            pattern = concern['detectedPattern']
-                            actual_values.append({
-                                'field': concern['field'],
-                                'sourceValue': concern['sourceValue'],
-                                'detectedValue': pattern['detectedValue']
-                            })
-                        
-                        # Try to match each expected value to an actual value
-                        expected_values = []
-                        for i in range(len(test_case['expected_fields'])):
-                            expected_values.append({
-                                'field': test_case['expected_fields'][i],
-                                'sourceValue': test_case['expected_source_values'][i],
-                                'detectedValue': test_case['expected_detected_values'][i]
-                            })
-                        
-                        # Check if all expected values can be matched
-                        matched_actuals = set()
-                        for expected in expected_values:
-                            found_match = False
-                            for j, actual in enumerate(actual_values):
-                                if j not in matched_actuals and actual == expected:
-                                    matched_actuals.add(j)
-                                    found_match = True
-                                    break
-                            if not found_match:
-                                value_match = False
-                                break
                 else:
                     structure_match = False
+        
+        # Value validation
+        if test_case['expected_concerns'] == 0:
+            value_match = len(concerns) == 0
+        elif structure_match and len(concerns) == test_case['expected_concerns']:
+            if test_case['expected_concerns'] == 1:
+                # Single concern case
+                concern = concerns[0]
+                pattern = concern['detectedPattern']
+                value_match = (
+                    concern['field'] == test_case['expected_field'] and
+                    concern['sourceValue'] == test_case['expected_source_value'] and
+                    pattern['detectedValue'] == test_case['expected_detected_value']
+                )
+            else:
+                # Multiple concerns case - need to match each concern to expected
+                # Create list of actual values for matching
+                actual_values = []
+                for concern in concerns:
+                    pattern = concern['detectedPattern']
+                    actual_values.append({
+                        'field': concern['field'],
+                        'sourceValue': concern['sourceValue'],
+                        'detectedValue': pattern['detectedValue']
+                    })
+                
+                # Try to match each expected value to an actual value
+                expected_values = []
+                for i in range(len(test_case['expected_fields'])):
+                    expected_values.append({
+                        'field': test_case['expected_fields'][i],
+                        'sourceValue': test_case['expected_source_values'][i],
+                        'detectedValue': test_case['expected_detected_values'][i]
+                    })
+                
+                # Check if all expected values can be matched
+                value_match = True
+                matched_actuals = set()
+                for expected in expected_values:
+                    found_match = False
+                    for j, actual in enumerate(actual_values):
+                        if j not in matched_actuals and actual == expected:
+                            matched_actuals.add(j)
+                            found_match = True
+                            break
+                    if not found_match:
+                        value_match = False
+                        break
+        else:
+            value_match = False
     
     # Generate detailed output (similar to placeholder and whitespace detection)
     status = "✅ PASS" if count_match and structure_match and value_match else "❌ FAIL"
