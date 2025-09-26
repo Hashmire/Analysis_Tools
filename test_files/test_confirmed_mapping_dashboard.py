@@ -743,7 +743,7 @@ class ConfirmedMappingDashboardTestSuite(unittest.TestCase):
             self.assertIn(func, dashboard_content, f"Missing core query function: {func}")
         
         # Test 3: Validate getAllAliases logic implementation (with correct confirmed mapping handling)
-        get_all_aliases_pattern = r"getAllAliases:\s*function\(\)\s*\{[^}]*flattenedConfirmed\.push\(\.\.\.mapping\.aliases\)"
+        get_all_aliases_pattern = r"getAllAliases:\s*function\(\)\s*\{.*?flattenedConfirmed\.push\(\.\.\.mapping\.aliases\)"
         import re
         self.assertTrue(re.search(get_all_aliases_pattern, dashboard_content, re.DOTALL), 
                        "getAllAliases should properly flatten confirmed mappings nested structure")
@@ -758,10 +758,10 @@ class ConfirmedMappingDashboardTestSuite(unittest.TestCase):
         self.assertTrue(re.search(unique_product_pattern, dashboard_content, re.DOTALL),
                        "getUniqueProductCount should deduplicate vendor_product combinations")
         
-        # Test 6: Validate getTotalAliasCount arithmetic (corrected for actual implementation)
-        total_count_pattern = r"getTotalAliasCount:.*confirmed\.reduce.*mapping\.aliases\.length.*unconfirmed\.length.*concern\.length"
+        # Test 6: Validate getTotalAliasCount arithmetic (using getAllAliases with Set-based deduplication)
+        total_count_pattern = r"getTotalAliasCount:.*getAllAliases.*uniqueAliasKeys.*new Set\(\).*createAliasKey.*uniqueAliasKeys\.size"
         self.assertTrue(re.search(total_count_pattern, dashboard_content, re.DOTALL),
-                       "getTotalAliasCount should use reduce to count nested confirmed mappings plus other datasets")
+                       "getTotalAliasCount should use Set-based deduplication to count unique aliases across all datasets")
         
         # Test 7: Validate getConfirmedCoveragePercent calculation (intersection-based)
         coverage_pattern = r"getConfirmedCoveragePercent:.*createAliasKey.*coveredAliases.*allSourceAliases"
@@ -786,9 +786,9 @@ class ConfirmedMappingDashboardTestSuite(unittest.TestCase):
                           "Query functions should access datasets independently multiple times")
         
         # Test 10: Validate UI state transitions in initializeChartsAndUI
-        ui_flow_pattern = r"initializeChartsAndUI.*loadingMessage\.style\.display.*none.*mainContent\.style\.display.*block.*displayTopAliasesChart"
+        ui_flow_pattern = r"initializeChartsAndUI.*loadingMessage\.style\.display.*none.*mainContent\.style\.display.*block.*initializeFilter"
         self.assertTrue(re.search(ui_flow_pattern, dashboard_content, re.DOTALL),
-                       "UI initialization should follow: hide loading -> show content -> generate charts")
+                       "UI initialization should follow: hide loading -> show content -> initialize filter system")
         
         print("OK DataQueries object exists with all core functions")
         print("OK getAllAliases combines all three datasets maintaining data integrity")
@@ -1038,20 +1038,20 @@ class ConfirmedMappingDashboardTestSuite(unittest.TestCase):
         # Critical integrity checks: these MUST all pass for integrity to be valid
         integrity_failures = []
         
-        # Check 1: getAllAliases must handle confirmed mapping flattening
+        # Check 1: getAllAliases must handle confirmed mapping access via DataManager
         if 'getAllAliases:' in dashboard_content:
             get_all_aliases_section = self._extract_function_section(dashboard_content, 'getAllAliases')
-            required_patterns = ['confirmed', 'mapping.aliases', 'unconfirmed', 'concern']
+            required_patterns = ['confirmed', 'DataManager.getDataset', 'unconfirmed', 'concern']
             missing_patterns = [p for p in required_patterns if p not in get_all_aliases_section]
             if missing_patterns:
                 integrity_failures.append(f"getAllAliases missing patterns: {missing_patterns}")
         else:
             integrity_failures.append("getAllAliases function not found")
         
-        # Check 2: getTotalAliasCount must sum all datasets
+        # Check 2: getTotalAliasCount must sum all datasets using unique alias keys
         if 'getTotalAliasCount:' in dashboard_content:
             total_count_section = self._extract_function_section(dashboard_content, 'getTotalAliasCount')
-            required_patterns = ['confirmed', 'unconfirmed', 'concern']
+            required_patterns = ['getAllAliases', 'uniqueAliasKeys', 'createAliasKey']
             missing_patterns = [p for p in required_patterns if p not in total_count_section]
             if missing_patterns:
                 integrity_failures.append(f"getTotalAliasCount missing patterns: {missing_patterns}")
@@ -1804,9 +1804,9 @@ class ConfirmedMappingDashboardTestSuite(unittest.TestCase):
         # Check for the template literal structure and key calculation elements
         tooltip_content_patterns = [
             'matched aliases',  # Basic text (without symbol that might have encoding issues)
-            'total aliases =',  # Mathematical formula part 2  
+            'Total source aliases =',  # Mathematical formula part 2 (corrected capitalization)
             'Breakdown:',  # Section header
-            'Confirmed mappings:',  # Confirmed count
+            'Confirmed aliases:',  # Confirmed count (corrected from "Confirmed mappings:")
             'Unconfirmed aliases:',  # Unconfirmed count  
             'Source concern aliases:',  # Concern count
             'Total source aliases:',  # Total count

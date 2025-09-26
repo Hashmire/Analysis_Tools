@@ -74,7 +74,11 @@ class SourceMappingCurator:
         context = run_context or f"source_mapping_{target_uuid[:8]}"
         if max_files:
             context += f"_limit{max_files}"
-        self.run_path, self.run_id = create_run_directory(context, subdirs=["logs"])
+        
+        # Check if we're in a consolidated test environment
+        import os
+        is_test = os.environ.get('CONSOLIDATED_TEST_RUN') == '1'
+        self.run_path, self.run_id = create_run_directory(context, is_test=is_test, subdirs=["logs"])
         
         # Get paths for this run (logs directory only)
         from analysis_tool.storage.run_organization import get_current_run_paths

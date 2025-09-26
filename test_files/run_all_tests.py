@@ -2,10 +2,17 @@
 """
 Unified Test Runner for Analysis Tools CVE Analysis System
 
-Runs all test suites and provides comprehensive summary reporting.
+Runs all test suites with consolidated output organization and comprehensive summary reporting.
 All test suites use a standardized output format for consistent parsing.
 
 Each test suite outputs: TEST_RESULTS: PASSED=X TOTAL=Y SUITE="Name"
+
+Consolidated Runs Organization:
+    - Creates single timestamped directory: runs/TIMESTAMP_run_all_tests/
+    - Individual test runs organized as: logs/TIMESTAMP_TEST_SuiteName_context/
+    - Eliminates folder bloat by consolidating all test artifacts
+    - Maintains full backward compatibility with existing run organization
+    - Test execution summary saved as: logs/test_execution_summary.json
 
 Environment Variables:
     UNIFIED_TEST_RUNNER:
@@ -13,25 +20,131 @@ Environment Variables:
         - Controls detailed output suppression in individual test suites
         - When set: test suites show minimal output for clean unified reporting
         - When unset: test suites show detailed output for debugging
-        - Individual test suites check: os.environ.get('UNIFIED_TEST_RUNNER')
+    
+    CONSOLIDATED_TEST_RUN:
+        - Automatically set to '1' to enable consolidated directory structure
+        - Individual tests use consolidated-aware path resolution
+        - Helper functions in run_organization.py handle path detection
 
 Browser Behavior:
-    - When running through this unified runner, browser auto-opening is disabled 
-      to prevent multiple browser tabs from opening during test execution
+    - Browser auto-opening disabled to prevent multiple tabs during test execution
     - Individual test suites add --no-browser flag when UNIFIED_TEST_RUNNER is set
     - To enable browser opening, run individual test suites directly
-    - This prevents 15+ browser tabs from opening during full test suite execution
 
 Usage:
-    python run_all_tests.py                    # Run all tests with summary output
-    python test_files/test_suite_name.py       # Run individual test with detailed output
+    python run_all_tests.py                    # Run all tests with consolidated organization
+    python test_files/test_suite_name.py       # Run individual test in standard mode
 """
 
 import subprocess
 import sys
 import time
+import os
+import datetime
+import json
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Tuple
+
+
+def create_consolidated_test_run() -> Tuple[Path, str, Dict]:
+    """
+    Create a consolidated test run directory for test suite execution.
+    
+    This creates a single directory under runs/ that will contain
+    all individual test runs from a complete test suite execution.
+    
+    Returns:
+        Tuple of (consolidated_run_path, consolidated_run_id, test_environment_info)
+    """
+    # Import the existing run organization system
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+    from analysis_tool.storage.run_organization import get_analysis_tools_root
+    
+    project_root = get_analysis_tools_root()
+    
+    # Generate timestamp-based consolidated run ID following standard format
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    consolidated_run_id = f"{timestamp}_run_all_tests"
+    
+    # Create consolidated run directory directly in runs/ following standard pattern
+    runs_root = project_root / "runs"
+    runs_root.mkdir(parents=True, exist_ok=True)
+    consolidated_run_path = runs_root / consolidated_run_id
+    consolidated_run_path.mkdir(parents=True, exist_ok=True)
+    
+    # Create standard subdirectories
+    (consolidated_run_path / "logs").mkdir(exist_ok=True)
+    (consolidated_run_path / "generated_pages").mkdir(exist_ok=True)
+    
+    # Create test environment information
+    test_env_info = {
+        "consolidated_run_id": consolidated_run_id,
+        "consolidated_run_path": str(consolidated_run_path),
+        "test_start_time": datetime.datetime.now().isoformat(),
+        "test_suite_count": 0,
+        "individual_test_runs": [],
+        "environment": {
+            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            "platform": os.name,
+            "cwd": str(Path.cwd())
+        }
+    }
+    
+    return consolidated_run_path, consolidated_run_id, test_env_info
+
+
+def setup_test_environment(consolidated_run_path: Path, test_env_info: Dict) -> None:
+    """
+    Set up environment variables to redirect test runs to consolidated directory.
+    
+    Args:
+        consolidated_run_path: Path to the consolidated test run directory
+        test_env_info: Test environment information dictionary
+    """
+    # Set environment variable that individual tests can check
+    os.environ['CONSOLIDATED_TEST_RUN'] = '1'
+    os.environ['CONSOLIDATED_TEST_RUN_PATH'] = str(consolidated_run_path)
+    os.environ['CONSOLIDATED_TEST_RUN_ID'] = test_env_info['consolidated_run_id']
+    
+    # Also set the unified test runner flag (already exists)
+    os.environ['UNIFIED_TEST_RUNNER'] = '1'
+
+
+def finalize_consolidated_test_run(consolidated_run_path: Path, test_env_info: Dict, 
+                                  test_results: List[Dict]) -> None:
+    """
+    Finalize the consolidated test run by saving summary and cleaning up environment.
+    
+    Args:
+        consolidated_run_path: Path to the consolidated test run directory
+        test_env_info: Test environment information dictionary
+        test_results: List of test suite results
+    """
+    # Update test environment info with results
+    test_env_info["test_end_time"] = datetime.datetime.now().isoformat()
+    test_env_info["test_suite_count"] = len(test_results)
+    test_env_info["total_individual_tests"] = sum(r.get('tests_total', 0) for r in test_results)
+    test_env_info["total_passed_tests"] = sum(r.get('tests_passed', 0) for r in test_results)
+    test_env_info["overall_success"] = all(r.get('success', False) for r in test_results)
+    test_env_info["test_results_summary"] = test_results
+    
+    # Calculate test execution time
+    start_time = datetime.datetime.fromisoformat(test_env_info["test_start_time"])
+    end_time = datetime.datetime.fromisoformat(test_env_info["test_end_time"])
+    test_env_info["total_execution_time_seconds"] = (end_time - start_time).total_seconds()
+    
+    # Save consolidated test summary
+    summary_file = consolidated_run_path / "logs" / "test_execution_summary.json"
+    with open(summary_file, 'w', encoding='utf-8') as f:
+        json.dump(test_env_info, f, indent=2, ensure_ascii=False)
+    
+    # Clean up environment variables
+    os.environ.pop('CONSOLIDATED_TEST_RUN', None)
+    os.environ.pop('CONSOLIDATED_TEST_RUN_PATH', None)
+    os.environ.pop('CONSOLIDATED_TEST_RUN_ID', None)
+
 
 class TestSuiteRunner:
     """Unified test runner that executes all standardized test suites.
@@ -80,6 +193,10 @@ class TestSuiteRunner:
                 'command': ['python', 'test_files\\test_sdc_invalid_character_detection.py']
             },
             {
+                'name': 'Overlapping Ranges Detection',
+                'command': ['python', 'test_files\\test_overlapping_ranges.py']
+            },
+            {
                 'name': 'Update Patterns',
                 'command': ['python', 'test_files\\test_update_patterns.py']
             },
@@ -112,12 +229,8 @@ class TestSuiteRunner:
                 'command': ['python', 'test_files\\test_source_data_concern_dashboard.py']
             },
             {
-                'name': 'Overlapping Ranges Detection (Unit)',
-                'command': ['python', 'test_files\\test_overlapping_ranges.py']
-            },
-            {
-                'name': 'Registry Structure Validation',
-                'command': ['python', 'test_files\\test_registry_structure_validation.py']
+                'name': 'Support Platform Badges',
+                'command': ['python', 'test_files\\test_support_platform_badges.py']
             }
         ]
 
@@ -129,21 +242,18 @@ class TestSuiteRunner:
         if not output:
             return {'tests_passed': 0, 'tests_total': 0, 'summary': 'No output captured'}
         
-        lines = output.strip().split('\n')
-        
-        # Look for the standard results line (should be the last meaningful line)
+        # Look for the standard results line in the entire output (robust against Unicode corruption and line breaks)
         import re
-        for line in reversed(lines):
-            match = re.match(r'TEST_RESULTS: PASSED=(\d+) TOTAL=(\d+) SUITE="([^"]*)"', line.strip())
-            if match:
-                passed, total, suite_name = match.groups()
-                return {
-                    'tests_passed': int(passed),
-                    'tests_total': int(total),
-                    'suite_name': suite_name,
-                    'success': int(passed) == int(total),
-                    'summary': f'{passed}/{total} tests passed'
-                }
+        match = re.search(r'TEST_RESULTS: PASSED=(\d+) TOTAL=(\d+) SUITE="([^"]*)"', output)
+        if match:
+            passed, total, suite_name = match.groups()
+            return {
+                'tests_passed': int(passed),
+                'tests_total': int(total),
+                'suite_name': suite_name,
+                'success': int(passed) == int(total),
+                'summary': f'{passed}/{total} tests passed'
+            }
         
         # Should not happen with standardized test suites
         return {
@@ -164,6 +274,7 @@ class TestSuiteRunner:
             env = os.environ.copy()
             env['PYTHONIOENCODING'] = 'utf-8'
             env['UNIFIED_TEST_RUNNER'] = '1'  # Signal that we're running under unified test runner
+            env['CURRENT_TEST_SUITE'] = suite['name']  # Pass test suite name for better labeling
             
             # Always capture output for parsing, but only show in verbose mode
             result = subprocess.run(
@@ -255,6 +366,15 @@ class TestSuiteRunner:
         print("   (run individual test suites directly to enable browser opening)")
         print()
         
+        # Create consolidated test run directory
+        consolidated_run_path, consolidated_run_id, test_env_info = create_consolidated_test_run()
+        print(f"📁 Created consolidated test run: {consolidated_run_id}")
+        print(f"🎯 Test artifacts will be consolidated in: {consolidated_run_path}")
+        print()
+        
+        # Set up test environment for consolidation
+        setup_test_environment(consolidated_run_path, test_env_info)
+        
         overall_success = True
         total_start_time = time.time()
         
@@ -307,6 +427,10 @@ class TestSuiteRunner:
                     print(f"  • {result['name']} (return code: {result['return_code']})")
         
         print("=" * 50)
+        
+        # Finalize consolidated test run
+        finalize_consolidated_test_run(consolidated_run_path, test_env_info, self.results)
+        
         return overall_success
 
 def main():

@@ -24,6 +24,10 @@ def create_run_directory(run_context: str = None, is_test: bool = False,
     """
     Create a new run directory with timestamp-based naming.
     
+    Supports consolidated test runs to avoid cluttering the main runs directory.
+    When running under CONSOLIDATED_TEST_RUN environment, test runs are created
+    within the consolidated test directory structure.
+    
     Args:
         run_context: Optional context string (e.g., CVE ID, batch name) to append to timestamp
         is_test: Whether this is a test run (adds 'TEST_' prefix to context)
@@ -32,6 +36,41 @@ def create_run_directory(run_context: str = None, is_test: bool = False,
     Returns:
         Tuple of (run_directory_path, run_id)
     """
+    import os
+    
+    # Check if we're in a consolidated test run environment
+    if os.environ.get('CONSOLIDATED_TEST_RUN') == '1' and is_test:
+        # Create test run within consolidated directory
+        consolidated_path = Path(os.environ.get('CONSOLIDATED_TEST_RUN_PATH', ''))
+        if consolidated_path.exists():
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            
+            # Get current test suite name for better labeling
+            current_suite = os.environ.get('CURRENT_TEST_SUITE', '')
+            suite_prefix = f"{current_suite.replace(' ', '_')}_" if current_suite else ""
+            
+            if run_context:
+                clean_context = f"TEST_{suite_prefix}{run_context}"
+                # Clean the context string for filesystem safety
+                clean_context = "".join(c for c in clean_context if c.isalnum() or c in ("-", "_", "."))
+                run_id = f"{timestamp}_{clean_context}"
+            else:
+                clean_context = f"TEST_{suite_prefix}run" if suite_prefix else "TEST_run"
+                run_id = f"{timestamp}_{clean_context}"
+            
+            # Create run directory within consolidated logs directory
+            run_path = consolidated_path / "logs" / run_id
+            
+            # Create subdirectories
+            if subdirs is None:
+                subdirs = ["generated_pages", "logs"]  # Default for Analysis_Tools
+            
+            for subdir in subdirs:
+                (run_path / subdir).mkdir(parents=True, exist_ok=True)
+            
+            return run_path, run_id
+    
+    # Standard run directory creation (existing behavior)
     project_root = get_analysis_tools_root()
     
     # Generate timestamp-based run ID
@@ -70,19 +109,36 @@ def get_current_run_paths(run_id: str) -> dict:
     """
     Get standardized paths for a specific run.
     
+    Supports consolidated test runs to match the create_run_directory behavior.
+    
     Args:
         run_id: The run identifier
         
     Returns:
         Dictionary with keys: generated_pages, logs, cache (global)
     """
-    project_root = get_analysis_tools_root()
-    run_path = project_root / "runs" / run_id
+    import os
+    
+    # Check if we're in a consolidated test run environment
+    if os.environ.get('CONSOLIDATED_TEST_RUN') == '1':
+        consolidated_path = Path(os.environ.get('CONSOLIDATED_TEST_RUN_PATH', ''))
+        if consolidated_path.exists():
+            # For consolidated test runs, the run directory is within the consolidated logs directory
+            # This matches the create_run_directory behavior exactly
+            run_path = consolidated_path / "logs" / run_id
+        else:
+            # Fallback to standard behavior
+            project_root = get_analysis_tools_root()
+            run_path = project_root / "runs" / run_id
+    else:
+        # Standard run directory resolution
+        project_root = get_analysis_tools_root()
+        run_path = project_root / "runs" / run_id
     
     return {
         "generated_pages": run_path / "generated_pages",
         "logs": run_path / "logs", 
-        "cache": project_root / "cache",  # Cache is global, not run-specific
+        "cache": get_analysis_tools_root() / "cache",  # Cache is global, not run-specific
         "run_root": run_path
     }
 
@@ -114,3 +170,181 @@ def ensure_run_directory(run_context: str = None, subdirs: List[str] = None) -> 
         Tuple of (run_directory_path, run_id)
     """
     return create_run_directory(run_context, subdirs=subdirs)
+
+
+# Consolidated Test Environment Helper Functions
+# These functions help tests work in both standard and consolidated test environments
+
+def find_latest_test_run_report(report_filename: str = "sourceDataConcernReport.json") -> Optional[dict]:
+    """
+    Find and load the latest test run report, handling both standard and consolidated test environments.
+    
+    Args:
+        report_filename: Name of the report file to find (default: sourceDataConcernReport.json)
+        
+    Returns:
+        Dict containing the report data, or None if not found
+    """
+    import json
+    
+    try:
+        # Check if we're in a consolidated test run environment
+        if os.environ.get('CONSOLIDATED_TEST_RUN') == '1':
+            consolidated_path = Path(os.environ.get('CONSOLIDATED_TEST_RUN_PATH', ''))
+            if consolidated_path.exists():
+                # Look in the consolidated test run logs directory
+                logs_dir = consolidated_path / "logs"  
+                if logs_dir.exists():
+                    # Find the most recent test run directory
+                    test_run_dirs = [d for d in logs_dir.glob("*TEST_*") if d.is_dir()]
+                    if test_run_dirs:
+                        latest_run = max(test_run_dirs, key=lambda x: x.stat().st_mtime)
+                        report_path = latest_run / "logs" / report_filename
+                        
+                        if report_path.exists():
+                            with open(report_path, 'r', encoding='utf-8') as f:
+                                data = json.load(f)
+                                print(f"✅ Report found: {report_path}")
+                                return data
+                        else:
+                            print(f"❌ Report not found in consolidated run: {report_path}")
+                            return None
+                    else:
+                        print(f"❌ No test run directories found in consolidated logs: {logs_dir}")
+                        return None
+                else:
+                    print(f"❌ Consolidated logs directory not found: {logs_dir}")
+                    return None
+            else:
+                print(f"❌ Consolidated test path not found: {consolidated_path}")
+                return None
+        
+        # Standard mode - look in main runs directory
+        runs_dir = Path(__file__).parent.parent.parent.parent / "runs"
+        run_dirs = [d for d in runs_dir.glob("*") if d.is_dir() and not d.name.startswith(("run_all_tests", "2025-"))]
+        if not run_dirs:
+            print("❌ No run directories found")
+            return None
+            
+        latest_run = max(run_dirs, key=lambda x: x.stat().st_mtime)
+        report_path = latest_run / "logs" / report_filename
+        
+        if not report_path.exists():
+            print(f"❌ Report not found: {report_path}")
+            return None
+            
+        with open(report_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            print(f"✅ Report found: {report_path}")
+            return data
+            
+    except Exception as e:
+        print(f"❌ Error finding report: {e}")
+        return None
+
+
+def get_latest_test_run_directory() -> Optional[Path]:
+    """
+    Get the latest test run directory, handling both standard and consolidated test environments.
+    
+    Returns:
+        Path to the latest test run directory, or None if not found
+    """
+    try:
+        # Check if we're in a consolidated test run environment
+        if os.environ.get('CONSOLIDATED_TEST_RUN') == '1':
+            consolidated_path = Path(os.environ.get('CONSOLIDATED_TEST_RUN_PATH', ''))
+            if consolidated_path.exists():
+                # Look in the consolidated test run logs directory
+                logs_dir = consolidated_path / "logs"  
+                if logs_dir.exists():
+                    # Find the most recent test run directory
+                    test_run_dirs = [d for d in logs_dir.glob("*TEST_*") if d.is_dir()]
+                    if test_run_dirs:
+                        latest_run = max(test_run_dirs, key=lambda x: x.stat().st_mtime)
+                        print(f"✅ Latest consolidated test run: {latest_run}")
+                        return latest_run
+                    else:
+                        print(f"❌ No test run directories found in consolidated logs: {logs_dir}")
+                        return None
+                else:
+                    print(f"❌ Consolidated logs directory not found: {logs_dir}")
+                    return None
+            else:
+                print(f"❌ Consolidated test path not found: {consolidated_path}")
+                return None
+        
+        # Standard mode - look in main runs directory
+        runs_dir = Path(__file__).parent.parent.parent.parent / "runs"
+        run_dirs = [d for d in runs_dir.glob("*") if d.is_dir() and not d.name.startswith(("run_all_tests", "2025-"))]
+        if not run_dirs:
+            print("❌ No run directories found")
+            return None
+            
+        latest_run = max(run_dirs, key=lambda x: x.stat().st_mtime)
+        print(f"✅ Latest standard test run: {latest_run}")
+        return latest_run
+            
+    except Exception as e:
+        print(f"❌ Error finding latest run directory: {e}")
+        return None
+
+
+def find_curator_output_files(file_pattern: str = "source_mapping_extraction_*.json") -> list:
+    """
+    Find curator output files in both standard and consolidated test environments.
+    
+    Args:
+        file_pattern: Glob pattern to match curator output files
+        
+    Returns:
+        List of Path objects for matching files
+    """
+    try:
+        # Check if we're in a consolidated test run environment
+        if os.environ.get('CONSOLIDATED_TEST_RUN') == '1':
+            consolidated_path = Path(os.environ.get('CONSOLIDATED_TEST_RUN_PATH', ''))
+            if consolidated_path.exists():
+                # Look in consolidated test run logs directory (recursive search)
+                logs_dir = consolidated_path / "logs"
+                if logs_dir.exists():
+                    # Recursively search for curator output files
+                    curator_files = []
+                    for pattern_file in logs_dir.rglob(file_pattern):
+                        curator_files.append(pattern_file)
+                    
+                    if curator_files:
+                        print(f"✅ Found {len(curator_files)} curator files matching '{file_pattern}' in consolidated logs")
+                        return curator_files
+                    else:
+                        print(f"❌ No curator files matching '{file_pattern}' found in consolidated logs: {logs_dir}")
+                        return []
+                else:
+                    print(f"❌ Consolidated logs directory not found: {logs_dir}")
+                    return []
+            else:
+                print(f"❌ Consolidated test path not found: {consolidated_path}")
+                return []
+        
+        # Standard mode - look in main runs directory
+        runs_dir = Path(__file__).parent.parent.parent.parent / "runs"
+        curator_files = []
+        
+        # Look through all run directories for curator files
+        for run_dir in runs_dir.glob("*"):
+            if run_dir.is_dir() and not run_dir.name.startswith(("run_all_tests", "2025-")):
+                logs_dir = run_dir / "logs"
+                if logs_dir.exists():
+                    for pattern_file in logs_dir.glob(file_pattern):
+                        curator_files.append(pattern_file)
+        
+        if curator_files:
+            print(f"✅ Found {len(curator_files)} curator files matching '{file_pattern}' in standard runs")
+            return curator_files
+        else:
+            print(f"❌ No curator files matching '{file_pattern}' found in standard runs")
+            return []
+            
+    except Exception as e:
+        print(f"❌ Error finding curator files: {e}")
+        return []

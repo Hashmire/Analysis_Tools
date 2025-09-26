@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """
-Automated test suite for Platform Entry Notification badges functionality.
-Tests that all badges generate correctly with appropriate content for their supported cases.
+Automated test suite for Support Platform Badge functionality.
+Tests JSON Generation, Supporting Information, and miscellaneous platform badges.
 
-This test suite validates the new badge modal system integration including:
-1. Badge presence and HTML structure with modal integration
-2. Badge content and tooltip/modal functionality
-3. Badge priority ordering (Danger -> Warning -> Source Data Concern -> Info -> Standard)
-4. Modal badge consolidation (Supporting Information badge)
-5. JSON Generation Rules badge (replaces old wildcard/update pattern badges)
-6. Edge cases and error conditions
+This test suite validates support platform badges that assist with:
+1. JSON Generation Rules - Wildcard patterns, update patterns, version processing
+2. Supporting Information - Consolidated badge for confirmed mappings, transformations, etc.
+3. Miscellaneous Platform Badges - CVE affected CPEs, git version types, API errors
+4. Badge modal system integration and priority ordering
+5. Vulnerable flag determination and modal-only case detection
 
-Updated for the new badge_modal_system integration that consolidates several badges
-into modal-based interactions for better user experience.
+Note: Source Data Concern badges are tested in dedicated test_sdc_* test suites.
+This suite focuses on the supporting/auxiliary platform badge functionality.
 """
 
 import json
@@ -30,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 # Import the actual production constants
 from analysis_tool.core.badge_modal_system import NON_SPECIFIC_VERSION_VALUES
 
-class PlatformBadgesTestSuite:
+class SupportPlatformBadgesTestSuite:
     def __init__(self):
         self.results = []
         self.passed = 0
@@ -902,9 +901,9 @@ class PlatformBadgesTestSuite:
     
     
     def run_all_tests(self):
-        """Run all badge tests."""
-        print("🧪 Running Platform Entry Notification Badge Tests...")
-        print("=" * 70)
+        """Run all support platform badge tests."""
+        print("🧪 Running Support Platform Badge Tests...")
+        print("=" * 50)
         
         # Test imports first
         self.test_badge_generation_import()
@@ -948,15 +947,15 @@ def main():
     """Main test execution."""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Test platform badges functionality')
+    parser = argparse.ArgumentParser(description='Test support platform badges functionality')
     args = parser.parse_args()
     
-    test_suite = PlatformBadgesTestSuite()
+    test_suite = SupportPlatformBadgesTestSuite()
     success = test_suite.run_all_tests()
     
     # STANDARD OUTPUT FORMAT - Required for unified test runner
     total_tests = test_suite.passed + test_suite.failed
-    print(f"TEST_RESULTS: PASSED={test_suite.passed} TOTAL={total_tests} SUITE=\"Platform Badges\"")
+    print(f"TEST_RESULTS: PASSED={test_suite.passed} TOTAL={total_tests} SUITE=\"Support Platform Badges\"")
     
     sys.exit(0 if success else 1)
 

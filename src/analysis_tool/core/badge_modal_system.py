@@ -3439,8 +3439,8 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     # Collect all source data concerns
     concerns_data = {
         "placeholderData": [],
-        "versionTextPatterns": [],
-        "versionComparators": [],
+        "textComparators": [],
+        "mathematicalComparators": [],
         "versionGranularity": [],
         "whitespaceIssues": [],
         "invalidCharacters": [],
@@ -3671,7 +3671,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             vendor_lower = vendor_value.lower()
             matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in vendor_lower]
             if matching_comparators:
-                concerns_data["versionComparators"].append({
+                concerns_data["mathematicalComparators"].append({
                     "field": "vendor",
                     "sourceValue": vendor_value,
                     "detectedPattern": {"detectedValue": ', '.join(matching_comparators)}
@@ -3685,7 +3685,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             product_lower = product_value.lower()
             matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in product_lower]
             if matching_comparators:
-                concerns_data["versionComparators"].append({
+                concerns_data["mathematicalComparators"].append({
                     "field": "product",
                     "sourceValue": product_value,
                     "detectedPattern": {"detectedValue": ', '.join(matching_comparators)}
@@ -3701,7 +3701,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                     platform_lower = platform_value.lower()
                     matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in platform_lower]
                     if matching_comparators:
-                        concerns_data["versionComparators"].append({
+                        concerns_data["mathematicalComparators"].append({
                             "field": f"platforms[{idx}]",
                             "sourceValue": platform_value,
                             "detectedPattern": {"detectedValue": ', '.join(matching_comparators)}
@@ -3715,7 +3715,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             package_lower = package_value.lower()
             matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in package_lower]
             if matching_comparators:
-                concerns_data["versionComparators"].append({
+                concerns_data["mathematicalComparators"].append({
                     "field": "packageName",
                     "sourceValue": package_value,
                     "detectedPattern": {"detectedValue": ', '.join(matching_comparators)}
@@ -3723,7 +3723,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                 concerns_count += 1
     
     # Update concern types if any comparator patterns were found
-    if concerns_data["versionComparators"]:
+    if concerns_data["mathematicalComparators"]:
         concern_types.append("Mathematical Comparator Detection")
 
     # Check version fields for comparator patterns  
@@ -3739,7 +3739,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                         field_lower = field_value.lower()
                         matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in field_lower]
                         if matching_comparators:
-                            concerns_data["versionComparators"].append({
+                            concerns_data["mathematicalComparators"].append({
                                 "field": field,
                                 "sourceValue": field_value,
                                 "detectedPattern": {"detectedValue": ', '.join(matching_comparators)}
@@ -3755,7 +3755,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                 field_lower = change_at_value.lower()
                                 matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in field_lower]
                                 if matching_comparators:
-                                    concerns_data["versionComparators"].append({
+                                    concerns_data["mathematicalComparators"].append({
                                         "field": f"changes[{idx}].at",
                                         "sourceValue": change_at_value,
                                         "detectedPattern": {"detectedValue": ', '.join(matching_comparators)}
@@ -3763,7 +3763,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                     concerns_count += 1
         
         # Update concern types if version field comparator patterns were found
-        if concerns_data["versionComparators"] and "Mathematical Comparator Detection" not in concern_types:
+        if concerns_data["mathematicalComparators"] and "Mathematical Comparator Detection" not in concern_types:
             concern_types.append("Mathematical Comparator Detection")
 
     # === Text Comparator Detection ===
@@ -3781,7 +3781,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                         # Check each pattern and report individually
                         for pattern in TEXT_COMPARATOR_PATTERNS:
                             if pattern in field_lower:
-                                concerns_data["versionTextPatterns"].append({
+                                concerns_data["textComparators"].append({
                                     "field": field,
                                     "sourceValue": field_value,
                                     "detectedPattern": {"detectedValue": pattern}
@@ -3799,7 +3799,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                 # Check each pattern and report individually
                                 for pattern in TEXT_COMPARATOR_PATTERNS:
                                     if pattern in field_lower:
-                                        concerns_data["versionTextPatterns"].append({
+                                        concerns_data["textComparators"].append({
                                             "field": f"changes[{idx}].at",
                                             "sourceValue": change_at_value,
                                             "detectedPattern": pattern
@@ -3813,7 +3813,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                 # Check each pattern and report individually
                                 for pattern in TEXT_COMPARATOR_PATTERNS:
                                     if pattern in field_lower:
-                                        concerns_data["versionTextPatterns"].append({
+                                        concerns_data["textComparators"].append({
                                             "field": f"changes[{idx}].status",
                                             "sourceValue": change_status_value,
                                             "detectedPattern": pattern
@@ -3821,7 +3821,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                         concerns_count += 1
         
         # Update concern types if text comparator patterns were found
-        if concerns_data["versionTextPatterns"]:
+        if concerns_data["textComparators"]:
             concern_types.append("Text Comparator Detection")
     
     # Helper function to detect whitespace issues

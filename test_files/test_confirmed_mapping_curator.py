@@ -14,6 +14,10 @@ import json
 import tempfile
 from pathlib import Path
 from datetime import datetime
+# Add src path for analysis_tool imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from analysis_tool.storage.run_organization import find_latest_test_run_report, find_curator_output_files
 
 # Add the src directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -404,8 +408,8 @@ class ConfirmedMappingCuratorTestSuite:
             # Run extraction to generate output
             curator.start_extraction()
             
-            # Check if output files were created
-            output_files = list(curator.run_paths["logs"].glob("source_mapping_extraction_*.json"))
+            # Check if output files were created using consolidated-aware helper
+            output_files = find_curator_output_files("source_mapping_extraction_*.json")
             
             success = self.add_result(
                 "curator_output_files",
@@ -702,8 +706,8 @@ class ConfirmedMappingCuratorTestSuite:
                     f"Platform arrays correctly expanded to individual entries: found {len(platform_entries_found)} platform entries"
                 )
             
-            # Check output structure includes enhanced metadata
-            output_files = list(curator.run_paths["logs"].glob("source_mapping_extraction_*.json"))
+            # Check output structure includes enhanced metadata using consolidated-aware helper
+            output_files = find_curator_output_files("source_mapping_extraction_*.json")
             if output_files:
                 latest_file = max(output_files, key=lambda f: f.stat().st_mtime)
                 with open(latest_file, 'r') as f:

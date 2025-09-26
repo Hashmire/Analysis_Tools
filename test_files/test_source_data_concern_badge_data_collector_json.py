@@ -183,11 +183,11 @@ class SourceDataConcernJSONTestSuite:
         
         # Create test concern data
         test_concerns = self.create_test_concerns_data(
-            "placeholderData",
+            "Placeholder Detection",
             [
                 {
                     "concern": "Vendor contains placeholder text: n/a",
-                    "category": "Placeholder Data",
+                    "category": "Placeholder Detection",
                     "issue": "Vendor information missing or placeholder"
                 }
             ]
@@ -201,7 +201,7 @@ class SourceDataConcernJSONTestSuite:
             product="TestProduct",
             concerns_data=test_concerns,
             concerns_count=1,
-            concern_types=["Placeholder Data"]  # Use display name for proper mapping
+            concern_types=["Placeholder Detection"]  # Use display name for proper mapping
         )
         
         # Verify collection
@@ -234,19 +234,19 @@ class SourceDataConcernJSONTestSuite:
             "placeholderData": [
                 {
                     "concern": "Product contains placeholder text: TBD",
-                    "category": "Placeholder Data",
+                    "category": "Placeholder Detection",
                     "issue": "Product information missing or placeholder"
                 }
             ],
-            "versionTextPatterns": [
+            "textComparators": [
                 {
                     "concern": "Text in version: before 2.0 (patterns: before)",
-                    "category": "Version Data",
+                    "category": "Text Comparator Detection",
                     "issue": "Version data contains formatting or structural issues"
                 },
                 {
                     "concern": "Text in version: after 1.5 (patterns: after)",
-                    "category": "Version Data", 
+                    "category": "Text Comparator Detection", 
                     "issue": "Version data contains formatting or structural issues"
                 }
             ]
@@ -259,7 +259,7 @@ class SourceDataConcernJSONTestSuite:
             product="TBD",
             concerns_data=test_concerns,
             concerns_count=3,
-            concern_types=["Placeholder Data", "Version Text Patterns"]  # Use display names
+            concern_types=["Placeholder Detection", "Text Comparator Detection"]  # Use display names
         )
         
         # Verify collection
@@ -267,11 +267,11 @@ class SourceDataConcernJSONTestSuite:
         self.assert_equals(entry['total_concerns'], 3, "Total concerns correct for multiple types")
         self.assert_equals(len(entry['concern_types']), 2, "Two concern types recorded")
         self.assert_contains(entry['concern_types'], "placeholderData", "Placeholder data concern type present")
-        self.assert_contains(entry['concern_types'], "versionTextPatterns", "Version text patterns concern type present")
+        self.assert_contains(entry['concern_types'], "textComparators", "Text comparator concern type present")
         
         # Verify concern breakdown
         self.assert_equals(entry['concern_breakdown']['placeholderData'], 1, "Placeholder data count correct")
-        self.assert_equals(entry['concern_breakdown']['versionTextPatterns'], 2, "Version text patterns count correct")
+        self.assert_equals(entry['concern_breakdown']['textComparators'], 2, "Text comparator count correct")
 
     def test_concern_details_structure(self):
         """Test concern details array structure and format."""
@@ -290,7 +290,7 @@ class SourceDataConcernJSONTestSuite:
             [
                 {
                     "concern": "Inconsistent version granularity: 3.3: 2-part (3.3 Patch 2, 3.3 Patch 1), 3-part (3.3.0)",
-                    "category": "Version Granularity",
+                    "category": "Version Granularity Detection",
                     "issue": "Version granularity issues may affect matching precision"
                 }
             ]
@@ -303,7 +303,7 @@ class SourceDataConcernJSONTestSuite:
             product="Identity Services Engine",
             concerns_data=test_concerns,
             concerns_count=1,
-            concern_types=["versionGranularity"]
+            concern_types=["Version Granularity Detection"]
         )
         
         # Verify concerns_detail structure
@@ -343,7 +343,7 @@ class SourceDataConcernJSONTestSuite:
         
         # Add entry with concerns
         test_concerns_1 = self.create_test_concerns_data(
-            "placeholderData",
+            "Placeholder Detection",
             [{"concern": "test concern", "category": "test", "issue": "test"}]
         )
         
@@ -354,7 +354,7 @@ class SourceDataConcernJSONTestSuite:
             product="Product1",
             concerns_data=test_concerns_1,
             concerns_count=1,
-            concern_types=["Placeholder Data"]  # Use display name
+            concern_types=["Placeholder Detection"]  # Use display name
         )
         
         # Add entry without concerns (via clean platform entry collection)
@@ -366,7 +366,7 @@ class SourceDataConcernJSONTestSuite:
         start_cve_collection("CVE-2024-TEST-0006")
         
         test_concerns_2 = self.create_test_concerns_data(
-            "versionTextPatterns",
+            "textComparators",
             [{"concern": "test concern 2", "category": "test", "issue": "test"}]
         )
         
@@ -377,7 +377,7 @@ class SourceDataConcernJSONTestSuite:
             product="Product2",
             concerns_data=test_concerns_2,
             concerns_count=1,
-            concern_types=["Version Text Patterns"]  # Use display name
+            concern_types=["Text Comparator Detection"]  # Use display name
         )
         
         complete_cve_collection()
@@ -391,7 +391,7 @@ class SourceDataConcernJSONTestSuite:
         # Check concern type counts
         concern_counts = metadata['concern_type_counts']
         placeholder_count = next((item['count'] for item in concern_counts if item['concern_type'] == 'placeholderData'), 0)
-        version_count = next((item['count'] for item in concern_counts if item['concern_type'] == 'versionTextPatterns'), 0)
+        version_count = next((item['count'] for item in concern_counts if item['concern_type'] == 'textComparators'), 0)
         
         self.assert_equals(placeholder_count, 1, "Placeholder data concern count correct")
         self.assert_equals(version_count, 1, "Version text patterns concern count correct")
@@ -417,11 +417,11 @@ class SourceDataConcernJSONTestSuite:
                 "source_id": "source-alpha",
                 "vendor": "n/a",
                 "product": "TestProduct1",
-                "concerns_data": self.create_test_concerns_data("placeholderData", [
+                "concerns_data": self.create_test_concerns_data("Placeholder Detection", [
                     {"concern": "Vendor placeholder", "category": "Placeholder", "issue": "Missing vendor"}
                 ]),
                 "concerns_count": 1,
-                "concern_types": ["placeholderData"]
+                "concern_types": ["Placeholder Detection"]
             },
             {
                 "table_index": 1,
@@ -429,7 +429,7 @@ class SourceDataConcernJSONTestSuite:
                 "vendor": "TestVendor2",
                 "product": "TestProduct2",
                 "concerns_data": {
-                    "versionTextPatterns": [
+                    "textComparators": [
                         {"concern": "Version text pattern", "category": "Version", "issue": "Text in version"}
                     ],
                     "versionGranularity": [
@@ -437,7 +437,7 @@ class SourceDataConcernJSONTestSuite:
                     ]
                 },
                 "concerns_count": 2,
-                "concern_types": ["versionTextPatterns", "versionGranularity"]
+                "concern_types": ["Text Comparator Detection", "Version Granularity Detection"]
             }
         ]
         
@@ -494,14 +494,14 @@ class SourceDataConcernJSONTestSuite:
         
         # Create test entry with all required fields
         complete_concerns_data = {
-            "placeholderData": [
+            "Placeholder Detection": [
                 {
                     "concern": "Product contains placeholder: TBD",
-                    "category": "Placeholder Data",
+                    "category": "Placeholder Detection",
                     "issue": "Product information missing"
                 }
             ],
-            "versionTextPatterns": [
+            "textComparators": [
                 {
                     "concern": "Version contains text: before 1.0",
                     "category": "Version Data",
@@ -517,7 +517,7 @@ class SourceDataConcernJSONTestSuite:
             product="TBD",
             concerns_data=complete_concerns_data,
             concerns_count=2,
-            concern_types=["placeholderData", "versionTextPatterns"]
+            concern_types=["Placeholder Detection", "Text Comparator Detection"]
         )
         
         complete_cve_collection()
@@ -645,27 +645,27 @@ class SourceDataConcernJSONTestSuite:
                 "concerns_data": self.create_test_concerns_data("versionGranularity", [
                     {
                         "concern": "Inconsistent version granularity: 3.3: 2-part (3.3 Patch 2, 3.3 Patch 1), 3-part (3.3.0)",
-                        "category": "Version Granularity",
+                        "category": "Version Granularity Detection",
                         "issue": "Version granularity issues may affect matching precision"
                     }
                 ]),
                 "concerns_count": 1,
-                "concern_types": ["Version Granularity"]  # Use display name
+                "concern_types": ["Version Granularity Detection"]  # Use display name
             },
             {
                 "table_index": 1,
                 "source_id": "test-org-uuid",
                 "vendor": "n/a",
                 "product": "TestProduct",
-                "concerns_data": self.create_test_concerns_data("placeholderData", [
+                "concerns_data": self.create_test_concerns_data("Placeholder Detection", [
                     {
                         "concern": "Vendor contains placeholder text: n/a",
-                        "category": "Placeholder Data",
+                        "category": "Placeholder Detection",
                         "issue": "Vendor information missing or placeholder"
                     }
                 ]),
                 "concerns_count": 1,
-                "concern_types": ["Placeholder Data"]  # Use display name
+                "concern_types": ["Placeholder Detection"]  # Use display name
             }
         ]
         
@@ -1009,7 +1009,7 @@ class SourceDataConcernJSONTestSuite:
             from analysis_tool.storage.run_organization import create_run_directory, get_current_run_paths, get_analysis_tools_root
             
             # Create a test run directory
-            run_path, run_id = create_run_directory("TEST_comprehensive_dashboard")
+            run_path, run_id = create_run_directory("comprehensive_dashboard", is_test=True)
             run_paths = get_current_run_paths(run_id)
             logs_dir = str(run_paths["logs"])
             
@@ -1034,7 +1034,7 @@ class SourceDataConcernJSONTestSuite:
                         {'concern': 'product_placeholder', 'category': 'data_quality', 'issue': 'Contains placeholder text: "sample_product"'}
                     ]),
                     'concerns_count': 2,
-                    'concern_types': ['placeholderData']
+                    'concern_types': ['Placeholder Detection']
                 },
                 {
                     'table_index': 2,
@@ -1045,7 +1045,7 @@ class SourceDataConcernJSONTestSuite:
                         {'concern': 'single_dash', 'category': 'data_quality', 'issue': 'Single dash placeholder in vendor field'}
                     ]),
                     'concerns_count': 1,
-                    'concern_types': ['placeholderData']
+                    'concern_types': ['Placeholder Detection']
                 },
                 
                 # Source 2: NVD - Version Text Patterns sub-categories
@@ -1054,23 +1054,23 @@ class SourceDataConcernJSONTestSuite:
                     'source_id': 'nvd-nist',
                     'vendor': 'range_vendor',
                     'product': 'range_app',
-                    'concerns_data': self.create_test_concerns_data('versionTextPatterns', [
+                    'concerns_data': self.create_test_concerns_data('textComparators', [
                         {'concern': 'range_indicators', 'category': 'version_parsing', 'issue': 'Version contains range indicator: "1.0 through 2.5"'}
                     ]),
                     'concerns_count': 1,
-                    'concern_types': ['versionTextPatterns']
+                    'concern_types': ['Text Comparator Detection']
                 },
                 {
                     'table_index': 4,
                     'source_id': 'nvd-nist',
                     'vendor': 'bound_vendor',
                     'product': 'bound_app',
-                    'concerns_data': self.create_test_concerns_data('versionTextPatterns', [
+                    'concerns_data': self.create_test_concerns_data('textComparators', [
                         {'concern': 'upper_bound_indicator', 'category': 'version_parsing', 'issue': 'Contains upper bound indicator: "before 4.2"'},
                         {'concern': 'lower_bound_indicator', 'category': 'version_parsing', 'issue': 'Contains lower bound: "after 1.5"'}
                     ]),
                     'concerns_count': 2,
-                    'concern_types': ['versionTextPatterns']
+                    'concern_types': ['Text Comparator Detection']
                 },
                 
                 # Source 3: CPE Validator - CPE Array Concerns sub-categories
@@ -1079,24 +1079,24 @@ class SourceDataConcernJSONTestSuite:
                     'source_id': 'cpe-validator',
                     'vendor': 'validation_corp',
                     'product': 'security_scanner',
-                    'concerns_data': self.create_test_concerns_data('cpeArrayConcerns', [
+                    'concerns_data': self.create_test_concerns_data('invalidCharacters', [
                         {'concern': 'empty_array', 'category': 'structure', 'issue': 'Empty CPE array detected'},
                         {'concern': 'format_issue', 'category': 'structure', 'issue': 'Invalid CPE format detected: missing cpe: prefix'}
                     ]),
                     'concerns_count': 2,
-                    'concern_types': ['cpeArrayConcerns']
+                    'concern_types': ['Invalid Character Detection']
                 },
                 {
                     'table_index': 6,
                     'source_id': 'cpe-validator',
                     'vendor': 'duplicate_vendor',
                     'product': 'duplicate_scanner',
-                    'concerns_data': self.create_test_concerns_data('cpeArrayConcerns', [
+                    'concerns_data': self.create_test_concerns_data('invalidCharacters', [
                         {'concern': 'duplicate_cpe', 'category': 'integrity', 'issue': 'Duplicate CPE detected in array'},
                         {'concern': 'structure_issue', 'category': 'structure', 'issue': 'Invalid CPE 2.3 format detected'}
                     ]),
                     'concerns_count': 2,
-                    'concern_types': ['cpeArrayConcerns']
+                    'concern_types': ['Invalid Character Detection']
                 },
                 
                 # Source 4: Version Analysis - Version Granularity and Comparators
@@ -1109,18 +1109,18 @@ class SourceDataConcernJSONTestSuite:
                         {'concern': 'granularity_mismatch', 'category': 'version_specificity', 'issue': 'Version range too broad: affects all versions'}
                     ]),
                     'concerns_count': 1,
-                    'concern_types': ['versionGranularity']
+                    'concern_types': ['Version Granularity Detection']
                 },
                 {
                     'table_index': 8,
                     'source_id': 'version-analysis',
                     'vendor': 'comparator_vendor',
                     'product': 'comparison_app',
-                    'concerns_data': self.create_test_concerns_data('versionComparators', [
+                    'concerns_data': self.create_test_concerns_data('mathematicalComparators', [
                         {'concern': 'text_comparator', 'category': 'version_parsing', 'issue': 'Contains textual comparator: "before version 3.0"'}
                     ]),
                     'concerns_count': 1,
-                    'concern_types': ['versionComparators']
+                    'concern_types': ['Mathematical Comparator Detection']
                 },
                 
                 # Source 5: Security Research - Wildcards and Duplicates
@@ -1129,22 +1129,22 @@ class SourceDataConcernJSONTestSuite:
                     'source_id': 'security-research',
                     'vendor': 'wildcard_vendor',
                     'product': 'pattern_app',
-                    'concerns_data': self.create_test_concerns_data('wildcardBranches', [
+                    'concerns_data': self.create_test_concerns_data('whitespaceIssues', [
                         {'concern': 'wildcard_pattern', 'category': 'version_matching', 'issue': 'Wildcard pattern detected: "*.*.*"'}
                     ]),
                     'concerns_count': 1,
-                    'concern_types': ['wildcardBranches']
+                    'concern_types': ['Whitespace Detection']
                 },
                 {
                     'table_index': 10,
                     'source_id': 'security-research',
                     'vendor': 'duplicate_vendor',
                     'product': 'duplicate_app',
-                    'concerns_data': self.create_test_concerns_data('duplicateEntries', [
+                    'concerns_data': self.create_test_concerns_data('overlappingRanges', [
                         {'concern': 'row_duplicate', 'category': 'data_integrity', 'issue': 'Potential duplicate CPE entries detected'}
                     ]),
                     'concerns_count': 1,
-                    'concern_types': ['duplicateEntries']
+                    'concern_types': ['Overlapping Ranges']
                 },
                 
                 # Source 6: Missing Products Check
@@ -1153,11 +1153,11 @@ class SourceDataConcernJSONTestSuite:
                     'source_id': 'missing-products',
                     'vendor': 'missing_vendor',
                     'product': 'incomplete_app',
-                    'concerns_data': self.create_test_concerns_data('missingAffectedProducts', [
+                    'concerns_data': self.create_test_concerns_data('placeholderData', [
                         {'concern': 'no_affected_status', 'category': 'completeness', 'issue': 'No affected product status specified'}
                     ]),
                     'concerns_count': 1,
-                    'concern_types': ['missingAffectedProducts']
+                    'concern_types': ['Placeholder Detection']
                 },
                 
                 # Source 7: Range Analysis - Overlapping Ranges
@@ -1166,11 +1166,11 @@ class SourceDataConcernJSONTestSuite:
                     'source_id': 'range-analysis',
                     'vendor': 'range_vendor',
                     'product': 'versioning_tool',
-                    'concerns_data': self.create_test_concerns_data('overlappingRanges', [
+                    'concerns_data': self.create_test_concerns_data('Overlapping Ranges', [
                         {'concern': 'range_overlap', 'category': 'version_logic', 'issue': 'Version range overlaps detected between entries'}
                     ]),
                     'concerns_count': 1,
-                    'concern_types': ['overlappingRanges']
+                    'concern_types': ['Overlapping Ranges']
                 }
             ]
             
@@ -1223,32 +1223,32 @@ class SourceDataConcernJSONTestSuite:
                         {'concern': 'placeholder_2', 'category': 'data_quality', 'issue': 'Generic placeholder values used'}
                     ]),
                     'concerns_count': 2,
-                    'concern_types': ['placeholderData']
+                    'concern_types': ['Placeholder Detection']
                 },
                 {
                     'table_index': 15,
                     'source_id': 'high-concern-source',
                     'vendor': 'critical_vendor_2',
                     'product': 'critical_app_2',
-                    'concerns_data': self.create_test_concerns_data('versionTextPatterns', [
+                    'concerns_data': self.create_test_concerns_data('textComparators', [
                         {'concern': 'complex_pattern_1', 'category': 'version_parsing', 'issue': 'Complex version text patterns detected'},
                         {'concern': 'complex_pattern_2', 'category': 'version_parsing', 'issue': 'Non-standard version indicators'},
                         {'concern': 'complex_pattern_3', 'category': 'version_parsing', 'issue': 'Multiple descriptive statements found'}
                     ]),
                     'concerns_count': 3,
-                    'concern_types': ['versionTextPatterns']
+                    'concern_types': ['Text Comparator Detection']
                 },
                 {
                     'table_index': 16,
                     'source_id': 'high-concern-source',
                     'vendor': 'critical_vendor_3',
                     'product': 'critical_app_3',
-                    'concerns_data': self.create_test_concerns_data('cpeArrayConcerns', [
+                    'concerns_data': self.create_test_concerns_data('invalidCharacters', [
                         {'concern': 'multiple_cpe_issues', 'category': 'structure', 'issue': 'Multiple CPE array structure issues'},
                         {'concern': 'format_validation', 'category': 'validation', 'issue': 'CPE format validation failures'}
                     ]),
                     'concerns_count': 2,
-                    'concern_types': ['cpeArrayConcerns']
+                    'concern_types': ['Invalid Character Detection']
                 }
             ]
             
@@ -1266,11 +1266,11 @@ class SourceDataConcernJSONTestSuite:
                 'source_id': 'clean-source-alpha',
                 'vendor': 'now_with_concerns',
                 'product': 'mixed_state_app',
-                'concerns_data': self.create_test_concerns_data('duplicateEntries', [
+                'concerns_data': self.create_test_concerns_data('overlappingRanges', [
                     {'concern': 'mixed_duplicate', 'category': 'integrity', 'issue': 'Duplicate detected in previously clean source'}
                 ]),
                 'concerns_count': 1,
-                'concern_types': ['duplicateEntries']
+                'concern_types': ['Overlapping Ranges']
             }
             
             collector.collect_source_data_concern(**{
@@ -1278,11 +1278,11 @@ class SourceDataConcernJSONTestSuite:
                 'source_id': 'clean-source-alpha',
                 'vendor': 'now_with_concerns',
                 'product': 'mixed_state_app',
-                'concerns_data': self.create_test_concerns_data('duplicateEntries', [
+                'concerns_data': self.create_test_concerns_data('overlappingRanges', [
                     {'concern': 'mixed_duplicate', 'category': 'integrity', 'issue': 'Duplicate detected in previously clean source'}
                 ]),
                 'concerns_count': 1,
-                'concern_types': ['duplicateEntries']
+                'concern_types': ['Overlapping Ranges']
             })
             
             # Add more clean platforms to test high clean counts
@@ -1315,9 +1315,9 @@ class SourceDataConcernJSONTestSuite:
             
             # Verify concern type coverage (9 types - removed platformDataConcerns)
             concern_types = [ct['concern_type'] for ct in metadata['concern_type_counts']]
-            expected_types = ['placeholderData', 'versionTextPatterns', 'cpeArrayConcerns', 'versionGranularity', 
-                             'versionComparators', 'wildcardBranches', 'duplicateEntries',
-                             'missingAffectedProducts', 'overlappingRanges']
+            expected_types = ['placeholderData', 'textComparators', 'invalidCharacters', 'versionGranularity', 
+                             'mathematicalComparators', 'whitespaceIssues', 'overlappingRanges',
+                             'placeholderData', 'Overlapping Ranges']
             
             coverage_count = 0
             for expected_type in expected_types:
@@ -1374,7 +1374,7 @@ class SourceDataConcernJSONTestSuite:
             from analysis_tool.storage.run_organization import create_run_directory, get_current_run_paths, get_analysis_tools_root
             
             # Create a test run directory
-            run_path, run_id = create_run_directory("TEST_dashboard_file_generation")
+            run_path, run_id = create_run_directory("dashboard_file_generation", is_test=True)
             run_paths = get_current_run_paths(run_id)
             logs_dir = str(run_paths["logs"])
             
@@ -1397,7 +1397,7 @@ class SourceDataConcernJSONTestSuite:
                         {'concern': 'Contains placeholder text: "X.X"', 'category': 'Version', 'issue': 'Placeholder text in version field'}
                     ]),
                     'concerns_count': 2,
-                    'concern_types': ['placeholderData', 'versionTextPatterns']
+                    'concern_types': ['Placeholder Detection', 'Text Comparator Detection']
                 },
                 {
                     'table_index': 2,
@@ -1408,18 +1408,18 @@ class SourceDataConcernJSONTestSuite:
                         {'concern': 'Version range too broad', 'category': 'Version', 'issue': 'Overly broad version range'}
                     ]),
                     'concerns_count': 1,
-                    'concern_types': ['versionGranularity']
+                    'concern_types': ['Version Granularity Detection']
                 },
                 {
                     'table_index': 3,
                     'source_id': 'security-research',
                     'vendor': 'opensource',
                     'product': 'library_framework',
-                    'concerns_data': self.create_test_concerns_data('duplicateEntries', [
+                    'concerns_data': self.create_test_concerns_data('overlappingRanges', [
                         {'concern': 'Potential duplicate CPE entries detected', 'category': 'CPE', 'issue': 'Duplicate entry detection'}
                     ]),
                     'concerns_count': 1,
-                    'concern_types': ['duplicateEntries']
+                    'concern_types': ['Overlapping Ranges']
                 }
             ]
             
@@ -1565,3 +1565,17 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+

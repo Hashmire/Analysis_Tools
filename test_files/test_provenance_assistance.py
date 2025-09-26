@@ -16,6 +16,10 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from typing import Dict, List, Set, Tuple
 
+# Add src path for analysis_tool imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from analysis_tool.storage.run_organization import get_latest_test_run_directory
+
 class ProvenanceAssistanceTestSuite:
     def __init__(self, test_file_path: str):
         self.test_file_path = Path(test_file_path)
@@ -74,16 +78,14 @@ class ProvenanceAssistanceTestSuite:
             # Determine the expected HTML file path - test files go to run directories
             cve_id = self.test_data.get('cveMetadata', {}).get('cveId', 'CVE-UNKNOWN')
             
-            # Find the most recent TEST run directory
-            runs_dir = project_root / "runs"
-            test_run_dirs = [d for d in runs_dir.iterdir() if d.is_dir() and "TEST_testProvenanceAssistance" in d.name]
+            # Use consolidated-aware helper to find the latest test run directory
+            latest_test_run = get_latest_test_run_directory()
             
-            if not test_run_dirs:
-                self.add_result("HTML_GENERATION", False, f"No test run directory found in {runs_dir}")
+            if not latest_test_run:
+                self.add_result("HTML_GENERATION", False, "No test run directory found")
                 return False
                 
-            # Get the most recent test run directory
-            latest_test_run = max(test_run_dirs, key=lambda x: x.name)
+            # Get the HTML file path
             self.html_file_path = latest_test_run / "generated_pages" / f"{cve_id}.html"
             
             if not self.html_file_path.exists():

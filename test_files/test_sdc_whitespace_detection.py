@@ -17,6 +17,16 @@ import glob
 from pathlib import Path
 
 # Path to the whitespace detection test file
+import sys
+import os
+import json
+import subprocess
+from pathlib import Path
+
+# Add src path for analysis_tool imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from analysis_tool.storage.run_organization import find_latest_test_run_report
+
 TEST_FILE = os.path.join(os.path.dirname(__file__), "testWhitespaceDetection.json")
 
 def run_test_and_get_report():
@@ -38,24 +48,8 @@ def run_test_and_get_report():
             print(f"STDERR: {result.stderr}")
             return None
             
-        # Find the most recent run directory
-        runs_dir = Path(__file__).parent.parent / "runs"
-        run_dirs = [d for d in runs_dir.glob("*") if d.is_dir()]
-        if not run_dirs:
-            print("❌ No run directories found")
-            return None
-            
-        latest_run = max(run_dirs, key=lambda x: x.stat().st_mtime)
-        report_path = latest_run / "logs" / "sourceDataConcernReport.json"
-        
-        if not report_path.exists():
-            print(f"❌ Report not found: {report_path}")
-            return None
-            
-        with open(report_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            print(f"✅ Report found: {report_path}")
-            return data
+        # Use helper function to find report in both standard and consolidated environments
+        return find_latest_test_run_report("sourceDataConcernReport.json")
             
     except Exception as e:
         print(f"❌ Test execution failed: {e}")
@@ -208,15 +202,16 @@ def validate_test_case(test_case, report_data):
         # Test count validation
         count_match = len(concerns) == test_case['expected_concerns']
         
-        # If no concerns expected, just check count
+        # Structure validation
         if test_case['expected_concerns'] == 0:
+            # If we expect 0 concerns, structure passes regardless of what we found
             structure_match = True
-            value_match = True
+        elif len(concerns) == 0:
+            # If we expect concerns but found none, structure validation fails
+            structure_match = False
         else:
-            # Structure and value validation
+            # We have concerns to validate structure
             structure_match = True
-            value_match = True
-            
             if test_case['expected_concerns'] == 1:
                 # Single concern case
                 if len(concerns) == 1:
@@ -225,14 +220,6 @@ def validate_test_case(test_case, report_data):
                     if structure_match:
                         pattern = concern['detectedPattern']
                         structure_match = 'whitespaceTypes' in pattern and 'replacedText' in pattern
-                        
-                        if structure_match:
-                            value_match = (
-                                concern['field'] == test_case['expected_field'] and
-                                concern['sourceValue'] == test_case['expected_source_value'] and
-                                pattern['whitespaceTypes'] == test_case['expected_whitespace_types'] and
-                                pattern['replacedText'] == test_case['expected_replaced_text']
-                            )
                 else:
                     structure_match = False
             else:
@@ -256,21 +243,50 @@ def validate_test_case(test_case, report_data):
                             'replacedText': pattern['replacedText']
                         }
                     
-                    # Check if all expected fields are present with correct values
-                    if structure_match:
-                        for i, expected_field in enumerate(test_case['expected_fields']):
-                            if expected_field not in actual_concerns:
-                                value_match = False
-                                break
-                            
-                            actual = actual_concerns[expected_field]
-                            if (actual['sourceValue'] != test_case['expected_source_values'][i] or
-                                actual['whitespaceTypes'] != test_case['expected_whitespace_types'][i] or
-                                actual['replacedText'] != test_case['expected_replaced_texts'][i]):
-                                value_match = False
-                                break
                 else:
                     structure_match = False
+        
+        # Value validation
+        if test_case['expected_concerns'] == 0:
+            value_match = len(concerns) == 0
+        elif structure_match and len(concerns) == test_case['expected_concerns']:
+            if test_case['expected_concerns'] == 1:
+                # Single concern case
+                concern = concerns[0]
+                pattern = concern['detectedPattern']
+                value_match = (
+                    concern['field'] == test_case['expected_field'] and
+                    concern['sourceValue'] == test_case['expected_source_value'] and
+                    pattern['whitespaceTypes'] == test_case['expected_whitespace_types'] and
+                    pattern['replacedText'] == test_case['expected_replaced_text']
+                )
+            else:
+                # Multiple concerns case - need to match each concern to expected
+                actual_concerns = {}
+                for concern in concerns:
+                    field = concern['field']
+                    pattern = concern['detectedPattern']
+                    actual_concerns[field] = {
+                        'sourceValue': concern['sourceValue'],
+                        'whitespaceTypes': pattern['whitespaceTypes'],
+                        'replacedText': pattern['replacedText']
+                    }
+                
+                # Check if all expected fields are present with correct values
+                value_match = True
+                for i, expected_field in enumerate(test_case['expected_fields']):
+                    if expected_field not in actual_concerns:
+                        value_match = False
+                        break
+                    
+                    actual = actual_concerns[expected_field]
+                    if (actual['sourceValue'] != test_case['expected_source_values'][i] or
+                        actual['whitespaceTypes'] != test_case['expected_whitespace_types'][i] or
+                        actual['replacedText'] != test_case['expected_replaced_texts'][i]):
+                        value_match = False
+                        break
+        else:
+            value_match = False
     
     # Generate detailed output (similar to placeholder detection)
     status = "✅ PASS" if count_match and structure_match and value_match else "❌ FAIL"
