@@ -1,0 +1,74 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1",
+  "cveMetadata": {
+    "cveId": "CVE-9999-00005",
+    "assignerOrgId": "all-versions-test-org-12345",
+    "state": "PUBLISHED",
+    "assignerShortName": "AllVersionsTestOrg",
+    "datePublished": "2024-01-16T10:00:00.000Z",
+    "dateUpdated": "2024-01-16T12:30:00.000Z",
+    "dateReserved": "2024-01-10T08:00:00.000Z",
+    "serial": 5
+  },
+  "containers": {
+    "cna": {
+      "providerMetadata": {
+        "orgId": "all-versions-test-org-12345",
+        "shortName": "AllVersionsTestOrg",
+        "dateUpdated": "2024-01-16T12:30:00.000Z"
+      },
+      "dateAssigned": "2024-01-10T08:00:00.000Z",
+      "datePublic": "2024-01-16T10:00:00.000Z",
+      "title": "All Versions Pattern Detection Test Cases",
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "This CVE record contains specific test cases for all versions pattern detection validation."
+        }
+      ],
+      "affected": [
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "all versions", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor", 
+          "product": "Test Product",
+          "versions": [{"version": "1.0.0", "lessThan": "all", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product", 
+          "versions": [{"version": "2.0.0", "lessThanOrEqual": "all version", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "3.0.0", "changes": [{"at": "any version", "status": "unaffected"}], "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product", 
+          "versions": [{"version": "any versions", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "4.0.0", "changes": [{"at": "any", "status": "unaffected"}], "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "5.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "all versions before 6.0.0", "status": "affected"}]
+        }
+      ]
+    }
+  }
+}

@@ -181,6 +181,10 @@ class TestSuiteRunner:
                 'command': ['python', 'test_files\\test_sdc_text_comparator_detection.py']
             },
             {
+                'name': 'SDC All Versions Pattern Detection',
+                'command': ['python', 'test_files\\test_sdc_all_versions_pattern_detection.py']
+            },
+            {
                 'name': 'SDC Version Granularity Detection',
                 'command': ['python', 'test_files\\test_sdc_version_granularity_detection.py']
             },
