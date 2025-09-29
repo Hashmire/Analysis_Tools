@@ -813,7 +813,7 @@ class UnifiedDashboardCollector:
                 top_cves_by_searches.sort(key=lambda x: x["search_count"], reverse=True)
                 self.data["cpe_query_stats"]["top_cves_by_searches"] = top_cves_by_searches[:20]
             
-            # Generate top queries by count (legacy format for backward compatibility)
+            # Generate top queries by count
             top_queries = []
             for base_string, details in self._temp_query_tracking.items():
                 top_queries.append({
@@ -844,7 +844,7 @@ class UnifiedDashboardCollector:
                 self._update_cpe_top_lists_from_temp()
                 return
                 
-            # BACKWARD COMPATIBILITY: Legacy data structure support
+            # Legacy data structure support
             query_details = self.data["cpe_query_stats"]["query_details"]
             
             # Query details should already be serializable (using lists not sets)
@@ -883,7 +883,7 @@ class UnifiedDashboardCollector:
             top_cves_by_searches.sort(key=lambda x: x["search_count"], reverse=True)
             self.data["cpe_query_stats"]["top_cves_by_searches"] = top_cves_by_searches[:20]
             
-            # Also update the legacy top_queries format for backward compatibility
+            # Also update the top_queries format
             top_queries = []
             for base_string, details in query_details.items():
                 top_queries.append({
@@ -1510,7 +1510,7 @@ class UnifiedDashboardCollector:
             return False
     
     # =============================================================================
-    # Dataset Generation Methods (Backward Compatibility)
+    # Dataset Generation Methods
     # =============================================================================
     
     def start_collection_phase(self, phase_name: str, data_source: str = "nvd_api"):
@@ -1555,7 +1555,7 @@ class UnifiedDashboardCollector:
     
     def record_api_call_dataset(self, cves_returned: int = 0, rate_limited: bool = False):
         """
-        Dataset-specific API call recording (backward compatibility)
+        Dataset-specific API call recording
         
         Args:
             cves_returned: Number of CVEs returned by this API call
@@ -1709,7 +1709,7 @@ class UnifiedDashboardCollector:
                 import statistics
                 self.data["file_stats"]["median_file_size"] = statistics.median(self.data["file_stats"]["file_sizes"])
             
-            # Update consolidated metadata for backward compatibility
+            # Update consolidated metadata
             self.consolidated_metadata['unique_cves_count'] = cve_count
             
             if logger:

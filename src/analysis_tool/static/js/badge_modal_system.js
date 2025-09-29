@@ -1489,6 +1489,15 @@ class BadgeModalFactory {
                     });
                 }
                 
+                if (concernsData.bloatTextDetection && concernsData.bloatTextDetection.length > 0) {
+                    tabs.push({
+                        id: 'bloatTextDetection',
+                        label: 'Bloat Text Detection',
+                        badge: concernsData.bloatTextDetection.length,
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.bloatTextDetection, 'bloatTextDetection', sourceRole)
+                    });
+                }
+                
                 return tabs;
             }
         });
@@ -1934,6 +1943,8 @@ class BadgeModalFactory {
                 content += BadgeModalFactory.generateOverlappingRangesContent(concern);
             } else if (concernType === 'allVersionsPatterns') {
                 content += BadgeModalFactory.generateAllVersionsPatternsContent(concern);
+            } else if (concernType === 'bloatTextDetection') {
+                content += BadgeModalFactory.generateBloatTextDetectionContent(concern);
             } else {
                 // Generic concern display
                 content += `
@@ -2134,6 +2145,35 @@ class BadgeModalFactory {
                     <ul class="mb-0 text-muted">
                         <li>Use "*" for consistent representation of "all versions".</li>
                         <li>Example: <code>"version": "all versions"</code> should be represented as <code>"version": "*"</code>.</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    }
+
+    static generateBloatTextDetectionContent(concern) {
+        return `
+            <div class="concern-content">
+                <div class="problem-description mb-2">
+                    <strong class="text-danger">Problem:</strong>
+                    <p class="mb-2">${concern.field} contains bloat text which creates additional downstream parsing complexity and may impact version identification or CPE-AS generation.</p>
+                </div>
+                <div class="problematic-data mb-2">
+                    <strong class="text-warning">Problematic Data:</strong>
+                    <div class="data-display mt-1">
+                        <div class="mb-2">
+                            Pattern <strong>${concern.detectedPattern.detectedValue}</strong> detected in <strong>${concern.field}</strong> content
+                        </div>
+                        <div class="code-block bg-light p-2 rounded border">
+                            <code>"${concern.field}": "${concern.sourceValue}"</code>
+                        </div>
+                    </div>
+                </div>
+                <div class="resolution-guidance">
+                    <strong class="text-success">Resolution:</strong>
+                    <ul class="mb-0 text-muted">
+                        <li>Remove bloat text from version fields.</li>
+                        <li>Example: <code>"version": "Version 2.011"</code> should be represented as <code>"version": "2.011"</code>.</li>
                     </ul>
                 </div>
             </div>
@@ -2619,6 +2659,10 @@ class BadgeModalManager {
         if (concernsData.allVersionsPatterns && concernsData.allVersionsPatterns.length > 0) {
             issueCount += concernsData.allVersionsPatterns.length;
             concernTypes.push('All Versions Patterns');
+        }
+        if (concernsData.bloatTextDetection && concernsData.bloatTextDetection.length > 0) {
+            issueCount += concernsData.bloatTextDetection.length;
+            concernTypes.push('Bloat Text Detection');
         }
         
         modal.show(tableIndex, displayValue, { issueCount, concernTypes, sourceRole });

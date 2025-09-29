@@ -1,0 +1,91 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1",
+  "cveMetadata": {
+    "cveId": "CVE-9999-00006",
+    "assignerOrgId": "bloat-text-test-org-12345",
+    "state": "PUBLISHED",
+    "assignerShortName": "BloatTextTestOrg",
+    "datePublished": "2024-01-16T10:00:00.000Z",
+    "dateUpdated": "2024-01-16T12:30:00.000Z",
+    "dateReserved": "2024-01-10T08:00:00.000Z",
+    "serial": 6
+  },
+  "containers": {
+    "cna": {
+      "providerMetadata": {
+        "orgId": "bloat-text-test-org-12345",
+        "shortName": "BloatTextTestOrg",
+        "dateUpdated": "2024-01-16T12:30:00.000Z"
+      },
+      "dateAssigned": "2024-01-10T08:00:00.000Z",
+      "datePublic": "2024-01-16T10:00:00.000Z",
+      "title": "Bloat Text Detection Test Cases",
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "This CVE record contains specific test cases for bloat text detection validation."
+        }
+      ],
+      "affected": [
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "version 2.011", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor", 
+          "product": "Test Product",
+          "versions": [{"version": "1.0.0", "lessThan": "versions 3.0", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product", 
+          "versions": [{"version": "2.0.0", "lessThanOrEqual": "ver 4.5.1", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "3.0.0", "changes": [{"at": "version 5.2.3", "status": "unaffected"}], "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "ver 1.8.0_351", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "versions 3.1", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "4.0.0", "lessThan": "version 6.0", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "5.0.0", "lessThanOrEqual": "versions 7.2", "status": "affected"}]
+        }
+      ],
+      "references": [
+        {
+          "url": "https://example.com/bloat-text-test",
+          "name": "Bloat Text Detection Test Reference"
+        }
+      ],
+      "problemTypes": [
+        {
+          "descriptions": [
+            {
+              "lang": "en",
+              "description": "Test case for bloat text detection patterns",
+              "type": "Bloat Text Detection Test"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
