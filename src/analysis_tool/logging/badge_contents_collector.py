@@ -370,7 +370,8 @@ class BadgeContentsCollector:
             'Whitespace Detection': 'whitespaceIssues',
             'Invalid Character Detection': 'invalidCharacters',
             'Version Granularity Detection': 'versionGranularity',
-            'Overlapping Ranges': 'overlappingRanges'
+            'Overlapping Ranges': 'overlappingRanges',
+            'All Versions Pattern Detection': 'allVersionsPatterns'
         }
         if concern_type not in mapping:
             raise ValueError(f"Unknown concern type: '{concern_type}'. Expected one of: {list(mapping.keys())}")

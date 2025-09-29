@@ -2322,7 +2322,8 @@
             'whitespaceIssues': 'Whitespace Detection',
             'invalidCharacters': 'Invalid Character Detection',
             'versionGranularity': 'Version Granularity Detection',
-            'overlappingRanges': 'Overlapping Ranges'
+            'overlappingRanges': 'Overlapping Ranges',
+            'allVersionsPatterns': 'All Versions Patterns'
         };
 
         // ===== COMPREHENSIVE CONCERN CATEGORIZATION SYSTEM =====
@@ -2542,6 +2543,29 @@
             
             return categories;
         }
+
+        /**
+         * Categorize All Versions Patterns concerns into pattern-based sub-categories
+         */
+        function categorizeAllVersionsPatterns(concerns) {
+            const categories = {
+                'All Versions Variations': [],
+                'Any Versions Variations': []
+            };
+            
+            concerns.forEach(concern => {
+                const pattern = concern.detectedPattern?.detectedValue || '';
+                if (pattern.toLowerCase().includes('all')) {
+                    categories['All Versions Variations'].push(concern);
+                } else if (pattern.toLowerCase().includes('any')) {
+                    categories['Any Versions Variations'].push(concern);
+                } else {
+                    categories['All Versions Variations'].push(concern);
+                }
+            });
+            
+            return categories;
+        }
         
         /**
          * Master function to categorize concerns by type - Unified Architecture
@@ -2557,7 +2581,8 @@
                 'whitespaceIssues': categorizeWhitespaceIssues,
                 'invalidCharacters': categorizeInvalidCharacters,
                 'versionGranularity': categorizeVersionGranularity,
-                'overlappingRanges': categorizeOverlappingRanges
+                'overlappingRanges': categorizeOverlappingRanges,
+                'allVersionsPatterns': categorizeAllVersionsPatterns
             };
             
             const categorizer = categorizers[concernType];
@@ -2930,7 +2955,8 @@
                 'whitespaceIssues': { label: '🟣 Whitespace Issues', color: '#6f42c1' },
                 'invalidCharacters': { label: '🟣 Invalid Characters', color: '#6f42c1' },
                 'versionGranularity': { label: '🟣 Version Granularity', color: '#6f42c1' },
-                'overlappingRanges': { label: '🟣 Overlapping Ranges', color: '#6f42c1' }
+                'overlappingRanges': { label: '🟣 Overlapping Ranges', color: '#6f42c1' },
+                'allVersionsPatterns': { label: '🟣 All Versions Patterns', color: '#6f42c1' }
             };
             
             entry.concerns_detail.forEach((concernGroup, index) => {
@@ -3059,6 +3085,8 @@
                     return generateVersionGranularityContent(concern);
                 case 'overlappingRanges':
                     return generateOverlappingRangesContent(concern);
+                case 'allVersionsPatterns':
+                    return generateAllVersionsPatternsContent(concern);
                 default:
                     return generateGenericConcernContent(concern);
             }
@@ -3371,6 +3399,23 @@
                 </div>
             `;
         }
+
+        function generateAllVersionsPatternsContent(concern) {
+            const detectedValue = concern.detectedPattern?.detectedValue || 'Unknown';
+            
+            return `
+                <div class="sdc-concern-problem mb-2">
+                    <strong>Problem:</strong> ${concern.field} contains "all versions" pattern which creates additional downstream parsing complexity and may impact version identification or CPE-AS generation.
+                </div>
+                <div class="sdc-concern-data mb-2">
+                    <strong>Data:</strong> Pattern <strong>${detectedValue}</strong> detected in <strong>${concern.field}</strong> content<br>
+                    <code>"${concern.field}": "${concern.sourceValue}"</code>
+                </div>
+                <div class="sdc-concern-resolution">
+                    <strong>Resolution:</strong> Use "*" for consistent representation of "all versions". Example: <code>"${concern.field}": "*"</code>
+                </div>
+            `;
+        }
         
         function generateGenericConcernContent(concern) {
             return `
@@ -3396,7 +3441,8 @@
                 'whitespaceIssues': `Remove whitespace from ${field} content.`,
                 'invalidCharacters': `Review and remove inappropriate characters from ${field} content.`,
                 'versionGranularity': 'Standardize version granularity across related version sequences.',
-                'overlappingRanges': 'Use precise range syntax to eliminate overlapping ranges.'
+                'overlappingRanges': 'Use precise range syntax to eliminate overlapping ranges.',
+                'allVersionsPatterns': 'Replace with "*" for consistent representation of all versions.'
             };
             return resolutions[concernType] || 'Review and correct the identified issue.';
         }

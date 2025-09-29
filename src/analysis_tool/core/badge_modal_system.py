@@ -82,6 +82,11 @@ TEXT_COMPARATOR_REGEX_PATTERNS = [
     }
 ]
 
+# All versions pattern values that should be represented as "*"
+ALL_VERSION_VALUES = [
+    'all versions', 'all', 'all version', 'any version', 'any versions', 'any'
+]
+
 # ===== REGISTRY MANAGEMENT FUNCTIONS =====
 
 def clear_all_registries():
@@ -3455,7 +3460,8 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         "versionGranularity": [],
         "whitespaceIssues": [],
         "invalidCharacters": [],
-        "overlappingRanges": []
+        "overlappingRanges": [],
+        "allVersionsPatterns": []
     }
     
     concerns_count = 0
@@ -3867,6 +3873,49 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         # Update concern types if text comparator patterns were found
         if concerns_data["textComparators"]:
             concern_types.append("Text Comparator Detection")
+    
+    # All Versions Pattern Detection
+    if 'versions' in curated_platform_data and isinstance(curated_platform_data['versions'], list):
+        version_fields = ['version', 'lessThan', 'lessThanOrEqual']
+        
+        for version_entry in curated_platform_data['versions']:
+            if isinstance(version_entry, dict):
+                # Check standard version fields
+                for field in version_fields:
+                    field_value = version_entry.get(field)
+                    if isinstance(field_value, str) and field_value.strip():
+                        field_lower = field_value.strip().lower()
+                        # Check for exact match with ALL_VERSION_VALUES
+                        for pattern in ALL_VERSION_VALUES:
+                            if field_lower == pattern.lower():
+                                concerns_data["allVersionsPatterns"].append({
+                                    "field": field,
+                                    "sourceValue": field_value,
+                                    "detectedPattern": {"detectedValue": pattern}
+                                })
+                                concerns_count += 1
+                
+                # Check changes array for version status changes
+                if 'changes' in version_entry and isinstance(version_entry['changes'], list):
+                    for idx, change in enumerate(version_entry['changes']):
+                        if isinstance(change, dict):
+                            # Check changes[].at field
+                            change_at_value = change.get('at')
+                            if isinstance(change_at_value, str) and change_at_value.strip():
+                                field_lower = change_at_value.strip().lower()
+                                # Check for exact match with ALL_VERSION_VALUES
+                                for pattern in ALL_VERSION_VALUES:
+                                    if field_lower == pattern.lower():
+                                        concerns_data["allVersionsPatterns"].append({
+                                            "field": f"changes[{idx}].at",
+                                            "sourceValue": change_at_value,
+                                            "detectedPattern": {"detectedValue": pattern}
+                                        })
+                                        concerns_count += 1
+        
+        # Update concern types if all versions patterns were found
+        if concerns_data["allVersionsPatterns"]:
+            concern_types.append("All Versions Pattern Detection")
     
     # Helper function to detect whitespace issues
     def detect_whitespace_issues(field_value):

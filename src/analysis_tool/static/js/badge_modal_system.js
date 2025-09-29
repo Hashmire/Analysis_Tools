@@ -1480,6 +1480,15 @@ class BadgeModalFactory {
                     });
                 }
                 
+                if (concernsData.allVersionsPatterns && concernsData.allVersionsPatterns.length > 0) {
+                    tabs.push({
+                        id: 'allVersionsPatterns',
+                        label: 'All Versions Patterns',
+                        badge: concernsData.allVersionsPatterns.length,
+                        content: BadgeModalFactory.generateSourceDataConcernTabContent(concernsData.allVersionsPatterns, 'allVersionsPatterns', sourceRole)
+                    });
+                }
+                
                 return tabs;
             }
         });
@@ -1923,6 +1932,8 @@ class BadgeModalFactory {
                 content += BadgeModalFactory.generateVersionGranularityContent(concern);
             } else if (concernType === 'overlappingRanges') {
                 content += BadgeModalFactory.generateOverlappingRangesContent(concern);
+            } else if (concernType === 'allVersionsPatterns') {
+                content += BadgeModalFactory.generateAllVersionsPatternsContent(concern);
             } else {
                 // Generic concern display
                 content += `
@@ -2094,6 +2105,35 @@ class BadgeModalFactory {
                     <ul class="mb-0 text-muted">
                         <li>Use the <code>defaultStatus</code>, <code>version</code>, <code>lessThan</code>, <code>lessThanOrEqual</code>, <code>changes[*].at</code> and/or <code>changes[*].status</code> syntax to precisely represent the intended range boundaries.</li>
                         <li>Example: <code>"version": "before 1.2.3"</code> should be represented as <code>"lessThan": "1.2.3"</code>.</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    }
+
+    static generateAllVersionsPatternsContent(concern) {
+        return `
+            <div class="concern-content">
+                <div class="problem-description mb-2">
+                    <strong class="text-danger">Problem:</strong>
+                    <p class="mb-2">${concern.field} contains "all versions" pattern which creates additional downstream parsing complexity and may impact version identification or CPE-AS generation.</p>
+                </div>
+                <div class="problematic-data mb-2">
+                    <strong class="text-warning">Problematic Data:</strong>
+                    <div class="data-display mt-1">
+                        <div class="mb-2">
+                            Pattern <strong>${concern.detectedPattern.detectedValue}</strong> detected in <strong>${concern.field}</strong> content
+                        </div>
+                        <div class="code-block bg-light p-2 rounded border">
+                            <code>"${concern.field}": "${concern.sourceValue}"</code>
+                        </div>
+                    </div>
+                </div>
+                <div class="resolution-guidance">
+                    <strong class="text-success">Resolution:</strong>
+                    <ul class="mb-0 text-muted">
+                        <li>Use "*" for consistent representation of "all versions".</li>
+                        <li>Example: <code>"version": "all versions"</code> should be represented as <code>"version": "*"</code>.</li>
                     </ul>
                 </div>
             </div>
@@ -2575,6 +2615,10 @@ class BadgeModalManager {
         if (concernsData.overlappingRanges && concernsData.overlappingRanges.length > 0) {
             issueCount += concernsData.overlappingRanges.length;
             concernTypes.push('Overlapping Ranges');
+        }
+        if (concernsData.allVersionsPatterns && concernsData.allVersionsPatterns.length > 0) {
+            issueCount += concernsData.allVersionsPatterns.length;
+            concernTypes.push('All Versions Patterns');
         }
         
         modal.show(tableIndex, displayValue, { issueCount, concernTypes, sourceRole });
