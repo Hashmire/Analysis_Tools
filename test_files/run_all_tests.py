@@ -185,6 +185,10 @@ class TestSuiteRunner:
                 'command': ['python', 'test_files\\test_sdc_all_versions_pattern_detection.py']
             },
             {
+                'name': 'SDC Bloat Text Detection',
+                'command': ['python', 'test_files\\test_sdc_bloat_text_detection.py']
+            },
+            {
                 'name': 'SDC Version Granularity Detection',
                 'command': ['python', 'test_files\\test_sdc_version_granularity_detection.py']
             },

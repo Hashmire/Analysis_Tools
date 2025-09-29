@@ -2323,7 +2323,8 @@
             'invalidCharacters': 'Invalid Character Detection',
             'versionGranularity': 'Version Granularity Detection',
             'overlappingRanges': 'Overlapping Ranges',
-            'allVersionsPatterns': 'All Versions Patterns'
+            'allVersionsPatterns': 'All Versions Patterns',
+            'bloatTextDetection': 'Bloat Text Detection'
         };
 
         // ===== COMPREHENSIVE CONCERN CATEGORIZATION SYSTEM =====
@@ -2419,8 +2420,6 @@
             
             return categories;
         }
-        
-        // Legacy function removed - no backwards compatibility in alpha
         
         /**
          * Categorize Placeholder Data concerns into field-based sub-categories
@@ -2568,12 +2567,35 @@
         }
         
         /**
+         * Categorize Bloat Text Detection concerns into bloat type sub-categories
+         */
+        function categorizeBloatTextDetection(concerns) {
+            const categories = {
+                'Version Prefixes': [],
+                'Version Abbreviations': []
+            };
+            
+            concerns.forEach(concern => {
+                const pattern = concern.detectedPattern?.detectedValue || '';
+                if (pattern.toLowerCase() === 'ver') {
+                    categories['Version Abbreviations'].push(concern);
+                } else if (pattern.toLowerCase().includes('version')) {
+                    categories['Version Prefixes'].push(concern);
+                } else {
+                    categories['Version Prefixes'].push(concern);
+                }
+            });
+            
+            return categories;
+        }
+        
+        /**
          * Master function to categorize concerns by type - Unified Architecture
          */
         function categorizeConcernsByType(concernType, concerns) {
             if (!concerns || concerns.length === 0) return {};
             
-            // Normalized categorization controller - no legacy support
+            // Categorization controller mapping
             const categorizers = {
                 'placeholderData': categorizePlaceholderData,
                 'mathematicalComparators': categorizeMathematicalComparators,
@@ -2582,7 +2604,8 @@
                 'invalidCharacters': categorizeInvalidCharacters,
                 'versionGranularity': categorizeVersionGranularity,
                 'overlappingRanges': categorizeOverlappingRanges,
-                'allVersionsPatterns': categorizeAllVersionsPatterns
+                'allVersionsPatterns': categorizeAllVersionsPatterns,
+                'bloatTextDetection': categorizeBloatTextDetection
             };
             
             const categorizer = categorizers[concernType];
@@ -2956,7 +2979,8 @@
                 'invalidCharacters': { label: '🟣 Invalid Characters', color: '#6f42c1' },
                 'versionGranularity': { label: '🟣 Version Granularity', color: '#6f42c1' },
                 'overlappingRanges': { label: '🟣 Overlapping Ranges', color: '#6f42c1' },
-                'allVersionsPatterns': { label: '🟣 All Versions Patterns', color: '#6f42c1' }
+                'allVersionsPatterns': { label: '🟣 All Versions Patterns', color: '#6f42c1' },
+                'bloatTextDetection': { label: '🟣 Bloat Text Detection', color: '#6f42c1' }
             };
             
             entry.concerns_detail.forEach((concernGroup, index) => {
@@ -3087,6 +3111,8 @@
                     return generateOverlappingRangesContent(concern);
                 case 'allVersionsPatterns':
                     return generateAllVersionsPatternsContent(concern);
+                case 'bloatTextDetection':
+                    return generateBloatTextDetectionContent(concern);
                 default:
                     return generateGenericConcernContent(concern);
             }
@@ -3417,6 +3443,23 @@
             `;
         }
         
+        function generateBloatTextDetectionContent(concern) {
+            const detectedValue = concern.detectedPattern?.detectedValue || 'Unknown';
+            
+            return `
+                <div class="sdc-concern-problem mb-2">
+                    <strong>Problem:</strong> ${concern.field} contains bloat text which creates additional downstream parsing complexity and may impact version identification or CPE-AS generation.
+                </div>
+                <div class="sdc-concern-data mb-2">
+                    <strong>Data:</strong> Pattern <strong>${detectedValue}</strong> detected in <strong>${concern.field}</strong> content<br>
+                    <code>"${concern.field}": "${concern.sourceValue}"</code>
+                </div>
+                <div class="sdc-concern-resolution">
+                    <strong>Resolution:</strong> Remove bloat text from version fields. Example: <code>"${concern.field}": "Version 2.011"</code> should be represented as <code>"${concern.field}": "2.011"</code>
+                </div>
+            `;
+        }
+        
         function generateGenericConcernContent(concern) {
             return `
                 <div class="sdc-concern-problem mb-2">
@@ -3432,20 +3475,7 @@
             `;
         }
         
-        function getResolutionText(concernType, field) {
-            // Backward compatibility function - modern content uses generateConcernContent
-            const resolutions = {
-                'placeholderData': `Replace placeholder data with appropriate ${field} value.`,
-                'mathematicalComparators': `Remove mathematical comparators from ${field} content.`,
-                'textComparators': 'Use version, lessThan, lessThanOrEqual syntax for precise range boundaries.',
-                'whitespaceIssues': `Remove whitespace from ${field} content.`,
-                'invalidCharacters': `Review and remove inappropriate characters from ${field} content.`,
-                'versionGranularity': 'Standardize version granularity across related version sequences.',
-                'overlappingRanges': 'Use precise range syntax to eliminate overlapping ranges.',
-                'allVersionsPatterns': 'Replace with "*" for consistent representation of all versions.'
-            };
-            return resolutions[concernType] || 'Review and correct the identified issue.';
-        }
+
         
         function loadJsonFile() {
             const fileInput = document.getElementById('jsonFileInput');

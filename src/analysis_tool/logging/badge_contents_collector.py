@@ -371,7 +371,8 @@ class BadgeContentsCollector:
             'Invalid Character Detection': 'invalidCharacters',
             'Version Granularity Detection': 'versionGranularity',
             'Overlapping Ranges': 'overlappingRanges',
-            'All Versions Pattern Detection': 'allVersionsPatterns'
+            'All Versions Pattern Detection': 'allVersionsPatterns',
+            'Bloat Text Detection': 'bloatTextDetection'
         }
         if concern_type not in mapping:
             raise ValueError(f"Unknown concern type: '{concern_type}'. Expected one of: {list(mapping.keys())}")
