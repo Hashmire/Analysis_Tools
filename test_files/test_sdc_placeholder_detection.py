@@ -6,26 +6,20 @@ Tests placeholder data detection by running test file and checking sourceDataCon
 Outputs standardized test results: TEST_RESULTS: PASSED=X TOTAL=Y SUITE="Name"
 
 Usage:
-    python test_files/test_sdc_placeholder_detection_simple.py
+    python test_files/test_sdc_placeholder_detection.py
 """
 
 import sys
 import os
 import json
 import subprocess
-import glob
 from pathlib import Path
 
-# Path to the placeholder detection test file
-import sys
-import os
-import json
-import subprocess
-from pathlib import Path
 # Add src path for analysis_tool imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 from analysis_tool.storage.run_organization import find_latest_test_run_report
+
+# Path to the placeholder detection test file
 
 TEST_FILE = os.path.join(os.path.dirname(__file__), "testPlaceholderDetection.json")
 
