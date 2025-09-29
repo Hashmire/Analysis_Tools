@@ -50,7 +50,7 @@ def run_test_and_get_report():
         if os.environ.get('UNIFIED_TEST_RUNNER') != '1':
             env['UNIFIED_TEST_RUNNER'] = '1'
         
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent, env=env)
         
         if result.returncode != 0:
             print(f"❌ Tool execution failed with return code {result.returncode}")
@@ -186,6 +186,54 @@ def get_test_cases():
                 "vendor": "Test Vendor",
                 "product": "Test Product",
                 "versions": [{"version": "22.0.0", "status": "affected"}]
+            }
+        },
+        {
+            "description": "Regex pattern: version range '1.5.0 - 1.5.7' in version field",
+            "expected_field": "version",
+            "expected_source_value": "All Versions 1.5.0 - 1.5.7",
+            "expected_detected_value": "1.5.0 - 1.5.7",
+            "expected_concerns": 1,
+            "affected_entry": {
+                "vendor": "Test Vendor",
+                "product": "Test Product",
+                "versions": [{"version": "All Versions 1.5.0 - 1.5.7", "status": "affected"}]
+            }
+        },
+        {
+            "description": "Regex pattern: version range '32 - 37.011' in version field",
+            "expected_field": "version",
+            "expected_source_value": "Version 32 - 37.011 w Windows package",
+            "expected_detected_value": "32 - 37.011",
+            "expected_concerns": 1,
+            "affected_entry": {
+                "vendor": "Test Vendor",
+                "product": "Test Product",
+                "versions": [{"version": "Version 32 - 37.011 w Windows package", "status": "affected"}]
+            }
+        },
+        {
+            "description": "Regex pattern: simple version range '1.0 - 2.0' in version field",
+            "expected_field": "version",
+            "expected_source_value": "1.0 - 2.0",
+            "expected_detected_value": "1.0 - 2.0",
+            "expected_concerns": 1,
+            "affected_entry": {
+                "vendor": "Test Vendor",
+                "product": "Test Product",
+                "versions": [{"version": "1.0 - 2.0", "status": "affected"}]
+            }
+        },
+        {
+            "description": "Regex pattern: version range '5.1.2 - 5.2.0' in version field and '10.0 - 11.5' in changes.at field",
+            "expected_field": "changes[0].at",
+            "expected_source_value": "from 10.0 - 11.5",
+            "expected_detected_value": "10.0 - 11.5",
+            "expected_concerns": 2,
+            "affected_entry": {
+                "vendor": "Test Vendor",
+                "product": "Test Product",
+                "versions": [{"version": "5.1.2 - 5.2.0", "changes": [{"at": "from 10.0 - 11.5", "status": "unaffected"}], "status": "affected"}]
             }
         }
     ]

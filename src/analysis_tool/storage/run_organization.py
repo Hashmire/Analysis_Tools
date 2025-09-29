@@ -221,7 +221,7 @@ def find_latest_test_run_report(report_filename: str = "sourceDataConcernReport.
         
         # Standard mode - look in main runs directory
         runs_dir = Path(__file__).parent.parent.parent.parent / "runs"
-        run_dirs = [d for d in runs_dir.glob("*") if d.is_dir() and not d.name.startswith(("run_all_tests", "2025-"))]
+        run_dirs = [d for d in runs_dir.glob("*") if d.is_dir() and not d.name.startswith("run_all_tests")]
         if not run_dirs:
             print("❌ No run directories found")
             return None
@@ -276,7 +276,7 @@ def get_latest_test_run_directory() -> Optional[Path]:
         
         # Standard mode - look in main runs directory
         runs_dir = Path(__file__).parent.parent.parent.parent / "runs"
-        run_dirs = [d for d in runs_dir.glob("*") if d.is_dir() and not d.name.startswith(("run_all_tests", "2025-"))]
+        run_dirs = [d for d in runs_dir.glob("*") if d.is_dir() and not d.name.startswith("run_all_tests")]
         if not run_dirs:
             print("❌ No run directories found")
             return None

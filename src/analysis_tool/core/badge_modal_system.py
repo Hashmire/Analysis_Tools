@@ -47,31 +47,40 @@ global_kb_exclusions = []
 
 # ===== CONSTANTS AND PATTERNS =====
 # Define non-specific version values that should be treated as placeholders
-# This list is used for both version data concern checks and JavaScript JSON generation
 NON_SPECIFIC_VERSION_VALUES = [
     'unspecified', 'unknown', 'none', 'undefined', 'various',
     'n/a', 'not available', 'not applicable', 'unavailable',
     'na', 'nil', 'tbd', 'to be determined', 'pending',
     'not specified', 'not determined', 'not known', 'not listed',
-    'not provided', 'missing', 'empty', 'null', '-'
+    'not provided', 'missing', 'empty', 'null', '-', 'multiple versions',
+    'see references', 'see advisory', 'check', 'noted'
 ]
 
 # Define comparator patterns used for detecting comparison operators in data fields
 COMPARATOR_PATTERNS = ['<', '>', '=', '<=', '=<', '=>', '>=', '!=']
 
-# Define text comparator patterns for version fields (sorted by length descending to prioritize longer phrases)
+# Define text based range patterns for version field(s) 
 TEXT_COMPARATOR_PATTERNS = [
     # Multi-word patterns first (longer phrases)
-    'see references', 'see advisory', 'prior to', 'earlier than', 'later than', 
-    'newer than', 'refer to', 'up to',
+    'prior to', 'earlier than', 'later than', 
+    'newer than', 'up to',
     # Single-word patterns
     'through', 'thru', 'between', 'before', 'until', 'below', 'after', 
-    'since', 'from', 'above', 'about', 'approximately', 'circa', 'around', 
-    'roughly', 'check', 'noted', 'and', 'to',
+    'since', 'from', 'above', 'about', 'and', 'to',
     # Inclusive/Exclusive indicators
-    'inclusive', 'exclusive', 'including', 'excluding'
+    'inclusive', 'exclusive', 'including', 'excluding',
+    # Unclear bounds
+    'earliest', 'recent', 'legacy', 'past', 'future', 'latest', 'current',
+    'approximately', 'circa', 'around', 'roughly'
 ]
 
+# Regex patterns for detecting version range formats
+TEXT_COMPARATOR_REGEX_PATTERNS = [
+    {
+        'pattern': re.compile(r'\d+(?:\.\d+)*\s*-\s*\d+(?:\.\d+)*', re.IGNORECASE),
+        'description': 'numeric version range (e.g., "1.0.0 - 1.1.1")'
+    }
+]
 
 # ===== REGISTRY MANAGEMENT FUNCTIONS =====
 
@@ -3780,13 +3789,24 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                     field_value = version_entry.get(field)
                     if isinstance(field_value, str) and field_value.strip():
                         field_lower = field_value.lower()
-                        # Check each pattern and report individually
+                        # Check each string pattern and report individually
                         for pattern in TEXT_COMPARATOR_PATTERNS:
                             if pattern in field_lower:
                                 concerns_data["textComparators"].append({
                                     "field": field,
                                     "sourceValue": field_value,
                                     "detectedPattern": {"detectedValue": pattern}
+                                })
+                                concerns_count += 1
+                        
+                        # Check regex patterns for version ranges
+                        for regex_pattern in TEXT_COMPARATOR_REGEX_PATTERNS:
+                            match = regex_pattern['pattern'].search(field_value)
+                            if match:
+                                concerns_data["textComparators"].append({
+                                    "field": field,
+                                    "sourceValue": field_value,
+                                    "detectedPattern": {"detectedValue": match.group(0), "description": regex_pattern['description']}
                                 })
                                 concerns_count += 1
                 
@@ -3798,13 +3818,24 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                             change_at_value = change.get('at')
                             if isinstance(change_at_value, str) and change_at_value.strip():
                                 field_lower = change_at_value.lower()
-                                # Check each pattern and report individually
+                                # Check each string pattern and report individually
                                 for pattern in TEXT_COMPARATOR_PATTERNS:
                                     if pattern in field_lower:
                                         concerns_data["textComparators"].append({
                                             "field": f"changes[{idx}].at",
                                             "sourceValue": change_at_value,
-                                            "detectedPattern": pattern
+                                            "detectedPattern": {"detectedValue": pattern}
+                                        })
+                                        concerns_count += 1
+                                
+                                # Check regex patterns for version ranges
+                                for regex_pattern in TEXT_COMPARATOR_REGEX_PATTERNS:
+                                    match = regex_pattern['pattern'].search(change_at_value)
+                                    if match:
+                                        concerns_data["textComparators"].append({
+                                            "field": f"changes[{idx}].at",
+                                            "sourceValue": change_at_value,
+                                            "detectedPattern": {"detectedValue": match.group(0), "description": regex_pattern['description']}
                                         })
                                         concerns_count += 1
                             
@@ -3812,13 +3843,24 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                             change_status_value = change.get('status')
                             if isinstance(change_status_value, str) and change_status_value.strip():
                                 field_lower = change_status_value.lower()
-                                # Check each pattern and report individually
+                                # Check each string pattern and report individually
                                 for pattern in TEXT_COMPARATOR_PATTERNS:
                                     if pattern in field_lower:
                                         concerns_data["textComparators"].append({
                                             "field": f"changes[{idx}].status",
                                             "sourceValue": change_status_value,
-                                            "detectedPattern": pattern
+                                            "detectedPattern": {"detectedValue": pattern}
+                                        })
+                                        concerns_count += 1
+                                
+                                # Check regex patterns for version ranges
+                                for regex_pattern in TEXT_COMPARATOR_REGEX_PATTERNS:
+                                    match = regex_pattern['pattern'].search(change_status_value)
+                                    if match:
+                                        concerns_data["textComparators"].append({
+                                            "field": f"changes[{idx}].status",
+                                            "sourceValue": change_status_value,
+                                            "detectedPattern": {"detectedValue": match.group(0), "description": regex_pattern['description']}
                                         })
                                         concerns_count += 1
         

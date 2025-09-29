@@ -39,17 +39,16 @@
             z-index: -1;
         }
 
-        .container {
+        .container-fluid {
             max-width: 1400px;
             margin: 0 auto;
+            padding: 0; /* Override Bootstrap's container-fluid padding */
             background: rgba(255, 255, 255, 0.98);
             border-radius: 20px;
             box-shadow: 
                 0 25px 50px rgba(76, 29, 149, 0.4),
-                0 15px 35px rgba(0, 0, 0, 0.1),
-                inset 0 1px 0 rgba(255, 255, 255, 0.6);
+                0 15px 35px rgba(0, 0, 0, 0.1);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
             overflow: hidden;
         }
 
@@ -60,6 +59,7 @@
             text-align: center;
             position: relative;
             overflow: hidden;
+            border-radius: 20px 20px 0 0; /* Match container's top corners */
         }
         
         .header::before {
@@ -92,18 +92,15 @@
         .file-selector {
             background: linear-gradient(135deg, #374151 0%, #4B5563 50%, #6B7280 100%);
             color: #F3F4F6;
-            padding: 18px 28px;
+            padding: 18px 0;
             text-align: left;
             position: relative;
-            border: 1px solid rgba(139, 92, 246, 0.2);
-            border-radius: 10px;
-            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12), 0 1px 6px rgba(139, 92, 246, 0.08);
-            backdrop-filter: blur(6px);
             transition: padding 0.3s ease;
+            border-radius: 0 0 20px 20px; /* Match container's bottom corners */
         }
 
         .file-selector.expanded {
-            padding: 22px 28px; /* More padding when documentation is expanded */
+            padding: 22px 0; /* More padding when documentation is expanded */
         }
         
         .file-selector::before {
@@ -211,10 +208,9 @@
             flex-direction: row;
             align-items: flex-start;
             gap: 20px;
-            max-width: 1000px;
-            margin: 0 auto;
             justify-content: space-between;
             position: relative;
+            padding: 0 50px;
         }
 
         .file-input-container::after {
@@ -1238,22 +1234,23 @@
             gap: 16px;
             margin-top: 16px;
             align-items: flex-start;
+            transition: gap 0.3s ease-out;
         }
         
         .cve-cards-container.has-expanded {
-            flex-direction: column;
+            /* Keep row-based layout, don't force column */
             gap: 8px;
         }
         
         .cve-card.moved-down {
-            order: 2;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            width: 30%;
+            margin: 4px 1%;
         }
         
         .cve-card.expanding-row {
-            order: 1;
             width: 100%;
             margin: 12px 0;
+            flex-basis: 100%;
         }
 
         .cve-card {
@@ -1269,7 +1266,7 @@
             box-shadow: 0 2px 8px rgba(139, 92, 246, 0.08);
             vertical-align: top;
             box-sizing: border-box;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.3s ease-out;
             overflow: hidden;
             height: auto;
             min-height: 120px;
@@ -1312,9 +1309,7 @@
             transform: translateY(-2px);
         }
 
-        .cve-card.expanding {
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
+
 
         .cve-card-header {
             display: flex;
@@ -1379,13 +1374,7 @@
             overflow-y: auto; /* Add scrollbar for very long lists */
         }
 
-        .cve-content-display.fade-out {
-            opacity: 0;
-        }
 
-        .cve-content-display.fade-in {
-            opacity: 1;
-        }
 
         /* Hide only the detail sections when card is collapsed - don't reserve space */
         .cve-section-details {
@@ -1446,10 +1435,7 @@
             margin-top: 6px;
         }
 
-        .cve-section-details.show {
-            max-height: 60vh;
-            overflow-y: auto;
-        }
+
         
         .cve-expanded-content {
             display: none;
@@ -1536,17 +1522,9 @@
             color: #7C3AED;
         }
 
-        .cve-card-content {
-            cursor: pointer;
-            user-select: text;
-            -webkit-user-select: text;
-            -moz-user-select: text;
-            -ms-user-select: text;
-        }
 
-        .cve-detailed-content {
-            display: none !important;
-        }
+
+
 
         .click-details-indicator {
             display: flex;
@@ -1593,6 +1571,55 @@
             text-align: center;
             color: #6B7280;
             font-style: italic;
+        }
+        
+        /* Utility classes to replace inline styles */
+        .dashboard-title {
+            font-size: 1.8em;
+            margin: 15px 0 10px 0;
+            font-weight: 600;
+        }
+        
+        .modal-content-styled {
+            border-radius: 12px;
+            border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+        
+        .modal-header-styled {
+            background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
+            color: white;
+            border-radius: 12px 12px 0 0;
+        }
+        
+        .modal-title-styled {
+            font-weight: 700;
+        }
+        
+        .modal-body-styled {
+            background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
+            padding: 24px;
+        }
+        
+        .sdc-concern-item-styled {
+            border-left: 4px solid #a698c7 !important;
+        }
+        
+        .concern-header-styled {
+            font-size: 0.9rem;
+        }
+        
+        .invalid-char-highlight {
+            background-color: #ffe6e6;
+            padding: 2px 4px;
+        }
+        
+        .no-concerns-detected {
+            background: #F3F4F6;
+            color: #6B7280;
+        }
+        
+        .clean-status {
+            color: #059669;
         }
         
         /* Platform entries use existing cve-concern-section styling */
@@ -2079,6 +2106,7 @@
                 flex-direction: column;
                 align-items: stretch;
                 gap: 16px;
+                padding: 0 20px;
             }
             
             .file-input-container::after {
@@ -2101,7 +2129,7 @@
             }
             
             .file-selector {
-                padding: 16px 20px;
+                padding: 16px 0;
             }
             
             .doc-sections {
@@ -2116,11 +2144,11 @@
     </style>
 </head>
 <body>
-    <div id="main_container_01" class="container">
+    <div id="main_container_01" class="container-fluid">
         <!-- Page Header Section -->
         <div id="ph_section_01" class="header">
             <h1 id="ph_title_01">Hashmire/Analysis_Tools v0.2.0</h1>
-            <h2 style="font-size: 1.8em; margin: 15px 0 10px 0; font-weight: 600;">Source Data Concern Dashboard</h2>
+            <h2 class="dashboard-title">Source Data Concern Dashboard</h2>
             <p id="ph_subtitle_01">CVE Source Data Contribution Review for CPE Automation</p>
         </div>
 
@@ -2690,37 +2718,33 @@
             card.classList.add('expanding');
             
             if (card.classList.contains('expanded')) {
-                // Collapse: Hide expanded content (detail sections handled by CSS)
-                
-                // Hide the right panel
+                // Simple collapse: hide content and reset layout cleanly
                 if (expandedContent) {
                     expandedContent.style.display = 'none';
                 }
                 
-                // Reset all cards to normal flow
+                // Reset all card states and layout
                 const allCards = container.querySelectorAll('.cve-card');
                 allCards.forEach(c => {
                     c.classList.remove('moved-down', 'expanding-row');
-                    c.style.order = '';
                 });
                 
-                // Reset container layout
-                container.classList.remove('has-expanded');
-                
-                // Update UI elements
-                chevron.textContent = '⯈';
-                clickIndicator.textContent = 'Click for details';
-                contentDisplay.classList.remove('expanded');
                 card.classList.remove('expanded');
+                contentDisplay.classList.remove('expanded');
+                container.classList.remove('has-expanded');
                 
                 // Restore collapsed constraints
                 card.style.minHeight = '120px';
                 card.style.maxHeight = '180px';
                 
+                // Update UI elements
+                chevron.textContent = '⯈';
+                clickIndicator.textContent = 'Click for details';
+                
                 // Clean up after transition
                 setTimeout(() => {
                     card.classList.remove('expanding');
-                }, 400);
+                }, 350);
                 
             } else {
                 // First, collapse any other expanded cards in this container
@@ -2731,42 +2755,58 @@
                     }
                 });
                 
-                // Find cards in the same row and move them down
+                // Calculate row positions based on container width and card arrangement
                 const allCards = Array.from(container.querySelectorAll('.cve-card'));
                 const cardIndex = allCards.indexOf(card);
-                const cardsPerRow = 3; // Based on 30% width + margins
+                
+                // Calculate cards per row based on container width
+                const containerWidth = container.clientWidth;
+                const cardWidth = Math.floor(containerWidth * 0.30); // 30% width
+                const cardMargin = Math.floor(containerWidth * 0.02); // 1% margin each side
+                const totalCardWidth = cardWidth + (cardMargin * 2);
+                const cardsPerRow = Math.floor(containerWidth / totalCardWidth);
+                
+                // Find cards in the actual same row
                 const currentRow = Math.floor(cardIndex / cardsPerRow);
                 const rowStartIndex = currentRow * cardsPerRow;
                 const rowEndIndex = Math.min(rowStartIndex + cardsPerRow - 1, allCards.length - 1);
                 
-                // Mark the expanding card
-                card.classList.add('expanding-row');
-                
-                // Move other cards in the same row to next row
+                const sameRowCards = [];
                 for (let i = rowStartIndex; i <= rowEndIndex; i++) {
                     if (i !== cardIndex && allCards[i]) {
-                        allCards[i].classList.add('moved-down');
+                        sameRowCards.push(allCards[i]);
                     }
                 }
                 
-                // Generate content for the right panel
-                generateExpandedCveContent(card, cardId);
+                // Simple expansion: all changes happen together cleanly
+                card.classList.add('expanding-row');
+                card.classList.add('expanded');
+                contentDisplay.classList.add('expanded');
                 
-                // Show the right panel
+                // Move other cards in the same row
+                sameRowCards.forEach(otherCard => {
+                    otherCard.classList.add('moved-down');
+                });
+                
+                // Update container and card constraints
+                container.classList.add('has-expanded');
+                card.style.minHeight = '';
+                card.style.maxHeight = '';
+                
+                // Generate and show content
+                generateExpandedCveContent(card, cardId);
                 if (expandedContent) {
                     expandedContent.style.display = 'block';
                 }
                 
-                // Update container layout for horizontal expansion
-                container.classList.add('has-expanded');
+                // Update UI elements
+                chevron.textContent = '⯇';
+                clickIndicator.textContent = 'Click to collapse';
                 
-                // Expand: Show detail sections (handled by CSS via card expanded state)
-                contentDisplay.classList.add('expanded');
-                card.classList.add('expanded');
-                
-                // Remove height constraints for expansion
-                card.style.minHeight = '';
-                card.style.maxHeight = '';
+                // Scroll into view after transition
+                setTimeout(() => {
+                    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 350);
                 
                 // Update UI elements
                 chevron.textContent = '⯇';
@@ -2850,12 +2890,12 @@
             const modalHtml = `
                 <div class="modal fade" id="sdcModal" tabindex="-1">
                     <div class="modal-dialog modal-xl">
-                        <div class="modal-content" style="border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.2);">
-                            <div class="modal-header" style="background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%); color: white; border-radius: 12px 12px 0 0;">
-                                <h5 class="modal-title" style="font-weight: 700;">${modalTitle}</h5>
+                        <div class="modal-content modal-content-styled">
+                            <div class="modal-header modal-header-styled">
+                                <h5 class="modal-title modal-title-styled">${modalTitle}</h5>
                                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                             </div>
-                            <div class="modal-body" style="background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%); padding: 24px;">
+                            <div class="modal-body modal-body-styled">
                                 ${modalBody}
                             </div>
                         </div>
@@ -2927,10 +2967,10 @@
                     let issueNumber = 1;
                     Object.entries(baseGroups).forEach(([base, concerns]) => {
                         content += `
-                            <div class="sdc-concern-item mb-2 p-2 border rounded" style="border-left: 4px solid #a698c7 !important;">
+                            <div class="sdc-concern-item mb-2 p-2 border rounded sdc-concern-item-styled">
                                 <div class="concern-header mb-2">
                                     <div class="d-flex justify-content-between align-items-center">
-                                        <h6 class="mb-0 text-danger fw-bold" style="font-size: 0.9rem;">Concern #${issueNumber}</h6>
+                                        <h6 class="mb-0 text-danger fw-bold concern-header-styled">Concern #${issueNumber}</h6>
                                     </div>
                                 </div>
                                 ${generateVersionGranularityGroupContent(base, concerns)}
@@ -2943,10 +2983,10 @@
                     concernGroup.concerns.forEach((concern, concernIndex) => {
                         const issueNumber = concernIndex + 1;
                         content += `
-                            <div class="sdc-concern-item mb-2 p-2 border rounded" style="border-left: 4px solid #a698c7 !important;">
+                            <div class="sdc-concern-item mb-2 p-2 border rounded sdc-concern-item-styled">
                                 <div class="concern-header mb-2">
                                     <div class="d-flex justify-content-between align-items-center">
-                                        <h6 class="mb-0 text-danger fw-bold" style="font-size: 0.9rem;">Concern #${issueNumber}</h6>
+                                        <h6 class="mb-0 text-danger fw-bold concern-header-styled">Concern #${issueNumber}</h6>
                                     </div>
                                 </div>
                                 ${generateConcernContent(concernGroup.concern_type, concern)}
@@ -3167,10 +3207,33 @@
         function generateInvalidCharactersContent(concern) {
             // Handle different detectedPattern formats for invalid characters
             let invalidChars = 'invalid characters';
+            let charDescription = '';
+            
             if (typeof concern.detectedPattern === 'string') {
                 invalidChars = concern.detectedPattern;
             } else if (concern.detectedPattern && concern.detectedPattern.detectedValue) {
                 invalidChars = concern.detectedPattern.detectedValue;
+            }
+            
+            // Make whitespace and special characters more visible
+            if (invalidChars === ' ') {
+                charDescription = ' (space character)';
+                invalidChars = '&nbsp;'; // Use non-breaking space for visibility
+            } else if (invalidChars === '\t') {
+                charDescription = ' (tab character)';
+                invalidChars = '\\t';
+            } else if (invalidChars === '\n') {
+                charDescription = ' (newline character)';
+                invalidChars = '\\n';
+            } else if (invalidChars === '\r') {
+                charDescription = ' (carriage return)';
+                invalidChars = '\\r';
+            } else if (invalidChars.length === 1) {
+                // For single characters, show the character and its description
+                const charCode = invalidChars.charCodeAt(0);
+                if (charCode < 32 || charCode > 126) {
+                    charDescription = ` (Unicode: U+${charCode.toString(16).padStart(4, '0').toUpperCase()})`;
+                }
             }
             
             return `
@@ -3178,7 +3241,7 @@
                     <strong>Problem:</strong> <code>${concern.field}</code> contains invalid characters which may impact version identification and CPE-AS generation.
                 </div>
                 <div class="sdc-concern-data mb-2">
-                    <strong>Data:</strong> Invalid characters <code>${invalidChars}</code> detected in <code>${concern.field}</code> - <code>"${concern.field}": "${concern.sourceValue}"</code>
+                    <strong>Data:</strong> Invalid character <code class="invalid-char-highlight">${invalidChars}</code>${charDescription} detected in <code>${concern.field}</code> - <code>"${concern.field}": "${concern.sourceValue}"</code>
                 </div>
                 <div class="sdc-concern-resolution">
                     <strong>Resolution:</strong> Review character usage and remove inappropriate characters from <strong><code>${concern.field}</code></strong> content.
@@ -3773,7 +3836,7 @@
                                         </div>
                                     `;
                                 }).join('') :
-                                '<div class="top-concern" style="background: #F3F4F6; color: #6B7280;">No concerns detected</div>'
+                                '<div class="top-concern no-concerns-detected">No concerns detected</div>'
                             }
                         </div>
                         <details id="${detailsId}">
@@ -3865,7 +3928,7 @@
                                                                     : `
                                                                         <div class="cve-concern-section">
                                                                             <div class="cve-section-summary">
-                                                                                <span class="cve-concern-type" style="color: #059669;">No concerns detected</span>
+                                                                                <span class="cve-concern-type clean-status">No concerns detected</span>
                                                                             </div>
                                                                         </div>
                                                                     `

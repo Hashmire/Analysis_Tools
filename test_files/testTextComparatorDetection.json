@@ -57,6 +57,26 @@
           "vendor": "Test Vendor",
           "product": "Test Product",
           "versions": [{"version": "22.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "All Versions 1.5.0 - 1.5.7", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "Version 32 - 37.011 w Windows package", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "1.0 - 2.0", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "5.1.2 - 5.2.0", "changes": [{"at": "from 10.0 - 11.5", "status": "unaffected"}], "status": "affected"}]
         }
       ]
     }
