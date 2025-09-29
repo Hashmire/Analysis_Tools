@@ -1,0 +1,1310 @@
+{
+  "metadata": {
+    "run_started_at": "2025-09-27T15:55:03.899647",
+    "total_cves_processed": 6,
+    "total_platform_entries": 57,
+    "entries_with_concerns": 27,
+    "concern_type_counts": [
+      {
+        "concern_type": "placeholderData",
+        "count": 15
+      },
+      {
+        "concern_type": "mathematicalComparators",
+        "count": 13
+      },
+      {
+        "concern_type": "textComparators",
+        "count": 8
+      },
+      {
+        "concern_type": "whitespaceIssues",
+        "count": 12
+      },
+      {
+        "concern_type": "invalidCharacters",
+        "count": 18
+      },
+      {
+        "concern_type": "versionGranularity",
+        "count": 6
+      },
+      {
+        "concern_type": "overlappingRanges",
+        "count": 12
+      }
+    ],
+    "run_completed_at": "2025-09-27T15:55:14.981979",
+    "report_scope": "Platform Entry Notifications - Source Data Concerns Only",
+    "status": "completed"
+  },
+  "cve_data": [
+    {
+      "cve_id": "CVE-9999-00001",
+      "platform_entries": [
+        {
+          "platform_entry_id": "entry_0",
+          "table_index": 0,
+          "source_id": "placeholder-detection-test-org-12345",
+          "source_name": "Placeholder Detection Test",
+          "vendor": "n/a",
+          "product": "Test Product",
+          "total_concerns": 1,
+          "concern_types": [
+            "placeholderData"
+          ],
+          "concern_breakdown": {
+            "placeholderData": 1
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "placeholderData",
+              "concerns": [
+                {
+                  "field": "vendor",
+                  "sourceValue": "n/a",
+                  "detectedPattern": {
+                    "detectedValue": "n/a"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "platform_entry_id": "entry_14",
+          "table_index": 14,
+          "source_id": "placeholder-detection-test-org-12345",
+          "source_name": "Placeholder Detection Test",
+          "vendor": "n/a",
+          "product": "not available",
+          "total_concerns": 8,
+          "concern_types": [
+            "placeholderData"
+          ],
+          "concern_breakdown": {
+            "placeholderData": 8
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "placeholderData",
+              "concerns": [
+                {
+                  "field": "vendor",
+                  "sourceValue": "n/a",
+                  "detectedPattern": {
+                    "detectedValue": "n/a"
+                  }
+                },
+                {
+                  "field": "product",
+                  "sourceValue": "not available",
+                  "detectedPattern": {
+                    "detectedValue": "not available"
+                  }
+                },
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": "undefined",
+                  "detectedPattern": {
+                    "detectedValue": "undefined"
+                  }
+                },
+                {
+                  "field": "versions[0].lessThan",
+                  "sourceValue": "pending",
+                  "detectedPattern": {
+                    "detectedValue": "pending"
+                  }
+                },
+                {
+                  "field": "versions[0].changes[0].at",
+                  "sourceValue": "tbd",
+                  "detectedPattern": {
+                    "detectedValue": "tbd"
+                  }
+                },
+                {
+                  "field": "platforms[0]",
+                  "sourceValue": "various",
+                  "detectedPattern": {
+                    "detectedValue": "various"
+                  }
+                },
+                {
+                  "field": "platforms[1]",
+                  "sourceValue": "unspecified",
+                  "detectedPattern": {
+                    "detectedValue": "unspecified"
+                  }
+                },
+                {
+                  "field": "packageName",
+                  "sourceValue": "unknown",
+                  "detectedPattern": {
+                    "detectedValue": "unknown"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "cve_id": "CVE-9999-00002",
+      "platform_entries": [
+        {
+          "platform_entry_id": "entry_0",
+          "table_index": 0,
+          "source_id": "comparator-detection-test-org-12345",
+          "source_name": "Mathematical Comparator Test",
+          "vendor": "foo>=bar",
+          "product": "Test Product",
+          "total_concerns": 1,
+          "concern_types": [
+            "mathematicalComparators"
+          ],
+          "concern_breakdown": {
+            "mathematicalComparators": 1
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "mathematicalComparators",
+              "concerns": [
+                {
+                  "field": "vendor",
+                  "sourceValue": "foo>=bar",
+                  "detectedPattern": {
+                    "detectedValue": ">, =, >="
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "platform_entry_id": "entry_12",
+          "table_index": 12,
+          "source_id": "comparator-detection-test-org-12345",
+          "source_name": "Mathematical Comparator Test",
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "total_concerns": 14,
+          "concern_types": [
+            "mathematicalComparators",
+            "invalidCharacters"
+          ],
+          "concern_breakdown": {
+            "mathematicalComparators": 7,
+            "invalidCharacters": 7
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "mathematicalComparators",
+              "concerns": [
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": ">=1.0",
+                  "detectedPattern": {
+                    "detectedValue": ">, =, >="
+                  }
+                },
+                {
+                  "field": "versions[0].lessThan",
+                  "sourceValue": "<=2.0",
+                  "detectedPattern": {
+                    "detectedValue": "<, =, <="
+                  }
+                },
+                {
+                  "field": "versions[0].lessThanOrEqual",
+                  "sourceValue": "<3.0",
+                  "detectedPattern": {
+                    "detectedValue": "<"
+                  }
+                },
+                {
+                  "field": "versions[0].changes[0].at",
+                  "sourceValue": "!=4.0",
+                  "detectedPattern": {
+                    "detectedValue": "!, =, !="
+                  }
+                },
+                {
+                  "field": "versions[0].changes[1].at",
+                  "sourceValue": "~5.0",
+                  "detectedPattern": {
+                    "detectedValue": "~"
+                  }
+                },
+                {
+                  "field": "platforms[0]",
+                  "sourceValue": "platform>=6.0",
+                  "detectedPattern": {
+                    "detectedValue": ">, =, >="
+                  }
+                },
+                {
+                  "field": "packageName",
+                  "sourceValue": "package<7.0",
+                  "detectedPattern": {
+                    "detectedValue": "<"
+                  }
+                }
+              ]
+            },
+            {
+              "concern_type": "invalidCharacters",
+              "concerns": [
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": ">=1.0",
+                  "detectedPattern": {
+                    "detectedValue": ">"
+                  }
+                },
+                {
+                  "field": "versions[0].lessThan",
+                  "sourceValue": "<=2.0",
+                  "detectedPattern": {
+                    "detectedValue": "<"
+                  }
+                },
+                {
+                  "field": "versions[0].lessThanOrEqual",
+                  "sourceValue": "<3.0",
+                  "detectedPattern": {
+                    "detectedValue": "<"
+                  }
+                },
+                {
+                  "field": "versions[0].changes[0].at",
+                  "sourceValue": "!=4.0",
+                  "detectedPattern": {
+                    "detectedValue": "!"
+                  }
+                },
+                {
+                  "field": "versions[0].changes[1].at",
+                  "sourceValue": "~5.0",
+                  "detectedPattern": {
+                    "detectedValue": "~"
+                  }
+                },
+                {
+                  "field": "platforms[0]",
+                  "sourceValue": "platform>=6.0",
+                  "detectedPattern": {
+                    "detectedValue": ">"
+                  }
+                },
+                {
+                  "field": "packageName",
+                  "sourceValue": "package<7.0",
+                  "detectedPattern": {
+                    "detectedValue": "<"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "clean_platform_entries": [
+        {
+          "sourceID": "comparator-detection-test-org-12345",
+          "source_name": "Mathematical Comparator Test",
+          "cleanPlatformCount": 2
+        }
+      ],
+      "cve_metadata": {
+        "total_platform_entries": 4,
+        "entries_with_concerns": 2,
+        "concern_type_counts": [
+          {
+            "concern_type": "mathematicalComparators",
+            "count": 8
+          },
+          {
+            "concern_type": "invalidCharacters",
+            "count": 7
+          }
+        ],
+        "processing_timestamp": "2025-09-27T15:55:06.234567"
+      }
+    },
+    {
+      "cve_id": "CVE-9999-00003",
+      "platform_entries": [
+        {
+          "platform_entry_id": "entry_0",
+          "table_index": 0,
+          "source_id": "whitespace-detection-test-org-12345",
+          "source_name": "Whitespace Detection Test",
+          "vendor": " TestVendor",
+          "product": "TestProduct",
+          "total_concerns": 1,
+          "concern_types": [
+            "whitespaceIssues"
+          ],
+          "concern_breakdown": {
+            "whitespaceIssues": 1
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "whitespaceIssues",
+              "concerns": [
+                {
+                  "field": "vendor",
+                  "sourceValue": " TestVendor",
+                  "detectedPattern": {
+                    "whitespaceTypes": [
+                      "leading"
+                    ],
+                    "replacedText": "!TestVendor"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "platform_entry_id": "entry_12",
+          "table_index": 12,
+          "source_id": "whitespace-detection-test-org-12345",
+          "source_name": "Whitespace Detection Test",
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "total_concerns": 14,
+          "concern_types": [
+            "whitespaceIssues",
+            "invalidCharacters"
+          ],
+          "concern_breakdown": {
+            "whitespaceIssues": 7,
+            "invalidCharacters": 7
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "whitespaceIssues",
+              "concerns": [
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": " 1.0.0 ",
+                  "detectedPattern": {
+                    "whitespaceTypes": [
+                      "leading",
+                      "trailing"
+                    ],
+                    "replacedText": "!1.0.0!"
+                  }
+                },
+                {
+                  "field": "versions[0].lessThan",
+                  "sourceValue": "\t2.0.0",
+                  "detectedPattern": {
+                    "whitespaceTypes": [
+                      "leading"
+                    ],
+                    "replacedText": "!2.0.0"
+                  }
+                },
+                {
+                  "field": "versions[0].lessThanOrEqual",
+                  "sourceValue": "3.0.0\n",
+                  "detectedPattern": {
+                    "whitespaceTypes": [
+                      "trailing"
+                    ],
+                    "replacedText": "3.0.0!"
+                  }
+                },
+                {
+                  "field": "versions[0].changes[0].at",
+                  "sourceValue": " \t4.0.0\n ",
+                  "detectedPattern": {
+                    "whitespaceTypes": [
+                      "leading",
+                      "trailing"
+                    ],
+                    "replacedText": "!4.0.0!"
+                  }
+                },
+                {
+                  "field": "versions[0].changes[1].at",
+                  "sourceValue": "5.0 .0",
+                  "detectedPattern": {
+                    "whitespaceTypes": [
+                      "internal"
+                    ],
+                    "replacedText": "5.0!.0"
+                  }
+                },
+                {
+                  "field": "platforms[0]",
+                  "sourceValue": "platform name ",
+                  "detectedPattern": {
+                    "whitespaceTypes": [
+                      "trailing"
+                    ],
+                    "replacedText": "platform name!"
+                  }
+                },
+                {
+                  "field": "packageName",
+                  "sourceValue": " package-name",
+                  "detectedPattern": {
+                    "whitespaceTypes": [
+                      "leading"
+                    ],
+                    "replacedText": "!package-name"
+                  }
+                }
+              ]
+            },
+            {
+              "concern_type": "invalidCharacters",
+              "concerns": [
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": " 1.0.0 ",
+                  "detectedPattern": {
+                    "detectedValue": " "
+                  }
+                },
+                {
+                  "field": "versions[0].lessThan",
+                  "sourceValue": "\t2.0.0",
+                  "detectedPattern": {
+                    "detectedValue": "\t"
+                  }
+                },
+                {
+                  "field": "versions[0].lessThanOrEqual",
+                  "sourceValue": "3.0.0\n",
+                  "detectedPattern": {
+                    "detectedValue": "\n"
+                  }
+                },
+                {
+                  "field": "versions[0].changes[0].at",
+                  "sourceValue": " \t4.0.0\n ",
+                  "detectedPattern": {
+                    "detectedValue": " "
+                  }
+                },
+                {
+                  "field": "versions[0].changes[1].at",
+                  "sourceValue": "5.0 .0",
+                  "detectedPattern": {
+                    "detectedValue": " "
+                  }
+                },
+                {
+                  "field": "platforms[0]",
+                  "sourceValue": "platform name ",
+                  "detectedPattern": {
+                    "detectedValue": " "
+                  }
+                },
+                {
+                  "field": "packageName",
+                  "sourceValue": " package-name",
+                  "detectedPattern": {
+                    "detectedValue": " "
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "clean_platform_entries": [
+        {
+          "sourceID": "whitespace-detection-test-org-12345",
+          "source_name": "Whitespace Detection Test",
+          "cleanPlatformCount": 1
+        }
+      ],
+      "cve_metadata": {
+        "total_platform_entries": 3,
+        "entries_with_concerns": 2,
+        "concern_type_counts": [
+          {
+            "concern_type": "whitespaceIssues",
+            "count": 8
+          },
+          {
+            "concern_type": "invalidCharacters",
+            "count": 7
+          }
+        ],
+        "processing_timestamp": "2025-09-27T15:55:07.345678"
+      }
+    },
+    {
+      "cve_id": "CVE-9999-00004",
+      "platform_entries": [
+        {
+          "platform_entry_id": "entry_0",
+          "table_index": 0,
+          "source_id": "text-comparator-test-org-12345",
+          "source_name": "Text Comparator Test",
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "total_concerns": 3,
+          "concern_types": [
+            "textComparators",
+            "invalidCharacters"
+          ],
+          "concern_breakdown": {
+            "textComparators": 2,
+            "invalidCharacters": 1
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "textComparators",
+              "concerns": [
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": "prior to 1.2.3",
+                  "detectedPattern": {
+                    "detectedValue": "prior to"
+                  }
+                },
+                {
+                  "field": "versions[0].lessThan",
+                  "sourceValue": "before 2.0.0",
+                  "detectedPattern": {
+                    "detectedValue": "before"
+                  }
+                }
+              ]
+            },
+            {
+              "concern_type": "invalidCharacters",
+              "concerns": [
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": "prior to 1.2.3",
+                  "detectedPattern": {
+                    "detectedValue": " "
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "platform_entry_id": "entry_4",
+          "table_index": 4,
+          "source_id": "invalid-character-detection-test-org-12345",
+          "source_name": "Invalid Character Test",
+          "vendor": "TestVendor",
+          "product": "TestProduct",
+          "total_concerns": 1,
+          "concern_types": [
+            "invalidCharacters"
+          ],
+          "concern_breakdown": {
+            "invalidCharacters": 1
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "invalidCharacters",
+              "concerns": [
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": "1.0.0\u0005",
+                  "detectedPattern": {
+                    "detectedValue": "\u0005"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "platform_entry_id": "entry_5",
+          "table_index": 5,
+          "source_id": "text-comparator-test-org-12345",
+          "source_name": "Text Comparator Test",
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "total_concerns": 7,
+          "concern_types": [
+            "textComparators",
+            "invalidCharacters"
+          ],
+          "concern_breakdown": {
+            "textComparators": 3,
+            "invalidCharacters": 4
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "textComparators",
+              "concerns": [
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": "from 1.0 to 2.0",
+                  "detectedPattern": {
+                    "detectedValue": "from"
+                  }
+                },
+                {
+                  "field": "versions[0].lessThan",
+                  "sourceValue": "until 3.0",
+                  "detectedPattern": {
+                    "detectedValue": "until"
+                  }
+                },
+                {
+                  "field": "versions[0].lessThanOrEqual",
+                  "sourceValue": "up to 4.0",
+                  "detectedPattern": {
+                    "detectedValue": "up to"
+                  }
+                }
+              ]
+            },
+            {
+              "concern_type": "invalidCharacters",
+              "concerns": [
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": "from 1.0 to 2.0",
+                  "detectedPattern": {
+                    "detectedValue": " "
+                  }
+                },
+                {
+                  "field": "versions[0].lessThan",
+                  "sourceValue": "until 3.0",
+                  "detectedPattern": {
+                    "detectedValue": " "
+                  }
+                },
+                {
+                  "field": "versions[0].lessThanOrEqual",
+                  "sourceValue": "up to 4.0",
+                  "detectedPattern": {
+                    "detectedValue": " "
+                  }
+                },
+                {
+                  "field": "versions[0].changes[0].at",
+                  "sourceValue": "see references",
+                  "detectedPattern": {
+                    "detectedValue": " "
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "clean_platform_entries": [
+        {
+          "sourceID": "text-comparator-test-org-12345",
+          "source_name": "Text Comparator Test",
+          "cleanPlatformCount": 2
+        },
+        {
+          "sourceID": "invalid-character-detection-test-org-12345",
+          "source_name": "Invalid Character Test",
+          "cleanPlatformCount": 1
+        }
+      ],
+      "cve_metadata": {
+        "total_platform_entries": 6,
+        "entries_with_concerns": 3,
+        "concern_type_counts": [
+          {
+            "concern_type": "textComparators",
+            "count": 5
+          },
+          {
+            "concern_type": "invalidCharacters",
+            "count": 5
+          }
+        ],
+        "processing_timestamp": "2025-09-27T15:55:08.456789"
+      }
+    },
+    {
+      "cve_id": "CVE-9999-00005",
+      "platform_entries": [
+        {
+          "platform_entry_id": "entry_0",
+          "table_index": 0,
+          "source_id": "version-granularity-test-org-12345",
+          "source_name": "Version Granularity Test",
+          "vendor": "Test Vendor Basic",
+          "product": "Basic Mixed Granularity Product",
+          "total_concerns": 3,
+          "concern_types": [
+            "versionGranularity"
+          ],
+          "concern_breakdown": {
+            "versionGranularity": 3
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "versionGranularity",
+              "concerns": [
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": "1.0",
+                  "detectedPattern": {
+                    "base": "1",
+                    "granularity": "2"
+                  }
+                },
+                {
+                  "field": "versions[0].lessThan",
+                  "sourceValue": "1.2.3",
+                  "detectedPattern": {
+                    "base": "1",
+                    "granularity": "3"
+                  }
+                },
+                {
+                  "field": "versions[0].lessThanOrEqual",
+                  "sourceValue": "1.5.2.1",
+                  "detectedPattern": {
+                    "base": "1",
+                    "granularity": "4"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "platform_entry_id": "entry_9",
+          "table_index": 9,
+          "source_id": "version-granularity-test-org-12345",
+          "source_name": "Version Granularity Test",
+          "vendor": "Test Vendor Advanced",
+          "product": "Advanced Overlapping Product",
+          "total_concerns": 5,
+          "concern_types": [
+            "versionGranularity",
+            "overlappingRanges"
+          ],
+          "concern_breakdown": {
+            "versionGranularity": 2,
+            "overlappingRanges": 3
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "versionGranularity",
+              "concerns": [
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": "2.0",
+                  "detectedPattern": {
+                    "base": "2",
+                    "granularity": "2"
+                  }
+                },
+                {
+                  "field": "versions[0].lessThan",
+                  "sourceValue": "2.1.0",
+                  "detectedPattern": {
+                    "base": "2",
+                    "granularity": "3"
+                  }
+                }
+              ]
+            },
+            {
+              "concern_type": "overlappingRanges",
+              "concerns": [
+                {
+                  "field": "versions",
+                  "sourceValue": [
+                    {"source": "versions[0]", "version": "*", "lessThan": "2.0.0", "status": "affected", "version_idx": 0, "branch_end": "2.0.0"},
+                    {"source": "versions[1]", "version": "*", "lessThan": "3.0.0", "status": "affected", "version_idx": 1, "branch_end": "3.0.0"},
+                    {"source": "versions[2]", "version": "*", "lessThanOrEqual": "1.5.0", "status": "affected", "version_idx": 2, "branch_end": "1.5.0"}
+                  ],
+                  "detectedPattern": {
+                    "overlapType": "wildcard_multiple_bounds",
+                    "branches": ["1.5.0", "2.0.0", "3.0.0"]
+                  },
+                  "overlap_type": "wildcard_multiple_bounds",
+                  "range_description": "Multiple wildcard patterns with different upper bounds: 1.5.0, 2.0.0, 3.0.0",
+                  "related_table_indices": [0, 1, 2]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "clean_platform_entries": [
+        {
+          "sourceID": "version-granularity-test-org-12345",
+          "source_name": "Version Granularity Test",
+          "cleanPlatformCount": 4
+        }
+      ],
+      "cve_metadata": {
+        "total_platform_entries": 6,
+        "entries_with_concerns": 2,
+        "concern_type_counts": [
+          {
+            "concern_type": "versionGranularity",
+            "count": 5
+          },
+          {
+            "concern_type": "overlappingRanges",
+            "count": 3
+          }
+        ],
+        "processing_timestamp": "2025-09-27T15:55:09.567890"
+      }
+    },
+    {
+      "cve_id": "CVE-1337-88888",
+      "platform_entries": [
+        {
+          "platform_entry_id": "entry_0",
+          "table_index": 0,
+          "source_id": "overlapping-ranges-test-org-12345",
+          "source_name": "Overlapping Ranges Test Organization",
+          "vendor": "WildcardOverlaps-Test1",
+          "product": "multiple-wildcard-bounds",
+          "total_concerns": 1,
+          "concern_types": [
+            "overlappingRanges"
+          ],
+          "concern_breakdown": {
+            "overlappingRanges": 1
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "overlappingRanges",
+              "concerns": [
+                {
+                  "field": "versions",
+                  "sourceValue": [
+                    {
+                      "source": "versions[0]",
+                      "version": "*",
+                      "lessThan": "2.0.0",
+                      "lessThanOrEqual": null,
+                      "status": "affected",
+                      "version_idx": 0,
+                      "branch_end": "2.0.0"
+                    },
+                    {
+                      "source": "versions[1]",
+                      "version": "*",
+                      "lessThan": "3.0.0",
+                      "lessThanOrEqual": null,
+                      "status": "affected",
+                      "version_idx": 1,
+                      "branch_end": "3.0.0"
+                    },
+                    {
+                      "source": "versions[2]",
+                      "version": "*",
+                      "lessThan": null,
+                      "lessThanOrEqual": "1.5.0",
+                      "status": "affected",
+                      "version_idx": 2,
+                      "branch_end": "1.5.0"
+                    }
+                  ],
+                  "detectedPattern": {
+                    "overlapType": "wildcard_multiple_bounds",
+                    "branches": [
+                      "1.5.0",
+                      "2.0.0",
+                      "3.0.0"
+                    ]
+                  },
+                  "overlap_type": "wildcard_multiple_bounds",
+                  "affected_ranges": [
+                    {
+                      "source": "versions[0]",
+                      "version": "*",
+                      "lessThan": "2.0.0",
+                      "lessThanOrEqual": null,
+                      "status": "affected",
+                      "version_idx": 0,
+                      "branch_end": "2.0.0"
+                    },
+                    {
+                      "source": "versions[1]",
+                      "version": "*",
+                      "lessThan": "3.0.0",
+                      "lessThanOrEqual": null,
+                      "status": "affected",
+                      "version_idx": 1,
+                      "branch_end": "3.0.0"
+                    },
+                    {
+                      "source": "versions[2]",
+                      "version": "*",
+                      "lessThan": null,
+                      "lessThanOrEqual": "1.5.0",
+                      "status": "affected",
+                      "version_idx": 2,
+                      "branch_end": "1.5.0"
+                    }
+                  ],
+                  "range_description": "Multiple wildcard patterns with different upper bounds: 1.5.0, 2.0.0, 3.0.0",
+                  "related_table_indices": [
+                    0,
+                    1,
+                    2
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "platform_entry_id": "entry_1",
+          "table_index": 1,
+          "source_id": "overlapping-ranges-test-org-12345",
+          "source_name": "Overlapping Ranges Test Organization",
+          "vendor": "NumericRangeOverlaps-Test1",
+          "product": "identical-ranges",
+          "total_concerns": 1,
+          "concern_types": [
+            "overlappingRanges"
+          ],
+          "concern_breakdown": {
+            "overlappingRanges": 1
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "overlappingRanges",
+              "concerns": [
+                {
+                  "field": "versions",
+                  "sourceValue": "versions[0] & versions[1]",
+                  "detectedPattern": {
+                    "overlapType": "identical_ranges",
+                    "range1Source": "versions[0]",
+                    "range2Source": "versions[1]",
+                    "range1": "1.0.0 to 2.0.0",
+                    "range2": "1.0.0 to 2.0.0"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "platform_entry_id": "entry_2",
+          "table_index": 2,
+          "source_id": "overlapping-ranges-test-org-12345",
+          "source_name": "Overlapping Ranges Test Organization",
+          "vendor": "NumericRangeOverlaps-Test2",
+          "product": "partial-overlap-ranges",
+          "total_concerns": 1,
+          "concern_types": [
+            "overlappingRanges"
+          ],
+          "concern_breakdown": {
+            "overlappingRanges": 1
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "overlappingRanges",
+              "concerns": [
+                {
+                  "field": "versions",
+                  "sourceValue": "versions[0] & versions[1]",
+                  "detectedPattern": {
+                    "overlapType": "partial_overlap",
+                    "range1Source": "versions[0]",
+                    "range2Source": "versions[1]",
+                    "range1": "1.5.0 to 2.2.0",
+                    "range2": "2.0.0 to 3.0.0"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "platform_entry_id": "entry_3",
+          "table_index": 3,
+          "source_id": "overlapping-ranges-test-org-12345",
+          "source_name": "Overlapping Ranges Test Organization",
+          "vendor": "NumericRangeOverlaps-Test3",
+          "product": "containment-ranges",
+          "total_concerns": 1,
+          "concern_types": [
+            "overlappingRanges"
+          ],
+          "concern_breakdown": {
+            "overlappingRanges": 1
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "overlappingRanges",
+              "concerns": [
+                {
+                  "field": "versions",
+                  "sourceValue": "versions[0] & versions[1]",
+                  "detectedPattern": {
+                    "overlapType": "range1_contains_range2",
+                    "range1Source": "versions[0]",
+                    "range2Source": "versions[1]",
+                    "range1": "1.0.0 to 3.5.0",
+                    "range2": "2.0.0 to 2.8.0"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "platform_entry_id": "entry_4",
+          "table_index": 4,
+          "source_id": "overlapping-ranges-test-org-12345",
+          "source_name": "Overlapping Ranges Test Organization",
+          "vendor": "UpdatePatternOverlaps-Test1",
+          "product": "update-pattern-normalization",
+          "total_concerns": 1,
+          "concern_types": [
+            "overlappingRanges"
+          ],
+          "concern_breakdown": {
+            "overlappingRanges": 1
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "overlappingRanges",
+              "concerns": [
+                {
+                  "field": "versions",
+                  "sourceValue": "versions[0] & versions[1]",
+                  "detectedPattern": {
+                    "overlapType": "identical_ranges",
+                    "range1Source": "versions[0]",
+                    "range2Source": "versions[1]",
+                    "range1": "1.0.0 to 2.0.0",
+                    "range2": "1.0.0 to 2.0.0"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "platform_entry_id": "entry_12",
+          "table_index": 12,
+          "source_id": "overlapping-ranges-test-org-12345",
+          "source_name": "Overlapping Ranges Test Organization",
+          "vendor": "ComplexRangeOverlaps-Test1",
+          "product": "mixed-wildcard-numeric",
+          "total_concerns": 1,
+          "concern_types": [
+            "overlappingRanges"
+          ],
+          "concern_breakdown": {
+            "overlappingRanges": 1
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "overlappingRanges",
+              "concerns": [
+                {
+                  "field": "versions",
+                  "sourceValue": "versions[1] & versions[2]",
+                  "detectedPattern": {
+                    "overlapType": "partial_overlap",
+                    "range1Source": "versions[1]",
+                    "range2Source": "versions[2]",
+                    "range1": "1.0.0 to 1.5.0",
+                    "range2": "1.2.0 to 1.8.0"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "platform_entry_id": "entry_13",
+          "table_index": 13,
+          "source_id": "overlapping-ranges-test-org-12345",
+          "source_name": "Overlapping Ranges Test Organization",
+          "vendor": "VersionGranularityOverlaps-Test1",
+          "product": "granular-version-overlaps",
+          "total_concerns": 6,
+          "concern_types": [
+            "versionGranularity",
+            "overlappingRanges"
+          ],
+          "concern_breakdown": {
+            "versionGranularity": 5,
+            "overlappingRanges": 1
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "versionGranularity",
+              "concerns": [
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": "2.1.0",
+                  "detectedPattern": {
+                    "base": "2",
+                    "granularity": "3"
+                  }
+                },
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": "2.1.5",
+                  "detectedPattern": {
+                    "base": "2",
+                    "granularity": "3"
+                  }
+                },
+                {
+                  "field": "versions[0].lessThan",
+                  "sourceValue": "2.1.8",
+                  "detectedPattern": {
+                    "base": "2",
+                    "granularity": "3"
+                  }
+                },
+                {
+                  "field": "versions[0].lessThan",
+                  "sourceValue": "2.2.0",
+                  "detectedPattern": {
+                    "base": "2",
+                    "granularity": "3"
+                  }
+                },
+                {
+                  "field": "versions[0].version",
+                  "sourceValue": "2.1.6.1",
+                  "detectedPattern": {
+                    "base": "2",
+                    "granularity": "4"
+                  }
+                }
+              ]
+            },
+            {
+              "concern_type": "overlappingRanges",
+              "concerns": [
+                {
+                  "field": "versions",
+                  "sourceValue": "versions[0] & versions[1]",
+                  "detectedPattern": {
+                    "overlapType": "range1_contains_range2",
+                    "range1Source": "versions[0]",
+                    "range2Source": "versions[1]",
+                    "range1": "2.1.0 to 2.2.0",
+                    "range2": "2.1.5 to 2.1.8"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "platform_entry_id": "entry_15",
+          "table_index": 15,
+          "source_id": "overlapping-ranges-test-org-12345",
+          "source_name": "Overlapping Ranges Test Organization",
+          "vendor": "EdgeCaseOverlaps-Test2",
+          "product": "lessThanOrEqual-boundary",
+          "total_concerns": 1,
+          "concern_types": [
+            "overlappingRanges"
+          ],
+          "concern_breakdown": {
+            "overlappingRanges": 1
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "overlappingRanges",
+              "concerns": [
+                {
+                  "field": "versions",
+                  "sourceValue": "versions[0] & versions[1]",
+                  "detectedPattern": {
+                    "overlapType": "range2_contains_range1",
+                    "range1Source": "versions[0]",
+                    "range2Source": "versions[1]",
+                    "range1": "2.5.0 to 3.0.0",
+                    "range2": "2.0.0 to 4.0.0"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "platform_entry_id": "entry_17",
+          "table_index": 17,
+          "source_id": "overlapping-ranges-test-org-12345",
+          "source_name": "Overlapping Ranges Test Organization",
+          "vendor": "UpdatePatternComplex-Test1",
+          "product": "complex-update-patterns",
+          "total_concerns": 1,
+          "concern_types": [
+            "overlappingRanges"
+          ],
+          "concern_breakdown": {
+            "overlappingRanges": 1
+          },
+          "concerns_detail": [
+            {
+              "concern_type": "overlappingRanges",
+              "concerns": [
+                {
+                  "field": "versions",
+                  "sourceValue": "versions[0] & versions[1]",
+                  "detectedPattern": {
+                    "overlapType": "identical_ranges",
+                    "range1Source": "versions[0]",
+                    "range2Source": "versions[1]",
+                    "range1": "1.0.0 to 1.1.0",
+                    "range2": "1.0.0 to 1.1.0"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "clean_platform_entries": [
+        {
+          "sourceID": "overlapping-ranges-test-org-12345",
+          "source_name": "Overlapping Ranges Test Organization",
+          "cleanPlatformCount": 8
+        }
+      ],
+      "cve_metadata": {
+        "total_platform_entries": 18,
+        "entries_with_concerns": 10,
+        "concern_type_counts": [
+          {
+            "concern_type": "overlappingRanges",
+            "count": 10
+          },
+          {
+            "concern_type": "versionGranularity",
+            "count": 5
+          }
+        ],
+        "processing_timestamp": "2025-09-27T15:55:10.678901"
+      }
+    }
+  ]
+}
+
+
+
+
+

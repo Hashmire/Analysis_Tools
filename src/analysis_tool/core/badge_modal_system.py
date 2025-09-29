@@ -67,7 +67,9 @@ TEXT_COMPARATOR_PATTERNS = [
     # Single-word patterns
     'through', 'thru', 'between', 'before', 'until', 'below', 'after', 
     'since', 'from', 'above', 'about', 'approximately', 'circa', 'around', 
-    'roughly', 'check', 'noted', 'and', 'to'
+    'roughly', 'check', 'noted', 'and', 'to',
+    # Inclusive/Exclusive indicators
+    'inclusive', 'exclusive', 'including', 'excluding'
 ]
 
 
