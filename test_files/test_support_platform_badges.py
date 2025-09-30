@@ -27,7 +27,7 @@ from typing import Dict, List, Set, Tuple, Any
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 # Import the actual production constants
-from analysis_tool.core.badge_modal_system import NON_SPECIFIC_VERSION_VALUES
+# Placeholder values imports removed - not used in this test file
 
 class SupportPlatformBadgesTestSuite:
     def __init__(self):

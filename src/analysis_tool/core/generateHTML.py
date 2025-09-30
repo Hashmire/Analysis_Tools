@@ -185,11 +185,13 @@ def get_dynamic_data_injection():
         # Combine consolidated injections
         consolidated_json_settings_registrations = json_settings_injection + intelligent_settings_js
     
-    # Inject NON_SPECIFIC_VERSION_VALUES as a global JavaScript variable
-    # This ensures the JavaScript uses the same list as Python (single source of truth)
-    non_specific_versions_js = f"""
-    // Non-specific version values injected from Python (single source of truth)
-    window.NON_SPECIFIC_VERSION_VALUES = {json.dumps(NON_SPECIFIC_VERSION_VALUES)};
+    # Inject placeholder value arrays as global JavaScript variables
+    # This ensures the JavaScript uses the same lists as Python (single source of truth)
+    from .badge_modal_system import GENERAL_PLACEHOLDER_VALUES, VERSION_PLACEHOLDER_VALUES
+    placeholder_arrays_js = f"""
+    // Domain-specific placeholder values injected from Python
+    window.GENERAL_PLACEHOLDER_VALUES = {json.dumps(GENERAL_PLACEHOLDER_VALUES)};
+    window.VERSION_PLACEHOLDER_VALUES = {json.dumps(VERSION_PLACEHOLDER_VALUES)};
     """
     
     # Get consolidated registrations from badge_modal_system
@@ -204,7 +206,7 @@ def get_dynamic_data_injection():
         logger.info(f"Large dataset detected - {total_settings_keys} JSON settings entries, {total_intelligent_keys} intelligent settings entries", group="page_generation")
 
     dynamic_data = (consolidated_json_settings_registrations + 
-                   non_specific_versions_js + consolidated_cpe_registrations + 
+                   placeholder_arrays_js + consolidated_cpe_registrations + 
                    consolidated_platform_registrations)
     
     return f"<script>\n{dynamic_data}\n</script>"
