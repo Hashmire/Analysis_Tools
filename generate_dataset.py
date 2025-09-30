@@ -14,6 +14,7 @@ import datetime
 from time import sleep
 import argparse
 from pathlib import Path
+import uuid
 from src.analysis_tool.logging.workflow_logger import WorkflowLogger
 
 def get_analysis_tools_root():
@@ -21,6 +22,14 @@ def get_analysis_tools_root():
     current_file = Path(__file__).resolve()
     # Navigate up from generate_dataset.py to Analysis_Tools/
     return current_file.parent
+
+def validate_uuid(uuid_string):
+    """Validate that a string is a proper UUID format"""
+    try:
+        uuid.UUID(uuid_string)
+        return True
+    except ValueError:
+        return False
 
 def resolve_output_path(output_file, run_directory=None):
     """Resolve output file path - write to run directory if provided, otherwise use absolute path"""
@@ -105,7 +114,7 @@ TOOLNAME = config['application']['toolname']
 # Initialize logger
 logger = WorkflowLogger()
 
-def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cve_dataset.txt", run_directory=None):
+def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cve_dataset.txt", run_directory=None, source_uuid=None, statuses_explicitly_provided=False):
     """
     Query NVD API for CVEs with specific vulnerability statuses
     
@@ -115,12 +124,19 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                                ['Received', 'Awaiting Analysis', 'Undergoing Analysis']
         output_file (str): Output file path
         run_directory (Path): Run directory where dataset should be written
+        source_uuid (str): Optional UUID to filter CVEs by sourceIdentifier (server-side filtering)
+        statuses_explicitly_provided (bool): Whether user explicitly provided status filters
     """
     if target_statuses is None:
         target_statuses = ['Received', 'Awaiting Analysis', 'Undergoing Analysis']
     
     logger.info("Starting CVE dataset generation...", group="initialization")
-    logger.info(f"Target vulnerability statuses: {', '.join(target_statuses)}", group="initialization")
+    if source_uuid and not statuses_explicitly_provided:
+        logger.info("Target vulnerability statuses: ALL (inclusive mode with UUID filtering)", group="initialization")
+    else:
+        logger.info(f"Target vulnerability statuses: {', '.join(target_statuses)}", group="initialization")
+    if source_uuid:
+        logger.info(f"Source UUID filter (server-side): {source_uuid}", group="initialization")
     logger.info(f"Output file: {output_file}", group="initialization")
     logger.info(f"Using API key: {'Yes' if api_key else 'No'}", group="initialization")
     
@@ -156,8 +172,10 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     logger.info("Starting CVE collection...", group="CVE_QUERY")
     
     while True:
-        # Construct URL with pagination
+        # Construct URL with pagination and optional UUID filtering
         url = f"{base_url}?resultsPerPage={results_per_page}&startIndex={start_index}"
+        if source_uuid:
+            url += f"&sourceIdentifier={source_uuid}"
         
         logger.info(f"Processing CVE dataset queries: Starting at index {start_index}...", group="cve_queries")
         
@@ -227,9 +245,16 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
             cve_id = cve_data.get('id', '')
             vuln_status = cve_data.get('vulnStatus', '')
             
-            if vuln_status in target_statuses:
+            # Determine if we should apply status filtering
+            if source_uuid and not statuses_explicitly_provided:
+                # UUID filtering with default statuses - include all CVEs from this source
                 matching_cves.append(cve_id)
-                logger.info(f"MATCH: {cve_id} - Status: {vuln_status}", group="cve_queries")
+                logger.info(f"MATCH: {cve_id} - Status: {vuln_status}, UUID: {source_uuid} (all statuses)", group="cve_queries")
+            elif vuln_status in target_statuses:
+                # Either traditional status filtering or UUID + explicit status filtering
+                matching_cves.append(cve_id)
+                status_desc = f", UUID: {source_uuid}" if source_uuid else ""
+                logger.info(f"MATCH: {cve_id} - Status: {vuln_status}{status_desc}", group="cve_queries")
         
         # Check if we have more pages
         total_results = page_data.get('totalResults', 0)
@@ -306,7 +331,7 @@ def show_last_run_info():
         logger.error(f"Failed to show last run info: {e}", group="data_processing")
 
 
-def generate_last_days(days, api_key=None, output_file="cve_recent_dataset.txt", run_directory=None):
+def generate_last_days(days, api_key=None, output_file="cve_recent_dataset.txt", run_directory=None, source_uuid=None):
     """Generate dataset for CVEs modified in the last N days"""
     end_date = datetime.datetime.now()
     start_date = end_date - datetime.timedelta(days=days)
@@ -321,11 +346,11 @@ def generate_last_days(days, api_key=None, output_file="cve_recent_dataset.txt",
     return query_nvd_cves_by_date_range(
         start_date.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
         end_date.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
-        api_key, output_file, run_directory
+        api_key, output_file, run_directory, source_uuid
     )
 
 
-def generate_since_last_run(api_key=None, output_file="cve_differential_dataset.txt", run_directory=None):
+def generate_since_last_run(api_key=None, output_file="cve_differential_dataset.txt", run_directory=None, source_uuid=None):
     """Generate dataset for CVEs modified since the last run"""
     try:
         # TODO: Update to find latest run from runs/ directory structure
@@ -338,7 +363,7 @@ def generate_since_last_run(api_key=None, output_file="cve_differential_dataset.
         return False
 
 
-def generate_date_range(start_date_str, end_date_str, api_key=None, output_file="cve_range_dataset.txt", run_directory=None):
+def generate_date_range(start_date_str, end_date_str, api_key=None, output_file="cve_range_dataset.txt", run_directory=None, source_uuid=None):
     """Generate dataset for CVEs modified in a specific date range"""
     try:
         # Parse dates
@@ -357,16 +382,18 @@ def generate_date_range(start_date_str, end_date_str, api_key=None, output_file=
         
         logger.info(f"Generating dataset for date range: {start_date_str} to {end_date_str}", group="initialization")
         
-        return query_nvd_cves_by_date_range(start_date_str, end_date_str, api_key, output_file, run_directory)
+        return query_nvd_cves_by_date_range(start_date_str, end_date_str, api_key, output_file, run_directory, source_uuid)
         
     except ValueError as e:
         logger.error(f"Invalid date format: {e}", group="initialization")
         return False
 
 
-def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file="cve_dataset.txt", run_directory=None):
+def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file="cve_dataset.txt", run_directory=None, source_uuid=None):
     """Query NVD API for CVEs modified within a date range"""
     logger.info(f"Querying CVEs modified between {start_date} and {end_date}", group="initialization")
+    if source_uuid:
+        logger.info(f"Source UUID filter (server-side): {source_uuid}", group="initialization")
     
     # Initialize dataset contents collector for date range queries
     from src.analysis_tool.logging.dataset_contents_collector import (
@@ -404,6 +431,8 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
                f"lastModEndDate={end_date_encoded}&"
                f"resultsPerPage={results_per_page}&"
                f"startIndex={start_index}")
+        if source_uuid:
+            url += f"&sourceIdentifier={source_uuid}"
         
         logger.info(f"Querying CVEs modified in date range: Starting at index {start_index}...", group="cve_queries")
         
@@ -451,7 +480,10 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
             cve_id = cve_data.get('id', '')
             if cve_id:
                 matching_cves.append(cve_id)
-                logger.info(f"FOUND: {cve_id}", group="cve_queries")
+                if source_uuid:
+                    logger.info(f"FOUND: {cve_id} - UUID: {source_uuid}", group="cve_queries")
+                else:
+                    logger.info(f"FOUND: {cve_id}", group="cve_queries")
         
         total_results = page_data.get('totalResults', 0)
         current_end = start_index + len(vulnerabilities)
@@ -512,7 +544,11 @@ def main():
     # Traditional status-based options
     parser.add_argument('--statuses', nargs='+', 
                        default=['Received', 'Awaiting Analysis', 'Undergoing Analysis'],
-                       help='Vulnerability statuses to include (default: Received, Awaiting Analysis, Undergoing Analysis)')
+                       help='Vulnerability statuses to include (default when no UUID: Received, Awaiting Analysis, Undergoing Analysis; default with UUID: all statuses)')
+    
+    # UUID filtering option
+    parser.add_argument('--source-uuid', type=str,
+                       help='Filter CVEs by sourceIdentifier (CNA/ADP providerMetadata.orgId) - must be valid UUID format. When used without --statuses, includes all vulnerability statuses.')
     
     # New date-based options
     parser.add_argument('--last-days', type=int,
@@ -545,6 +581,16 @@ def main():
         show_last_run_info()
         return 0
     
+    # Validate UUID if provided
+    if args.source_uuid and not validate_uuid(args.source_uuid):
+        logger.error(f"Invalid UUID format: {args.source_uuid}", group="initialization")
+        logger.error("Source UUID must be a valid UUID format", group="initialization")
+        return 1
+    
+    # Detect if statuses were explicitly provided (not using defaults)
+    import sys
+    statuses_explicitly_provided = '--statuses' in sys.argv
+    
     # Resolve API key from command line, config, or default to None
     resolved_api_key = args.api_key or config['defaults']['default_api_key'] or None
     
@@ -555,19 +601,22 @@ def main():
         return 1
     
     logger.info("Using API key for enhanced rate limits", group="initialization")
+    if args.source_uuid:
+        logger.info(f"UUID filtering enabled: {args.source_uuid}", group="initialization")
     
     # Create run directory first - ALL dataset generation creates runs
     from src.analysis_tool.storage.run_organization import create_run_directory
     
     # Generate initial run context
+    uuid_suffix = f"_uuid_{args.source_uuid[:8]}" if args.source_uuid else ""
     if args.since_last_run:
-        initial_context = "differential_dataset"
+        initial_context = f"differential_dataset{uuid_suffix}"
     elif args.last_days:
-        initial_context = f"last_{args.last_days}_days_dataset"
+        initial_context = f"last_{args.last_days}_days_dataset{uuid_suffix}"
     elif args.start_date and args.end_date:
-        initial_context = f"range_{args.start_date}_to_{args.end_date}_dataset"
+        initial_context = f"range_{args.start_date}_to_{args.end_date}_dataset{uuid_suffix}"
     else:
-        initial_context = "status_based_dataset"
+        initial_context = f"status_based_dataset{uuid_suffix}"
     
     # Create run directory
     run_directory, run_id = create_run_directory(initial_context)
@@ -579,18 +628,20 @@ def main():
     
     # Determine which mode to use - all write directly to run directory
     if args.since_last_run:
-        success = generate_since_last_run(resolved_api_key, args.output, run_directory)
+        success = generate_since_last_run(resolved_api_key, args.output, run_directory, args.source_uuid)
     elif args.last_days:
-        success = generate_last_days(args.last_days, resolved_api_key, args.output, run_directory)
+        success = generate_last_days(args.last_days, resolved_api_key, args.output, run_directory, args.source_uuid)
     elif args.start_date and args.end_date:
-        success = generate_date_range(args.start_date, args.end_date, resolved_api_key, args.output, run_directory)
+        success = generate_date_range(args.start_date, args.end_date, resolved_api_key, args.output, run_directory, args.source_uuid)
     else:
         # Traditional status-based generation
         success = query_nvd_cves_by_status(
             api_key=resolved_api_key,
             target_statuses=args.statuses,
             output_file=args.output,
-            run_directory=run_directory
+            run_directory=run_directory,
+            source_uuid=args.source_uuid,
+            statuses_explicitly_provided=statuses_explicitly_provided
         )
     
     if success:
