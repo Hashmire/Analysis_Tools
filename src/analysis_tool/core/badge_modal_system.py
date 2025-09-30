@@ -46,15 +46,30 @@ PLATFORM_ENTRY_NOTIFICATION_REGISTRY = {
 global_kb_exclusions = []
 
 # ===== CONSTANTS AND PATTERNS =====
-# Define non-specific version values that should be treated as placeholders
-NON_SPECIFIC_VERSION_VALUES = [
+# Define placeholder values for non-version fields (vendor, product, platforms, packageName)
+GENERAL_PLACEHOLDER_VALUES = [
+    'unspecified', 'unknown', 'none', 'undefined', 'various',
+    'n/a', 'not available', 'not applicable', 'unavailable',
+    'na', 'nil', 'tbd', 'to be determined', 'pending',
+    'not specified', 'not determined', 'not known', 'not listed',
+    'not provided', 'missing', 'empty', 'null', '-',
+    'see references', 'see advisory', 'check', 'noted', 'all'
+]
+
+# Define placeholder values specific to version fields (version, lessThan, changes.at)
+VERSION_PLACEHOLDER_VALUES = [
     'unspecified', 'unknown', 'none', 'undefined', 'various',
     'n/a', 'not available', 'not applicable', 'unavailable',
     'na', 'nil', 'tbd', 'to be determined', 'pending',
     'not specified', 'not determined', 'not known', 'not listed',
     'not provided', 'missing', 'empty', 'null', '-', 'multiple versions',
     'see references', 'see advisory', 'check', 'noted'
+    # Note: 'all' is NOT included here as it may be legitimate in version contexts
 ]
+
+# Domain-specific placeholder detection arrays:
+# - GENERAL_PLACEHOLDER_VALUES for non-version fields (vendor, product, platforms, packageName)
+# - VERSION_PLACEHOLDER_VALUES for version fields (version, lessThan, changes.at)
 
 # Define comparator patterns used for detecting comparison operators in data fields
 COMPARATOR_PATTERNS = ['<', '>', '=', '<=', '=<', '=>', '>=', '!=']
@@ -3264,7 +3279,7 @@ def detect_comprehensive_range_overlaps(versions: List[Dict]) -> List[Dict]:
             
         # Main version range (only process actual ranges, not explicit single versions)
         version_str = v.get('version', '0')
-        if version_str != '*' and version_str not in NON_SPECIFIC_VERSION_VALUES:
+        if version_str != '*' and version_str not in VERSION_PLACEHOLDER_VALUES:
             # Only consider this a range if it has range boundaries (lessThan/lessThanOrEqual)
             # Explicit single versions without boundaries are not ranges
             has_range_boundaries = any(field in v for field in ['lessThan', 'lessThanOrEqual'])
@@ -3287,7 +3302,7 @@ def detect_comprehensive_range_overlaps(versions: List[Dict]) -> List[Dict]:
             for c_idx, change in enumerate(v['changes']):
                 if isinstance(change, dict) and 'at' in change:
                     at_value = change['at']
-                    if at_value and at_value != '*' and at_value not in NON_SPECIFIC_VERSION_VALUES:
+                    if at_value and at_value != '*' and at_value not in VERSION_PLACEHOLDER_VALUES:
                         try:
                             change_range = {
                                 'source': f'versions[{v_idx}].changes[{c_idx}]',
@@ -3478,10 +3493,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         vendor_value = raw_platform_data['vendor'].strip()
         vendor_lower = vendor_value.lower()
         # Use exact matching for placeholder detection - these are specific bad data entry practices
-        is_placeholder = vendor_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+        is_placeholder = vendor_lower in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]
         
         if is_placeholder:
-            detected_pattern = next(v for v in NON_SPECIFIC_VERSION_VALUES if v.lower() == vendor_lower)
+            detected_pattern = next(v for v in GENERAL_PLACEHOLDER_VALUES if v.lower() == vendor_lower)
             concerns_data["placeholderData"].append({
                 "field": "vendor",
                 "sourceValue": vendor_value,
@@ -3493,10 +3508,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         product_value = raw_platform_data['product'].strip()
         product_lower = product_value.lower()
         # Use exact matching for placeholder detection - these are specific bad data entry practices
-        is_placeholder = product_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+        is_placeholder = product_lower in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]
         
         if is_placeholder:
-            detected_pattern = next(v for v in NON_SPECIFIC_VERSION_VALUES if v.lower() == product_lower)
+            detected_pattern = next(v for v in GENERAL_PLACEHOLDER_VALUES if v.lower() == product_lower)
             concerns_data["placeholderData"].append({
                 "field": "product", 
                 "sourceValue": product_value,
@@ -3519,10 +3534,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                     if isinstance(field_value, str) and field_value.strip():
                         field_value_lower = field_value.strip().lower()
                         # Use exact matching for placeholder detection - these are specific bad data entry practices
-                        is_placeholder = field_value_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+                        is_placeholder = field_value_lower in [v.lower() for v in VERSION_PLACEHOLDER_VALUES]
                         
                         if is_placeholder:
-                            detected_pattern = next(v for v in NON_SPECIFIC_VERSION_VALUES if v.lower() == field_value_lower)
+                            detected_pattern = next(v for v in VERSION_PLACEHOLDER_VALUES if v.lower() == field_value_lower)
                             concerns_data["placeholderData"].append({
                                 "field": field,
                                 "sourceValue": field_value,
@@ -3538,10 +3553,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                             if isinstance(change_at_value, str) and change_at_value.strip():
                                 field_value_lower = change_at_value.strip().lower()
                                 # Use exact matching for placeholder detection
-                                is_placeholder = field_value_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+                                is_placeholder = field_value_lower in [v.lower() for v in VERSION_PLACEHOLDER_VALUES]
                                 
                                 if is_placeholder:
-                                    detected_pattern = next(v for v in NON_SPECIFIC_VERSION_VALUES if v.lower() == field_value_lower)
+                                    detected_pattern = next(v for v in VERSION_PLACEHOLDER_VALUES if v.lower() == field_value_lower)
                                     concerns_data["placeholderData"].append({
                                         "field": f"changes[{idx}].at",
                                         "sourceValue": change_at_value,
@@ -3559,10 +3574,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             if isinstance(platform_item, str):
                 platform_lower = platform_item.lower().strip()
                 # Use exact matching for placeholder detection - these are specific bad data entry practices
-                is_placeholder = platform_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+                is_placeholder = platform_lower in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]
                 
                 if is_placeholder:
-                    detected_pattern = next(v for v in NON_SPECIFIC_VERSION_VALUES if v.lower() == platform_lower)
+                    detected_pattern = next(v for v in GENERAL_PLACEHOLDER_VALUES if v.lower() == platform_lower)
                     concerns_data["placeholderData"].append({
                         "field": f"platforms[{idx}]",
                         "sourceValue": platform_item,
@@ -3579,10 +3594,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         package_value = raw_platform_data['packageName'].strip()
         package_lower = package_value.lower()
         # Use exact matching for placeholder detection - these are specific bad data entry practices
-        is_placeholder = package_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+        is_placeholder = package_lower in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]
         
         if is_placeholder:
-            detected_pattern = next(v for v in NON_SPECIFIC_VERSION_VALUES if v.lower() == package_lower)
+            detected_pattern = next(v for v in GENERAL_PLACEHOLDER_VALUES if v.lower() == package_lower)
             concerns_data["placeholderData"].append({
                 "field": "packageName", 
                 "sourceValue": package_value,

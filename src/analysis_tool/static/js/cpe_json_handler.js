@@ -315,22 +315,19 @@ function generateAllConfigurationsJson() {
  * @returns {Object} CPE match object
  */
 function createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable) {
-    // Get non-specific version values from the injected Python list (single source of truth)
-    // Fall back to hardcoded list if injection failed
-    const nonSpecificVersions = (window.NON_SPECIFIC_VERSION_VALUES || [
-        "unspecified", "unknown", "none", "undefined", "various",
-        "n/a", "not available", "not applicable", "unavailable",
-        "na", "nil", "tbd", "to be determined", "pending",
-        "not specified", "not determined", "not known", "not listed",
-        "not provided", "missing", "empty", "null"
-    ]).concat(["*"]); // Always include "*" as a wildcard
+    // Get version placeholder values from the injected domain-specific array
+    const versionPlaceholders = (window.VERSION_PLACEHOLDER_VALUES || []).concat(["*"]); // Always include "*" as a wildcard
+    
+    if (!window.VERSION_PLACEHOLDER_VALUES) {
+        console.error('VERSION_PLACEHOLDER_VALUES not properly injected from Python');
+    }
     
     // Handle single version with no range indicators
     if (versionInfo.version && !versionInfo.lessThan && !versionInfo.lessThanOrEqual && 
         !versionInfo.greaterThan && !versionInfo.greaterThanOrEqual) {
         
         // Special case: If version is a wildcard or n/a value, keep the wildcard in the criteria
-        if (nonSpecificVersions.includes(versionInfo.version.toLowerCase())) {
+        if (versionPlaceholders.includes(versionInfo.version.toLowerCase())) {
             return {
                 "criteria": cpeBase, // Keep base CPE with wildcard intact
                 "matchCriteriaId": generateMatchCriteriaId(),
@@ -360,8 +357,8 @@ function createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable) {
         
         // Handle start version (lower bound)
         // If version is a wildcard or n/a value, don't include any start version constraint
-        const hasNonSpecificStartVersion = versionInfo.version && nonSpecificVersions.includes(versionInfo.version.toLowerCase());
-        if (versionInfo.version && !hasNonSpecificStartVersion) {
+        const hasPlaceholderStartVersion = versionInfo.version && versionPlaceholders.includes(versionInfo.version.toLowerCase());
+        if (versionInfo.version && !hasPlaceholderStartVersion) {
             cpeMatch.versionStartIncluding = window.formatCPEComponent ? 
                 window.formatCPEComponent(versionInfo.version) : 
                 versionInfo.version;
@@ -377,13 +374,13 @@ function createCpeMatchFromVersionInfo(cpeBase, versionInfo, isVulnerable) {
         
         // Handle end version (upper bound)
         // If lessThan/lessThanOrEqual is a wildcard or n/a value, don't include any end version constraint
-        const hasNonSpecificLessThan = versionInfo.lessThan && nonSpecificVersions.includes(versionInfo.lessThan.toLowerCase());
-        const hasNonSpecificLessThanOrEqual = versionInfo.lessThanOrEqual && nonSpecificVersions.includes(versionInfo.lessThanOrEqual.toLowerCase());
+        const hasPlaceholderLessThan = versionInfo.lessThan && versionPlaceholders.includes(versionInfo.lessThan.toLowerCase());
+        const hasPlaceholderLessThanOrEqual = versionInfo.lessThanOrEqual && versionPlaceholders.includes(versionInfo.lessThanOrEqual.toLowerCase());
         
-        if (versionInfo.lessThan && !hasNonSpecificLessThan) {
+        if (versionInfo.lessThan && !hasPlaceholderLessThan) {
             cpeMatch.versionEndExcluding = window.formatCPEComponent ?                window.formatCPEComponent(versionInfo.lessThan) : 
                 versionInfo.lessThan;
-        } else if (versionInfo.lessThanOrEqual && !hasNonSpecificLessThanOrEqual) {
+        } else if (versionInfo.lessThanOrEqual && !hasPlaceholderLessThanOrEqual) {
             cpeMatch.versionEndIncluding = window.formatCPEComponent ? 
                 window.formatCPEComponent(versionInfo.lessThanOrEqual) : 
                 versionInfo.lessThanOrEqual;

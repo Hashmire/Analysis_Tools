@@ -24,7 +24,7 @@
       "descriptions": [
         {
           "lang": "en",
-          "value": "This CVE record is specifically designed to test placeholder data detection across all supported fields: vendor, product, packageName, platforms, and version fields. Each test case targets specific placeholder patterns from NON_SPECIFIC_VERSION_VALUES."
+          "value": "This CVE record is specifically designed to test placeholder data detection across all supported fields: vendor, product, packageName, platforms, and version fields. Each test case targets specific placeholder patterns from domain-specific placeholder arrays (GENERAL_PLACEHOLDER_VALUES and VERSION_PLACEHOLDER_VALUES)."
         }
       ],
       "affected": [
@@ -40,6 +40,7 @@
   { "vendor": "Test Vendor", "product": "Test Product", "platforms": ["N/A"], "versions": [{ "version": "8.0.0", "status": "affected" }] },
   { "vendor": "Test Vendor", "product": "Test Product", "versions": [{ "version": "N/A", "status": "affected" }] },
 
+  { "vendor": "Test Vendor", "product": "Test Product", "platforms": ["all"], "versions": [{ "version": "8.5.0", "status": "affected" }] },
   { "vendor": "n/a", "product": "N/A", "versions": [{ "version": "unknown", "status": "affected" }] },
   { "vendor": "Test Vendor", "product": "Test Product", "platforms": ["unspecified", "various", "none"], "versions": [{ "version": "9.0.0", "status": "affected" }] },
   { "vendor": "n/a", "product": "Test Product", "versions": [{ "version": "none", "status": "affected" }, { "version": "unknown", "status": "affected" }] },

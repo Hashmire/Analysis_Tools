@@ -13,7 +13,7 @@ import json
 # Import Analysis Tool 
 from . import gatherData
 from . import generateHTML
-from .badge_modal_system import NON_SPECIFIC_VERSION_VALUES
+from .badge_modal_system import GENERAL_PLACEHOLDER_VALUES
 from ..storage.cpe_cache import CPECache, get_global_cache_manager
 from ..storage.nvd_source_manager import get_source_name, get_source_info, get_all_sources_for_cve
 
@@ -690,7 +690,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                             
                             # First check if this is a recognized placeholder value (case-insensitive)
                             platform_lower = platform_string.strip()
-                            is_placeholder = platform_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+                            is_placeholder = platform_lower in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]
                             
                             if is_placeholder:
                                 # This is a recognized placeholder - don't mark as unrecognized
@@ -759,7 +759,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                                 
                                 # First check if this is a placeholder value
                                 platform_lower = platform_item.lower().strip()
-                                is_placeholder = platform_lower in [v.lower() for v in NON_SPECIFIC_VERSION_VALUES]
+                                is_placeholder = platform_lower in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]
                                 
                                 if is_placeholder:
                                     # Console warning for placeholder values - attribution handled in badge generation

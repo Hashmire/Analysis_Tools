@@ -143,8 +143,17 @@ def get_test_cases():
             "expected_detected_value": "n/a"
         },
         {
-            "description": "Multiple field placeholders (vendor: n/a, product: N/A, version: unknown)",
+            "description": "Platform array placeholder detection (all)",
             "table_index": 10,
+            "affected_entry": {"vendor": "Test Vendor", "product": "Test Product", "platforms": ["all"], "versions": [{"version": "8.5.0", "status": "affected"}]},
+            "expected_concerns": 1,
+            "expected_field": "platforms[0]",
+            "expected_source_value": "all",
+            "expected_detected_value": "all"
+        },
+        {
+            "description": "Multiple field placeholders (vendor: n/a, product: N/A, version: unknown)",
+            "table_index": 11,
             "affected_entry": {"vendor": "n/a", "product": "N/A", "versions": [{"version": "unknown", "status": "affected"}]},
             "expected_concerns": 3,
             "expected_fields": ["vendor", "product", "version"],
@@ -153,7 +162,7 @@ def get_test_cases():
         },
         {
             "description": "Multiple platform placeholders (unspecified, various, none)",
-            "table_index": 11,
+            "table_index": 12,
             "affected_entry": {"vendor": "Test Vendor", "product": "Test Product", "platforms": ["unspecified", "various", "none"], "versions": [{"version": "9.0.0", "status": "affected"}]},
             "expected_concerns": 3,
             "expected_fields": ["platforms[0]", "platforms[1]", "platforms[2]"],
@@ -162,7 +171,7 @@ def get_test_cases():
         },
         {
             "description": "Multiple version placeholders (none, unknown)",
-            "table_index": 12,
+            "table_index": 13,
             "affected_entry": {"vendor": "n/a", "product": "Test Product", "versions": [{"version": "none", "status": "affected"}, {"version": "unknown", "status": "affected"}]},
             "expected_concerns": 3,
             "expected_fields": ["vendor", "version", "version"],
@@ -171,7 +180,7 @@ def get_test_cases():
         },
         {
             "description": "Changes array placeholder detection (at: unspecified, unknown)",
-            "table_index": 13,
+            "table_index": 14,
             "affected_entry": {"vendor": "Test Vendor", "product": "Test Product", "versions": [{"version": "10.0.0", "status": "affected", "changes": [{"at": "unspecified", "status": "unaffected"}, {"at": "unknown", "status": "unaffected"}]}]},
             "expected_concerns": 2,
             "expected_fields": ["changes[0].at", "changes[1].at"],
@@ -180,7 +189,7 @@ def get_test_cases():
         },
         {
             "description": "Comprehensive placeholders (vendor, product, packageName, platforms, version, lessThan, changes.at)",
-            "table_index": 14,
+            "table_index": 15,
             "affected_entry": {"vendor": "n/a", "product": "not available", "packageName": "unknown", "platforms": ["various", "unspecified", "Windows", "Linux"], "versions": [{"version": "undefined", "lessThan": "pending", "status": "affected", "changes": [{"at": "tbd", "status": "unaffected"}, {"at": "1.2.3", "status": "unaffected"}]}]},
             "expected_concerns": 8,
             "expected_fields": ["vendor", "product", "version", "lessThan", "changes[0].at", "platforms[0]", "platforms[1]", "packageName"],
@@ -189,13 +198,13 @@ def get_test_cases():
         },
         {
             "description": "No placeholders detected - valid vendor/product/package/platforms/version",
-            "table_index": 15,
+            "table_index": 16,
             "affected_entry": {"vendor": "Valid-Vendor", "product": "Valid Product Name", "packageName": "valid-package", "platforms": ["Windows", "Linux"], "versions": [{"version": "1.2.3", "lessThan": "1.3.0", "status": "affected"}]},
             "expected_concerns": 0
         },
         {
             "description": "No placeholders detected - hyphenated/multi-word valid values",
-            "table_index": 16,
+            "table_index": 17,
             "affected_entry": {"vendor": "Multi-Word-Vendor", "product": "Test-Product-Name", "packageName": "hyphenated-package-name", "platforms": ["x86_64"], "versions": [{"version": "1.0-beta", "status": "affected"}]},
             "expected_concerns": 0
         }
