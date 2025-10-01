@@ -1,0 +1,109 @@
+{
+    "cnaId": "547ada31-17d8-4964-bc5f-1b8238ba8014",
+    "confirmedMappings": [
+        {
+            "cpeBaseString": "cpe:2.3:a:jetbrains:clion:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "JetBrains",
+                    "product": "CLion"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:jetbrains:datagrip:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "JetBrains",
+                    "product": "DataGrip"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:jetbrains:dottrace:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "JetBrains",
+                    "product": "dotTrace"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:jetbrains:etw_host_service:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "JetBrains",
+                    "product": "ETW Host Service"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:jetbrains:ide_services:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "JetBrains",
+                    "product": "IDE Services"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:jetbrains:gateway:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "JetBrains",
+                    "product": "JetBrains Gateway"
+                },
+                {
+                    "vendor": "JetBrains",
+                    "product": "Gateway"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:jetbrains:junie:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "JetBrains",
+                    "product": "Junie"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:jetbrains:mps:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "JetBrains",
+                    "product": "MPS"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:jetbrains:resharper:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "JetBrains",
+                    "product": "ReSharper"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:jetbrains:runtime:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "JetBrains",
+                    "product": "Runtime",
+                    "platform": "macOS"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:jetbrains:rustrover:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "JetBrains",
+                    "product": "RustRover"
+                }
+            ]
+        }
+    ]
+}
