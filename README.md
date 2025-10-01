@@ -4,7 +4,15 @@ Tools for processing CVE records and generating CPE Applicability Statements. Pr
 
 ## Overview
 
-**Understanding the Problem Space**: For comprehensive insight into the cybersecurity challenges this tool addresses, see [CPE Automation Challenges](documentation/cpe_automation_challenges.md).
+**Understanding the Problem Space**:
+
+For comprehensive insight into the challenges this tool addresses, see [CPE Automation Challenges](documentation/cpe_automation_challenges.md).
+
+**Dashboard Quick Links**:  
+
+- [Confirmed Mapping Dashboard](https://hashmire.github.io/Analysis_Tools/dashboards/confirmedMappingDashboard.html)
+- [Source Data Concerns Dashboard](https://hashmire.github.io/Analysis_Tools/dashboards/sourceDataConcernDashboard.html)
+- [Generate Dataset Dashboard](https://hashmire.github.io/Analysis_Tools/dashboards/generateDatasetDashboard.html)
 
 ### CPE Applicability Generator
 
@@ -17,16 +25,6 @@ Processes CVE records to generate CPE Applicability Statements:
 - Generates HTML reports for user review and selection
 - Produces CPE Applicability Statements (configurations) from selected CPE Base Strings
 
-### Features
-
-- **Dashboards** for monitoring processing progress, performance and source data concerns
-- **Caching system** reduces API calls by caching responses locally
-- **Rules engine** for automated CPE Applicability Statement JSON generation
-- **Interactive Modal System** for display of contextual data to assist with user review
-- **Unified runs structure** maintains all output in timestamped run directories
-- **Comprehensive test suites** for validating functionality
-
-All generated datasets are tracked in run-specific directories under `runs/[timestamp]_[context]/logs/` with metadata for future differential updates.
 
 ## Documentation
 
@@ -55,21 +53,6 @@ _Note: Not all CVEs are currently present in the dataset._
 
 ## Usage
 
-### Single CVE Commands
-
-```bash
-# Single CVE analysis
-python run_tools.py --cve CVE-2024-20515
-
-# Multiple CVEs from file
-python run_tools.py --file testExamples.txt
-
-# Test file processing
-python run_tools.py --test-file test_files/testModularRulesEnhanced.json
-
-# Disable cache for testing
-python run_tools.py --cve CVE-2024-20515 --no-cache
-```
 
 ### Dataset Generation
 
@@ -86,9 +69,3 @@ python generate_dataset.py --start-date 2024-01-01 --end-date 2024-01-31
 
 All dataset outputs are isolated in run-specific directories under `runs/[timestamp]_[context]/logs/`.
 
-## Dashboards
-
-The system includes two monitoring dashboards:
-
-- **Dataset Generation Dashboard** (`dashboards/generateDatasetDashboard.html`) - Monitors dataset generation progress with processing statistics and ETA calculations
-- **Source Data Concern Dashboard** (`dashboards/sourceDataConcernDashboard.html`) - Tracks data quality concerns
