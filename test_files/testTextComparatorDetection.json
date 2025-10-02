@@ -77,6 +77,31 @@
           "vendor": "Test Vendor",
           "product": "Test Product",
           "versions": [{"version": "5.1.2 - 5.2.0", "changes": [{"at": "from 10.0 - 11.5", "status": "unaffected"}], "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "1.8.1-0", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "2.4.1-rc1", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "about 3.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "3.0.0", "lessThanOrEqual": "4.0.0 inclusive", "status": "affected"}]
+        },
+        {
+          "vendor": "Test Vendor",
+          "product": "Test Product",
+          "versions": [{"version": "recent versions", "status": "affected"}]
         }
       ]
     }

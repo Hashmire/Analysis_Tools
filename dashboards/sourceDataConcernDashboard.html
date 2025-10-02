@@ -1153,6 +1153,111 @@
             font-style: italic;
         }
 
+        /* === PROCESSING OVERLAY === */
+        .processing-overlay {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            background: rgba(0, 0, 0, 0.3) !important;
+            backdrop-filter: blur(2px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 999999 !important;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            pointer-events: auto !important;
+        }
+        
+        .processing-card {
+            background: linear-gradient(135deg, #EDE9FE 0%, #F3F4F6 100%);
+            border: 2px solid #8B5CF6;
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(139, 92, 246, 0.3);
+            min-width: 300px;
+            max-width: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .processing-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.1), transparent);
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+        
+        .processing-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #EDE9FE;
+            border-top: 4px solid #8B5CF6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .processing-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #5B21B6;
+            margin-bottom: 8px;
+        }
+        
+        .processing-message {
+            font-size: 14px;
+            color: #7C3AED;
+            margin-bottom: 16px;
+            line-height: 1.4;
+        }
+        
+        .processing-progress {
+            background: #EDE9FE;
+            border-radius: 8px;
+            height: 6px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+        
+        .processing-progress-bar {
+            background: linear-gradient(90deg, #8B5CF6, #A855F7, #8B5CF6);
+            height: 100%;
+            border-radius: 8px;
+            transition: width 0.3s ease;
+            background-size: 20px 20px;
+            animation: progress-animation 1.5s linear infinite;
+        }
+        
+        @keyframes progress-animation {
+            0% { background-position: 0 0; }
+            100% { background-position: 20px 0; }
+        }
+        
+        .processing-details {
+            font-size: 12px;
+            color: #8B5CF6;
+            font-weight: 500;
+        }
+
         .error {
             background: #FEF2F2;
             color: #DC2626;
@@ -2365,8 +2470,13 @@
                 } else if (isVersionField(field)) {
                     categories['Version Parsing Issues'].push(concern);
                 } else {
-                    // Strict validation - unknown field domains should throw error
-                    throw new Error(`Unknown field domain in concern: "${field}". Expected CPE base fields (vendor, product, packageName, platforms[*]) or version fields (version, lessThan, lessThanOrEqual, changes[*]).`);
+                    // Log error and continue processing without categorizing unrecognized fields
+                    console.error(`Unknown field domain in concern - skipping categorization:`, {
+                        field: field,
+                        concernType: 'fieldDomain',
+                        sourceValue: concern.sourceValue,
+                        message: 'Field domain not recognized by frontend categorization logic. Continuing without categorization.'
+                    });
                 }
             });
             
@@ -2377,44 +2487,25 @@
          * Categorize Text Comparator concerns into semantic sub-categories (Version-focused, no fallbacks)
          */
         function categorizeTextComparators(concerns) {
-            const categories = {
-                'Range Separators': [],
-                'Upper Bound Comparators': [],
-                'Lower Bound Comparators': [],
-                'Approximation Patterns': [],
-                'Inclusive/Exclusive Indicators': [],
-                'Reference Directives': []
-            };
-            
-            // Patterns aligned with backend TEXT_COMPARATOR_PATTERNS (exact match)
-            const rangePatterns = ['through', 'thru', 'between', 'and', 'to'];
-            const upperBoundPatterns = ['prior to', 'earlier than', 'before', 'until', 'below', 'up to'];
-            const lowerBoundPatterns = ['later than', 'newer than', 'after', 'since', 'from', 'above'];
-            const approximationPatterns = ['about', 'approximately', 'circa', 'around', 'roughly'];
-            const inclusivePatterns = ['inclusive', 'exclusive', 'including', 'excluding'];
-            const referencePatterns = ['see references', 'see advisory', 'refer to', 'check', 'noted'];
+            const categories = {};
             
             concerns.forEach(concern => {
-                const concernText = (concern.concern || concern.issue || concern.sourceValue || '').toLowerCase();
-                const detectedPattern = concern.detectedPattern?.detectedValue || concern.detectedPattern || '';
-                const searchText = `${concernText} ${detectedPattern}`.toLowerCase();
+                const patternType = concern.detectedPattern?.patternType;
                 
-                // Check patterns in order of priority (multi-word first, then single-word)
-                if (referencePatterns.some(pattern => searchText.includes(pattern))) {
-                    categories['Reference Directives'].push(concern);
-                } else if (upperBoundPatterns.some(pattern => searchText.includes(pattern))) {
-                    categories['Upper Bound Comparators'].push(concern);
-                } else if (lowerBoundPatterns.some(pattern => searchText.includes(pattern))) {
-                    categories['Lower Bound Comparators'].push(concern);
-                } else if (approximationPatterns.some(pattern => searchText.includes(pattern))) {
-                    categories['Approximation Patterns'].push(concern);
-                } else if (inclusivePatterns.some(pattern => searchText.includes(pattern))) {
-                    categories['Inclusive/Exclusive Indicators'].push(concern);
-                } else if (rangePatterns.some(pattern => searchText.includes(pattern))) {
-                    categories['Range Separators'].push(concern);
+                if (patternType) {
+                    // Use backend-provided pattern type for categorization
+                    if (!categories[patternType]) {
+                        categories[patternType] = [];
+                    }
+                    categories[patternType].push(concern);
                 } else {
-                    // Strict validation - unknown text comparator patterns should throw error
-                    throw new Error(`Unknown text comparator pattern detected: "${detectedPattern}" in field: <code>${concern.field}</code>. Pattern not found in backend TEXT_COMPARATOR_PATTERNS.`);
+                    // Log error and continue processing without categorizing malformed concerns
+                    console.error(`Text comparator concern missing patternType - skipping categorization:`, {
+                        field: concern.field,
+                        sourceValue: concern.sourceValue,
+                        detectedPattern: concern.detectedPattern,
+                        message: 'Concern processed by backend without patternType assignment. Continuing without categorization.'
+                    });
                 }
             });
             
@@ -2426,29 +2517,46 @@
          */
         function categorizePlaceholderData(concerns) {
             const categories = {
-                'Vendor Placeholders': [],
-                'Product Placeholders': [],
-                'Platform Placeholders': [],
-                'Version Placeholders': [],
-                'Package Placeholders': []
+                'vendor': [],
+                'product': [],
+                'platforms': [],
+                'version': [],
+                'lessThan': [],
+                'lessThanOrEqual': [],
+                'changes': [],
+                'packageName': []
             };
             
             concerns.forEach(concern => {
                 const field = concern.field || '';
                 
                 if (field === 'vendor') {
-                    categories['Vendor Placeholders'].push(concern);
+                    categories['vendor'].push(concern);
                 } else if (field === 'product') {
-                    categories['Product Placeholders'].push(concern);
+                    categories['product'].push(concern);
                 } else if (field === 'packageName') {
-                    categories['Package Placeholders'].push(concern);
+                    categories['packageName'].push(concern);
                 } else if (field.startsWith('platforms[')) {
-                    categories['Platform Placeholders'].push(concern);
+                    categories['platforms'].push(concern);
+                } else if (field === 'version') {
+                    categories['version'].push(concern);
+                } else if (field === 'lessThan') {
+                    categories['lessThan'].push(concern);
+                } else if (field === 'lessThanOrEqual') {
+                    categories['lessThanOrEqual'].push(concern);
+                } else if (field.includes('changes[') && field.includes('.at')) {
+                    categories['changes'].push(concern);
                 } else if (isVersionField(field)) {
-                    categories['Version Placeholders'].push(concern);
+                    // Fallback for other version-related fields
+                    categories['version'].push(concern);
                 } else {
-                    // Strict validation - unknown fields should throw error
-                    throw new Error(`Unknown field type in placeholder detection: "${field}". Expected vendor, product, packageName, platforms[*], or version fields (version, lessThan, lessThanOrEqual, changes[*].at).`);
+                    // Log error and continue processing without categorizing unrecognized fields
+                    console.error(`Unknown field type in placeholder detection - skipping categorization:`, {
+                        field: field,
+                        concernType: 'placeholderData',
+                        sourceValue: concern.sourceValue,
+                        message: 'Field type not recognized by frontend categorization logic. Continuing without categorization.'
+                    });
                 }
             });
             
@@ -2459,26 +2567,139 @@
          * Categorize Mathematical Comparator concerns into field-based sub-categories
          */
         function categorizeMathematicalComparators(concerns) {
-            return categorizeByFieldDomain(concerns, ['vendor', 'product', 'packageName']);
+            const categories = {
+                'vendor': [],
+                'product': [],
+                'platforms': [],
+                'version': [],
+                'lessThan': [],
+                'lessThanOrEqual': [],
+                'changes': [],
+                'packageName': []
+            };
+            
+            concerns.forEach(concern => {
+                const field = concern.field || '';
+                
+                if (field === 'vendor') {
+                    categories['vendor'].push(concern);
+                } else if (field === 'product') {
+                    categories['product'].push(concern);
+                } else if (field === 'packageName') {
+                    categories['packageName'].push(concern);
+                } else if (field.startsWith('platforms[')) {
+                    categories['platforms'].push(concern);
+                } else if (field === 'version') {
+                    categories['version'].push(concern);
+                } else if (field === 'lessThan') {
+                    categories['lessThan'].push(concern);
+                } else if (field === 'lessThanOrEqual') {
+                    categories['lessThanOrEqual'].push(concern);
+                } else if (field.includes('changes[') && field.includes('.at')) {
+                    categories['changes'].push(concern);
+                } else if (isVersionField(field)) {
+                    // Fallback for other version-related fields
+                    categories['version'].push(concern);
+                } else {
+                    // Log error and continue processing without categorizing unrecognized fields
+                    console.error(`Unknown field type in mathematical comparator detection - skipping categorization:`, {
+                        field: field,
+                        concernType: 'mathematicalComparators',
+                        sourceValue: concern.sourceValue,
+                        message: 'Field type not recognized by frontend categorization logic. Continuing without categorization.'
+                    });
+                }
+            });
+            
+            return categories;
         }
         
         /**
-         * Categorize Whitespace Issues into field-based sub-categories
+         * Categorize Whitespace Issues by whitespace pattern type
          */
         function categorizeWhitespaceIssues(concerns) {
-            return categorizeByFieldDomain(concerns);
+            const categories = {
+                'leading': [],
+                'trailing': [],
+                'excessive': []
+            };
+            
+            concerns.forEach(concern => {
+                const whitespaceTypes = concern.detectedPattern?.whitespaceTypes || [];
+                
+                // Each concern can have multiple whitespace types, add to all applicable categories
+                whitespaceTypes.forEach(type => {
+                    if (categories[type]) {
+                        categories[type].push(concern);
+                    } else {
+                        // Log error for unknown whitespace types
+                        console.error(`Unknown whitespace type - skipping categorization:`, {
+                            whitespaceType: type,
+                            concernType: 'whitespaceIssues',
+                            field: concern.field,
+                            sourceValue: concern.sourceValue,
+                            message: 'Whitespace type not recognized by frontend categorization logic.'
+                        });
+                    }
+                });
+            });
+            
+            return categories;
         }
         
         /**
-         * Categorize Invalid Character concerns into sub-categories
+         * Categorize Invalid Character concerns into field-based sub-categories
          */
         function categorizeInvalidCharacters(concerns) {
-            // All invalid character concerns are version-related based on implementation
-            return { 'Invalid Version Characters': concerns };
+            const categories = {
+                'vendor': [],
+                'product': [],
+                'platforms': [],
+                'version': [],
+                'lessThan': [],
+                'lessThanOrEqual': [],
+                'changes': [],
+                'packageName': []
+            };
+            
+            concerns.forEach(concern => {
+                const field = concern.field || '';
+                
+                if (field === 'vendor') {
+                    categories['vendor'].push(concern);
+                } else if (field === 'product') {
+                    categories['product'].push(concern);
+                } else if (field === 'packageName') {
+                    categories['packageName'].push(concern);
+                } else if (field.startsWith('platforms[')) {
+                    categories['platforms'].push(concern);
+                } else if (field === 'version') {
+                    categories['version'].push(concern);
+                } else if (field === 'lessThan') {
+                    categories['lessThan'].push(concern);
+                } else if (field === 'lessThanOrEqual') {
+                    categories['lessThanOrEqual'].push(concern);
+                } else if (field.includes('changes[') && field.includes('.at')) {
+                    categories['changes'].push(concern);
+                } else if (isVersionField(field)) {
+                    // Fallback for other version-related fields
+                    categories['version'].push(concern);
+                } else {
+                    // Log error and continue processing without categorizing unrecognized fields
+                    console.error(`Unknown field type in invalid character detection - skipping categorization:`, {
+                        field: field,
+                        concernType: 'invalidCharacters',
+                        sourceValue: concern.sourceValue,
+                        message: 'Field type not recognized by frontend categorization logic. Continuing without categorization.'
+                    });
+                }
+            });
+            
+            return categories;
         }
         
         /**
-         * Categorize Version Granularity concerns into base-grouped sub-categories
+         * Categorize Version Granularity concerns by count of unique granularities
          */
         function categorizeVersionGranularity(concerns) {
             const categories = {};
@@ -2487,23 +2708,41 @@
                 return categories;
             }
             
-            // Group by base version - each base represents a unique issue
+            // Group concerns by base version and count unique granularities per base
+            const baseGroups = {};
+            
             concerns.forEach(concern => {
-                if (!concern.detectedPattern || !concern.detectedPattern.base) {
-                    // Handle concerns without proper base pattern
-                    const categoryName = 'Unknown Base Version';
+                if (!concern.detectedPattern || !concern.detectedPattern.base || !concern.detectedPattern.granularity) {
+                    // Handle concerns without proper pattern
+                    const categoryName = 'Unknown Granularity';
                     if (!categories[categoryName]) categories[categoryName] = [];
                     categories[categoryName].push(concern);
                     return;
                 }
                 
                 const base = concern.detectedPattern.base;
-                const granularity = concern.detectedPattern.granularity || '?';
+                const granularity = concern.detectedPattern.granularity;
                 
-                // Create category name that shows the base and granularity range
-                const categoryName = `Base ${base} Granularity Issues`;
+                if (!baseGroups[base]) {
+                    baseGroups[base] = {
+                        granularities: new Set(),
+                        concerns: []
+                    };
+                }
+                
+                baseGroups[base].granularities.add(granularity);
+                baseGroups[base].concerns.push(concern);
+            });
+            
+            // Create categories based on count of unique granularities
+            Object.values(baseGroups).forEach(group => {
+                const uniqueGranularityCount = group.granularities.size;
+                const categoryName = uniqueGranularityCount === 1 ? 
+                    `${uniqueGranularityCount} Granularity` : 
+                    `${uniqueGranularityCount} Granularities`;
+                
                 if (!categories[categoryName]) categories[categoryName] = [];
-                categories[categoryName].push(concern);
+                categories[categoryName].push(...group.concerns);
             });
             
             return categories;
@@ -2517,6 +2756,7 @@
             const categories = {
                 'Cross-Entry Conflicts': [],
                 'Range Boundary Conflicts': [],
+                'Identical Ranges': [],
                 'Version Array Overlaps': []
             };
             
@@ -2531,8 +2771,11 @@
                 if (overlapType === 'wildcard_multiple_bounds') {
                     // Wildcard overlaps with multiple bounds
                     categories['Version Array Overlaps'].push(concern);
-                } else if (['identical_ranges', 'partial_overlap', 'range1_contains_range2', 'range2_contains_range1'].includes(overlapType)) {
-                    // Standard numeric range overlaps
+                } else if (overlapType === 'identical_ranges') {
+                    // Exact duplicate ranges
+                    categories['Identical Ranges'].push(concern);
+                } else if (['partial_overlap', 'range1_contains_range2', 'range2_contains_range1'].includes(overlapType)) {
+                    // Standard numeric range overlaps (but not identical)
                     categories['Range Boundary Conflicts'].push(concern);
                 } else {
                     // Default fallback for any other types
@@ -2544,22 +2787,50 @@
         }
 
         /**
-         * Categorize All Versions Patterns concerns into pattern-based sub-categories
+         * Categorize All Versions Patterns concerns into field-based sub-categories
          */
         function categorizeAllVersionsPatterns(concerns) {
             const categories = {
-                'All Versions Variations': [],
-                'Any Versions Variations': []
+                'vendor': [],
+                'product': [],
+                'platforms': [],
+                'version': [],
+                'lessThan': [],
+                'lessThanOrEqual': [],
+                'changes': [],
+                'packageName': []
             };
             
             concerns.forEach(concern => {
-                const pattern = concern.detectedPattern?.detectedValue || '';
-                if (pattern.toLowerCase().includes('all')) {
-                    categories['All Versions Variations'].push(concern);
-                } else if (pattern.toLowerCase().includes('any')) {
-                    categories['Any Versions Variations'].push(concern);
+                const field = concern.field || '';
+                
+                if (field === 'vendor') {
+                    categories['vendor'].push(concern);
+                } else if (field === 'product') {
+                    categories['product'].push(concern);
+                } else if (field === 'packageName') {
+                    categories['packageName'].push(concern);
+                } else if (field.startsWith('platforms[')) {
+                    categories['platforms'].push(concern);
+                } else if (field === 'version') {
+                    categories['version'].push(concern);
+                } else if (field === 'lessThan') {
+                    categories['lessThan'].push(concern);
+                } else if (field === 'lessThanOrEqual') {
+                    categories['lessThanOrEqual'].push(concern);
+                } else if (field.includes('changes[') && field.includes('.at')) {
+                    categories['changes'].push(concern);
+                } else if (isVersionField(field)) {
+                    // Fallback for other version-related fields
+                    categories['version'].push(concern);
                 } else {
-                    categories['All Versions Variations'].push(concern);
+                    // Log error and continue processing without categorizing unrecognized fields
+                    console.error(`Unknown field type in all versions pattern detection - skipping categorization:`, {
+                        field: field,
+                        concernType: 'allVersionsPatterns',
+                        sourceValue: concern.sourceValue,
+                        message: 'Field type not recognized by frontend categorization logic. Continuing without categorization.'
+                    });
                 }
             });
             
@@ -2567,22 +2838,50 @@
         }
         
         /**
-         * Categorize Bloat Text Detection concerns into bloat type sub-categories
+         * Categorize Bloat Text Detection concerns into field-based sub-categories
          */
         function categorizeBloatTextDetection(concerns) {
             const categories = {
-                'Version Prefixes': [],
-                'Version Abbreviations': []
+                'vendor': [],
+                'product': [],
+                'platforms': [],
+                'version': [],
+                'lessThan': [],
+                'lessThanOrEqual': [],
+                'changes': [],
+                'packageName': []
             };
             
             concerns.forEach(concern => {
-                const pattern = concern.detectedPattern?.detectedValue || '';
-                if (pattern.toLowerCase() === 'ver') {
-                    categories['Version Abbreviations'].push(concern);
-                } else if (pattern.toLowerCase().includes('version')) {
-                    categories['Version Prefixes'].push(concern);
+                const field = concern.field || '';
+                
+                if (field === 'vendor') {
+                    categories['vendor'].push(concern);
+                } else if (field === 'product') {
+                    categories['product'].push(concern);
+                } else if (field === 'packageName') {
+                    categories['packageName'].push(concern);
+                } else if (field.startsWith('platforms[')) {
+                    categories['platforms'].push(concern);
+                } else if (field === 'version') {
+                    categories['version'].push(concern);
+                } else if (field === 'lessThan') {
+                    categories['lessThan'].push(concern);
+                } else if (field === 'lessThanOrEqual') {
+                    categories['lessThanOrEqual'].push(concern);
+                } else if (field.includes('changes[') && field.includes('.at')) {
+                    categories['changes'].push(concern);
+                } else if (isVersionField(field)) {
+                    // Fallback for other version-related fields
+                    categories['version'].push(concern);
                 } else {
-                    categories['Version Prefixes'].push(concern);
+                    // Log error and continue processing without categorizing unrecognized fields
+                    console.error(`Unknown field type in bloat text detection - skipping categorization:`, {
+                        field: field,
+                        concernType: 'bloatTextDetection',
+                        sourceValue: concern.sourceValue,
+                        message: 'Field type not recognized by frontend categorization logic. Continuing without categorization.'
+                    });
                 }
             });
             
@@ -3491,25 +3790,60 @@
                 return;
             }
             
+            // Show processing overlay for file loading
+            showProcessingOverlay(
+                'Loading Report Data',  
+                `Loading ${file.name}...`
+            );
+            
             const reader = new FileReader();
+            
+            // Update progress as file loads
+            reader.onprogress = function(event) {
+                if (event.lengthComputable) {
+                    const progress = (event.loaded / event.total) * 50; // First 50% for file reading
+                    updateProcessingProgress(progress, `Reading file: ${Math.round(progress)}%`);
+                }
+            };
+            
             reader.onload = function(e) {
                 try {
+                    updateProcessingProgress(50, 'Parsing JSON data...');
+                    
                     const jsonData = JSON.parse(e.target.result);
+                    
+                    updateProcessingProgress(75, 'Validating data structure...');
                     
                     // Validate the JSON structure
                     if (!jsonData.metadata || !jsonData.cve_data) {
+                        hideProcessingOverlay();
                         showError('Invalid JSON structure. Expected sourceDataConcernReport.json format.');
                         return;
                     }
                     
+                    updateProcessingProgress(90, 'Processing dashboard data...');
+                    
                     dashboardData = jsonData;
                     updateStatusBar(file, jsonData);
                     processLoadedData();
-                    showSuccess('Report loaded successfully');
+                    
+                    updateProcessingProgress(100, 'Complete!');
+                    
+                    // Hide overlay and show success message
+                    setTimeout(() => {
+                        hideProcessingOverlay();
+                        showSuccess('Report loaded successfully');
+                    }, 500);
                     
                 } catch (error) {
+                    hideProcessingOverlay();
                     showError(`Failed to parse JSON file: ${error.message}`);
                 }
+            };
+            
+            reader.onerror = function() {
+                hideProcessingOverlay();
+                showError('Failed to read the selected file.');
             };
             
             reader.readAsText(file);
@@ -4434,6 +4768,56 @@
             });
         }
         
+        // ========== PROCESSING OVERLAY FUNCTIONS ==========
+        
+        function showProcessingOverlay(title = 'Loading Data', message = 'Please wait while we load your data file...') {
+            const overlay = document.getElementById('processingOverlay');
+            const titleElement = document.getElementById('processingTitle');
+            const messageElement = document.getElementById('processingMessage');
+            const progressBar = document.getElementById('processingProgressBar');
+            const detailsElement = document.getElementById('processingDetails');
+            
+            if (!overlay) {
+                console.error('Processing overlay element not found!');
+                return;
+            }
+            
+            titleElement.textContent = title;
+            messageElement.textContent = message;
+            progressBar.style.width = '0%';
+            detailsElement.textContent = '';
+            
+            overlay.style.display = 'flex';
+            overlay.style.visibility = 'visible';
+        }
+        
+        function updateProcessingProgress(progress, details = '') {
+            const progressBar = document.getElementById('processingProgressBar');
+            const detailsElement = document.getElementById('processingDetails');
+            
+            // Ensure progress is between 0 and 100
+            progress = Math.max(0, Math.min(100, progress));
+            progressBar.style.width = progress + '%';
+            
+            if (details) {
+                detailsElement.textContent = details;
+            }
+        }
+        
+        function hideProcessingOverlay() {
+            const overlay = document.getElementById('processingOverlay');
+            overlay.style.display = 'none';
+        }
+        
+        function showProcessingWithSteps(title, steps, currentStep = 0) {
+            showProcessingOverlay(title, steps[currentStep] || 'Processing...');
+            
+            if (steps.length > 0) {
+                const progress = (currentStep / steps.length) * 100;
+                updateProcessingProgress(progress, `Step ${currentStep + 1} of ${steps.length}`);
+            }
+        }
+        
         // Initialize page        
         document.addEventListener('DOMContentLoaded', function() {
             const fileInput = document.getElementById('jsonFileInput');
@@ -4507,5 +4891,19 @@
             });
         });
     </script>
+
+    <!-- Processing Overlay (positioned at body level for maximum z-index effectiveness) -->
+    <div id="processingOverlay" class="processing-overlay">
+        <div class="processing-card">
+            <div class="processing-spinner"></div>
+            <div id="processingTitle" class="processing-title">Loading Data</div>
+            <div id="processingMessage" class="processing-message">Please wait while we load your data file...</div>
+            <div class="processing-progress">
+                <div id="processingProgressBar" class="processing-progress-bar" style="width: 0%;"></div>
+            </div>
+            <div id="processingDetails" class="processing-details"></div>
+        </div>
+    </div>
+
 </body>
 </html>

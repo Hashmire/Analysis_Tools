@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-SDC Invalid Charac        # Use helper function to find report in both standard and consolidated environments
-        return find_latest_test_run_report("sourceDataConcernReport.json") Suite
 
 Tests invalid character data detection by running test file and checking sourceDataConcernReport.json
 Outputs standardized test results: TEST_RESULTS: PASSED=X TOTAL=Y SUITE="Name"

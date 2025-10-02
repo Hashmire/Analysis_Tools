@@ -5,20 +5,6 @@ Text Comparator Detection Test Suite
 This test suite validates the detection of text patterns indicating version comparisons.
 It tests the TEXT_COMPARATOR_PATTERNS array defined in badge_modal_system.py.
 
-Text patterns detected:
-- Multi-word: "see references", "see advisory", "prior to", "earlier than", etc.
-- Single-word: "through", "before", "until", "after", "since", "from", etc.
-- Fields tested: version, lessThan, lessThanOrEqual, changes[].at
-
-Detection stores results in versionTextPatterns array with format:
-{
-    "vendor": "Test Vendor",
-    "product": "Test Product", 
-    "detectedPattern": "prior to",
-    "fieldName": "version",
-    "fieldValue": "prior to 1.2.3",
-    "matchedText": "prior to"
-}
 """
 
 import sys
@@ -93,14 +79,18 @@ def extract_version_text_patterns(report_data):
                                 detected_pattern = concern.get('detectedPattern', '')
                                 if isinstance(detected_pattern, dict):
                                     pattern_value = detected_pattern.get('detectedValue', '')
+                                    # Preserve the full detectedPattern object for validation
+                                    full_detected_pattern = detected_pattern
                                 else:
                                     pattern_value = detected_pattern
+                                    # Convert string to object format for consistency
+                                    full_detected_pattern = {'detectedValue': detected_pattern}
                                 
                                 # Transform to expected format
                                 pattern_info = {
                                     'vendor': platform_entry.get('vendor', ''),
                                     'product': platform_entry.get('product', ''),
-                                    'detectedPattern': pattern_value,
+                                    'detectedPattern': full_detected_pattern,  # Preserve full object
                                     'fieldName': concern.get('field', ''),
                                     'fieldValue': concern.get('sourceValue', ''),
                                     'matchedText': pattern_value
@@ -113,6 +103,40 @@ def extract_version_text_patterns(report_data):
         return patterns
 
 
+def validate_pattern_type_coverage(test_cases):
+    """Validate that we have test coverage for each pattern type"""
+    # Expected pattern types from backend
+    expected_pattern_types = {
+        'Upper Bound Comparators',
+        'Lower Bound Comparators', 
+        'Range Separators',
+        'Approximation Patterns',
+        'Inclusive/Exclusive Indicators',
+        'Temporal/Status Indicators',
+        'Hyphenated Version Range'
+    }
+    
+    # Get pattern types covered by test cases
+    covered_pattern_types = set()
+    for test_case in test_cases:
+        pattern_type = test_case.get('expected_pattern_type')
+        if pattern_type and pattern_type != '':
+            covered_pattern_types.add(pattern_type)
+    
+    # Check coverage
+    missing_types = expected_pattern_types - covered_pattern_types
+    extra_types = covered_pattern_types - expected_pattern_types
+    
+    if missing_types:
+        print(f"❌ COVERAGE ERROR: Missing test cases for pattern types: {missing_types}")
+        return False
+    
+    if extra_types:
+        print(f"⚠️  WARNING: Test cases for unexpected pattern types: {extra_types}")
+    
+    print(f"✅ COVERAGE: All {len(expected_pattern_types)} pattern types have test coverage")
+    return True
+
 def get_test_cases():
     """Define test cases with expected results based on testTextComparatorDetection.json"""
     return [
@@ -121,6 +145,7 @@ def get_test_cases():
             "expected_field": "version",
             "expected_source_value": "prior to 1.2.3",
             "expected_detected_value": "prior to",
+            "expected_pattern_type": "Upper Bound Comparators",
             "expected_concerns": 2,
             "affected_entry": {
                 "vendor": "Test Vendor",
@@ -133,6 +158,7 @@ def get_test_cases():
             "expected_field": "lessThan",
             "expected_source_value": "earlier than 2.0.0",
             "expected_detected_value": "earlier than",
+            "expected_pattern_type": "Upper Bound Comparators",
             "expected_concerns": 1,
             "affected_entry": {
                 "vendor": "Test Vendor", 
@@ -145,6 +171,7 @@ def get_test_cases():
             "expected_field": "lessThanOrEqual",
             "expected_source_value": "through version 3.0.0",
             "expected_detected_value": "through",
+            "expected_pattern_type": "Range Separators",
             "expected_concerns": 1,
             "affected_entry": {
                 "vendor": "Test Vendor",
@@ -157,6 +184,7 @@ def get_test_cases():
             "expected_field": "changes[0].at",
             "expected_source_value": "before 4.0.0",
             "expected_detected_value": "before",
+            "expected_pattern_type": "Upper Bound Comparators",
             "expected_concerns": 1,
             "affected_entry": {
                 "vendor": "Test Vendor",
@@ -169,6 +197,7 @@ def get_test_cases():
             "expected_field": "version",
             "expected_source_value": "after 5.0.0",
             "expected_detected_value": "after",
+            "expected_pattern_type": "Lower Bound Comparators",
             "expected_concerns": 1,
             "affected_entry": {
                 "vendor": "Test Vendor",
@@ -181,6 +210,7 @@ def get_test_cases():
             "expected_field": "version",
             "expected_source_value": "22.0.0",
             "expected_detected_value": "",
+            "expected_pattern_type": "",
             "expected_concerns": 0,
             "affected_entry": {
                 "vendor": "Test Vendor",
@@ -193,6 +223,7 @@ def get_test_cases():
             "expected_field": "version",
             "expected_source_value": "All Versions 1.5.0 - 1.5.7",
             "expected_detected_value": "1.5.0 - 1.5.7",
+            "expected_pattern_type": "Hyphenated Version Range",
             "expected_concerns": 1,
             "affected_entry": {
                 "vendor": "Test Vendor",
@@ -205,6 +236,7 @@ def get_test_cases():
             "expected_field": "version",
             "expected_source_value": "Version 32 - 37.011 w Windows package",
             "expected_detected_value": "32 - 37.011",
+            "expected_pattern_type": "Hyphenated Version Range",
             "expected_concerns": 1,
             "affected_entry": {
                 "vendor": "Test Vendor",
@@ -217,6 +249,7 @@ def get_test_cases():
             "expected_field": "version",
             "expected_source_value": "1.0 - 2.0",
             "expected_detected_value": "1.0 - 2.0",
+            "expected_pattern_type": "Hyphenated Version Range",
             "expected_concerns": 1,
             "affected_entry": {
                 "vendor": "Test Vendor",
@@ -229,11 +262,77 @@ def get_test_cases():
             "expected_field": "changes[0].at",
             "expected_source_value": "from 10.0 - 11.5",
             "expected_detected_value": "10.0 - 11.5",
+            "expected_pattern_type": "Hyphenated Version Range",
             "expected_concerns": 2,
             "affected_entry": {
                 "vendor": "Test Vendor",
                 "product": "Test Product",
                 "versions": [{"version": "5.1.2 - 5.2.0", "changes": [{"at": "from 10.0 - 11.5", "status": "unaffected"}], "status": "affected"}]
+            }
+        },
+        {
+            "description": "Legitimate version identifier '1.8.1-0' should NOT be detected as text comparator",
+            "expected_field": "version",
+            "expected_source_value": "1.8.1-0",
+            "expected_detected_value": "",
+            "expected_pattern_type": "",
+            "expected_concerns": 0,
+            "affected_entry": {
+                "vendor": "Test Vendor",
+                "product": "Test Product",
+                "versions": [{"version": "1.8.1-0", "status": "affected"}]
+            }
+        },
+        {
+            "description": "Legitimate version identifier '2.4.1-rc1' should NOT be detected as text comparator",
+            "expected_field": "version",
+            "expected_source_value": "2.4.1-rc1",
+            "expected_detected_value": "",
+            "expected_pattern_type": "",
+            "expected_concerns": 0,
+            "affected_entry": {
+                "vendor": "Test Vendor",
+                "product": "Test Product",
+                "versions": [{"version": "2.4.1-rc1", "status": "affected"}]
+            }
+        },
+        {
+            "description": "Approximation pattern: 'about' in version field",
+            "expected_field": "version",
+            "expected_source_value": "about 3.0.0",
+            "expected_detected_value": "about",
+            "expected_pattern_type": "Approximation Patterns",
+            "expected_concerns": 1,
+            "affected_entry": {
+                "vendor": "Test Vendor",
+                "product": "Test Product",
+                "versions": [{"version": "about 3.0.0", "status": "affected"}]
+            }
+        },
+        {
+            "description": "Inclusive indicator: 'inclusive' in lessThanOrEqual field",
+            "expected_field": "lessThanOrEqual",
+            "expected_source_value": "4.0.0 inclusive",
+            "expected_detected_value": "inclusive",
+            "expected_pattern_type": "Inclusive/Exclusive Indicators",
+            "expected_concerns": 1,
+            "affected_entry": {
+                "vendor": "Test Vendor",
+                "product": "Test Product",
+                "versions": [{"version": "3.0.0", "lessThanOrEqual": "4.0.0 inclusive", "status": "affected"}]
+            }
+        },
+        {
+            "description": "Temporal indicator: 'recent' in version field",
+            "expected_field": "version",
+            "expected_source_value": "recent versions",
+            "expected_detected_value": "recent",
+            "expected_pattern_type": "Temporal/Status Indicators",
+            "expected_concerns": 1,
+            "affected_entry": {
+                "vendor": "Test Vendor",
+                "product": "Test Product",
+                "versions": [{"version": "recent versions", "status": "affected"}]
             }
         }
     ]
@@ -274,14 +373,25 @@ def validate_test_case(concerns, test_case):
                 detected_pattern = concern.get('detectedPattern', '')
                 if isinstance(detected_pattern, dict):
                     pattern_value = detected_pattern.get('detectedValue', '')
+                    pattern_type = detected_pattern.get('patternType', '')
                 else:
                     pattern_value = detected_pattern
+                    pattern_type = ''
                 
                 pattern_match = pattern_value == test_case['expected_detected_value']
                 
+                # If we expect a specific pattern, match on pattern value
+                # If we expect a specific pattern type, match on that too
                 if field_match and source_match and pattern_match:
-                    matching_concern = concern
-                    break
+                    # For tests expecting specific patternType, check that too
+                    if test_case.get('expected_pattern_type') and test_case['expected_pattern_type'] != '':
+                        if pattern_type == test_case['expected_pattern_type']:
+                            matching_concern = concern
+                            break
+                    else:
+                        # No specific pattern type expected, just match on pattern value
+                        matching_concern = concern
+                        break
             
             value_match = matching_concern is not None
         else:
@@ -300,7 +410,7 @@ def validate_test_case(concerns, test_case):
         if test_case['expected_concerns'] == 0:
             expected_format = "No text patterns should be detected"
         else:
-            expected_format = f"field: '{test_case['expected_field']}', sourceValue: '{test_case['expected_source_value']}', detectedPattern: '{test_case['expected_detected_value']}'"
+            expected_format = f"field: '{test_case['expected_field']}', sourceValue: '{test_case['expected_source_value']}', detectedPattern: '{test_case['expected_detected_value']}', patternType: '{test_case.get('expected_pattern_type', '')}'"
         
         print(f"Expected Data: {test_case['expected_concerns']} concerns | {expected_format}")
         
@@ -310,9 +420,11 @@ def validate_test_case(concerns, test_case):
             detected_pattern = concern.get('detectedPattern', '')
             if isinstance(detected_pattern, dict):
                 pattern_value = detected_pattern.get('detectedValue', '')
+                pattern_type = detected_pattern.get('patternType', '')
             else:
                 pattern_value = detected_pattern
-            found_format = f"field: '{concern['fieldName']}', sourceValue: '{concern['fieldValue']}', detectedPattern: '{pattern_value}'"
+                pattern_type = ''
+            found_format = f"field: '{concern['fieldName']}', sourceValue: '{concern['fieldValue']}', detectedPattern: '{pattern_value}', patternType: '{pattern_type}'"
             print(f"Found: {len(concerns)} concerns | {found_format}")
         else:
             print(f"Found: {len(concerns)} concerns | No concerns found")
@@ -398,11 +510,19 @@ def test_text_comparator_detection():
 
 def run_all_tests():
     """Run all text comparator detection tests and validate results."""
+    # Validate pattern type coverage first
+    test_cases = get_test_cases()
+    coverage_valid = validate_pattern_type_coverage(test_cases)
+    
+    if not coverage_valid:
+        print(f'TEST_RESULTS: PASSED=0 TOTAL=0 SUITE="SDC Text Comparator Detection" ERROR="Pattern type coverage incomplete"')
+        return False
+    
     success = test_text_comparator_detection()
     
-    # Output standardized format for unified test runner
-    passed = 6 if success else 0  # We have 6 test cases
-    total = 6
+    # Output standardized format for unified test runner  
+    passed = 15 if success else 0  # We now have 15 test cases
+    total = 15
     print(f'TEST_RESULTS: PASSED={passed} TOTAL={total} SUITE="SDC Text Comparator Detection"')
     
     return success

@@ -763,7 +763,7 @@ def suggestCPEData(apiKey, rawDataset, case):
                                 
                                 if is_placeholder:
                                     # Console warning for placeholder values - attribution handled in badge generation
-                                    logger.warning(f"Platform placeholder detected: '{platform_item}' in {source_role} (Row {index}). "
+                                    logger.debug(f"Platform placeholder detected: '{platform_item}' in {source_role} (Row {index}). "
                                                   f"Source data concern attribution will be handled during badge generation.", 
                                                   group="DATA_PROC")
                                     continue  # Skip mapping attempt for placeholder values
