@@ -2432,6 +2432,27 @@
             'bloatTextDetection': 'Bloat Text Detection'
         };
 
+        // ===== DISPLAY NAME MAPPING FUNCTIONS =====
+        
+        /**
+         * Generate display names for field-based categories
+         */
+        function getFieldDisplayName(fieldKey, detectionType) {
+            return `${fieldKey} ${detectionType}`;
+        }
+        
+        /**
+         * Generate display names for whitespace categories
+         */
+        function getWhitespaceDisplayName(whitespaceType) {
+            const whitespaceDisplayNames = {
+                'leading': 'Leading Whitespace',
+                'trailing': 'Trailing Whitespace',
+                'excessive': 'Excessive Whitespace'
+            };
+            return whitespaceDisplayNames[whitespaceType] || whitespaceType;
+        }
+        
         // ===== COMPREHENSIVE CONCERN CATEGORIZATION SYSTEM =====
         
         /**
@@ -2516,39 +2537,36 @@
          * Categorize Placeholder Data concerns into field-based sub-categories
          */
         function categorizePlaceholderData(concerns) {
-            const categories = {
-                'vendor': [],
-                'product': [],
-                'platforms': [],
-                'version': [],
-                'lessThan': [],
-                'lessThanOrEqual': [],
-                'changes': [],
-                'packageName': []
-            };
+            const categories = {};
+            const fieldKeys = ['vendor', 'product', 'platforms', 'version', 'lessThan', 'lessThanOrEqual', 'changes', 'packageName'];
+            
+            // Initialize categories with display names
+            fieldKeys.forEach(key => {
+                categories[getFieldDisplayName(key, 'Placeholder')] = [];
+            });
             
             concerns.forEach(concern => {
                 const field = concern.field || '';
                 
                 if (field === 'vendor') {
-                    categories['vendor'].push(concern);
+                    categories[getFieldDisplayName('vendor', 'Placeholder')].push(concern);
                 } else if (field === 'product') {
-                    categories['product'].push(concern);
+                    categories[getFieldDisplayName('product', 'Placeholder')].push(concern);
                 } else if (field === 'packageName') {
-                    categories['packageName'].push(concern);
+                    categories[getFieldDisplayName('packageName', 'Placeholder')].push(concern);
                 } else if (field.startsWith('platforms[')) {
-                    categories['platforms'].push(concern);
+                    categories[getFieldDisplayName('platforms', 'Placeholder')].push(concern);
                 } else if (field === 'version') {
-                    categories['version'].push(concern);
+                    categories[getFieldDisplayName('version', 'Placeholder')].push(concern);
                 } else if (field === 'lessThan') {
-                    categories['lessThan'].push(concern);
+                    categories[getFieldDisplayName('lessThan', 'Placeholder')].push(concern);
                 } else if (field === 'lessThanOrEqual') {
-                    categories['lessThanOrEqual'].push(concern);
+                    categories[getFieldDisplayName('lessThanOrEqual', 'Placeholder')].push(concern);
                 } else if (field.includes('changes[') && field.includes('.at')) {
-                    categories['changes'].push(concern);
+                    categories[getFieldDisplayName('changes', 'Placeholder')].push(concern);
                 } else if (isVersionField(field)) {
                     // Fallback for other version-related fields
-                    categories['version'].push(concern);
+                    categories[getFieldDisplayName('version', 'Placeholder')].push(concern);
                 } else {
                     // Log error and continue processing without categorizing unrecognized fields
                     console.error(`Unknown field type in placeholder detection - skipping categorization:`, {
@@ -2567,39 +2585,36 @@
          * Categorize Mathematical Comparator concerns into field-based sub-categories
          */
         function categorizeMathematicalComparators(concerns) {
-            const categories = {
-                'vendor': [],
-                'product': [],
-                'platforms': [],
-                'version': [],
-                'lessThan': [],
-                'lessThanOrEqual': [],
-                'changes': [],
-                'packageName': []
-            };
+            const categories = {};
+            const fieldKeys = ['vendor', 'product', 'platforms', 'version', 'lessThan', 'lessThanOrEqual', 'changes', 'packageName'];
+            
+            // Initialize categories with display names
+            fieldKeys.forEach(key => {
+                categories[getFieldDisplayName(key, 'Comparators')] = [];
+            });
             
             concerns.forEach(concern => {
                 const field = concern.field || '';
                 
                 if (field === 'vendor') {
-                    categories['vendor'].push(concern);
+                    categories[getFieldDisplayName('vendor', 'Comparators')].push(concern);
                 } else if (field === 'product') {
-                    categories['product'].push(concern);
+                    categories[getFieldDisplayName('product', 'Comparators')].push(concern);
                 } else if (field === 'packageName') {
-                    categories['packageName'].push(concern);
+                    categories[getFieldDisplayName('packageName', 'Comparators')].push(concern);
                 } else if (field.startsWith('platforms[')) {
-                    categories['platforms'].push(concern);
+                    categories[getFieldDisplayName('platforms', 'Comparators')].push(concern);
                 } else if (field === 'version') {
-                    categories['version'].push(concern);
+                    categories[getFieldDisplayName('version', 'Comparators')].push(concern);
                 } else if (field === 'lessThan') {
-                    categories['lessThan'].push(concern);
+                    categories[getFieldDisplayName('lessThan', 'Comparators')].push(concern);
                 } else if (field === 'lessThanOrEqual') {
-                    categories['lessThanOrEqual'].push(concern);
+                    categories[getFieldDisplayName('lessThanOrEqual', 'Comparators')].push(concern);
                 } else if (field.includes('changes[') && field.includes('.at')) {
-                    categories['changes'].push(concern);
+                    categories[getFieldDisplayName('changes', 'Comparators')].push(concern);
                 } else if (isVersionField(field)) {
                     // Fallback for other version-related fields
-                    categories['version'].push(concern);
+                    categories[getFieldDisplayName('version', 'Comparators')].push(concern);
                 } else {
                     // Log error and continue processing without categorizing unrecognized fields
                     console.error(`Unknown field type in mathematical comparator detection - skipping categorization:`, {
@@ -2618,19 +2633,22 @@
          * Categorize Whitespace Issues by whitespace pattern type
          */
         function categorizeWhitespaceIssues(concerns) {
-            const categories = {
-                'leading': [],
-                'trailing': [],
-                'excessive': []
-            };
+            const categories = {};
+            const whitespaceTypes = ['leading', 'trailing', 'excessive'];
+            
+            // Initialize categories with display names
+            whitespaceTypes.forEach(type => {
+                categories[getWhitespaceDisplayName(type)] = [];
+            });
             
             concerns.forEach(concern => {
                 const whitespaceTypes = concern.detectedPattern?.whitespaceTypes || [];
                 
                 // Each concern can have multiple whitespace types, add to all applicable categories
                 whitespaceTypes.forEach(type => {
-                    if (categories[type]) {
-                        categories[type].push(concern);
+                    const displayName = getWhitespaceDisplayName(type);
+                    if (categories[displayName]) {
+                        categories[displayName].push(concern);
                     } else {
                         // Log error for unknown whitespace types
                         console.error(`Unknown whitespace type - skipping categorization:`, {
@@ -2651,39 +2669,36 @@
          * Categorize Invalid Character concerns into field-based sub-categories
          */
         function categorizeInvalidCharacters(concerns) {
-            const categories = {
-                'vendor': [],
-                'product': [],
-                'platforms': [],
-                'version': [],
-                'lessThan': [],
-                'lessThanOrEqual': [],
-                'changes': [],
-                'packageName': []
-            };
+            const categories = {};
+            const fieldKeys = ['vendor', 'product', 'platforms', 'version', 'lessThan', 'lessThanOrEqual', 'changes', 'packageName'];
+            
+            // Initialize categories with display names
+            fieldKeys.forEach(key => {
+                categories[getFieldDisplayName(key, 'Invalid Characters')] = [];
+            });
             
             concerns.forEach(concern => {
                 const field = concern.field || '';
                 
                 if (field === 'vendor') {
-                    categories['vendor'].push(concern);
+                    categories[getFieldDisplayName('vendor', 'Invalid Characters')].push(concern);
                 } else if (field === 'product') {
-                    categories['product'].push(concern);
+                    categories[getFieldDisplayName('product', 'Invalid Characters')].push(concern);
                 } else if (field === 'packageName') {
-                    categories['packageName'].push(concern);
+                    categories[getFieldDisplayName('packageName', 'Invalid Characters')].push(concern);
                 } else if (field.startsWith('platforms[')) {
-                    categories['platforms'].push(concern);
+                    categories[getFieldDisplayName('platforms', 'Invalid Characters')].push(concern);
                 } else if (field === 'version') {
-                    categories['version'].push(concern);
+                    categories[getFieldDisplayName('version', 'Invalid Characters')].push(concern);
                 } else if (field === 'lessThan') {
-                    categories['lessThan'].push(concern);
+                    categories[getFieldDisplayName('lessThan', 'Invalid Characters')].push(concern);
                 } else if (field === 'lessThanOrEqual') {
-                    categories['lessThanOrEqual'].push(concern);
+                    categories[getFieldDisplayName('lessThanOrEqual', 'Invalid Characters')].push(concern);
                 } else if (field.includes('changes[') && field.includes('.at')) {
-                    categories['changes'].push(concern);
+                    categories[getFieldDisplayName('changes', 'Invalid Characters')].push(concern);
                 } else if (isVersionField(field)) {
                     // Fallback for other version-related fields
-                    categories['version'].push(concern);
+                    categories[getFieldDisplayName('version', 'Invalid Characters')].push(concern);
                 } else {
                     // Log error and continue processing without categorizing unrecognized fields
                     console.error(`Unknown field type in invalid character detection - skipping categorization:`, {
@@ -2790,39 +2805,36 @@
          * Categorize All Versions Patterns concerns into field-based sub-categories
          */
         function categorizeAllVersionsPatterns(concerns) {
-            const categories = {
-                'vendor': [],
-                'product': [],
-                'platforms': [],
-                'version': [],
-                'lessThan': [],
-                'lessThanOrEqual': [],
-                'changes': [],
-                'packageName': []
-            };
+            const categories = {};
+            const fieldKeys = ['vendor', 'product', 'platforms', 'version', 'lessThan', 'lessThanOrEqual', 'changes', 'packageName'];
+            
+            // Initialize categories with display names
+            fieldKeys.forEach(key => {
+                categories[getFieldDisplayName(key, 'All-Versions Pattern')] = [];
+            });
             
             concerns.forEach(concern => {
                 const field = concern.field || '';
                 
                 if (field === 'vendor') {
-                    categories['vendor'].push(concern);
+                    categories[getFieldDisplayName('vendor', 'All-Versions Pattern')].push(concern);
                 } else if (field === 'product') {
-                    categories['product'].push(concern);
+                    categories[getFieldDisplayName('product', 'All-Versions Pattern')].push(concern);
                 } else if (field === 'packageName') {
-                    categories['packageName'].push(concern);
+                    categories[getFieldDisplayName('packageName', 'All-Versions Pattern')].push(concern);
                 } else if (field.startsWith('platforms[')) {
-                    categories['platforms'].push(concern);
+                    categories[getFieldDisplayName('platforms', 'All-Versions Pattern')].push(concern);
                 } else if (field === 'version') {
-                    categories['version'].push(concern);
+                    categories[getFieldDisplayName('version', 'All-Versions Pattern')].push(concern);
                 } else if (field === 'lessThan') {
-                    categories['lessThan'].push(concern);
+                    categories[getFieldDisplayName('lessThan', 'All-Versions Pattern')].push(concern);
                 } else if (field === 'lessThanOrEqual') {
-                    categories['lessThanOrEqual'].push(concern);
+                    categories[getFieldDisplayName('lessThanOrEqual', 'All-Versions Pattern')].push(concern);
                 } else if (field.includes('changes[') && field.includes('.at')) {
-                    categories['changes'].push(concern);
+                    categories[getFieldDisplayName('changes', 'All-Versions Pattern')].push(concern);
                 } else if (isVersionField(field)) {
                     // Fallback for other version-related fields
-                    categories['version'].push(concern);
+                    categories[getFieldDisplayName('version', 'All-Versions Pattern')].push(concern);
                 } else {
                     // Log error and continue processing without categorizing unrecognized fields
                     console.error(`Unknown field type in all versions pattern detection - skipping categorization:`, {
@@ -2841,39 +2853,36 @@
          * Categorize Bloat Text Detection concerns into field-based sub-categories
          */
         function categorizeBloatTextDetection(concerns) {
-            const categories = {
-                'vendor': [],
-                'product': [],
-                'platforms': [],
-                'version': [],
-                'lessThan': [],
-                'lessThanOrEqual': [],
-                'changes': [],
-                'packageName': []
-            };
+            const categories = {};
+            const fieldKeys = ['vendor', 'product', 'platforms', 'version', 'lessThan', 'lessThanOrEqual', 'changes', 'packageName'];
+            
+            // Initialize categories with display names
+            fieldKeys.forEach(key => {
+                categories[getFieldDisplayName(key, 'Bloat Text')] = [];
+            });
             
             concerns.forEach(concern => {
                 const field = concern.field || '';
                 
                 if (field === 'vendor') {
-                    categories['vendor'].push(concern);
+                    categories[getFieldDisplayName('vendor', 'Bloat Text')].push(concern);
                 } else if (field === 'product') {
-                    categories['product'].push(concern);
+                    categories[getFieldDisplayName('product', 'Bloat Text')].push(concern);
                 } else if (field === 'packageName') {
-                    categories['packageName'].push(concern);
+                    categories[getFieldDisplayName('packageName', 'Bloat Text')].push(concern);
                 } else if (field.startsWith('platforms[')) {
-                    categories['platforms'].push(concern);
+                    categories[getFieldDisplayName('platforms', 'Bloat Text')].push(concern);
                 } else if (field === 'version') {
-                    categories['version'].push(concern);
+                    categories[getFieldDisplayName('version', 'Bloat Text')].push(concern);
                 } else if (field === 'lessThan') {
-                    categories['lessThan'].push(concern);
+                    categories[getFieldDisplayName('lessThan', 'Bloat Text')].push(concern);
                 } else if (field === 'lessThanOrEqual') {
-                    categories['lessThanOrEqual'].push(concern);
+                    categories[getFieldDisplayName('lessThanOrEqual', 'Bloat Text')].push(concern);
                 } else if (field.includes('changes[') && field.includes('.at')) {
-                    categories['changes'].push(concern);
+                    categories[getFieldDisplayName('changes', 'Bloat Text')].push(concern);
                 } else if (isVersionField(field)) {
                     // Fallback for other version-related fields
-                    categories['version'].push(concern);
+                    categories[getFieldDisplayName('version', 'Bloat Text')].push(concern);
                 } else {
                     // Log error and continue processing without categorizing unrecognized fields
                     console.error(`Unknown field type in bloat text detection - skipping categorization:`, {

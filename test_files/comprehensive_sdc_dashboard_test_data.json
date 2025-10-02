@@ -40,7 +40,7 @@
   },
   "cve_data": [
     {
-      "cve_id": "CVE-9999-00001",
+      "cve_id": "CVE-1999-00001",
       "platform_entries": [
         {
           "platform_entry_id": "entry_0",
@@ -152,7 +152,7 @@
       ]
     },
     {
-      "cve_id": "CVE-9999-00002",
+      "cve_id": "CVE-1199-00001",
       "platform_entries": [
         {
           "platform_entry_id": "entry_0",
@@ -335,7 +335,7 @@
       }
     },
     {
-      "cve_id": "CVE-9999-00003",
+      "cve_id": "CVE-1999-00003",
       "platform_entries": [
         {
           "platform_entry_id": "entry_0",
@@ -436,7 +436,7 @@
                   "sourceValue": "5.0 .0",
                   "detectedPattern": {
                     "whitespaceTypes": [
-                      "internal"
+                      "excessive"
                     ],
                     "replacedText": "5.0!.0"
                   }
@@ -544,7 +544,7 @@
       }
     },
     {
-      "cve_id": "CVE-9999-00004",
+      "cve_id": "CVE-1999-00004",
       "platform_entries": [
         {
           "platform_entry_id": "entry_0",
@@ -570,14 +570,16 @@
                   "field": "versions[0].version",
                   "sourceValue": "prior to 1.2.3",
                   "detectedPattern": {
-                    "detectedValue": "prior to"
+                    "detectedValue": "prior to",
+                    "patternType": "Upper Bound Comparators"
                   }
                 },
                 {
                   "field": "versions[0].lessThan",
                   "sourceValue": "before 2.0.0",
                   "detectedPattern": {
-                    "detectedValue": "before"
+                    "detectedValue": "before",
+                    "patternType": "Upper Bound Comparators"
                   }
                 }
               ]
@@ -649,21 +651,24 @@
                   "field": "versions[0].version",
                   "sourceValue": "from 1.0 to 2.0",
                   "detectedPattern": {
-                    "detectedValue": "from"
+                    "detectedValue": "from",
+                    "patternType": "Lower Bound Comparators"
                   }
                 },
                 {
                   "field": "versions[0].lessThan",
                   "sourceValue": "until 3.0",
                   "detectedPattern": {
-                    "detectedValue": "until"
+                    "detectedValue": "until",
+                    "patternType": "Upper Bound Comparators"
                   }
                 },
                 {
                   "field": "versions[0].lessThanOrEqual",
                   "sourceValue": "up to 4.0",
                   "detectedPattern": {
-                    "detectedValue": "up to"
+                    "detectedValue": "up to",
+                    "patternType": "Upper Bound Comparators"
                   }
                 }
               ]
@@ -733,7 +738,7 @@
       }
     },
     {
-      "cve_id": "CVE-9999-00005",
+      "cve_id": "CVE-1999-00005",
       "platform_entries": [
         {
           "platform_entry_id": "entry_0",
@@ -866,7 +871,7 @@
       }
     },
     {
-      "cve_id": "CVE-1337-88888",
+      "cve_id": "CVE-1999-88888",
       "platform_entries": [
         {
           "platform_entry_id": "entry_0",
