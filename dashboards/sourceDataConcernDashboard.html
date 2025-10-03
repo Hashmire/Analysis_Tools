@@ -772,6 +772,22 @@
             margin-top: 15px;
         }
 
+        /* Smooth expansion for overview statistics */
+        details#overview-stats-details .section-content {
+            transition: max-height 0.3s ease-out, opacity 0.2s ease-out;
+            overflow: hidden;
+        }
+
+        details#overview-stats-details:not([open]) .section-content {
+            max-height: 0;
+            opacity: 0;
+        }
+
+        details#overview-stats-details[open] .section-content {
+            max-height: 1000px;
+            opacity: 1;
+        }
+
         summary {
             cursor: pointer;
             font-weight: 600;
@@ -783,6 +799,18 @@
 
         summary:hover {
             color: #6B46C1;
+        }
+
+        /* Simple details styling */
+        summary.section-header {
+            list-style: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        summary.section-header::-webkit-details-marker {
+            display: none;
         }
 
         .platform-entry {
@@ -2132,20 +2160,24 @@
             overflow: hidden;
             transition: max-height 0.4s ease, opacity 0.3s ease;
             opacity: 0;
-            margin-top: 15px;
+            margin-top: 0;
         }
 
         .documentation-content.expanded {
             max-height: 1000px;
             opacity: 1;
+            background: linear-gradient(135deg, #374151 0%, #4B5563 50%, #6B7280 100%);
+            color: #F3F4F6;
+            padding: 15px 0 25px 0;
+            border-radius: 0 0 20px 20px;
         }
 
         .doc-intro {
-            background: rgba(248, 250, 252, 0.6);
-            padding: 16px 20px;
+            background: rgba(248, 250, 252, 0.8);
+            color: #1F2937;
+            padding: 10px;
+            margin: 20px;
             border-radius: 8px;
-            border-left: 3px solid #8B5CF6;
-            margin-bottom: 20px;
             box-shadow: 0 1px 4px rgba(139, 92, 246, 0.08);
         }
 
@@ -2167,11 +2199,12 @@
         }
 
         .doc-section {
-            background: rgba(241, 245, 249, 0.5);
-            padding: 16px 20px;
+            background: rgba(248, 250, 252, 0.8);
+            padding: 10px;
+            margin: 20px;
             border-radius: 8px;
             border: 1px solid rgba(139, 92, 246, 0.1);
-            box-shadow: 0 1px 3px rgba(139, 92, 246, 0.05);
+            box-shadow: 0 1px 4px rgba(139, 92, 246, 0.08);
         }
 
         .doc-section h4 {
@@ -2307,15 +2340,16 @@
                     </div>
                 </div>
             </div>
-            
-            <!-- Documentation Content - Expandable -->
-            <div class="documentation-content" id="documentation-content">
+        </div>
+
+        <!-- Documentation Content Section -->
+        <div class="documentation-content" id="documentation-content">
                 <div class="doc-intro">
                     <strong>Overview:</strong><br />
                     <p>
                         The Source Data Concern Dashboard is designed to help CVE Program stakeholders systematically review and refine the data they have contributed to CVE records for improved platform identification automation. 
                         Targeting <a href="https://github.com/Hashmire/Analysis_Tools/blob/main/documentation/cpe_automation_challenges.md#problem-domain-3-source-data-contribution-usefulness" target="_blank">Problem Domain #3 Source Data Contribution Usefulness</a>, this dashboard guides organizations on how they may improve the usefulness of platform identification data they provide.
-                        The dashboard displays and organizes analysis of source data contributions within CVE 5.X formatted records and identifies specific data quality concerns that may exascerbate platform automation challenges related to <a href="https://github.com/Hashmire/Analysis_Tools/blob/main/documentation/cpe_automation_challenges.md#problem-domain-1---cpe-base-string-determination" target="_blank">CPE Base String Determination</a> and <a href="https://github.com/Hashmire/Analysis_Tools/blob/main/documentation/cpe_automation_challenges.md#problem-domain-2-CPE-Applicability-Statement-Generation target="_blank">CPE Applicability Statement Generation</a>.
+                        The dashboard displays and organizes analysis of source data contributions within CVE 5.X formatted records and identifies specific data quality concerns that may exascerbate platform automation challenges related to <a href="https://github.com/Hashmire/Analysis_Tools/blob/main/documentation/cpe_automation_challenges.md#problem-domain-1---cpe-base-string-determination" target="_blank">CPE Base String Determination</a> and <a href="https://github.com/Hashmire/Analysis_Tools/blob/main/documentation/cpe_automation_challenges.md#problem-domain-2-CPE-Applicability-Statement-Generation" target="_blank">CPE Applicability Statement Generation</a>.
                     </p>
                     <strong>Goals:</strong><br />
                     <p>
@@ -2353,22 +2387,18 @@
                         </ul>
                     </div>
                 </div>
-
-                <div class="doc-highlight">
-                    <strong>💡 Pro Tip:</strong> The Source Analysis section provides the most actionable insights. Each concern type includes subcategories to help you understand the specific data quality improvements that would benefit automation efforts.
-                </div>
-            </div>
         </div>
 
         <div class="dashboard-content">
             <!-- Overview Statistics Section -->
-            <div id="stats-section-container" class="section">
+            <div id="stats-section-container" class="section" style="margin-top: 0;">
                 <details id="overview-stats-details">
                     <summary class="section-header">
                         <div>
                             <h2 id="os_title_01" class="section-title">Overview Statistics</h2>
                             <p id="os_subtitle_01" class="section-subtitle">Comprehensive metrics for source data quality assessment</p>
                         </div>
+                        <span class="expand-arrow">▼</span>
                     </summary>
                     <div id="os_content_01" class="section-content">
                         <div id="stats-section" class="stats-grid">
