@@ -19,6 +19,7 @@ class UnifiedSourceManager:
         self._source_registry: Dict[str, Dict[str, Any]] = {}
         self._org_to_sources: Dict[str, List[str]] = {}
         self._initialized = False
+        self._filter_source_uuid: Optional[str] = None 
     
     def initialize(self) -> None:
         """Initialize the unified source manager with data from global NVD source manager."""
@@ -249,6 +250,65 @@ console.debug('Unified Source Manager initialized with', Object.keys(window.UNIF
             self.initialize()
             
         return len(self._org_to_sources)
+    
+    # Source UUID filtering functionality
+    
+    def set_source_uuid_filter(self, source_uuid: Optional[str]) -> None:
+        """Set the source UUID for filtering throughout the processing pipeline.
+        
+        Args:
+            source_uuid: The source UUID to filter by, or None to disable filtering
+        """
+        self._filter_source_uuid = source_uuid
+        
+        # Initialize if not already done to validate the UUID
+        if not self._initialized:
+            self.initialize()
+            
+        # Validate that the source UUID exists if provided
+        if source_uuid and source_uuid not in self._source_registry:
+            # Log warning but don't fail - allow processing to continue
+            print(f"Warning: Source UUID {source_uuid} not found in source registry")
+    
+    def get_source_uuid_filter(self) -> Optional[str]:
+        """Get the current source UUID filter.
+        
+        Returns:
+            The current source UUID string, or None if no filtering is active
+        """
+        return self._filter_source_uuid
+    
+    def clear_source_uuid_filter(self) -> None:
+        """Clear the source UUID filter (disable filtering)."""
+        self._filter_source_uuid = None
+    
+    def is_source_uuid_match(self, container_source_id: str) -> bool:
+        """Check if a container source ID matches the current filter.
+        
+        Args:
+            container_source_id: The source ID from a CVE container
+            
+        Returns:
+            True if no filter is set or if the source ID matches the filter
+        """
+        if not self._filter_source_uuid:
+            return True  # No filter, accept all
+        return container_source_id == self._filter_source_uuid
+    
+    def should_process_container(self, container: Dict[str, Any]) -> bool:
+        """Determine if a CVE container should be processed based on current filter.
+        
+        Args:
+            container: The CVE container data
+            
+        Returns:
+            True if the container should be processed, False if it should be skipped
+        """
+        if not self._filter_source_uuid:
+            return True  # No filter, process all containers
+            
+        container_source_id = container.get('providerMetadata', {}).get('orgId', '')
+        return self.is_source_uuid_match(container_source_id)
 
 
 # Global singleton instance

@@ -354,9 +354,9 @@
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 25px;
-            margin: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 15px;
         }
 
         .search-container {
@@ -522,7 +522,7 @@
         .section-header {
             background: linear-gradient(135deg, #4C1D95 0%, #5B21B6 20%, #7C3AED 40%, #8B5CF6 60%, #A855F7 80%, #8B5CF6 100%);
             color: white;
-            padding: 30px 40px;
+            padding: 10px 20px;
             position: relative;
             overflow: hidden;
         }
@@ -641,8 +641,6 @@
             box-shadow: 0 2px 6px rgba(139, 92, 246, 0.15);
             position: relative; /* Ensure proper stacking for hover effects */
             z-index: 10; /* Higher z-index to ensure hover effects appear above other elements */
-            transform: scale(0.8); /* Scale down visually while preserving canvas dimensions */
-            transform-origin: center; /* Scale from center point */
         }
 
         .source-stat strong {
@@ -656,6 +654,23 @@
             color: #6B7280;
             margin-top: 2px;
             font-style: italic;
+        }
+
+        /* Semantic badge styling - much cleaner and more maintainable */
+        .stat-badge {
+            font-weight: 700;
+        }
+        
+        .stat-badge.stat-concern {
+            color: #6B46C1; /* Deep royal purple for concerns */
+        }
+        
+        .stat-badge.stat-clean {
+            color: #2F855A; /* Deep sage green for no concerns */
+        }
+        
+        .stat-badge.stat-total {
+            color: #374151; /* Neutral dark grey for totals */
         }
 
         .top-concerns {
@@ -1627,10 +1642,6 @@
             color: #7C3AED;
         }
 
-
-
-
-
         .click-details-indicator {
             display: flex;
             justify-content: space-between;
@@ -1680,9 +1691,9 @@
         
         /* Utility classes to replace inline styles */
         .dashboard-title {
-            font-size: 1.8em;
-            margin: 15px 0 10px 0;
-            font-weight: 600;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
         }
         
         .modal-content-styled {
@@ -2002,9 +2013,9 @@
             }
             
             .stats-grid {
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                margin: 20px;
-                gap: 20px;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                margin: 10px;
+                gap: 12px;
             }
             
             .stats-container {
@@ -2252,9 +2263,11 @@
     <div id="main_container_01" class="container-fluid">
         <!-- Page Header Section -->
         <div id="ph_section_01" class="header">
-            <h1 id="ph_title_01">Hashmire/Analysis_Tools v0.2.0</h1>
-            <h2 class="dashboard-title">Source Data Concern Dashboard</h2>
-            <p id="ph_subtitle_01">CVE Source Data Contribution Review for CPE Automation</p>
+            <h1 class="dashboard-title">Source Data Concern Dashboard</h1>
+            <p id="ph_subtitle_01">
+                CVE Source Data Contribution Review for CPE Automation <br />
+                Hashmire/Analysis_Tools v0.2.0
+            </p>
         </div>
 
         <!-- Report Loader Section with Integrated Documentation -->
@@ -2298,50 +2311,45 @@
             <!-- Documentation Content - Expandable -->
             <div class="documentation-content" id="documentation-content">
                 <div class="doc-intro">
-                    <p><strong>This dashboard serves as a focal point for CVE Program stakeholders</strong> to review how the data they have contributed to CVE records can be refined to improve platform identification automation efforts.</p>
-                    <p>The dashboard analyzes source data contributions and identifies specific concerns that may impact automated processing, helping contributors understand where their data can be optimized for better machine readability.</p>
+                    <strong>Overview:</strong><br />
+                    <p>
+                        The Source Data Concern Dashboard is designed to help CVE Program stakeholders systematically review and refine the data they have contributed to CVE records for improved platform identification automation. 
+                        Targeting <a href="https://github.com/Hashmire/Analysis_Tools/blob/main/documentation/cpe_automation_challenges.md#problem-domain-3-source-data-contribution-usefulness" target="_blank">Problem Domain #3 Source Data Contribution Usefulness</a>, this dashboard guides organizations on how they may improve the usefulness of platform identification data they provide.
+                        The dashboard displays and organizes analysis of source data contributions within CVE 5.X formatted records and identifies specific data quality concerns that may exascerbate platform automation challenges related to <a href="https://github.com/Hashmire/Analysis_Tools/blob/main/documentation/cpe_automation_challenges.md#problem-domain-1---cpe-base-string-determination" target="_blank">CPE Base String Determination</a> and <a href="https://github.com/Hashmire/Analysis_Tools/blob/main/documentation/cpe_automation_challenges.md#problem-domain-2-CPE-Applicability-Statement-Generation target="_blank">CPE Applicability Statement Generation</a>.
+                    </p>
+                    <strong>Goals:</strong><br />
+                    <p>
+                        Dramatically improve the usefulness of platform identification data within the CVE List. This goal is limited based on the active involvement and response of external data contributors. <br />
+                        Dramatically reduce the amount of customized parsing and post-processing required by downstream consumers of CVE data for all use cases.
+                    </p>
+                    <strong>Feedback:</strong><br />
+                    <p>
+                        For technical issues, feature requests, or questions; please visit the <a href="https://github.com/Hashmire/Analysis_Tools/issues" target="_blank">Repository Issues page</a>. <br />
+                        Community feedback and contributions to improve the dashboard's functionality and user experience are always encouraged!
+                    </p>
                 </div>
 
                 <div class="doc-sections">
+                    
                     <div class="doc-section">
-                        <h4>🏗️ Dashboard Structure</h4>
+                        <h4>🎯 How to Use</h4>
                         <ul>
-                            <li><strong>Header</strong> - Project information and title</li>
-                            <li><strong>File Loader</strong> - Upload your Source Data Concern Report JSON</li>
-                            <li><strong>Overview Statistics</strong> - High-level metrics across all sources</li>
-                            <li><strong>Source Analysis</strong> - Detailed breakdown by data source</li>
-                        </ul>
-                    </div>
-
-                    <div class="doc-section">
-                        <h4>🔍 Source Analysis Features</h4>
-                        <ul>
-                            <li><strong>Search Field</strong> - Find specific sources quickly</li>
-                            <li><strong>Interactive Charts</strong> - Visual breakdown of concerns vs clean data</li>
-                            <li><strong>CVE Records Count</strong> - Number of CVE records with source contributions</li>
-                            <li><strong>Platform Entries Count</strong> - Affected array entries from the source</li>
-                            <li><strong>Concern Type Analysis</strong> - Categorized breakdown of data quality issues</li>
+                            <li><strong>Load Data</strong> - Click "Load Source Data Concern Report" and select your sourceDataConcernReport.json file</li>
+                            <li><strong>Review Overview</strong> - Examine the overview statistics cards showing total CVEs, platform entries, and concern distribution</li>
+                            <li><strong>Navigate Sources</strong> - Use the search field to filter sources or browse all source cards sorted by concern count</li>
+                            <li><strong>Examine Source Details</strong> - Review pie charts and concern type breakdowns for each source</li>
+                            <li><strong>Explore CVE Records</strong> - Expand "View CVE Entries" sections and click CVE cards for detailed concern analysis</li>
+                            <li><strong>Review Detailed Concerns</strong> - Click concern badges to open detailed analysis of identified platform entry concerns</li>
                         </ul>
                     </div>
 
                     <div class="doc-section">
                         <h4>📊 Understanding Source Cards</h4>
                         <ul>
-                            <li><strong>High-level Metrics</strong> - CVE records, platform entries, total concerns</li>
-                            <li><strong>Concern Breakdowns</strong> - Detailed categorization with subcategories</li>
-                            <li><strong>CVE ID Cards</strong> - Individual CVE analysis with expandable details</li>
-                            <li><strong>Drill-down Links</strong> - Click CVE IDs for detailed analysis pages</li>
-                        </ul>
-                    </div>
-
-                    <div class="doc-section">
-                        <h4>🎯 How to Use</h4>
-                        <ul>
-                            <li><strong>Load Data</strong> - Upload a sourceDataConcernReport.json file</li>
-                            <li><strong>Review Overview</strong> - Check overall statistics in the top cards</li>
-                            <li><strong>Find Your Source</strong> - Use search to locate relevant sources</li>
-                            <li><strong>Analyze Concerns</strong> - Click CVE cards to see detailed breakdowns</li>
-                            <li><strong>Deep Dive</strong> - Click CVE IDs to view full analysis reports</li>
+                            <li><strong>Source Statistics</strong> - CVE records processed, platform entries analyzed, and pie charts showing concern distribution</li>
+                            <li><strong>Concern Type Analysis</strong> - Top concern types with counts and subcategory breakdowns</li>
+                            <li><strong>CVE Entry Details</strong> - Expandable sections showing individual CVE records with concern breakdowns</li>
+                            <li><strong>Concern Details</strong> - Each CVE entry contains clickable badges that display granular problem, source Data and resolution guidance.</li>
                         </ul>
                     </div>
                 </div>
@@ -2355,15 +2363,19 @@
         <div class="dashboard-content">
             <!-- Overview Statistics Section -->
             <div id="stats-section-container" class="section">
-                <div id="os_header_01" class="section-header">
-                    <h2 id="os_title_01" class="section-title">Overview Statistics</h2>
-                    <p id="os_subtitle_01" class="section-subtitle">Comprehensive metrics for source data quality assessment</p>
-                </div>
-                <div id="os_content_01" class="section-content">
-                    <div id="stats-section" class="stats-grid">
-                        <!-- Statistics will be populated here -->
+                <details id="overview-stats-details">
+                    <summary class="section-header">
+                        <div>
+                            <h2 id="os_title_01" class="section-title">Overview Statistics</h2>
+                            <p id="os_subtitle_01" class="section-subtitle">Comprehensive metrics for source data quality assessment</p>
+                        </div>
+                    </summary>
+                    <div id="os_content_01" class="section-content">
+                        <div id="stats-section" class="stats-grid">
+                            <!-- Statistics will be populated here -->
+                        </div>
                     </div>
-                </div>
+                </details>
             </div>
 
             <!-- Source Analysis Section -->
@@ -3516,7 +3528,7 @@
                     <strong>Data:</strong> Pattern <code>${detectedValue}</code> detected in <code>${concern.field}</code> - <code>"${concern.field}": "${concern.sourceValue}"</code>
                 </div>
                 <div class="sdc-concern-resolution">
-                    <strong>Resolution:</strong> Use <code>defaultStatus</code>, <code>version</code>, <code>lessThan</code>, <code>lessThanOrEqual</code>, <code>changes[*].at</code> syntax for precise boundaries. Example: <code>"version": "before 1.2.3"</code> → <code>"lessThan": "1.2.3"</code>
+                    <strong>Resolution:</strong> Use <code>defaultStatus</code>, <code>version</code>, <code>lessThan</code>, <code>lessThanOrEqual</code>, <code>changes[*].at</code> syntax for precise boundaries. Example: <code>"version": "before 1.2.3"</code> ➔ <code>"lessThan": "1.2.3"</code>
                 </div>
             `;
         }
@@ -4166,10 +4178,10 @@
                 const detailsId = `sa_details_${String(sourceIndex + 1).padStart(2, '0')}`;
                 const entriesListId = `sa_list_${String(sourceIndex + 1).padStart(2, '0')}_entries`;
                 
-                // Badge IDs follow the pattern (sourceIndex * 3) + badgePosition
-                const badge1Id = `sa_badge_${String((sourceIndex * 3) + 1).padStart(2, '0')}`;
-                const badge2Id = `sa_badge_${String((sourceIndex * 3) + 2).padStart(2, '0')}`;
-                const badge3Id = `sa_badge_${String((sourceIndex * 3) + 3).padStart(2, '0')}`;
+                // Simplified badge IDs with semantic CSS classes for styling
+                const badge1Id = `sa_badge_${String(sourceIndex + 1).padStart(2, '0')}_01`; // Total concerns
+                const badge2Id = `sa_badge_${String(sourceIndex + 1).padStart(2, '0')}_02`; // CVE records
+                const badge3Id = `sa_badge_${String(sourceIndex + 1).padStart(2, '0')}_03`; // Platform entries
                 
                 // Create searchable content for filtering
                 const searchableContent = [
@@ -4194,8 +4206,12 @@
                             <div class="source-stat">
                                 <div class="stat-content">
                                     <div class="stat-text">
-                                        <strong id="${badge2Id}">${data.cve_records.size}</strong> CVE records
-                                        <span class="stat-detail">(${data.cve_records_with_concerns.size} concerns detected, ${data.cve_records_without_concerns.size} no concerns)</span>
+                                        <strong id="${badge2Id}" class="stat-badge stat-total">${data.cve_records.size}</strong> CVE records
+                                        <span class="stat-detail">
+                                            <strong class="stat-badge stat-concern">${data.cve_records_with_concerns.size}</strong> concerns detected
+                                            <br />
+                                            <strong class="stat-badge stat-clean">${data.cve_records_without_concerns.size}</strong> no concerns
+                                        </span>
                                     </div>
                                     <div class="stat-chart-container">
                                         <canvas id="cve-chart-${sourceIndex}" class="stat-pie-chart"></canvas>
@@ -4205,8 +4221,12 @@
                             <div class="source-stat">
                                 <div class="stat-content">
                                     <div class="stat-text">
-                                        <strong id="${badge3Id}">${data.total_platform_entries}</strong> platform entries
-                                        <span class="stat-detail">(${data.entries.length} concerns detected, ${data.clean_platform_entries} no concerns)</span>
+                                        <strong id="${badge3Id}" class="stat-badge stat-total">${data.total_platform_entries}</strong> platform entries
+                                        <span class="stat-detail">
+                                            <strong class="stat-badge stat-concern">${data.entries.length}</strong> concerns detected
+                                            <br />
+                                            <strong class="stat-badge stat-clean">${data.clean_platform_entries}</strong> no concerns
+                                        </span>
                                     </div>
                                     <div class="stat-chart-container">
                                         <canvas id="platform-chart-${sourceIndex}" class="stat-pie-chart"></canvas>
@@ -4216,8 +4236,8 @@
                             <div class="source-stat">
                                 <div class="stat-content">
                                     <div class="stat-text">
-                                        <strong id="${badge1Id}">${data.total_concerns}</strong> total concerns
-                                        <span class="stat-detail">Concern types breakdown</span>
+                                        <strong id="${badge1Id}" class="stat-badge stat-concern">${data.total_concerns}</strong> total concerns
+                                        <span class="stat-detail">Concern types breakdown ➔</span>
                                     </div>
                                     <div class="stat-chart-container">
                                         <canvas id="concerns-chart-${sourceIndex}" class="stat-pie-chart"></canvas>
@@ -4455,8 +4475,9 @@
                                     position: 'center', // Pin tooltip to center of chart
                                     displayColors: false,
                                     titleFont: { size: 0 }, // Hide title completely
-                                    bodyFont: { size: 11 },
-                                    padding: 4, // Reduced from 8 to minimize tooltip padding
+                                    bodyFont: { size: 11, weight: '600' }, // Smaller, centered font
+                                    padding: 4, // Reduced padding
+                                    bodyAlign: 'center', // Center the text within tooltip
                                     callbacks: {
                                         title: function() {
                                             return ''; // No title
@@ -4464,9 +4485,11 @@
                                         label: function(context) {
                                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                             const percentage = ((context.parsed / total) * 100).toFixed(1);
-                                            // Add line break for multi-word labels
-                                            const label = context.label.includes(' ') ? context.label.replace(' ', '\n') : context.label;
-                                            return `${label}:\n${percentage}%`;
+                                            const count = context.parsed;
+                                            // Split multi-word labels into separate lines
+                                            const labelWords = context.label.split(' ');
+                                            const labelLines = labelWords.length > 1 ? labelWords : [context.label];
+                                            return [...labelLines, `${count} (${percentage}%)`];
                                         }
                                     }
                                 }
@@ -4501,8 +4524,9 @@
                                     position: 'center', // Pin tooltip to center of chart
                                     displayColors: false,
                                     titleFont: { size: 0 }, // Hide title completely
-                                    bodyFont: { size: 11 },
-                                    padding: 4, // Reduced from 8 to minimize tooltip padding
+                                    bodyFont: { size: 11, weight: '600' }, // Smaller, centered font
+                                    padding: 4, // Reduced padding
+                                    bodyAlign: 'center', // Center the text within tooltip
                                     callbacks: {
                                         title: function() {
                                             return ''; // No title
@@ -4510,9 +4534,11 @@
                                         label: function(context) {
                                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                             const percentage = ((context.parsed / total) * 100).toFixed(1);
-                                            // Add line break for multi-word labels
-                                            const label = context.label.includes(' ') ? context.label.replace(' ', '\n') : context.label;
-                                            return `${label}:\n${percentage}%`;
+                                            const count = context.parsed;
+                                            // Split multi-word labels into separate lines
+                                            const labelWords = context.label.split(' ');
+                                            const labelLines = labelWords.length > 1 ? labelWords : [context.label];
+                                            return [...labelLines, `${count} (${percentage}%)`];
                                         }
                                     }
                                 }
@@ -4552,8 +4578,9 @@
                                         position: 'center', // Pin tooltip to center of chart
                                         displayColors: false,
                                         titleFont: { size: 0 }, // Hide title completely
-                                        bodyFont: { size: 11 },
-                                        padding: 4, // Reduced from 8 to minimize tooltip padding
+                                        bodyFont: { size: 11, weight: '600' }, // Smaller, centered font
+                                        padding: 4, // Reduced padding
+                                        bodyAlign: 'center', // Center the text within tooltip
                                         callbacks: {
                                             title: function() {
                                                 return ''; // No title
@@ -4561,9 +4588,11 @@
                                             label: function(context) {
                                                 const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                                 const percentage = ((context.parsed / total) * 100).toFixed(1);
-                                                // Add line break for multi-word labels
-                                                const label = context.label.includes(' ') ? context.label.replace(' ', '\n') : context.label;
-                                                return `${label}:\n${percentage}%`;
+                                                const count = context.parsed;
+                                                // Split multi-word labels into separate lines
+                                                const labelWords = context.label.split(' ');
+                                                const labelLines = labelWords.length > 1 ? labelWords : [context.label];
+                                                return [...labelLines, `${count} (${percentage}%)`];
                                             }
                                         }
                                     }

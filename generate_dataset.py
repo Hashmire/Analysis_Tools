@@ -661,7 +661,7 @@ def main():
             dataset_path = run_directory / "logs" / Path(args.output).name
             
             # Run analysis tool with existing run context
-            success = run_analysis_tool(args.output, resolved_api_key, run_directory, run_id, args.external_assets, args.sdc_only)
+            success = run_analysis_tool(args.output, resolved_api_key, run_directory, run_id, args.external_assets, args.sdc_only, args.source_uuid)
             if not success:
                 logger.error("Analysis tool execution failed", group="data_processing")
                 return 1
@@ -674,7 +674,7 @@ def main():
     return 0
 
 
-def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=None, external_assets=False, sdc_only=False):
+def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=None, external_assets=False, sdc_only=False, source_uuid=None):
     """Run the analysis tool on the generated dataset within an existing run context"""
     import subprocess
     
@@ -728,6 +728,10 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
             cmd.append("--no-browser")
             logger.info("Source Data Concerns only mode enabled - skipping NVD CPE API calls and HTML generation", group="initialization")
             logger.info("SDC-only mode: Automatically enabled --no-cache and --no-browser for efficiency", group="initialization")
+        
+        if source_uuid:
+            cmd.extend(["--source-uuid", source_uuid])
+            logger.info(f"Source UUID filter will be applied during analysis: {source_uuid}", group="initialization")
         
         logger.info(f"Executing: {' '.join(cmd)}", group="initialization")
         

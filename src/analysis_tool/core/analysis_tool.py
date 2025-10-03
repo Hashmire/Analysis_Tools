@@ -222,6 +222,18 @@ def process_test_file(test_file_path):
         traceback.print_exc()
         return None
 
+def set_global_source_uuid(source_uuid):
+    """Set the global source UUID for filtering throughout the processing pipeline."""
+    from .unified_source_manager import get_unified_source_manager
+    
+    manager = get_unified_source_manager()
+    manager.set_source_uuid_filter(source_uuid)
+    
+    if source_uuid:
+        logger.info(f"Global source UUID set for filtering: {source_uuid}", group="initialization")
+    else:
+        logger.info("Global source UUID cleared - processing all sources", group="initialization")
+
 def process_cve(cve_id, nvd_api_key, sdc_only=False):
     """Process a single CVE using the analysis tool functionality.
     
@@ -229,6 +241,10 @@ def process_cve(cve_id, nvd_api_key, sdc_only=False):
         cve_id: The CVE ID to process
         nvd_api_key: NVD API key for CPE queries (ignored if sdc_only=True)
         sdc_only: If True, skip NVD CPE API calls and HTML generation
+    
+    Note:
+        Source UUID filtering is controlled by the global _global_source_uuid variable
+        set via set_global_source_uuid() function.
     """
     global config
     
@@ -714,9 +730,13 @@ def main():
     parser.add_argument("--no-cache", action="store_true", help="Disable CPE cache for faster testing")
     parser.add_argument("--external-assets", action="store_true", help="Use external asset references instead of inline CSS/JS (reduces file size)")
     parser.add_argument("--sdc-only", action="store_true", help="Generate only sourceDataConcernReport.json (skips NVD CPE API calls and HTML generation)")
+    parser.add_argument("--source-uuid", help="Filter platform entries by source UUID in SDC-only mode")
     parser.add_argument("--run-id", help="Continue within existing run directory (used by generate_dataset.py integration)")
     
     args = parser.parse_args()
+    
+    # Set global source UUID for filtering throughout the pipeline
+    set_global_source_uuid(args.source_uuid)
     
     # Automatically enable appropriate flags for --sdc-only mode
     if args.sdc_only:
