@@ -434,6 +434,14 @@
         }
         .metric-card.warning::before { content: '⚠️'; }
 
+        .metric-card.disabled {
+            opacity: 0.7;
+            background: #f8f9fa;
+            border-left-color: #95a5a6;
+        }
+
+        .metric-card.disabled::before { content: '🚫'; }
+
         .metric-title {
             font-size: 1.1em;
             font-weight: 600;
@@ -1957,6 +1965,17 @@
             const cache = data.cache || {};
             const cache_stats = data.cache_stats || {};
             
+            // Check if section is tracked
+            if (cache.tracked === false) {
+                const note = cache.note || "Cache functionality is disabled";
+                document.getElementById('cache-section').innerHTML = `
+                    <div style="padding: 15px; text-align: center; color: #6c757d; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #95a5a6;">
+                        <small>💾 <strong>Cache:</strong> ${note}</small>
+                    </div>
+                `;
+                return;
+            }
+            
             // Calculate key metrics with improved logic including expired entries
             const totalEntries = cache.total_entries || cache_stats.total_entries || 0;
             const cacheHits = cache.cache_hits || cache_stats.hits || 0;
@@ -2034,6 +2053,17 @@
 
         function populateMappingSection(data) {
             const mapping_stats = data.mapping_stats || {};
+            
+            // Check if section is tracked
+            if (mapping_stats.tracked === false) {
+                const note = mapping_stats.note || "Mapping analysis is disabled";
+                document.getElementById('mapping-section').innerHTML = `
+                    <div style="padding: 15px; text-align: center; color: #6c757d; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #95a5a6;">
+                        <small>🔗 <strong>Mapping Analysis:</strong> ${note}</small>
+                    </div>
+                `;
+                return;
+            }
             
             // Calculate key metrics
             const totalMappings = mapping_stats.total_mappings_found || 0;
@@ -2151,6 +2181,11 @@
                     const categoryData = warnings[categoryKey] || [];
                     console.log(`Processing warning category ${categoryKey}:`, categoryData);
                     
+                    // Skip non-array properties like 'tracked'
+                    if (!Array.isArray(categoryData)) {
+                        return;
+                    }
+                    
                     categoryData.forEach(entry => {
                         const cveId = entry.cve_id || 'unknown';
                         
@@ -2241,6 +2276,11 @@
                 Object.keys(errors).forEach(categoryKey => {
                     const categoryData = errors[categoryKey] || [];
                     console.log(`Processing error category ${categoryKey}:`, categoryData);
+                    
+                    // Skip non-array properties like 'tracked'
+                    if (!Array.isArray(categoryData)) {
+                        return;
+                    }
                     
                     categoryData.forEach(entry => {
                         const cveId = entry.cve_id || 'unknown';
@@ -2433,6 +2473,17 @@
             const api = data.api || {};
             const api_calls = data.api_calls || {};
             
+            // Check if section is tracked
+            if (api.tracked === false) {
+                const note = api.note || "API tracking is disabled";
+                document.getElementById('api-section').innerHTML = `
+                    <div style="padding: 15px; text-align: center; color: #6c757d; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #95a5a6;">
+                        <small>🌐 <strong>API:</strong> ${note}</small>
+                    </div>
+                `;
+                return;
+            }
+            
             const total_calls = api.total_calls || api_calls.total || 0;
             const successful_calls = api.successful_calls || 0;
             const failed_calls = api.failed_calls || 0;
@@ -2444,8 +2495,18 @@
             const mitre_cve_breakdown = call_breakdown["MITRE CVE API"] || {};
             const nvd_cpe_breakdown = call_breakdown["NVD CPE API"] || {};
 
+            // Add tracking note if present (for limited modes like SDC-only)
+            let trackingNoteHtml = '';
+            if (api.tracking_note && api.tracking_note !== "All API calls tracked") {
+                trackingNoteHtml = `
+                    <div style="background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; padding: 8px 12px; margin-bottom: 12px; color: #856404; font-size: 0.9em;">
+                        <strong>ℹ️</strong> ${api.tracking_note}
+                    </div>
+                `;
+            }
+            
             // Main API Performance section with integrated summary stats
-            let html = `
+            let html = trackingNoteHtml + `
                 <div class="api-summary">
                     <div class="detail-grid">
                         <div class="detail-item">
@@ -2546,6 +2607,18 @@
 
         function populateCpeSection(data) {
             const cpe_stats = data.cpe_query_stats || {};
+            
+            // Check if section is tracked
+            if (cpe_stats.tracked === false) {
+                const note = cpe_stats.note || "CPE query analysis is disabled";
+                document.getElementById('cpe-section').innerHTML = `
+                    <div style="padding: 15px; text-align: center; color: #6c757d; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #95a5a6;">
+                        <small>🔍 <strong>CPE Query:</strong> ${note}</small>
+                    </div>
+                `;
+                return;
+            }
+            
             const top_queries = cpe_stats.top_queries || [];
             const top_cves = cpe_stats.top_cves_by_searches || [];
             const top_result_queries = cpe_stats.top_queries_by_results || [];
@@ -2695,6 +2768,18 @@
 
         function populateFileSection(data) {
             const file_stats = data.file_stats || {};
+            
+            // Check if section is tracked
+            if (file_stats.tracked === false) {
+                const note = file_stats.note || "File generation is disabled";
+                document.getElementById('file-section').innerHTML = `
+                    <div style="padding: 15px; text-align: center; color: #6c757d; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #95a5a6;">
+                        <small>📄 <strong>File Generation:</strong> ${note}</small>
+                    </div>
+                `;
+                return;
+            }
+            
             const detailed_files = file_stats.detailed_files || [];
             
             // Sort files by file size in descending order and limit to top 20

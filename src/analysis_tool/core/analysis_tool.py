@@ -222,8 +222,14 @@ def process_test_file(test_file_path):
         traceback.print_exc()
         return None
 
-def process_cve(cve_id, nvd_api_key):
-    """Process a single CVE using the analysis tool functionality."""
+def process_cve(cve_id, nvd_api_key, sdc_only=False):
+    """Process a single CVE using the analysis tool functionality.
+    
+    Args:
+        cve_id: The CVE ID to process
+        nvd_api_key: NVD API key for CPE queries (ignored if sdc_only=True)
+        sdc_only: If True, skip NVD CPE API calls and HTML generation
+    """
     global config
     
     # Clear global HTML state to prevent accumulation from previous CVEs
@@ -314,27 +320,101 @@ def process_cve(cve_id, nvd_api_key):
         primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
 
         # Suggest CPE data based on collected information (includes internal CPE generation and query stages)
-        try:
-            primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1)
-        except Exception as cpe_error:
-            # Handle CPE suggestion errors
-            logger.warning(f"CPE suggestion failed for {cve_id}: Unable to complete CPE data suggestion - {str(cpe_error)}", group="data_processing")
-            logger.info("Continuing with available data...", group="data_processing")
+        if not sdc_only:
+            try:
+                primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1)
+            except Exception as cpe_error:
+                # Handle CPE suggestion errors
+                logger.warning(f"CPE suggestion failed for {cve_id}: Unable to complete CPE data suggestion - {str(cpe_error)}", group="data_processing")
+                logger.info("Continuing with available data...", group="data_processing")
+        else:
+            # SDC-only mode: Process platform entries for source data concerns analysis
+            # but skip expensive NVD CPE API calls
+            try:
+                logger.info("SDC-only mode: Processing platform entries for source data concerns analysis (skipping NVD CPE API calls)", group="data_processing")
+                primaryDataframe = processData.suggestCPEData(None, primaryDataframe, 1, sdc_only=True)
+            except Exception as cpe_error:
+                logger.warning(f"SDC-only CPE processing failed for {cve_id}: Unable to complete source data concerns analysis - {str(cpe_error)}", group="data_processing")
+                logger.info("Continuing with available data...", group="data_processing")
         
         # Note: CPE generation and query stages are now handled internally by suggestCPEData
         
         start_confirmed_mappings("Processing confirmed mappings")
 
         # Process confirmed mappings
-        try:
-            primaryDataframe = processData.process_confirmed_mappings(primaryDataframe)
-        except Exception as mapping_error:
-            logger.warning(f"Confirmed mappings failed for {cve_id}: Unable to process confirmed mappings - {str(mapping_error)}", group="data_processing")
-            logger.info("Continuing with available data...", group="data_processing")
-            import traceback
-            traceback.print_exc()
+        if not sdc_only:
+            try:
+                primaryDataframe = processData.process_confirmed_mappings(primaryDataframe)
+            except Exception as mapping_error:
+                logger.warning(f"Confirmed mappings failed for {cve_id}: Unable to process confirmed mappings - {str(mapping_error)}", group="data_processing")
+                logger.info("Continuing with available data...", group="data_processing")
+                import traceback
+                traceback.print_exc()
+        else:
+            logger.info("Skipping confirmed mappings (--sdc-only mode)", group="data_processing")
 
         end_confirmed_mappings("Confirmed mappings processed")
+        
+        if sdc_only:
+            logger.info("SDC-only mode: Skipping HTML generation, file generation, and web browser launch", group="data_processing")
+            # Extract source data concerns from processed dataframe before skipping HTML generation
+            logger.info("SDC-only mode: Extracting source data concerns for report", group="data_processing")
+            
+            # Process each row in the dataframe to collect source data concerns
+            from .badge_modal_system import create_source_data_concerns_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+            from ..logging.badge_contents_collector import get_badge_contents_collector, collect_clean_platform_entry
+            
+            collector = get_badge_contents_collector()
+            for index, row in primaryDataframe.iterrows():
+                # Extract basic row data
+                source_id = row.get('sourceID', 'Unknown')
+                raw_platform_data = row.get('rawPlatformData', {})
+                platform_metadata = row.get('platformEntryMetadata', {})
+                
+                vendor = raw_platform_data.get('vendor', 'Unknown')
+                product = raw_platform_data.get('product', 'Unknown')
+                
+                # Create source data concerns badge to populate the registry
+                create_source_data_concerns_badge(
+                    table_index=index,
+                    raw_platform_data=raw_platform_data,
+                    characteristics={},  # Empty for SDC-only mode
+                    platform_metadata=platform_metadata,
+                    row=row
+                )
+                
+                # Check if source data concerns were found and collect them
+                registry_data = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('sourceDataConcerns', {}).get(index, {})
+                if registry_data:
+                    concerns_data = registry_data.get('concerns', {})
+                    concerns_summary = registry_data.get('summary', {})
+                    concerns_count = concerns_summary.get('total_concerns', 0)
+                    concern_types = concerns_summary.get('concern_types', [])
+                    
+                    collector.collect_source_data_concern(
+                        table_index=index,
+                        source_id=source_id,
+                        vendor=vendor,
+                        product=product,
+                        concerns_data=concerns_data,
+                        concerns_count=concerns_count,
+                        concern_types=concern_types
+                    )
+                else:
+                    # No source data concerns found - collect this as a clean platform entry
+                    if source_id and source_id != 'Unknown':
+                        collect_clean_platform_entry(source_id)
+            
+            logger.info("SDC-only mode: Source data concerns collected for sourceDataConcernReport.json", group="data_processing")
+            # Complete badge contents collection for this CVE
+            complete_cve_collection()
+            
+            return {
+                'success': True,
+                'sdc_only': True,
+                'cve_id': cve_id,
+                'filepath': None
+            }
         
         start_page_generation("Generating HTML output")
         
@@ -633,9 +713,18 @@ def main():
     parser.add_argument("--no-browser", action="store_true", help="Don't open results in browser")
     parser.add_argument("--no-cache", action="store_true", help="Disable CPE cache for faster testing")
     parser.add_argument("--external-assets", action="store_true", help="Use external asset references instead of inline CSS/JS (reduces file size)")
+    parser.add_argument("--sdc-only", action="store_true", help="Generate only sourceDataConcernReport.json (skips NVD CPE API calls and HTML generation)")
     parser.add_argument("--run-id", help="Continue within existing run directory (used by generate_dataset.py integration)")
     
     args = parser.parse_args()
+    
+    # Automatically enable appropriate flags for --sdc-only mode
+    if args.sdc_only:
+        args.no_cache = True
+        args.no_browser = True
+        logger.info("SDC-only mode enabled: Source Data Concerns analysis only", group="initialization")
+        logger.info("SDC-only mode: Automatically enabled --no-cache and --no-browser for efficiency", group="initialization")
+        logger.info("SDC-only mode: Will skip NVD CPE API calls, confirmed mappings, and HTML generation", group="initialization")
     
     # Generate parameter string for log filename
     if args.cve:
@@ -737,6 +826,14 @@ def main():
         from ..logging.badge_contents_collector import initialize_badge_contents_report
         initialize_badge_contents_report(current_run_paths["logs"])
         
+        # Initialize dashboard collector for test file mode
+        from ..logging.dataset_contents_collector import initialize_dashboard_collector
+        processing_mode = "test"
+        cache_disabled = True  # Cache is always disabled for test files
+        cache_disable_reason = "test-file"
+        if initialize_dashboard_collector(str(current_run_paths["logs"]), processing_mode, cache_disabled, cache_disable_reason):
+            logger.info("Dashboard collector initialized for test file mode", group="initialization")            
+        
         # Process the test file (using global source manager)
         filepath = process_test_file(args.test_file)
         
@@ -798,6 +895,10 @@ def main():
         elif args.file:
             run_context = os.path.basename(args.file).replace('.txt', '').replace('.', '_')
         
+        # Add sdc-only suffix if flag is used
+        if args.sdc_only:
+            run_context = f"{run_context}_sdc-only" if run_context else "sdc-only"
+        
         run_path, run_id = create_run_directory(run_context)
         logger.info(f"Created analysis run directory: {run_id}", group="initialization")
         
@@ -833,7 +934,21 @@ def main():
         logger.warning("Failed to initialize badge contents collector", group="initialization")
     
     # Initialize real-time dashboard collector
-    if initialize_dashboard_collector(str(run_paths["logs"])):
+    # Determine processing mode for dashboard tracking
+    processing_mode = "sdc-only" if args.sdc_only else ("test" if args.test_file else "full")
+    
+    # Determine cache disable reason
+    cache_disabled = args.no_cache
+    cache_disable_reason = None
+    if cache_disabled:
+        if args.sdc_only:
+            cache_disable_reason = "sdc-only"
+        elif args.test_file:
+            cache_disable_reason = "test-file"
+        else:
+            cache_disable_reason = "manual"
+    
+    if initialize_dashboard_collector(str(run_paths["logs"]), processing_mode, cache_disabled, cache_disable_reason):
         logger.info("Real-time dashboard collector initialized for live progress tracking", group="initialization")
     else:
         logger.warning("Failed to initialize real-time dashboard collector", group="initialization")
@@ -962,23 +1077,32 @@ def main():
                 end_audit("Checkpoint audit complete")
             
             # Process the CVE
-            result = process_cve(cve, nvd_api_key)
+            result = process_cve(cve, nvd_api_key, args.sdc_only)
             
             # Handle results: successful processing, skipped CVEs, or failures
             if result:
                 if result['success']:
-                    generated_files.append(result['filepath'])
-                    
-                    if show_timing:
-                        cve_elapsed = time.time() - cve_start_time
-                        logger.info(f"Successfully processed {cve} in {cve_elapsed:.2f}s", group="processing")
+                    # Handle sdc_only mode results (no filepath)
+                    if result.get('sdc_only'):
+                        if show_timing:
+                            cve_elapsed = time.time() - cve_start_time
+                            logger.info(f"Successfully processed {cve} (SDC-only) in {cve_elapsed:.2f}s", group="processing")
+                        else:
+                            logger.info(f"Successfully processed {cve} (SDC-only)", group="processing")
                     else:
-                        logger.info(f"Successfully processed {cve}", group="processing")
-                    
-                    # Open in browser if single CVE
-                    if len(cves_to_process) == 1 and not args.no_browser:
-                        import webbrowser
-                        webbrowser.open_new_tab(f"file:///{result['filepath']}")
+                        # Normal processing with HTML file generation
+                        generated_files.append(result['filepath'])
+                        
+                        if show_timing:
+                            cve_elapsed = time.time() - cve_start_time
+                            logger.info(f"Successfully processed {cve} in {cve_elapsed:.2f}s", group="processing")
+                        else:
+                            logger.info(f"Successfully processed {cve}", group="processing")
+                        
+                        # Open in browser if single CVE
+                        if len(cves_to_process) == 1 and not args.no_browser:
+                            import webbrowser
+                            webbrowser.open_new_tab(f"file:///{result['filepath']}")
                         
                 elif result.get('skipped'):
                     # CVE was skipped (e.g., REJECTED status)

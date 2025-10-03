@@ -567,6 +567,8 @@ def main():
                        help='Skip running analysis tool after dataset generation')
     parser.add_argument('--external-assets', action='store_true',
                        help='Enable external assets in analysis (passed through to run_tools.py)')
+    parser.add_argument('--sdc-only', action='store_true',
+                       help='Generate only sourceDataConcernReport.json (skips NVD CPE API calls and HTML generation)')
     parser.add_argument('--show-last-run', action='store_true',
                        help='Show when the last dataset generation occurred')
     
@@ -609,14 +611,15 @@ def main():
     
     # Generate initial run context
     uuid_suffix = f"_uuid_{args.source_uuid[:8]}" if args.source_uuid else ""
+    sdc_suffix = "_sdc-only" if args.sdc_only else ""
     if args.since_last_run:
-        initial_context = f"differential_dataset{uuid_suffix}"
+        initial_context = f"differential_dataset{uuid_suffix}{sdc_suffix}"
     elif args.last_days:
-        initial_context = f"last_{args.last_days}_days_dataset{uuid_suffix}"
+        initial_context = f"last_{args.last_days}_days_dataset{uuid_suffix}{sdc_suffix}"
     elif args.start_date and args.end_date:
-        initial_context = f"range_{args.start_date}_to_{args.end_date}_dataset{uuid_suffix}"
+        initial_context = f"range_{args.start_date}_to_{args.end_date}_dataset{uuid_suffix}{sdc_suffix}"
     else:
-        initial_context = f"status_based_dataset{uuid_suffix}"
+        initial_context = f"status_based_dataset{uuid_suffix}{sdc_suffix}"
     
     # Create run directory
     run_directory, run_id = create_run_directory(initial_context)
@@ -658,7 +661,7 @@ def main():
             dataset_path = run_directory / "logs" / Path(args.output).name
             
             # Run analysis tool with existing run context
-            success = run_analysis_tool(args.output, resolved_api_key, run_directory, run_id, args.external_assets)
+            success = run_analysis_tool(args.output, resolved_api_key, run_directory, run_id, args.external_assets, args.sdc_only)
             if not success:
                 logger.error("Analysis tool execution failed", group="data_processing")
                 return 1
@@ -671,7 +674,7 @@ def main():
     return 0
 
 
-def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=None, external_assets=False):
+def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=None, external_assets=False, sdc_only=False):
     """Run the analysis tool on the generated dataset within an existing run context"""
     import subprocess
     
@@ -717,6 +720,14 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
         
         if external_assets:
             cmd.append("--external-assets")
+        
+        if sdc_only:
+            cmd.append("--sdc-only")
+            # SDC-only mode automatically enables no-cache and no-browser for efficiency
+            cmd.append("--no-cache")
+            cmd.append("--no-browser")
+            logger.info("Source Data Concerns only mode enabled - skipping NVD CPE API calls and HTML generation", group="initialization")
+            logger.info("SDC-only mode: Automatically enabled --no-cache and --no-browser for efficiency", group="initialization")
         
         logger.info(f"Executing: {' '.join(cmd)}", group="initialization")
         

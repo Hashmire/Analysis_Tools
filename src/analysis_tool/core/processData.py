@@ -536,7 +536,7 @@ def deriveCPEMatchStringList(rawDataSet):
     return distinct_values_list
 #
 # Generates a list of CPE Base Strings and relevant contextual information about each
-def suggestCPEData(apiKey, rawDataset, case):
+def suggestCPEData(apiKey, rawDataset, case, sdc_only=False):
     match case:
         # Case 1 CVE List
         case 1:
@@ -1202,6 +1202,11 @@ def suggestCPEData(apiKey, rawDataset, case):
             
             # End the CPE generation stage now that we have generated the CPE match strings
             end_unique_cpe_generation("CPE base strings extracted")
+            
+            # SDC-only mode: Skip expensive NVD CPE API calls but keep source data concerns analysis
+            if sdc_only:
+                logger.info("SDC-only mode: Skipping NVD CPE API calls - source data concerns analysis complete", group="data_processing")
+                return rawDataset
             
             # Start the CPE queries stage for the actual API calls
             start_cpe_queries("Querying NVD CPE API")

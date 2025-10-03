@@ -2017,11 +2017,77 @@ def update_cve_discovery_progress(current_count: int, total_count: int, matched_
     """Update progress during CVE list generation phase"""
     collector = get_dataset_contents_collector()
     collector.update_cve_discovery_progress(current_count, total_count, matched_cves)
+def _set_tracked_properties_for_mode(collector, processing_mode: str, cache_disabled: bool = False, cache_disable_reason: str = None):
+    """Set tracked properties for each data section based on processing mode"""
+    # Default all sections to tracked for full mode
+    is_full_mode = processing_mode == "full"
+    is_sdc_only = processing_mode == "sdc-only"
+    is_test_mode = processing_mode == "test"
+    
+    # Cache section - set tracking and note based on disable reason
+    collector.data["cache"]["tracked"] = is_full_mode and not cache_disabled
+    if cache_disabled or not is_full_mode:
+        # Set specific note based on disable reason
+        if cache_disable_reason == "manual":
+            collector.data["cache"]["note"] = "Cache manually disabled with --no-cache flag"
+        elif cache_disable_reason == "sdc-only" or is_sdc_only:
+            collector.data["cache"]["note"] = "Cache automatically disabled in SDC-only mode (--sdc-only)"
+        elif cache_disable_reason == "test-file" or is_test_mode:
+            collector.data["cache"]["note"] = "Cache automatically disabled for test file mode (--test-file)"
+        else:
+            collector.data["cache"]["note"] = "Cache functionality disabled"
+    
+    # API section - limited tracking in sdc-only (only MITRE CVE API)
+    collector.data["api"]["tracked"] = True  # Always track API calls
+    collector.data["api"]["tracking_note"] = {
+        "full": "All API calls tracked",
+        "sdc-only": "NVD /cpe/ API calls are skipped in SDC-only mode",
+        "test": "Limited API calls in test mode"
+    }.get(processing_mode, "API tracking enabled")
+    
+    # File stats - not tracked in sdc-only (no HTML files generated)
+    collector.data["file_stats"]["tracked"] = not is_sdc_only
+    if is_sdc_only:
+        collector.data["file_stats"]["note"] = "HTML file generation skipped in SDC-only mode"
+    
+    # CPE query stats - not tracked in sdc-only (no CPE queries)
+    collector.data["cpe_query_stats"]["tracked"] = is_full_mode
+    if is_sdc_only:
+        collector.data["cpe_query_stats"]["note"] = "CPE queries skipped in SDC-only mode"
+    
+    # Mapping stats - not tracked in sdc-only (no confirmed mappings)
+    collector.data["mapping_stats"]["tracked"] = is_full_mode
+    if is_sdc_only:
+        collector.data["mapping_stats"]["note"] = "Confirmed mappings skipped in SDC-only mode"
+    
+    # Performance, processing, log_stats, warnings, errors always tracked
+    collector.data["performance"]["tracked"] = True
+    collector.data["processing"]["tracked"] = True
+    collector.data["log_stats"]["tracked"] = True
+    collector.data["warnings"]["tracked"] = True
+    collector.data["errors"]["tracked"] = True
+    
+    # Speed stats - always tracked (measures CVE processing speed)
+    collector.data["speed_stats"]["tracked"] = True
+    
+    # Bloat analysis - deprecated functionality, always set to false
+    collector.data["bloat_analysis"]["tracked"] = False
+    collector.data["bloat_analysis"]["note"] = "Bloat analysis is deprecated and disabled"
 
-def initialize_dashboard_collector(logs_directory: str) -> bool:
-    """Initialize the dashboard collector with output directory"""
+def initialize_dashboard_collector(logs_directory: str, processing_mode: str = "full", cache_disabled: bool = False, cache_disable_reason: str = None) -> bool:
+    """Initialize the dashboard collector with output directory and processing mode
+    
+    Args:
+        logs_directory: Path to logs directory
+        processing_mode: Processing mode ('full', 'sdc-only', 'test')
+        cache_disabled: Whether cache is disabled
+        cache_disable_reason: Reason for cache being disabled ('manual', 'sdc-only', 'test-file')
+    """
     try:
         collector = get_dataset_contents_collector()
+        
+        # Set processing mode for tracked property management
+        collector.processing_mode = processing_mode
         output_file = os.path.join(logs_directory, "generateDatasetReport.json")
         collector.output_file_path = output_file
         
@@ -2057,6 +2123,17 @@ def initialize_dashboard_collector(logs_directory: str) -> bool:
             except (json.JSONDecodeError, KeyError) as e:
                 if logger:
                     logger.warning(f"Could not parse existing dashboard data, starting fresh: {e}", group="initialization")
+        
+        # Add processing mode metadata
+        collector.data["metadata"]["processing_mode"] = processing_mode
+        collector.data["metadata"]["processing_mode_description"] = {
+            "full": "Complete analysis with NVD CPE API calls and HTML generation",
+            "sdc-only": "Source Data Concerns analysis only - skips NVD CPE API calls and HTML generation",
+            "test": "Test mode with local test files"
+        }.get(processing_mode, "Unknown processing mode")
+        
+        # Set tracked properties based on processing mode
+        _set_tracked_properties_for_mode(collector, processing_mode, cache_disabled, cache_disable_reason)
         
         # Save the potentially merged data
         result = collector.save_to_file(output_file)
