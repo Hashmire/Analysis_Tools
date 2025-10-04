@@ -3692,7 +3692,9 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                 "granularity": granularity_count
                             }
                         })
-                        concerns_count += 1
+                
+                # Count unique granularities per base group (not individual version entries)
+                concerns_count += len(granularities)
         
         # Update concern types if version granularity patterns were found
         if concerns_data["versionGranularity"]:

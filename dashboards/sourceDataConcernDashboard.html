@@ -673,8 +673,14 @@
             color: #374151; /* Neutral dark grey for totals */
         }
 
+        /* ===== TOP CONCERNS SECTION STYLES ===== */
+        
+        /* Container Styles */
         .top-concerns {
             margin-bottom: 15px;
+            display: block;
+            width: 100%;
+            text-align: left;
         }
 
         .top-concerns strong {
@@ -684,88 +690,205 @@
             display: block;
         }
 
+        /* Top Concern Cards */
         .top-concern {
             display: inline-block;
-            background: linear-gradient(135deg, #DDD6FE 0%, #EDE9FE 50%, #F3F0FF 100%);
-            color: #5B21B6;
-            padding: 8px 16px;
-            margin: 4px;
-            border-radius: 8px;
-            font-size: 0.85em;
-            font-weight: 600;
-            border: 1px solid rgba(91, 33, 182, 0.2);
-            box-shadow: 
-                0 2px 8px rgba(124, 58, 237, 0.15),
-                inset 0 1px 0 rgba(255, 255, 255, 0.6);
-            transition: all 0.2s ease;
-        }
-
-        .top-concern.enhanced {
-            display: inline-block;
-            width: 30%;
-            margin: 8px 1%;
-            padding: 12px 16px;
+            vertical-align: top;
+            width: calc(33.333% - 25px);
+            margin: 6px;
+            padding: 14px 16px;
             background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
             border: 1px solid rgba(139, 92, 246, 0.2);
             border-left: 4px solid #8B5CF6;
             border-radius: 10px;
             box-shadow: 0 3px 10px rgba(139, 92, 246, 0.1);
-            vertical-align: top;
-            box-sizing: border-box;
+            transition: all 0.3s ease;
         }
 
-        .top-concern.enhanced:hover {
+        .top-concern:hover {
             border-left-color: #7C3AED;
-            border-color: rgba(139, 92, 246, 0.3);
-            box-shadow: 0 5px 15px rgba(139, 92, 246, 0.15);
-            transform: translateY(-2px);
+            border-color: rgba(139, 92, 246, 0.4);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.2);
+            transform: translateY(-3px);
+            background: linear-gradient(135deg, #FFFFFF 0%, #F1F5F9 100%);
         }
 
-        .concern-header {
+        /* No Concerns State */
+        .top-concern.no-concerns-detected {
+            width: 100%;
+            margin: 8px 0;
+            padding: 16px;
+            text-align: center;
+            color: #6B7280;
+            font-style: italic;
+            background: #F9FAFB;
+            border: 1px dashed #D1D5DB;
+            border-radius: 8px;
+        }
+
+        /* Card Content Structure */
+        .top-concern .concern-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            min-height: 24px;
         }
 
-        .concern-title {
+        .top-concern .concern-title {
             font-weight: 600;
             color: #374151;
             font-size: 0.95em;
+            line-height: 1.3;
+            flex: 1;
+            margin-right: 12px;
+            transition: color 0.2s ease;
+            display: flex;
+            align-items: flex-start;
+            min-height: 20px;
         }
 
-        .concern-count-badge {
+        /* Text alignment for consistent colon positioning */
+        .top-concern .concern-title::after {
+            content: ":";
+            margin-left: 4px;
+            margin-right: 8px;
+            color: #6B7280;
+            font-weight: 500;
+        }
+
+        .top-concern:hover .concern-title {
+            color: #1F2937;
+        }
+
+        .top-concern .concern-count-badge {
             background: linear-gradient(135deg, #8B5CF6 0%, #A855F7 100%);
             color: white;
-            padding: 4px 10px;
+            padding: 4px 12px;
             border-radius: 12px;
-            font-size: 0.8em;
+            font-size: 0.75em;
             font-weight: 600;
-            min-width: 24px;
+            min-width: 60px;
             text-align: center;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+            font-feature-settings: "tnum" 1; /* Use tabular numbers for consistent spacing */
         }
 
-        .concern-breakdown {
+        .top-concern:hover .concern-count-badge {
+            background: linear-gradient(135deg, #7C3AED 0%, #9333EA 100%);
+            transform: scale(1.05);
+        }
+
+        .top-concern .concern-breakdown {
             font-size: 0.8em;
             color: #6B7280;
-            line-height: 1.4;
+            line-height: 1.6;
+            margin-top: 6px;
+            transition: color 0.2s ease;
         }
 
-        .breakdown-label {
+        .top-concern:hover .concern-breakdown {
+            color: #4B5563;
+        }
+
+        .top-concern .breakdown-label {
             font-weight: 500;
             color: #8B5CF6;
+            transition: color 0.2s ease;
         }
 
-        .breakdown-text {
-            font-style: italic;
+        .top-concern:hover .breakdown-label {
+            color: #7C3AED;
         }
-        
-        .top-concern:hover {
-            background: linear-gradient(135deg, #C4B5FD 0%, #DDD6FE 50%, #EDE9FE 100%);
-            transform: translateY(-1px);
-            box-shadow: 
-                0 4px 12px rgba(124, 58, 237, 0.25),
-                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+
+        .top-concern .breakdown-text {
+            font-style: italic;
+            display: block;
+            width: 100%;
+        }
+
+        /* CSS Grid layout for precise alignment of breakdown content */
+        .top-concern .breakdown-line {
+            display: grid;
+            grid-template-columns: 1fr 40px 50px;
+            gap: 8px;
+            align-items: baseline;
+            margin: 2px 0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        .top-concern .breakdown-category {
+            font-weight: 600;
+            color: #69717EE0;
+            transition: color 0.2s ease;
+            justify-self: start;
+            white-space: nowrap;
+        }
+
+        .top-concern:hover .breakdown-category {
+            color: #374151;
+        }
+
+        .top-concern .breakdown-count {
+            color: #8B5CF6;
+            font-weight: 600;
+            font-feature-settings: "tnum" 1;
+            transition: color 0.2s ease;
+            text-align: right;
+            justify-self: end;
+        }
+
+        .top-concern .breakdown-percent {
+            color: #8B5CF6;
+            font-weight: 500;
+            font-feature-settings: "tnum" 1;
+            transition: color 0.2s ease;
+            justify-self: start;
+        }
+
+        .top-concern:hover .breakdown-count,
+        .top-concern:hover .breakdown-percent {
+            color: #7C3AED;
+        }
+
+        .top-concern:hover .breakdown-details {
+            color: #7C3AED;
+        }
+
+        /* Responsive Top Concerns Layout */
+        @media (max-width: 1400px) {
+            .top-concern {
+                width: calc(50% - 12px);
+            }
+        }
+
+        @media (max-width: 900px) {
+            .top-concern {
+                width: 100%;
+                margin: 6px 0;
+                display: block;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .top-concern {
+                margin: 6px 0;
+                padding: 12px 14px;
+            }
+            
+            .top-concern .concern-title {
+                font-size: 0.9em;
+            }
+            
+            .top-concern .concern-count-badge {
+                font-size: 0.75em;
+                padding: 3px 8px;
+            }
+            
+            .top-concern .concern-breakdown {
+                font-size: 0.75em;
+            }
         }
 
         details {
@@ -2120,20 +2243,7 @@
                 padding: 12px;
             }
 
-            .top-concerns {
-                margin-bottom: 15px;
-            }
-
-            .top-concern {
-                margin: 2px;
-                font-size: 0.8em;
-            }
-
-            .top-concern.enhanced {
-                width: 100%;
-                margin: 8px 0;
-                display: block;
-            }
+            /* Top concerns responsive styles handled in main section above */
 
             .platform-entry {
                 margin: 8px 0;
@@ -2417,7 +2527,7 @@
                 <div id="sa_content_01" class="section-content">
                     <div class="search-container">
                         <div class="search-wrapper">
-                            <input type="text" id="source-search" class="search-input" placeholder="Search sources by name, concern type, CVE ID, vendor, or product...">
+                            <input type="text" id="source-search" class="search-input" placeholder="Search sources, detection groups, sub-types, or CVE IDs...">
                             <div class="search-icon">🔍</div>
                         </div>
                         <div class="search-results-summary" id="search-results-summary" style="display: none;">
@@ -2435,7 +2545,6 @@
 
     <script>
         let dashboardData = null;
-        let sourceSearchIndex = null;
         let searchDebounceTimeout = null;
         
         // Documentation toggle functionality
@@ -2492,6 +2601,7 @@
                 'trailing': 'Trailing Whitespace',
                 'excessive': 'Excessive Whitespace'
             };
+            // Presentation layer: Display friendly name or raw value for graceful UI
             return whitespaceDisplayNames[whitespaceType] || whitespaceType;
         }
         
@@ -2526,6 +2636,7 @@
             };
             
             concerns.forEach(concern => {
+                // Presentation layer: Extract field safely for categorization display
                 const field = concern.field || '';
                 
                 if (isCPEBaseField(field, customCPEFields)) {
@@ -2607,7 +2718,7 @@
                 } else if (field.includes('changes[') && field.includes('.at')) {
                     categories[getFieldDisplayName('changes', 'Placeholder')].push(concern);
                 } else if (isVersionField(field)) {
-                    // Fallback for other version-related fields
+                    // Presentation layer: Categorize unknown version fields for graceful display
                     categories[getFieldDisplayName('version', 'Placeholder')].push(concern);
                 } else {
                     // Log error and continue processing without categorizing unrecognized fields
@@ -2655,7 +2766,7 @@
                 } else if (field.includes('changes[') && field.includes('.at')) {
                     categories[getFieldDisplayName('changes', 'Comparators')].push(concern);
                 } else if (isVersionField(field)) {
-                    // Fallback for other version-related fields
+                    // Presentation layer: Categorize unknown version fields for graceful display
                     categories[getFieldDisplayName('version', 'Comparators')].push(concern);
                 } else {
                     // Log error and continue processing without categorizing unrecognized fields
@@ -2739,7 +2850,7 @@
                 } else if (field.includes('changes[') && field.includes('.at')) {
                     categories[getFieldDisplayName('changes', 'Invalid Characters')].push(concern);
                 } else if (isVersionField(field)) {
-                    // Fallback for other version-related fields
+                    // Presentation layer: Categorize unknown version fields for graceful display
                     categories[getFieldDisplayName('version', 'Invalid Characters')].push(concern);
                 } else {
                     // Log error and continue processing without categorizing unrecognized fields
@@ -2875,7 +2986,7 @@
                 } else if (field.includes('changes[') && field.includes('.at')) {
                     categories[getFieldDisplayName('changes', 'All-Versions Pattern')].push(concern);
                 } else if (isVersionField(field)) {
-                    // Fallback for other version-related fields
+                    // Presentation layer: Categorize unknown version fields for graceful display
                     categories[getFieldDisplayName('version', 'All-Versions Pattern')].push(concern);
                 } else {
                     // Log error and continue processing without categorizing unrecognized fields
@@ -2923,7 +3034,7 @@
                 } else if (field.includes('changes[') && field.includes('.at')) {
                     categories[getFieldDisplayName('changes', 'Bloat Text')].push(concern);
                 } else if (isVersionField(field)) {
-                    // Fallback for other version-related fields
+                    // Presentation layer: Categorize unknown version fields for graceful display
                     categories[getFieldDisplayName('version', 'Bloat Text')].push(concern);
                 } else {
                     // Log error and continue processing without categorizing unrecognized fields
@@ -2989,6 +3100,7 @@
                         ${concerns.map((concern, index) => `
                             <div class="concern-item">
                                 <div class="concern-details">
+                                    <!-- Presentation layer: Display concern content gracefully across different data formats -->
                                     ${concern.concern || concern.issue || concern.message || 'No details available'}
                                     ${concern.field ? `<span class="concern-field">Field: ${concern.field}</span>` : ''}
                                     ${concern.value ? `<span class="concern-value">Value: "${concern.value}"</span>` : ''}
@@ -3053,13 +3165,17 @@
             // Calculate total concerns for percentage calculation
             const totalConcerns = nonEmptyCategories.reduce((sum, [, concerns]) => sum + concerns.length, 0);
             
-            // Show ALL subcategories with percentages on new lines
+            // Show ALL subcategories with percentages using separate aligned divs
             const summary = nonEmptyCategories
                 .map(([category, concerns]) => {
                     const percentage = ((concerns.length / totalConcerns) * 100).toFixed(1);
-                    return `${category}: ${concerns.length} (${percentage}%)`;
+                    return `<div class="breakdown-line">
+                        <span class="breakdown-category">${category}:</span>
+                        <span class="breakdown-count">${concerns.length}</span>
+                        <span class="breakdown-percent">(${percentage}%)</span>
+                    </div>`;
                 })
-                .join('<br>');
+                .join('');
             
             return summary;
         }
@@ -3359,6 +3475,7 @@
                 if (concernGroup.concern_type === 'versionGranularity') {
                     const baseGroups = {};
                     concernGroup.concerns.forEach(concern => {
+                        // Presentation layer: Extract base version for display with fallback
                         const base = concern.detectedPattern?.base || 'unknown';
                         if (!baseGroups[base]) baseGroups[base] = [];
                         baseGroups[base].push(concern);
@@ -3941,7 +4058,7 @@
             window.currentData = dashboardData.cve_data;
             
             // Clear previous search index to prevent memory leaks
-            sourceSearchIndex = null;
+
             
             // Show dashboard content
             document.querySelector('.dashboard-content').style.display = 'block';
@@ -4198,6 +4315,9 @@
                     .sort((a, b) => b[1] - a[1])
                     .slice(0, 5);
                 
+                // Calculate total concerns for percentage calculation
+                const totalConcerns = Object.values(data.concern_breakdown).reduce((sum, count) => sum + count, 0);
+                
                 // Analyze concern breakdowns for subcategory information
                 const concernBreakdowns = analyzeConcernBreakdown(data);
                 
@@ -4213,21 +4333,7 @@
                 const badge2Id = `sa_badge_${String(sourceIndex + 1).padStart(2, '0')}_02`; // CVE records
                 const badge3Id = `sa_badge_${String(sourceIndex + 1).padStart(2, '0')}_03`; // Platform entries
                 
-                // Create searchable content for filtering
-                const searchableContent = [
-                    data.source_name,
-                    data.source_id,
-                    ...Object.keys(data.concern_breakdown),
-                    ...data.entries.map(entry => `${entry.cve_id} ${entry.vendor} ${entry.product}`)
-                ].join(' ').toLowerCase();
-                
-                // Create search index entry for optimized searching
-                if (!sourceSearchIndex) sourceSearchIndex = [];
-                sourceSearchIndex.push({
-                    id: cardId,
-                    content: searchableContent,
-                    element: null // Will be set after DOM creation
-                });
+
                 
                 return `
                     <div id="${cardId}" class="source-item" data-source-index="${sourceIndex}">
@@ -4238,9 +4344,9 @@
                                     <div class="stat-text">
                                         <strong id="${badge2Id}" class="stat-badge stat-total">${data.cve_records.size}</strong> CVE records
                                         <span class="stat-detail">
-                                            <strong class="stat-badge stat-concern">${data.cve_records_with_concerns.size}</strong> concerns detected
+                                            <strong class="stat-badge stat-concern">${data.cve_records_with_concerns.size}</strong> with concerns detected
                                             <br />
-                                            <strong class="stat-badge stat-clean">${data.cve_records_without_concerns.size}</strong> no concerns
+                                            <strong class="stat-badge stat-clean">${data.cve_records_without_concerns.size}</strong> with no concerns
                                         </span>
                                     </div>
                                     <div class="stat-chart-container">
@@ -4253,9 +4359,9 @@
                                     <div class="stat-text">
                                         <strong id="${badge3Id}" class="stat-badge stat-total">${data.total_platform_entries}</strong> platform entries
                                         <span class="stat-detail">
-                                            <strong class="stat-badge stat-concern">${data.entries.length}</strong> concerns detected
+                                            <strong class="stat-badge stat-concern">${data.entries.length}</strong> with concerns detected
                                             <br />
-                                            <strong class="stat-badge stat-clean">${data.clean_platform_entries}</strong> no concerns
+                                            <strong class="stat-badge stat-clean">${data.clean_platform_entries}</strong> with no concerns
                                         </span>
                                     </div>
                                     <div class="stat-chart-container">
@@ -4276,10 +4382,13 @@
                             </div>
                         </div>
                         <div id="${listId}" class="top-concerns">
-                            <strong>Concern Type Analysis:</strong>
+                            <strong>Detection Groups:</strong>
                             ${topConcerns.length > 0 ? 
                                 topConcerns.map(([type, count], concernIndex) => {
                                     const itemId = `sa_item_${String(sourceIndex + 1).padStart(2, '0')}_${String(concernIndex + 1).padStart(2, '0')}`;
+                                    
+                                    // Calculate percentage of ALL concerns (not just top 5)
+                                    const percentage = totalConcerns > 0 ? ((count / totalConcerns) * 100).toFixed(1) : '0.0';
                                     
                                     // Get the concern type key from display name
                                     const concernTypeKey = Object.keys(concernTypeNames).find(key => 
@@ -4292,10 +4401,10 @@
                                         : '';
                                     
                                     return `
-                                        <div id="${itemId}" class="top-concern enhanced">
+                                        <div id="${itemId}" class="top-concern">
                                             <div class="concern-header">
                                                 <span class="concern-title">${type}</span>
-                                                <span class="concern-count-badge">${count}</span>
+                                                <span class="concern-count-badge">${count} (${percentage}%)</span>
                                             </div>
                                             ${subcategorySummary ? `
                                                 <div class="concern-breakdown">
@@ -4319,7 +4428,8 @@
                                     cveGroups[entry.cve_id].push({...entry, entryIndex});
                                 });
                                 const uniqueCveCount = Object.keys(cveGroups).length;
-                                return `<summary>View CVE Entries (${uniqueCveCount})</summary>`;
+                                const entriesWithConcerns = data.entries.filter(entry => entry.total_concerns > 0).length;
+                                return `<summary id="${entriesListId}_summary">View CVE Entries (${uniqueCveCount}) - ${entriesWithConcerns} concerns detected</summary>`;
                             })()}
                             <div id="${entriesListId}" class="cve-cards-container">
                                 ${(() => {
@@ -4431,13 +4541,8 @@
             // Create charts for each source
             createSourceCharts(sortedSources);
             
-            // Build search index with DOM references for optimized searching
-            sourceSearchIndex.forEach((indexEntry, i) => {
-                indexEntry.element = document.getElementById(indexEntry.id);
-            });
-            
             // Initialize search functionality
-            initializeSearch(sortedSources.length);
+            initializeSimpleSearch();
             
             // Re-apply dynamic sizing after any layout changes from charts
             setTimeout(() => {
@@ -4616,8 +4721,9 @@
                                                 return ''; // No title
                                             },
                                             label: function(context) {
-                                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                                const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                                // Use total of ALL concerns, not just the slice shown in chart
+                                                const allConcernsTotal = Object.values(data.concern_breakdown).reduce((sum, count) => sum + count, 0);
+                                                const percentage = ((context.parsed / allConcernsTotal) * 100).toFixed(1);
                                                 const count = context.parsed;
                                                 // Split multi-word labels into separate lines
                                                 const labelWords = context.label.split(' ');
@@ -4683,7 +4789,7 @@
             // Could add a simple toast notification here if needed
         }
 
-        function initializeSearch(totalSources) {
+        function initializeSimpleSearch() {
             const searchInput = document.getElementById('source-search');
             const searchSummary = document.getElementById('search-results-summary');
             const searchLoading = document.getElementById('search-loading');
@@ -4691,146 +4797,206 @@
             const visibleSourcesSpan = document.getElementById('visible-sources');
             const sourcesList = document.getElementById('sources-list');
             
-            if (!searchInput || !sourceSearchIndex) return;
+            if (!searchInput) return;
             
-            // Set initial totals
+            // Count total sources and set initial UI state
+            const allSourceCards = sourcesList.querySelectorAll('[id^="sa_card_"]');
+            const totalSources = allSourceCards.length;
             totalSourcesSpan.textContent = totalSources;
             visibleSourcesSpan.textContent = totalSources;
             
-            // Determine if this is a large dataset that needs loading indicators
-            const isLargeDataset = totalSources > 100;
-            
-            // Optimized search function with debouncing
-            function performSearch(searchTerm) {
-                const startTime = performance.now();
+            function updateCveSummaries() {
+                // Update all CVE summaries to show visible vs total counts
+                const allSummaries = document.querySelectorAll('[id$="_summary"]');
                 
-                // Show loading indicator for large datasets
-                if (isLargeDataset && searchTerm !== '') {
-                    searchLoading.style.display = 'block';
-                    searchSummary.style.display = 'none';
-                } else {
-                    searchLoading.style.display = 'none';
-                }
+                allSummaries.forEach(summary => {
+                    const summaryId = summary.id;
+                    const entriesListId = summaryId.replace('_summary', '');
+                    const cveContainer = document.getElementById(entriesListId);
+                    
+                    if (!cveContainer) return;
+                    
+                    const allCveCards = cveContainer.querySelectorAll('.cve-card');
+                    const visibleCveCards = Array.from(allCveCards).filter(card => 
+                        card.style.display !== 'none'
+                    );
+                    
+                    const totalCount = allCveCards.length;
+                    const visibleCount = visibleCveCards.length;
+                    
+                    // Update summary text based on whether filtering is active
+                    if (visibleCount === totalCount) {
+                        // No filtering active - show total count only
+                        summary.textContent = `View CVE Entries (${totalCount})`;
+                    } else {
+                        // Filtering active - show visible/total
+                        summary.textContent = `View CVE Entries (${visibleCount}/${totalCount})`;
+                    }
+                });
+            }
+
+            function performHierarchicalSearch(searchTerm) {
+                searchLoading.style.display = 'none';
                 
                 if (searchTerm === '') {
-                    // Show all sources efficiently
-                    sourceSearchIndex.forEach(indexEntry => {
-                        if (indexEntry.element) {
-                            indexEntry.element.style.display = '';
-                        }
+                    // Show all content
+                    allSourceCards.forEach(card => {
+                        card.style.display = '';
+                        // Show all child elements
+                        card.querySelectorAll('[id^="sa_item_"], .cve-card').forEach(child => {
+                            child.style.display = '';
+                        });
                     });
                     
                     visibleSourcesSpan.textContent = totalSources;
                     searchSummary.style.display = 'none';
-                    searchLoading.style.display = 'none';
                     
-                    // Remove any no-results message
+                    // Update CVE summaries to show total counts
+                    updateCveSummaries();
+                    
+                    // Remove no-results message
                     const noResults = sourcesList.querySelector('.no-results');
                     if (noResults) noResults.remove();
-                    
-                    console.log(`Search cleared in ${(performance.now() - startTime).toFixed(2)}ms`);
                     return;
                 }
                 
-                let visibleCount = 0;
+                let visibleSourceCount = 0;
                 const searchWords = searchTerm.split(/\s+/).filter(word => word.length > 0);
                 
-                // Use requestAnimationFrame for non-blocking updates with large datasets
-                const batchSize = isLargeDataset ? 25 : 50; // Smaller batches for very large datasets
-                let currentIndex = 0;
-                
-                function processBatch() {
-                    const endIndex = Math.min(currentIndex + batchSize, sourceSearchIndex.length);
+                allSourceCards.forEach(card => {
+                    let cardHasMatch = false;
                     
-                    for (let i = currentIndex; i < endIndex; i++) {
-                        const indexEntry = sourceSearchIndex[i];
-                        if (!indexEntry.element) continue;
+                    // Check source name (sa_title_)
+                    const sourceTitle = card.querySelector('[id^="sa_title_"]');
+                    if (sourceTitle && matchesSearch(sourceTitle.textContent, searchWords)) {
+                        cardHasMatch = true;
+                    }
+                    
+                    // Check and filter Top Concerns (Detection Groups)
+                    const topConcernItems = card.querySelectorAll('[id^="sa_item_"]');
+                    topConcernItems.forEach(item => {
+                        let itemHasMatch = false;
                         
-                        // Optimized multi-word search
-                        const isMatch = searchWords.length === 1 
-                            ? indexEntry.content.includes(searchTerm)
-                            : searchWords.every(word => indexEntry.content.includes(word));
-                        
-                        if (isMatch) {
-                            indexEntry.element.style.display = '';
-                            visibleCount++;
-                        } else {
-                            indexEntry.element.style.display = 'none';
+                        // Check concern-title (Detection Group)
+                        const concernTitle = item.querySelector('.concern-title');
+                        if (concernTitle && matchesSearch(concernTitle.textContent, searchWords)) {
+                            itemHasMatch = true;
                         }
-                    }
+                        
+                        // Check breakdown-category (Sub-Type Grouping)
+                        const breakdownCategories = item.querySelectorAll('.breakdown-category');
+                        breakdownCategories.forEach(category => {
+                            if (matchesSearch(category.textContent, searchWords)) {
+                                itemHasMatch = true;
+                            }
+                        });
+                        
+                        if (itemHasMatch) {
+                            item.style.display = '';
+                            cardHasMatch = true;
+                        } else {
+                            item.style.display = 'none';
+                        }
+                    });
                     
-                    currentIndex = endIndex;
+                    // Check and filter CVE entries
+                    const cveCards = card.querySelectorAll('.cve-card');
+                    cveCards.forEach(cveCard => {
+                        let cveHasMatch = false;
+                        
+                        // Check CVE ID
+                        const cveIdElement = cveCard.querySelector('.cve-id, [class*="cve-id"]');
+                        if (cveIdElement && matchesSearch(cveIdElement.textContent, searchWords)) {
+                            cveHasMatch = true;
+                        }
+                        
+                        // Check cve-concern-type (Detection Group in CVE context)
+                        const cveConcernTypes = cveCard.querySelectorAll('.cve-concern-type, [class*="concern-type"]');
+                        cveConcernTypes.forEach(type => {
+                            if (matchesSearch(type.textContent, searchWords)) {
+                                cveHasMatch = true;
+                            }
+                        });
+                        
+                        // Check breakdown-category (Sub-Type Grouping within CVE cards)
+                        const cveBreakdownCategories = cveCard.querySelectorAll('.breakdown-category');
+                        cveBreakdownCategories.forEach(category => {
+                            if (matchesSearch(category.textContent, searchWords)) {
+                                cveHasMatch = true;
+                            }
+                        });
+                        
+                        if (cveHasMatch) {
+                            cveCard.style.display = '';
+                            cardHasMatch = true;
+                        } else {
+                            cveCard.style.display = 'none';
+                        }
+                    });
                     
-                    if (currentIndex < sourceSearchIndex.length) {
-                        // Continue processing in next frame
-                        requestAnimationFrame(processBatch);
+                    // Show/hide entire source card based on whether any children matched
+                    if (cardHasMatch) {
+                        card.style.display = '';
+                        visibleSourceCount++;
                     } else {
-                        // Batch processing complete
-                        finishSearch(visibleCount, searchTerm, startTime);
+                        card.style.display = 'none';
                     }
-                }
+                });
                 
-                // Start batch processing
-                processBatch();
-            }
-            
-            function finishSearch(visibleCount, searchTerm, startTime) {
-                // Hide loading indicator
-                searchLoading.style.display = 'none';
-                
-                // Update search summary
-                visibleSourcesSpan.textContent = visibleCount;
+                // Update UI
+                visibleSourcesSpan.textContent = visibleSourceCount;
                 searchSummary.style.display = 'block';
+                
+                // Update CVE summaries to show filtered counts
+                updateCveSummaries();
                 
                 // Handle no results
                 const existingNoResults = sourcesList.querySelector('.no-results');
-                if (visibleCount === 0 && !existingNoResults) {
+                if (visibleSourceCount === 0 && !existingNoResults) {
                     const noResultsDiv = document.createElement('div');
                     noResultsDiv.className = 'no-results';
                     noResultsDiv.innerHTML = `
-                        <div>No sources found matching "${searchTerm}"</div>
+                        <div>No matches found for "${searchTerm}"</div>
                         <div class="search-suggestions">
-                            Try searching for source names, concern types (like "Version Text Patterns"), 
-                            CVE IDs (like "CVE-2024"), or vendor/product names.
+                            Search targets: Source names, Detection Groups, Sub-Types, or CVE IDs
                         </div>
                     `;
                     sourcesList.appendChild(noResultsDiv);
-                } else if (visibleCount > 0 && existingNoResults) {
+                } else if (visibleSourceCount > 0 && existingNoResults) {
                     existingNoResults.remove();
                 }
-                
-                const duration = (performance.now() - startTime).toFixed(2);
-                console.log(`Search completed in ${duration}ms - ${visibleCount}/${sourceSearchIndex.length} results`);
             }
             
-            // Debounced search with optimal delay
+            function matchesSearch(text, searchWords) {
+                if (!text) return false;
+                const lowerText = text.toLowerCase();
+                return searchWords.every(word => lowerText.includes(word));
+            }
+            
+            // Event listeners
             searchInput.addEventListener('input', function(e) {
                 const searchTerm = e.target.value.toLowerCase().trim();
                 
-                // Clear previous timeout
                 if (searchDebounceTimeout) {
                     clearTimeout(searchDebounceTimeout);
                 }
                 
-                // Set new timeout with optimal delay for responsiveness vs performance
                 searchDebounceTimeout = setTimeout(() => {
-                    performSearch(searchTerm);
-                }, searchTerm.length < 3 ? 300 : 150); // Longer delay for short terms
+                    performHierarchicalSearch(searchTerm);
+                }, 250);
             });
             
-            // Immediate search on paste
             searchInput.addEventListener('paste', function(e) {
                 setTimeout(() => {
                     const searchTerm = e.target.value.toLowerCase().trim();
-                    performSearch(searchTerm);
+                    performHierarchicalSearch(searchTerm);
                 }, 10);
             });
             
-            // Clear search on Escape key
             searchInput.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape') {
                     e.target.value = '';
-                    performSearch('');
+                    performHierarchicalSearch('');
                     e.target.blur();
                 }
             });
