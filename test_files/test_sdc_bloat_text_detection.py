@@ -35,7 +35,7 @@ def run_test_and_get_report():
     """Run the test file and extract the sourceDataConcernReport.json"""
     try:
         # Run the tool using the standard command line interface
-        cmd = [sys.executable, "run_tools.py", "--test-file", TEST_FILE, "--no-cache"]
+        cmd = [sys.executable, "run_tools.py", "--test-file", TEST_FILE, "--no-cache", "--sdc-report", "true"]
         
         # Check if running under unified test runner to control browser behavior
         if os.environ.get('UNIFIED_TEST_RUNNER'):

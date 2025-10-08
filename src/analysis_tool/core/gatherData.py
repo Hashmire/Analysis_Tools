@@ -4,6 +4,7 @@ import pandas as pd
 import os
 import json
 from time import sleep
+from pathlib import Path
 
 # Import Analysis Tool 
 from . import processData
@@ -34,6 +35,56 @@ def get_public_ip():
                               timeout=config['api']['timeouts']['public_ip'])
         return response.text if response.status_code == 200 else "Unknown"
     except Exception as e:        return f"Could not retrieve IP: {str(e)}"
+
+def _resolve_cve_file_path(cve_id, repo_base_path):
+    """
+    Convert CVE ID to local repository file path.
+    CVE-2024-12345 → {repo_base_path}/2024/12xxx/CVE-2024-12345.json
+    """
+    try:
+        parts = cve_id.split('-')
+        if len(parts) != 3:
+            return None
+            
+        year = parts[1]
+        number = parts[2]
+        
+        # Determine directory based on number ranges
+        if len(number) == 4:
+            dir_name = f"{number[0]}xxx"
+        elif len(number) == 5:
+            dir_name = f"{number[:2]}xxx"
+        elif len(number) >= 6:
+            dir_name = f"{number[:3]}xxx"
+        else:
+            return None
+            
+        return Path(repo_base_path) / year / dir_name / f"{cve_id}.json"
+    except (IndexError, ValueError):
+        return None
+
+def _load_cve_from_local_file(cve_file_path):
+    """
+    Load CVE record from local JSON file.
+    Returns CVE data dict or None if file doesn't exist or is invalid.
+    """
+    try:
+        if not cve_file_path.exists():
+            return None
+            
+        with open(cve_file_path, 'r', encoding='utf-8') as f:
+            cve_data = json.load(f)
+            
+        # Validate basic CVE structure
+        if 'cveMetadata' in cve_data and 'cveId' in cve_data['cveMetadata']:
+            return cve_data
+        else:
+            logger.warning(f"Invalid CVE structure in local file: {cve_file_path}", group="cve_queries")
+            return None
+            
+    except (json.JSONDecodeError, IOError, UnicodeDecodeError) as e:
+        logger.warning(f"Cannot read local CVE file {cve_file_path}: {e}", group="cve_queries")
+        return None
 
 # Update gatherCVEListRecord function
 def gatherCVEListRecord(targetCve):
@@ -68,6 +119,36 @@ def gatherCVEListRecord(targetCve):
             pass  # Fallback for testing environments
         
         return None
+
+def gatherCVEListRecordLocal(targetCve, local_repo_path=None):
+    """
+    Load CVE record from local repository with API fallback.
+    Always audits when API fallback is used.
+    
+    Args:
+        targetCve: CVE ID to load (e.g., "CVE-2024-12345")
+        local_repo_path: Path to local CVE repository base directory
+        
+    Returns:
+        CVE record dict or None if loading fails
+    """
+    # Attempt local loading first if path provided
+    if local_repo_path:
+        logger.debug(f"Attempting local CVE load: {targetCve} from {local_repo_path}", group="cve_queries")
+        
+        cve_file_path = _resolve_cve_file_path(targetCve, local_repo_path)
+        if cve_file_path:
+            local_data = _load_cve_from_local_file(cve_file_path)
+            if local_data:
+                logger.info(f"Successfully loaded CVE from local repository: {targetCve}", group="cve_queries")
+                return local_data
+        
+        # Local loading failed - fall back to API
+        logger.warning(f"Local CVE load failed for {targetCve} - falling back to MITRE API", group="cve_queries")
+    
+    # Always attempt API fallback
+    logger.info(f"Using MITRE API for CVE: {targetCve}", group="cve_queries")
+    return gatherCVEListRecord(targetCve)
 
 # Using provided CVE-ID, get the CVE data from the NVD API 
 def gatherNVDCVERecord(apiKey, targetCve):

@@ -51,7 +51,9 @@ class ProvenanceAssistanceTestSuite:
                 str(run_analysis_path), 
                 "--test-file", 
                 str(self.test_file_path.resolve()),
-                "--no-cache"
+                "--no-cache",
+                "--cpe-as-generator", "true",  # Required for HTML generation
+                "--sdc-report", "true"  # Required for Source Data Concerns analysis
             ]
             
             # Add --no-browser when running under unified test runner

@@ -234,13 +234,17 @@ def set_global_source_uuid(source_uuid):
     else:
         logger.info("Global source UUID cleared - processing all sources", group="initialization")
 
-def process_cve(cve_id, nvd_api_key, sdc_only=False):
+def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, alias_report=False, cpe_as_generator=False, local_cve_repo=None):
     """Process a single CVE using the analysis tool functionality.
     
     Args:
         cve_id: The CVE ID to process
-        nvd_api_key: NVD API key for CPE queries (ignored if sdc_only=True)
-        sdc_only: If True, skip NVD CPE API calls and HTML generation
+        nvd_api_key: NVD API key for CPE queries (ignored if cpe_suggestions=False)
+        sdc_report: If True, generate Source Data Concerns report
+        cpe_suggestions: If True, perform NVD CPE API calls and generate suggestions
+        alias_report: If True, generate alias report via curator features
+        cpe_as_generator: If True, generate CPE Applicability Statements as interactive HTML pages
+        local_cve_repo: Path to local CVE repository for faster loading
     
     Note:
         Source UUID filtering is controlled by the global _global_source_uuid variable
@@ -271,7 +275,7 @@ def process_cve(cve_id, nvd_api_key, sdc_only=False):
         log_init(f"Processing {cve_id}")
 
         # Gather CVE List Record and NVD Dataset Records for the target CVE
-        cveRecordData = gatherData.gatherCVEListRecord(cve_id)
+        cveRecordData = gatherData.gatherCVEListRecordLocal(cve_id, local_cve_repo)
         
         # Check if CVE is in REJECTED state
         if cveRecordData and 'cveMetadata' in cveRecordData:
@@ -335,46 +339,71 @@ def process_cve(cve_id, nvd_api_key, sdc_only=False):
         primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData)
         primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
 
-        # Suggest CPE data based on collected information (includes internal CPE generation and query stages)
-        if not sdc_only:
+        # CPE Processing Pipeline Decision Point
+        logger.info(f"=== CPE PROCESSING PIPELINE AUDIT FOR {cve_id} ===", group="data_processing")
+        if cpe_suggestions:
+            logger.info(f"✓ CPE Suggestions ENABLED: Will query NVD CPE API and generate HTML suggestions", group="data_processing")
             try:
                 primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1)
+                logger.info(f"✓ CPE suggestions processing completed successfully for {cve_id}", group="data_processing")
             except Exception as cpe_error:
                 # Handle CPE suggestion errors
                 logger.warning(f"CPE suggestion failed for {cve_id}: Unable to complete CPE data suggestion - {str(cpe_error)}", group="data_processing")
                 logger.info("Continuing with available data...", group="data_processing")
-        else:
-            # SDC-only mode: Process platform entries for source data concerns analysis
+        elif sdc_report:
+            # SDC report mode: Process platform entries for source data concerns analysis
             # but skip expensive NVD CPE API calls
+            logger.info(f"✓ SDC-only mode ACTIVE: Processing platform entries for data concerns (SKIPPING NVD CPE API calls)", group="data_processing")
             try:
-                logger.info("SDC-only mode: Processing platform entries for source data concerns analysis (skipping NVD CPE API calls)", group="data_processing")
                 primaryDataframe = processData.suggestCPEData(None, primaryDataframe, 1, sdc_only=True)
+                logger.info(f"✓ SDC-only processing completed successfully for {cve_id}", group="data_processing")
             except Exception as cpe_error:
                 logger.warning(f"SDC-only CPE processing failed for {cve_id}: Unable to complete source data concerns analysis - {str(cpe_error)}", group="data_processing")
                 logger.info("Continuing with available data...", group="data_processing")
+        else:
+            logger.info(f"✗ CPE Processing SKIPPED: Both CPE suggestions and SDC report are disabled", group="data_processing")
         
         # Note: CPE generation and query stages are now handled internally by suggestCPEData
         
         start_confirmed_mappings("Processing confirmed mappings")
 
-        # Process confirmed mappings
-        if not sdc_only:
+        # Confirmed Mappings Pipeline Decision Point
+        logger.info(f"=== CONFIRMED MAPPINGS PIPELINE AUDIT FOR {cve_id} ===", group="data_processing")
+        if cpe_suggestions:
+            logger.info(f"✓ Confirmed Mappings ENABLED: Will process mapping relationships between platforms and CPEs", group="data_processing")
             try:
                 primaryDataframe = processData.process_confirmed_mappings(primaryDataframe)
+                logger.info(f"✓ Confirmed mappings processing completed successfully for {cve_id}", group="data_processing")
             except Exception as mapping_error:
                 logger.warning(f"Confirmed mappings failed for {cve_id}: Unable to process confirmed mappings - {str(mapping_error)}", group="data_processing")
                 logger.info("Continuing with available data...", group="data_processing")
                 import traceback
                 traceback.print_exc()
         else:
-            logger.info("Skipping confirmed mappings (--sdc-only mode)", group="data_processing")
+            logger.info(f"✗ Confirmed Mappings SKIPPED: CPE suggestions disabled (required dependency)", group="data_processing")
 
         end_confirmed_mappings("Confirmed mappings processed")
         
-        if sdc_only:
-            logger.info("SDC-only mode: Skipping HTML generation, file generation, and web browser launch", group="data_processing")
-            # Extract source data concerns from processed dataframe before skipping HTML generation
-            logger.info("SDC-only mode: Extracting source data concerns for report", group="data_processing")
+        # HTML Generation Pipeline Decision Point
+        logger.info(f"=== HTML GENERATION PIPELINE AUDIT FOR {cve_id} ===", group="data_processing")
+        if sdc_report and not cpe_suggestions and not alias_report and not cpe_as_generator:
+            logger.info("✗ HTML Generation SKIPPED: SDC-only mode active (no visual output needed)", group="data_processing")
+            logger.info("✗ File Generation SKIPPED: SDC-only mode active (no HTML files to create)", group="data_processing") 
+            logger.info("✗ Browser Launch SKIPPED: SDC-only mode active (no HTML to display)", group="data_processing")
+        elif cpe_suggestions or cpe_as_generator:
+            if cpe_suggestions:
+                logger.info("✓ HTML Generation ENABLED: Will create interactive HTML pages with CPE suggestions", group="data_processing")
+            if cpe_as_generator:
+                logger.info("✓ HTML Generation ENABLED: Will create interactive HTML pages for CPE Applicability Statements", group="data_processing")
+        else:
+            logger.info("✗ HTML Generation SKIPPED: No features enabled that require HTML output", group="data_processing")
+            
+        # Source Data Concerns Pipeline Decision Point  
+        logger.info(f"=== SOURCE DATA CONCERNS PIPELINE AUDIT FOR {cve_id} ===", group="data_processing")
+        if sdc_report:
+            logger.info("✓ SDC Report ENABLED: Will analyze platform entries for data quality concerns", group="data_processing")
+            # Extract source data concerns from processed dataframe
+            logger.info("Generating Source Data Concerns report", group="data_processing")
             
             # Process each row in the dataframe to collect source data concerns
             from .badge_modal_system import create_source_data_concerns_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
@@ -394,7 +423,7 @@ def process_cve(cve_id, nvd_api_key, sdc_only=False):
                 create_source_data_concerns_badge(
                     table_index=index,
                     raw_platform_data=raw_platform_data,
-                    characteristics={},  # Empty for SDC-only mode
+                    characteristics={},  # Empty for SDC report mode
                     platform_metadata=platform_metadata,
                     row=row
                 )
@@ -421,23 +450,37 @@ def process_cve(cve_id, nvd_api_key, sdc_only=False):
                     if source_id and source_id != 'Unknown':
                         collect_clean_platform_entry(source_id)
             
-            logger.info("SDC-only mode: Source data concerns collected for sourceDataConcernReport.json", group="data_processing")
+            logger.info("✓ SDC report processing completed: Source data concerns collected for sourceDataConcernReport.json", group="data_processing")
+        else:
+            logger.info("✗ SDC Report SKIPPED: Source data concerns analysis disabled", group="data_processing")
+            
             # Complete badge contents collection for this CVE
             complete_cve_collection()
-            
+        
+        # Check if HTML generation is enabled
+        if not cpe_as_generator and not cpe_suggestions and not alias_report:
+            logger.info("✗ HTML Generation SKIPPED: No features enabled that require HTML output", group="page_generation")
             return {
                 'success': True,
-                'sdc_only': True,
+                'sdc_report': sdc_report,
+                'cpe_suggestions': cpe_suggestions,
+                'alias_report': alias_report,
+                'cpe_as_generator': cpe_as_generator,
                 'cve_id': cve_id,
                 'filepath': None
             }
         
         start_page_generation("Generating HTML output")
         
+        # HTML Generation Execution Audit
+        logger.info(f"✓ HTML Generation EXECUTING: Creating interactive HTML page for {cve_id}", group="page_generation")
+        logger.info(f"✓ CPE Query HTML: Processing dataframe columns for web display", group="page_generation")
+        
         # Generate HTML
         primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe)
         
         # Clean up dataframe
+        logger.info(f"✓ Dataframe Cleanup: Removing internal processing columns before HTML generation", group="page_generation")
         columns_to_drop = ['sourceID', 'sourceRole', 'rawPlatformData', 'rawCPEsQueryData', 
                           'sortedCPEsQueryData', 'trimmedCPEsQueryData', 'platformEntryMetadata']
         for col in columns_to_drop:
@@ -521,6 +564,11 @@ def process_cve(cve_id, nvd_api_key, sdc_only=False):
         
         return {
             'success': True,
+            'sdc_report': sdc_report,
+            'cpe_suggestions': cpe_suggestions,
+            'alias_report': alias_report,
+            'cve_as_generator': cpe_as_generator,
+            'cve_id': cve_id,
             'filepath': str(filepath)
         }
         
@@ -721,30 +769,125 @@ def main():
     global current_run_paths
     
     parser = argparse.ArgumentParser(description="Process CVE records with analysis_tool.py")
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("--cve", nargs="+", help="One or more CVE IDs to process")
-    group.add_argument("--file", help="Text file with CVE IDs (one per line)")
-    group.add_argument("--test-file", help="JSON file with test CVE data for modular rules testing")
-    parser.add_argument("--api-key", help="NVD API Key (optional but recommended)")
-    parser.add_argument("--no-browser", action="store_true", help="Don't open results in browser")
-    parser.add_argument("--no-cache", action="store_true", help="Disable CPE cache for faster testing")
-    parser.add_argument("--external-assets", action="store_true", help="Use external asset references instead of inline CSS/JS (reduces file size)")
-    parser.add_argument("--sdc-only", action="store_true", help="Generate only sourceDataConcernReport.json (skips NVD CPE API calls and HTML generation)")
-    parser.add_argument("--source-uuid", help="Filter platform entries by source UUID in SDC-only mode")
-    parser.add_argument("--run-id", help="Continue within existing run directory (used by generate_dataset.py integration)")
+    
+    # Group 1: Tool Output - What analysis outputs to generate
+    output_group = parser.add_argument_group('Tool Output', 'Select which analysis outputs to generate')
+    output_group.add_argument("--sdc-report", type=str, choices=['true', 'false'], default='false',
+                             help="Generate Source Data Concerns report (default: false)")
+    output_group.add_argument("--cpe-suggestions", type=str, choices=['true', 'false'], default='false', 
+                             help="Generate CPE suggestions via NVD CPE API calls (default: false)")
+    output_group.add_argument("--alias-report", type=str, choices=['true', 'false'], default='false',
+                             help="Generate alias report via curator features (COMING SOON) (default: false)")
+    output_group.add_argument("--cpe-as-generator", type=str, choices=['true', 'false'], default='false',
+                             help="Generate CPE Applicability Statements as interactive HTML pages (default: false)")
+    
+    # Group 2: Data Input/Sources - Specify what data to process and where to get it
+    input_group = parser.add_argument_group('Data Input/Sources', 'Specify input data and data sources')
+    input_sources = input_group.add_mutually_exclusive_group()
+    input_sources.add_argument("--cve", nargs="+", help="One or more CVE IDs to process")
+    input_sources.add_argument("--file", help="Text file with CVE IDs (one per line)")
+    input_sources.add_argument("--test-file", help="JSON file with test CVE data for modular rules testing")
+    input_group.add_argument("--local-cve-repo", type=str, help="Path to local CVE repository (e.g., /path/to/cvelistV5/cves)")
+    input_group.add_argument("--api-key", help="NVD API Key (optional but recommended)")
+    input_group.add_argument("--source-uuid", help="Filter platform entries by source UUID")
+    
+    # Group 3: Processing Control - Control how processing is performed and output is presented
+    control_group = parser.add_argument_group('Processing Control', 'Control processing behavior and output presentation')
+    control_group.add_argument("--no-cache", action="store_true", help="Disable CPE cache for faster testing")
+    control_group.add_argument("--run-id", help="Continue within existing run directory (used by generate_dataset.py integration)")
+    control_group.add_argument("--no-browser", action="store_true", help="Don't open results in browser")
+    control_group.add_argument("--external-assets", action="store_true", help="Use external asset references instead of inline CSS/JS (reduces file size)")
     
     args = parser.parse_args()
+    
+    # Convert string boolean arguments to actual booleans
+    sdc_report = args.sdc_report.lower() == 'true'
+    cpe_suggestions = args.cpe_suggestions.lower() == 'true'
+    alias_report = args.alias_report.lower() == 'true'
+    cpe_as_generator = args.cpe_as_generator.lower() == 'true'
+    
+    # Check for unimplemented features
+    if alias_report:
+        print("ERROR: Alias report feature is not yet implemented!")
+        print("This feature is coming soon. Please use other available features:")
+        print("  --sdc-report true          : Generate Source Data Concerns report")
+        print("  --cpe-suggestions true     : Generate CPE suggestions via NVD CPE API calls")
+        print("  --cpe-as-generator true    : Generate CPE Applicability Statements as interactive HTML pages")
+        print("\nExample usage:")
+        print("  python run_tools.py --cve CVE-2024-XXXX --sdc-report true")
+        print("  python run_tools.py --cve CVE-2024-XXXX --cpe-suggestions true")
+        return
+    
+    # Validate that at least one feature is enabled
+    if not any([sdc_report, cpe_suggestions, alias_report, cpe_as_generator]):
+        print("ERROR: At least one feature must be enabled!")
+        print("Available features:")
+        print("  --sdc-report true          : Generate Source Data Concerns report")
+        print("  --cpe-suggestions true     : Generate CPE suggestions via NVD CPE API calls")
+        print("  --alias-report true        : Generate alias report via curator features (COMING SOON)")
+        print("  --cpe-as-generator true    : Generate CPE Applicability Statements as interactive HTML pages")
+        print("")
+        print("Example usage:")
+        print("  python run_tools.py --cve CVE-2024-20515 --sdc-report true")
+        print("  python run_tools.py --cve CVE-2024-20515 --cpe-suggestions true --cpe-as-generator true")
+        return 1
     
     # Set global source UUID for filtering throughout the pipeline
     set_global_source_uuid(args.source_uuid)
     
-    # Automatically enable appropriate flags for --sdc-only mode
-    if args.sdc_only:
+    # Comprehensive feature flag auditing
+    logger.info("=== FEATURE FLAG AUDIT ===", group="initialization")
+    logger.info(f"SDC Report: {'ENABLED' if sdc_report else 'DISABLED'} (--sdc-report {args.sdc_report})", group="initialization")
+    logger.info(f"CPE Suggestions: {'ENABLED' if cpe_suggestions else 'DISABLED'} (--cpe-suggestions {args.cpe_suggestions})", group="initialization")
+    logger.info(f"Alias Report: {'ENABLED' if alias_report else 'DISABLED'} (--alias-report {args.alias_report})", group="initialization")
+    logger.info(f"CPE as Generator: {'ENABLED' if cpe_as_generator else 'DISABLED'} (--cpe-as-generator {args.cpe_as_generator})", group="initialization")
+    
+    # Log enabled features summary
+    enabled_features = []
+    if sdc_report:
+        enabled_features.append("Source Data Concerns")
+    if cpe_suggestions:
+        enabled_features.append("CPE Suggestions")
+    if alias_report:
+        enabled_features.append("Alias Report")
+    if cpe_as_generator:
+        enabled_features.append("CPE as Generator")
+    logger.info(f"Enabled features: {', '.join(enabled_features) if enabled_features else 'None'}", group="initialization")
+    
+    # Pipeline impact analysis
+    logger.info("=== PIPELINE IMPACT ANALYSIS ===", group="initialization")
+    if sdc_report:
+        logger.info("✓ Source Data Concerns: Platform entries will be analyzed for data quality issues", group="initialization")
+    else:
+        logger.info("✗ Source Data Concerns: Platform analysis SKIPPED - no SDC reports will be generated", group="initialization")
+    
+    if cpe_suggestions:
+        logger.info("✓ CPE Suggestions: NVD CPE API queries will be performed, HTML pages will be generated", group="initialization")
+    else:
+        logger.info("✗ CPE Suggestions: NVD CPE API queries SKIPPED - no CPE suggestion HTML will be generated", group="initialization")
+    
+    if alias_report:
+        logger.info("✓ Alias Report: Curator features will be utilized for alias analysis", group="initialization")
+    else:
+        logger.info("✗ Alias Report: Curator features SKIPPED - no alias reports will be generated", group="initialization")
+    
+    if cpe_as_generator:
+        logger.info("✓ CPE as Generator: Interactive HTML pages will be generated for CPE Applicability Statements", group="initialization")
+    else:
+        logger.info("✗ CPE as Generator: HTML generation SKIPPED - no interactive web pages will be created", group="initialization")
+    
+    # Automatically enable appropriate flags if only SDC report is enabled
+    if sdc_report and not cpe_suggestions and not alias_report:
         args.no_cache = True
         args.no_browser = True
-        logger.info("SDC-only mode enabled: Source Data Concerns analysis only", group="initialization")
-        logger.info("SDC-only mode: Automatically enabled --no-cache and --no-browser for efficiency", group="initialization")
-        logger.info("SDC-only mode: Will skip NVD CPE API calls, confirmed mappings, and HTML generation", group="initialization")
+        logger.info("=== SDC-ONLY MODE OPTIMIZATION ===", group="initialization")
+        logger.info("✓ Automatically enabled --no-cache for faster processing (no CPE cache needed)", group="initialization")
+        logger.info("✓ Automatically enabled --no-browser for efficiency (no HTML to display)", group="initialization")
+        logger.info("✓ Will skip NVD CPE API calls (not needed for SDC analysis)", group="initialization")
+        logger.info("✓ Will skip confirmed mappings processing (requires CPE suggestions)", group="initialization") 
+        logger.info("✓ Will skip HTML generation and browser launch (no visual output needed)", group="initialization")
+    
+    logger.info("=== END FEATURE FLAG AUDIT ===", group="initialization")
     
     # Generate parameter string for log filename
     if args.cve:
@@ -915,8 +1058,8 @@ def main():
         elif args.file:
             run_context = os.path.basename(args.file).replace('.txt', '').replace('.', '_')
         
-        # Add sdc-only suffix if flag is used
-        if args.sdc_only:
+        # Add feature suffix based on enabled features
+        if sdc_report and not cpe_suggestions and not alias_report:
             run_context = f"{run_context}_sdc-only" if run_context else "sdc-only"
         
         run_path, run_id = create_run_directory(run_context)
@@ -955,13 +1098,13 @@ def main():
     
     # Initialize real-time dashboard collector
     # Determine processing mode for dashboard tracking
-    processing_mode = "sdc-only" if args.sdc_only else ("test" if args.test_file else "full")
+    processing_mode = "sdc-only" if (sdc_report and not cpe_suggestions and not alias_report) else ("test" if args.test_file else "full")
     
     # Determine cache disable reason
     cache_disabled = args.no_cache
     cache_disable_reason = None
     if cache_disabled:
-        if args.sdc_only:
+        if sdc_report and not cpe_suggestions and not alias_report:
             cache_disable_reason = "sdc-only"
         elif args.test_file:
             cache_disable_reason = "test-file"
@@ -1004,8 +1147,10 @@ def main():
     
     # Start real-time dashboard processing run
     try:
-        from ..logging.dataset_contents_collector import start_processing_run
+        from ..logging.dataset_contents_collector import start_processing_run, update_total_cves
         start_processing_run(len(cves_to_process))
+        # Synchronize collector's total with the actual CVE count after loading
+        update_total_cves(total_cves)
         logger.info("Real-time dashboard collector configured for processing run", group="initialization")
     except Exception as e:
         logger.warning(f"Failed to start real-time dashboard processing run: {e}", group="initialization")
@@ -1097,13 +1242,13 @@ def main():
                 end_audit("Checkpoint audit complete")
             
             # Process the CVE
-            result = process_cve(cve, nvd_api_key, args.sdc_only)
+            result = process_cve(cve, nvd_api_key, sdc_report, cpe_suggestions, alias_report, cpe_as_generator, args.local_cve_repo)
             
             # Handle results: successful processing, skipped CVEs, or failures
             if result:
                 if result['success']:
-                    # Handle sdc_only mode results (no filepath)
-                    if result.get('sdc_only'):
+                    # Handle results based on enabled features
+                    if result.get('sdc_report') and not result.get('cpe_suggestions') and not result.get('alias_report'):
                         if show_timing:
                             cve_elapsed = time.time() - cve_start_time
                             logger.info(f"Successfully processed {cve} (SDC-only) in {cve_elapsed:.2f}s", group="processing")

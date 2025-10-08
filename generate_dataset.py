@@ -319,18 +319,6 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     
     return True
 
-def show_last_run_info():
-    """Show information about the last dataset generation run"""
-    try:
-        # TODO: Update to read from latest run directory instead of global tracker
-        logger.info("Last run info currently requires manual inspection of runs/ directory", group="initialization")
-        logger.info("This feature will be updated to work with the unified runs structure", group="initialization")
-        return
-        
-    except Exception as e:
-        logger.error(f"Failed to show last run info: {e}", group="data_processing")
-
-
 def generate_last_days(days, api_key=None, output_file="cve_recent_dataset.txt", run_directory=None, source_uuid=None):
     """Generate dataset for CVEs modified in the last N days"""
     end_date = datetime.datetime.now()
@@ -348,19 +336,6 @@ def generate_last_days(days, api_key=None, output_file="cve_recent_dataset.txt",
         end_date.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
         api_key, output_file, run_directory, source_uuid
     )
-
-
-def generate_since_last_run(api_key=None, output_file="cve_differential_dataset.txt", run_directory=None, source_uuid=None):
-    """Generate dataset for CVEs modified since the last run"""
-    try:
-        # TODO: Update to find latest run from runs/ directory structure
-        logger.error("Differential dataset generation temporarily disabled", group="initialization")
-        logger.error("This feature will be updated to work with the unified runs structure", group="initialization")
-        return False
-        
-    except Exception as e:
-        logger.error(f"Failed to generate differential dataset: {e}", group="data_processing")
-        return False
 
 
 def generate_date_range(start_date_str, end_date_str, api_key=None, output_file="cve_range_dataset.txt", run_directory=None, source_uuid=None):
@@ -537,51 +512,48 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
 def main():
     """Main function with command line argument parsing"""
     parser = argparse.ArgumentParser(description='Generate CVE dataset from NVD API')
-    parser.add_argument('--api-key', type=str, help='NVD API key (optional but recommended)')
-    parser.add_argument('--output', type=str, default='cve_dataset.txt', 
-                       help='Output file path (default: cve_dataset.txt)')
     
-    # Traditional status-based options
-    parser.add_argument('--statuses', nargs='+', 
-                       default=['Received', 'Awaiting Analysis', 'Undergoing Analysis'],
-                       help='Vulnerability statuses to include (default when no UUID: Received, Awaiting Analysis, Undergoing Analysis; default with UUID: all statuses)')
+    # Group 1: Tool Output - What analysis outputs to generate
+    output_group = parser.add_argument_group('Tool Output', 'Select which analysis outputs to generate')
+    output_group.add_argument('--sdc-report', type=str, choices=['true', 'false'], default='false',
+                             help='Generate Source Data Concerns report (default: false)')
+    output_group.add_argument('--cpe-suggestions', type=str, choices=['true', 'false'], default='false', 
+                             help='Generate CPE suggestions via NVD CPE API calls (default: false)')
+    output_group.add_argument('--alias-report', type=str, choices=['true', 'false'], default='false',
+                             help='Generate alias report via curator features (COMING SOON) (default: false)')
+    output_group.add_argument('--cpe-as-generator', type=str, choices=['true', 'false'], default='false',
+                             help='Generate CPE Applicability Statements as interactive HTML pages (default: false)')
     
-    # UUID filtering option
-    parser.add_argument('--source-uuid', type=str,
-                       help='Filter CVEs by sourceIdentifier (CNA/ADP providerMetadata.orgId) - must be valid UUID format. When used without --statuses, includes all vulnerability statuses.')
+    # Group 2: Data Input/Sources - Specify what data to process and where to get it
+    input_group = parser.add_argument_group('Data Input/Sources', 'Specify input data and data sources')
+    input_group.add_argument('--api-key', type=str, help='NVD API key (optional but recommended)')
+    input_group.add_argument('--local-cve-repo', type=str,
+                            help='Path to local CVE repository for integrated analysis (e.g., /path/to/cvelistV5/cves)')
     
-    # New date-based options
-    parser.add_argument('--last-days', type=int,
-                       help='Generate dataset for CVEs modified in the last N days')
-    parser.add_argument('--start-date', type=str,
-                       help='Start date for lastModified filter (YYYY-MM-DD or ISO format)')
-    parser.add_argument('--end-date', type=str,
-                       help='End date for lastModified filter (YYYY-MM-DD or ISO format)')
-    parser.add_argument('--since-last-run', action='store_true',
-                       help='Generate dataset for CVEs modified since last run')
+    # Group 3: Processing Control - Control how processing is performed and output is presented
+    control_group = parser.add_argument_group('Processing Control', 'Control processing behavior and output presentation')
+    control_group.add_argument('--external-assets', action='store_true',
+                              help='Enable external assets in analysis (passed through to run_tools.py)')
     
-    # Processing options
-    parser.add_argument('--run-analysis', action='store_true', default=True,
-                       help='Automatically run analysis tool after dataset generation (default: True)')
-    parser.add_argument('--no-analysis', action='store_true',
-                       help='Skip running analysis tool after dataset generation')
-    parser.add_argument('--external-assets', action='store_true',
-                       help='Enable external assets in analysis (passed through to run_tools.py)')
-    parser.add_argument('--sdc-only', action='store_true',
-                       help='Generate only sourceDataConcernReport.json (skips NVD CPE API calls and HTML generation)')
-    parser.add_argument('--show-last-run', action='store_true',
-                       help='Show when the last dataset generation occurred')
+    # Group 4: Dataset Generation - Control what CVE data is included in the dataset
+    dataset_group = parser.add_argument_group('Dataset Generation', 'Control CVE data selection and dataset creation')
+    dataset_group.add_argument('--source-uuid', type=str,
+                              help='Filter CVEs by sourceIdentifier (CNA/ADP providerMetadata.orgId) - must be valid UUID format. When used without --statuses, includes all vulnerability statuses.')
+    dataset_group.add_argument('--statuses', nargs='+', 
+                              default=['Received', 'Awaiting Analysis', 'Undergoing Analysis'],
+                              help='Vulnerability statuses to include (default when no UUID: Received, Awaiting Analysis, Undergoing Analysis; default with UUID: all statuses)')
+    dataset_group.add_argument('--last-days', type=int,
+                              help='Generate dataset for CVEs modified in the last N days')
+    dataset_group.add_argument('--start-date', type=str,
+                              help='Start date for lastModified filter (YYYY-MM-DD or ISO format)')
+    dataset_group.add_argument('--end-date', type=str,
+                              help='End date for lastModified filter (YYYY-MM-DD or ISO format)')
     
     args = parser.parse_args()
     
     logger.info("=" * 80, group="initialization")
     logger.info("NVD CVE Dataset Generator", group="initialization")
     logger.info("=" * 80, group="initialization")
-    
-    # Handle info requests
-    if args.show_last_run:
-        show_last_run_info()
-        return 0
     
     # Validate UUID if provided
     if args.source_uuid and not validate_uuid(args.source_uuid):
@@ -609,17 +581,59 @@ def main():
     # Create run directory first - ALL dataset generation creates runs
     from src.analysis_tool.storage.run_organization import create_run_directory
     
+    # Convert string boolean arguments to actual booleans
+    sdc_report = args.sdc_report.lower() == 'true'
+    cpe_suggestions = args.cpe_suggestions.lower() == 'true'
+    alias_report = args.alias_report.lower() == 'true'
+    cpe_as_generator = args.cpe_as_generator.lower() == 'true'
+    
+    # Check for unimplemented features
+    if alias_report:
+        print("ERROR: Alias report feature is not yet implemented!")
+        print("This feature is coming soon. Please use other available features:")
+        print("  --sdc-report true          : Generate Source Data Concerns report")
+        print("  --cpe-suggestions true     : Generate CPE suggestions via NVD CPE API calls")
+        print("  --cpe-as-generator true    : Generate CPE Applicability Statements as interactive HTML pages")
+        print("\nExample usage:")
+        print("  python generate_dataset.py --last-days 7 --sdc-report true")
+        print("  python generate_dataset.py --last-days 7 --cpe-suggestions true")
+        return
+    
+    # Validate that at least one feature is enabled
+    if not any([sdc_report, cpe_suggestions, alias_report, cpe_as_generator]):
+        print("ERROR: At least one feature must be enabled for dataset generation!")
+        print("Available features:")
+        print("  --sdc-report true          : Generate Source Data Concerns report")
+        print("  --cpe-suggestions true     : Generate CPE suggestions via NVD CPE API calls")
+        print("  --alias-report true        : Generate alias report via curator features (COMING SOON)")
+        print("  --cpe-as-generator true    : Generate CPE Applicability Statements as interactive HTML pages")
+        print("")
+        print("Example usage:")
+        print("  python generate_dataset.py --last-days 7 --sdc-report true")
+        print("  python generate_dataset.py --last-days 7 --cpe-suggestions true --cpe-as-generator true")
+        return 1
+    
     # Generate initial run context
     uuid_suffix = f"_uuid_{args.source_uuid[:8]}" if args.source_uuid else ""
-    sdc_suffix = "_sdc-only" if args.sdc_only else ""
-    if args.since_last_run:
-        initial_context = f"differential_dataset{uuid_suffix}{sdc_suffix}"
-    elif args.last_days:
-        initial_context = f"last_{args.last_days}_days_dataset{uuid_suffix}{sdc_suffix}"
+    
+    # Generate feature suffix based on enabled features
+    feature_parts = []
+    if sdc_report:
+        feature_parts.append("sdc")
+    if cpe_suggestions:
+        feature_parts.append("cpe")
+    if alias_report:
+        feature_parts.append("alias")
+    if not cpe_as_generator:
+        feature_parts.append("no-html")
+    feature_suffix = f"_{'-'.join(feature_parts)}" if feature_parts else "_minimal"
+    
+    if args.last_days:
+        initial_context = f"last_{args.last_days}_days_dataset{uuid_suffix}{feature_suffix}"
     elif args.start_date and args.end_date:
-        initial_context = f"range_{args.start_date}_to_{args.end_date}_dataset{uuid_suffix}{sdc_suffix}"
+        initial_context = f"range_{args.start_date}_to_{args.end_date}_dataset{uuid_suffix}{feature_suffix}"
     else:
-        initial_context = f"status_based_dataset{uuid_suffix}{sdc_suffix}"
+        initial_context = f"status_based_dataset{uuid_suffix}{feature_suffix}"
     
     # Create run directory
     run_directory, run_id = create_run_directory(initial_context)
@@ -628,20 +642,19 @@ def main():
     
     # Generate dataset directly in run directory
     success = False
+    output_file = "cve_dataset.txt"  # Fixed filename for dataset generation
     
     # Determine which mode to use - all write directly to run directory
-    if args.since_last_run:
-        success = generate_since_last_run(resolved_api_key, args.output, run_directory, args.source_uuid)
-    elif args.last_days:
-        success = generate_last_days(args.last_days, resolved_api_key, args.output, run_directory, args.source_uuid)
+    if args.last_days:
+        success = generate_last_days(args.last_days, resolved_api_key, output_file, run_directory, args.source_uuid)
     elif args.start_date and args.end_date:
-        success = generate_date_range(args.start_date, args.end_date, resolved_api_key, args.output, run_directory, args.source_uuid)
+        success = generate_date_range(args.start_date, args.end_date, resolved_api_key, output_file, run_directory, args.source_uuid)
     else:
         # Traditional status-based generation
         success = query_nvd_cves_by_status(
             api_key=resolved_api_key,
             target_statuses=args.statuses,
-            output_file=args.output,
+            output_file=output_file,
             run_directory=run_directory,
             source_uuid=args.source_uuid,
             statuses_explicitly_provided=statuses_explicitly_provided
@@ -650,23 +663,17 @@ def main():
     if success:
         logger.info("Dataset generation completed successfully!", group="initialization")
         
-        # Run analysis tool by default unless --no-analysis is specified
-        should_run_analysis = args.run_analysis and not args.no_analysis
+        # Always run analysis tool after dataset generation
+        logger.info("Starting integrated analysis run...", group="initialization")
         
-        if should_run_analysis:
-            logger.info("Starting integrated analysis run...", group="initialization")
-            
-            # Dataset was already written to run directory, so just run analysis
-            # The run directory already contains the dataset in logs/ subdirectory
-            dataset_path = run_directory / "logs" / Path(args.output).name
-            
-            # Run analysis tool with existing run context
-            success = run_analysis_tool(args.output, resolved_api_key, run_directory, run_id, args.external_assets, args.sdc_only, args.source_uuid)
-            if not success:
-                logger.error("Analysis tool execution failed", group="data_processing")
-                return 1
-        else:
-            logger.info("Skipping analysis tool execution (--no-analysis specified)", group="initialization")
+
+        dataset_path = run_directory / "logs" / Path(output_file).name
+        
+        # Run analysis tool with existing run context
+        success = run_analysis_tool(output_file, resolved_api_key, run_directory, run_id, args.external_assets, sdc_report, cpe_suggestions, alias_report, cpe_as_generator, args.source_uuid, args.local_cve_repo)
+        if not success:
+            logger.error("Analysis tool execution failed", group="data_processing")
+            return 1
     else:
         logger.error("Dataset generation process failed: Unable to complete CVE data collection and processing", group="data_processing")
         return 1
@@ -674,7 +681,7 @@ def main():
     return 0
 
 
-def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=None, external_assets=False, sdc_only=False, source_uuid=None):
+def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=None, external_assets=False, sdc_report=False, cpe_suggestions=False, alias_report=False, cpe_as_generator=False, source_uuid=None, local_cve_repo=None):
     """Run the analysis tool on the generated dataset within an existing run context"""
     import subprocess
     
@@ -721,17 +728,39 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
         if external_assets:
             cmd.append("--external-assets")
         
-        if sdc_only:
-            cmd.append("--sdc-only")
-            # SDC-only mode automatically enables no-cache and no-browser for efficiency
-            cmd.append("--no-cache")
-            cmd.append("--no-browser")
-            logger.info("Source Data Concerns only mode enabled - skipping NVD CPE API calls and HTML generation", group="initialization")
-            logger.info("SDC-only mode: Automatically enabled --no-cache and --no-browser for efficiency", group="initialization")
+        # Add feature flags
+        cmd.extend(["--sdc-report", "true" if sdc_report else "false"])
+        cmd.extend(["--cpe-suggestions", "true" if cpe_suggestions else "false"])
+        cmd.extend(["--alias-report", "true" if alias_report else "false"])
+        cmd.extend(["--cpe-as-generator", "true" if cpe_as_generator else "false"])
+        
+        # Comprehensive feature flag auditing for integrated analysis
+        logger.info("=== INTEGRATED ANALYSIS FEATURE FLAG AUDIT ===", group="initialization")
+        logger.info(f"SDC Report: {'ENABLED' if sdc_report else 'DISABLED'} (--sdc-report {'true' if sdc_report else 'false'})", group="initialization")
+        logger.info(f"CPE Suggestions: {'ENABLED' if cpe_suggestions else 'DISABLED'} (--cpe-suggestions {'true' if cpe_suggestions else 'false'})", group="initialization")
+        logger.info(f"Alias Report: {'ENABLED' if alias_report else 'DISABLED'} (--alias-report {'true' if alias_report else 'false'})", group="initialization")
+        logger.info(f"CPE as Generator: {'ENABLED' if cpe_as_generator else 'DISABLED'} (--cpe-as-generator {'true' if cpe_as_generator else 'false'})", group="initialization")
+        
+        # Log enabled features summary
+        enabled_features = []
+        if sdc_report:
+            enabled_features.append("Source Data Concerns")
+        if cpe_suggestions:
+            enabled_features.append("CPE Suggestions")
+        if alias_report:
+            enabled_features.append("Alias Report")
+        if cpe_as_generator:
+            enabled_features.append("CPE as Generator")
+        logger.info(f"Enabled features: {', '.join(enabled_features) if enabled_features else 'None'}", group="initialization")
+        logger.info("=== END INTEGRATED ANALYSIS AUDIT ===", group="initialization")
         
         if source_uuid:
             cmd.extend(["--source-uuid", source_uuid])
             logger.info(f"Source UUID filter will be applied during analysis: {source_uuid}", group="initialization")
+        
+        if local_cve_repo:
+            cmd.extend(["--local-cve-repo", local_cve_repo])
+            logger.info(f"Local CVE repository will be used with API fallback: {local_cve_repo}", group="initialization")
         
         logger.info(f"Executing: {' '.join(cmd)}", group="initialization")
         

@@ -320,7 +320,8 @@ class UnifiedDashboardCollector:
             processed = self.data["processing"]["processed_cves"]
             total = self.data["processing"]["total_cves"]
             if total > 0:
-                self.data["processing"]["progress_percentage"] = round((processed / total) * 100, 2)
+                progress_pct = round((processed / total) * 100, 2)
+                self.data["processing"]["progress_percentage"] = progress_pct
                 self.data["processing"]["remaining_cves"] = total - processed
                 
                 # Update ETA using unified calculation
@@ -383,7 +384,14 @@ class UnifiedDashboardCollector:
             total = self.data["processing"]["total_cves"]
             
             if total > 0:
-                self.data["processing"]["progress_percentage"] = round((processed / total) * 100, 2)
+                # Calculate progress percentage - should match main analysis tool calculation
+                progress_pct = round((processed / total) * 100, 2)
+                
+                # Debug sync issue: log when progress exceeds 100%
+                if progress_pct > 100.0:
+                    logger.warning(f"Progress sync issue in finish_cve_processing: processed={processed}, total={total}, progress={progress_pct}%", group="data_processing")
+                
+                self.data["processing"]["progress_percentage"] = progress_pct
                 self.data["processing"]["remaining_cves"] = total - processed
                 
                 # Update ETA using unified calculation
@@ -1932,6 +1940,14 @@ def start_processing_run(total_cves: int):
     """Start processing run with CVE count"""
     collector = get_dataset_contents_collector()
     collector.start_processing_run(total_cves)
+
+def update_total_cves(total_cves: int):
+    """Update the total CVE count to synchronize with actual processing count"""
+    collector = get_dataset_contents_collector()
+    if collector:
+        collector.data["processing"]["total_cves"] = total_cves
+        collector.data["processing"]["remaining_cves"] = total_cves - collector.data["processing"]["processed_cves"]
+        collector._auto_save(force=True)
 
 def start_cve_processing(cve_id: str):
     """Start processing a specific CVE"""

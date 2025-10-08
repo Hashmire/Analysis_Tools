@@ -8,6 +8,11 @@
         "enable_browser_open": true,
         "default_api_key": ""
     },
+    "local_cve_repository": {
+        "enabled": false,
+        "default_path": null,
+        "fallback_to_api": true
+    },
     "progress": {
         "enabled": true,
         "show_eta": true,
