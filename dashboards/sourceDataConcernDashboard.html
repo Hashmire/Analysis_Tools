@@ -4429,7 +4429,7 @@
                                 });
                                 const uniqueCveCount = Object.keys(cveGroups).length;
                                 const entriesWithConcerns = data.entries.filter(entry => entry.total_concerns > 0).length;
-                                return `<summary id="${entriesListId}_summary">View CVE Entries (${uniqueCveCount}) - ${entriesWithConcerns} concerns detected</summary>`;
+                                return `<summary id="${entriesListId}_summary">View CVE Entries (${uniqueCveCount})</summary>`;
                             })()}
                             <div id="${entriesListId}" class="cve-cards-container">
                                 ${(() => {

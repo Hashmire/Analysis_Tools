@@ -82,6 +82,21 @@
         "validation_on_startup": true,
         "auto_cleanup": true
     },
+    "harvest_and_process_sources": {
+        "max_cves_per_source": 5000,
+        "sdc_report": true,
+        "full_analysis": false,
+        "alias_report": false,
+        "cpe_suggestions": false,
+        "external_assets": false,
+        "quiet_individual": false,
+        "source_filter": null,
+        "limit": null,
+        "statuses": [],
+        "last_days": null,
+        "start_date": null,
+        "end_date": null
+    },
     "api": {
         "timeouts": {
             "public_ip": 5,

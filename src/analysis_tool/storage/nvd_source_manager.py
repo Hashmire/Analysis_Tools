@@ -19,6 +19,7 @@ Usage:
 
 from typing import Dict, Any, Optional, List
 import pandas as pd
+import re
 
 from ..logging.workflow_logger import get_logger
 
@@ -94,6 +95,45 @@ class GlobalNVDSourceManager:
         # Legitimate case: source not found in our data - return the ID for display
         return source_id
     
+    def get_source_shortname(self, source_id: str) -> str:
+        """Get filesystem-safe shortname for source by ID"""
+        if not self._initialized:
+            raise RuntimeError("NVD Source Manager not initialized - call initialize() first")
+        
+        source_info = self._source_lookup.get(source_id)
+        if source_info:
+            return self._create_source_shortname(source_info['name'])
+        
+        # Fallback for unknown sources - clean the ID itself
+        return self._create_source_shortname(source_id)
+    
+    def _create_source_shortname(self, source_name: str) -> str:
+        """
+        Convert NVD source names to filesystem-safe shortnames by taking first 13 characters
+        Examples:
+        - "Adobe Systems Incorporated" -> "Adobe Systems"
+        - "Apache Software Foundation" -> "Apache"  
+        - "Android (associated with Google Inc. or Open Handset Alliance)" -> "Android"
+        - "Cisco Systems, Inc." -> "Cisco Systems"
+        - "Brocade Communications Systems, LLC" -> "Brocade"
+        """
+        if not source_name or source_name == "Unknown":
+            return "unknown"
+        
+        # Take first 13 characters, avoiding word splits if possible
+        if len(source_name) <= 13:
+            return source_name
+        
+        # Find last space within first 13 characters to avoid splitting words
+        truncated = source_name[:13]
+        last_space = truncated.rfind(' ')
+        
+        # If there's a space and it's not too early, truncate at the space
+        if last_space > 9:  # Ensure at least 10 characters
+            return source_name[:last_space]
+        else:
+            return truncated
+    
     def get_source_info(self, source_id: str) -> Optional[Dict[str, Any]]:
         """Get full source info by ID"""
         if not self._initialized:
@@ -138,6 +178,11 @@ def get_global_source_manager():
 def get_source_name(source_id: str) -> str:
     """Convenience function to get source name"""
     return get_global_source_manager().get_source_name(source_id)
+
+
+def get_source_shortname(source_id: str) -> str:
+    """Convenience function to get source shortname"""
+    return get_global_source_manager().get_source_shortname(source_id)
 
 
 def get_source_info(source_id: str) -> Optional[Dict[str, Any]]:

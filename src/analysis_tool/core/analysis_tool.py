@@ -27,7 +27,6 @@ from ..logging.workflow_logger import (
     start_cve_queries, end_cve_queries,
     start_unique_cpe_generation, end_unique_cpe_generation,
     start_cpe_queries, end_cpe_queries,
-    start_confirmed_mappings, end_confirmed_mappings,
     start_page_generation, end_page_generation,
     start_audit, end_audit,
     log_init, log_cve_query, log_data_proc, log_page_gen
@@ -135,14 +134,8 @@ def process_test_file(test_file_path):
         try:
             from ..logging.dataset_contents_collector import record_stage_end
             record_stage_end("cve_queries")
-            record_stage_start("confirmed_mappings")
         except Exception as e:
             logger.debug(f"Real-time collector unavailable for stage tracking: {e}", group="data_processing")
-        
-        start_confirmed_mappings("Processing confirmed mappings")
-        
-        # Process confirmed mappings
-        primaryDataframe = processData.process_confirmed_mappings(primaryDataframe)
         
         # Skip CPE suggestions for test files to avoid API calls
         # primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1)
@@ -154,7 +147,7 @@ def process_test_file(test_file_path):
             if isinstance(primaryDataframe.at[index, 'trimmedCPEsQueryData'], list):
                 primaryDataframe.at[index, 'trimmedCPEsQueryData'] = {}
         
-        end_confirmed_mappings("Confirmed mappings processed")
+        end_cve_queries("Test CVE data processed")
         
         start_page_generation("Generating HTML output")
         
@@ -169,6 +162,10 @@ def process_test_file(test_file_path):
 
         # Set column widths
         num_cols = len(primaryDataframe.columns)
+        if num_cols == 0:
+            # Handle empty dataframe case - can't generate HTML from empty data
+            logger.error("Dataframe has no columns after cleanup - cannot generate HTML for test file", group="page_generation")
+            return None
         col_widths = ['20%', '80%'] if num_cols == 2 else [f"{100/num_cols}%"] * num_cols
 
         # Convert to HTML
@@ -339,70 +336,35 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData)
         primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
 
-        # CPE Processing Pipeline Decision Point
-        logger.info(f"=== CPE PROCESSING PIPELINE AUDIT FOR {cve_id} ===", group="data_processing")
+        # CPE Processing
         if cpe_suggestions:
-            logger.info(f"✓ CPE Suggestions ENABLED: Will query NVD CPE API and generate HTML suggestions", group="data_processing")
             try:
                 primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1)
-                logger.info(f"✓ CPE suggestions processing completed successfully for {cve_id}", group="data_processing")
             except Exception as cpe_error:
                 # Handle CPE suggestion errors
                 logger.warning(f"CPE suggestion failed for {cve_id}: Unable to complete CPE data suggestion - {str(cpe_error)}", group="data_processing")
                 logger.info("Continuing with available data...", group="data_processing")
-        elif sdc_report:
-            # SDC report mode: Process platform entries for source data concerns analysis
-            # but skip expensive NVD CPE API calls
-            logger.info(f"✓ SDC-only mode ACTIVE: Processing platform entries for data concerns (SKIPPING NVD CPE API calls)", group="data_processing")
+        elif sdc_report or alias_report:
+            # SDC report or alias extraction: Process platform entries for analysis
+            # but skip expensive NVD CPE API calls for sdc_report only
             try:
                 primaryDataframe = processData.suggestCPEData(None, primaryDataframe, 1, sdc_only=True)
-                logger.info(f"✓ SDC-only processing completed successfully for {cve_id}", group="data_processing")
             except Exception as cpe_error:
-                logger.warning(f"SDC-only CPE processing failed for {cve_id}: Unable to complete source data concerns analysis - {str(cpe_error)}", group="data_processing")
+                logger.warning(f"Platform processing failed for {cve_id}: Unable to complete platform analysis - {str(cpe_error)}", group="data_processing")
                 logger.info("Continuing with available data...", group="data_processing")
         else:
-            logger.info(f"✗ CPE Processing SKIPPED: Both CPE suggestions and SDC report are disabled", group="data_processing")
+            logger.info(f"CPE processing skipped - CPE suggestions, alias report, and CAS generator all disabled", group="data_processing")
         
         # Note: CPE generation and query stages are now handled internally by suggestCPEData
         
-        start_confirmed_mappings("Processing confirmed mappings")
-
-        # Confirmed Mappings Pipeline Decision Point
-        logger.info(f"=== CONFIRMED MAPPINGS PIPELINE AUDIT FOR {cve_id} ===", group="data_processing")
-        if cpe_suggestions:
-            logger.info(f"✓ Confirmed Mappings ENABLED: Will process mapping relationships between platforms and CPEs", group="data_processing")
-            try:
-                primaryDataframe = processData.process_confirmed_mappings(primaryDataframe)
-                logger.info(f"✓ Confirmed mappings processing completed successfully for {cve_id}", group="data_processing")
-            except Exception as mapping_error:
-                logger.warning(f"Confirmed mappings failed for {cve_id}: Unable to process confirmed mappings - {str(mapping_error)}", group="data_processing")
-                logger.info("Continuing with available data...", group="data_processing")
-                import traceback
-                traceback.print_exc()
-        else:
-            logger.info(f"✗ Confirmed Mappings SKIPPED: CPE suggestions disabled (required dependency)", group="data_processing")
-
-        end_confirmed_mappings("Confirmed mappings processed")
-        
-        # HTML Generation Pipeline Decision Point
-        logger.info(f"=== HTML GENERATION PIPELINE AUDIT FOR {cve_id} ===", group="data_processing")
+        # HTML Generation Decision
         if sdc_report and not cpe_suggestions and not alias_report and not cpe_as_generator:
-            logger.info("✗ HTML Generation SKIPPED: SDC-only mode active (no visual output needed)", group="data_processing")
-            logger.info("✗ File Generation SKIPPED: SDC-only mode active (no HTML files to create)", group="data_processing") 
-            logger.info("✗ Browser Launch SKIPPED: SDC-only mode active (no HTML to display)", group="data_processing")
-        elif cpe_suggestions or cpe_as_generator:
-            if cpe_suggestions:
-                logger.info("✓ HTML Generation ENABLED: Will create interactive HTML pages with CPE suggestions", group="data_processing")
-            if cpe_as_generator:
-                logger.info("✓ HTML Generation ENABLED: Will create interactive HTML pages for CPE Applicability Statements", group="data_processing")
-        else:
-            logger.info("✗ HTML Generation SKIPPED: No features enabled that require HTML output", group="data_processing")
+            logger.info("HTML generation skipped - CPE features disabled", group="data_processing")
+        elif alias_report and not cpe_suggestions and not sdc_report and not cpe_as_generator:
+            logger.info("HTML generation skipped - alias-only mode", group="data_processing")
             
-        # Source Data Concerns Pipeline Decision Point  
-        logger.info(f"=== SOURCE DATA CONCERNS PIPELINE AUDIT FOR {cve_id} ===", group="data_processing")
+        # Source Data Concerns Processing
         if sdc_report:
-            logger.info("✓ SDC Report ENABLED: Will analyze platform entries for data quality concerns", group="data_processing")
-            # Extract source data concerns from processed dataframe
             logger.info("Generating Source Data Concerns report", group="data_processing")
             
             # Process each row in the dataframe to collect source data concerns
@@ -423,7 +385,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
                 create_source_data_concerns_badge(
                     table_index=index,
                     raw_platform_data=raw_platform_data,
-                    characteristics={},  # Empty for SDC report mode
+                    characteristics={},  # Empty for SDC report only
                     platform_metadata=platform_metadata,
                     row=row
                 )
@@ -450,37 +412,104 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
                     if source_id and source_id != 'Unknown':
                         collect_clean_platform_entry(source_id)
             
-            logger.info("✓ SDC report processing completed: Source data concerns collected for sourceDataConcernReport.json", group="data_processing")
-        else:
-            logger.info("✗ SDC Report SKIPPED: Source data concerns analysis disabled", group="data_processing")
+            logger.info("SDC report processing completed", group="data_processing")
+        
+        # Alias Extraction Processing
+        if alias_report:
+            try:
+                logger.info("Starting alias extraction processing", group="data_processing")
+                
+                # Import alias extraction functions
+                from .badge_modal_system import create_alias_extraction_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+                from ..logging.badge_contents_collector import collect_alias_extraction_data, get_badge_contents_collector
+                
+                collector = get_badge_contents_collector()
+                
+                # Process each row in the dataframe to collect alias extraction data
+                for index, row in primaryDataframe.iterrows():
+                    logger.debug(f"Processing alias extraction for row {index}", group="data_processing")
+                    
+                    # Extract basic row data
+                    source_id = row.get('sourceID', 'Unknown')
+                    raw_platform_data = row.get('rawPlatformData', {})
+                    cve_id_for_alias = row.get('cve_id', cve_id)  # Use row-specific CVE ID if available
+                    
+                    # Ensure the row has the CVE ID in the expected format for alias extraction
+                    row_with_cve = dict(row)
+                    row_with_cve['cve_id'] = cve_id_for_alias
+                    
+                    # Create alias extraction badge to populate the registry
+                    badge_result = create_alias_extraction_badge(
+                        table_index=index,
+                        raw_platform_data=raw_platform_data,
+                        row=row_with_cve
+                    )
+                    
+                    # Check if alias extraction data was generated and collect it
+                    alias_registry_data = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('aliasExtraction', {})
+                    
+                    # Count entries for this table index (including platform expansion)
+                    matching_entries = {}
+                    entry_count = 0
+                    
+                    for reg_key, reg_data in alias_registry_data.items():
+                        # Check for direct match or platform expansion match
+                        if reg_key == str(index) or reg_key.startswith(f"{index}_platform_"):
+                            matching_entries[reg_key] = reg_data
+                            entry_count += 1
+                    
+                    if matching_entries and badge_result:
+                        # Collect the alias extraction data for this platform entry
+                        collect_alias_extraction_data(
+                            table_index=index,
+                            source_id=source_id,
+                            alias_data=matching_entries,
+                            entry_count=entry_count,
+                            cve_id=cve_id_for_alias
+                        )
+                        
+                logger.info("Alias extraction processing completed", group="data_processing")
+                
+                # Complete badge contents collection for this CVE
+                complete_cve_collection()
+                
+            except Exception as alias_error:
+                logger.error(f"Alias extraction failed for {cve_id}: {str(alias_error)}", group="data_processing")
+                logger.info("Continuing without alias extraction...", group="data_processing")
+        
+        # HTML generation decision based on feature flags
+        # Only generate HTML for CPE as Generator mode or when multiple features are enabled
+        should_generate_html = cpe_as_generator or (
+            (sdc_report or cpe_suggestions) and not (
+                # Skip HTML for single-feature modes that don't need interactive pages
+                (sdc_report and not cpe_suggestions and not alias_report and not cpe_as_generator) or
+                (cpe_suggestions and not sdc_report and not alias_report and not cpe_as_generator) or
+                (alias_report and not cpe_suggestions and not sdc_report and not cpe_as_generator)
+            )
+        )
+        
+        if not should_generate_html:
+            logger.info("HTML generation skipped for this feature configuration", group="page_generation")
             
             # Complete badge contents collection for this CVE
             complete_cve_collection()
-        
-        # Check if HTML generation is enabled
-        if not cpe_as_generator and not cpe_suggestions and not alias_report:
-            logger.info("✗ HTML Generation SKIPPED: No features enabled that require HTML output", group="page_generation")
+            
             return {
                 'success': True,
                 'sdc_report': sdc_report,
                 'cpe_suggestions': cpe_suggestions,
                 'alias_report': alias_report,
-                'cpe_as_generator': cpe_as_generator,
+                'cve_as_generator': cpe_as_generator,
                 'cve_id': cve_id,
-                'filepath': None
+                'filepath': None  # No HTML file generated
             }
         
         start_page_generation("Generating HTML output")
-        
-        # HTML Generation Execution Audit
-        logger.info(f"✓ HTML Generation EXECUTING: Creating interactive HTML page for {cve_id}", group="page_generation")
-        logger.info(f"✓ CPE Query HTML: Processing dataframe columns for web display", group="page_generation")
         
         # Generate HTML
         primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe)
         
         # Clean up dataframe
-        logger.info(f"✓ Dataframe Cleanup: Removing internal processing columns before HTML generation", group="page_generation")
         columns_to_drop = ['sourceID', 'sourceRole', 'rawPlatformData', 'rawCPEsQueryData', 
                           'sortedCPEsQueryData', 'trimmedCPEsQueryData', 'platformEntryMetadata']
         for col in columns_to_drop:
@@ -488,6 +517,16 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
 
         # Set column widths
         num_cols = len(primaryDataframe.columns)
+        if num_cols == 0:
+            # Handle empty dataframe case - can't generate HTML from empty data
+            logger.error(f"Dataframe has no columns after cleanup - cannot generate HTML for {cve_id}", group="page_generation")
+            return {
+                'success': False,
+                'error': 'No data to process',
+                'reason': 'No columns remaining in dataframe after processing - likely no matching data for source UUID filter',
+                'cve_id': cve_id,
+                'filepath': None
+            }
         col_widths = ['20%', '80%'] if num_cols == 2 else [f"{100/num_cols}%"] * num_cols
 
         # Convert to HTML
@@ -772,14 +811,14 @@ def main():
     
     # Group 1: Tool Output - What analysis outputs to generate
     output_group = parser.add_argument_group('Tool Output', 'Select which analysis outputs to generate')
-    output_group.add_argument("--sdc-report", type=str, choices=['true', 'false'], default='false',
-                             help="Generate Source Data Concerns report (default: false)")
-    output_group.add_argument("--cpe-suggestions", type=str, choices=['true', 'false'], default='false', 
-                             help="Generate CPE suggestions via NVD CPE API calls (default: false)")
-    output_group.add_argument("--alias-report", type=str, choices=['true', 'false'], default='false',
-                             help="Generate alias report via curator features (COMING SOON) (default: false)")
-    output_group.add_argument("--cpe-as-generator", type=str, choices=['true', 'false'], default='false',
-                             help="Generate CPE Applicability Statements as interactive HTML pages (default: false)")
+    output_group.add_argument("--sdc-report", nargs='?', const='true', choices=['true', 'false'], default='false',
+                             help="Generate Source Data Concerns report (default: false, true if flag provided without value)")
+    output_group.add_argument("--cpe-suggestions", nargs='?', const='true', choices=['true', 'false'], default='false', 
+                             help="Generate CPE suggestions via NVD CPE API calls (default: false, true if flag provided without value)")
+    output_group.add_argument("--alias-report", nargs='?', const='true', choices=['true', 'false'], default='false',
+                             help="Generate alias report via curator features (default: false, true if flag provided without value)")
+    output_group.add_argument("--cpe-as-generator", nargs='?', const='true', choices=['true', 'false'], default='false',
+                             help="Generate CPE Applicability Statements as interactive HTML pages (default: false, true if flag provided without value)")
     
     # Group 2: Data Input/Sources - Specify what data to process and where to get it
     input_group = parser.add_argument_group('Data Input/Sources', 'Specify input data and data sources')
@@ -787,8 +826,8 @@ def main():
     input_sources.add_argument("--cve", nargs="+", help="One or more CVE IDs to process")
     input_sources.add_argument("--file", help="Text file with CVE IDs (one per line)")
     input_sources.add_argument("--test-file", help="JSON file with test CVE data for modular rules testing")
-    input_group.add_argument("--local-cve-repo", type=str, help="Path to local CVE repository (e.g., /path/to/cvelistV5/cves)")
-    input_group.add_argument("--api-key", help="NVD API Key (optional but recommended)")
+    input_group.add_argument("--local-cve-repo", type=str, nargs='?', const='CONFIG_DEFAULT', help="Path to local CVE repository. Use without value to use config default, or provide explicit path (e.g., /path/to/cvelistV5/cves)")
+    input_group.add_argument("--api-key", type=str, nargs='?', const='CONFIG_DEFAULT', help="NVD API Key. Use without value to use config default, or provide explicit key")
     input_group.add_argument("--source-uuid", help="Filter platform entries by source UUID")
     
     # Group 3: Processing Control - Control how processing is performed and output is presented
@@ -806,30 +845,25 @@ def main():
     alias_report = args.alias_report.lower() == 'true'
     cpe_as_generator = args.cpe_as_generator.lower() == 'true'
     
-    # Check for unimplemented features
-    if alias_report:
-        print("ERROR: Alias report feature is not yet implemented!")
-        print("This feature is coming soon. Please use other available features:")
-        print("  --sdc-report true          : Generate Source Data Concerns report")
-        print("  --cpe-suggestions true     : Generate CPE suggestions via NVD CPE API calls")
-        print("  --cpe-as-generator true    : Generate CPE Applicability Statements as interactive HTML pages")
-        print("\nExample usage:")
-        print("  python run_tools.py --cve CVE-2024-XXXX --sdc-report true")
-        print("  python run_tools.py --cve CVE-2024-XXXX --cpe-suggestions true")
+    # Validate feature combinations
+    if alias_report and not args.source_uuid:
+        print("ERROR: --alias-report requires --source-uuid to determine the appropriate confirmed mappings file")
+        print("Example usage:")
+        print("  python run_tools.py --cve CVE-2024-XXXX --alias-report --source-uuid your-uuid-here")
         return
     
     # Validate that at least one feature is enabled
     if not any([sdc_report, cpe_suggestions, alias_report, cpe_as_generator]):
         print("ERROR: At least one feature must be enabled!")
         print("Available features:")
-        print("  --sdc-report true          : Generate Source Data Concerns report")
-        print("  --cpe-suggestions true     : Generate CPE suggestions via NVD CPE API calls")
-        print("  --alias-report true        : Generate alias report via curator features (COMING SOON)")
-        print("  --cpe-as-generator true    : Generate CPE Applicability Statements as interactive HTML pages")
+        print("  --sdc-report               : Generate Source Data Concerns report")
+        print("  --cpe-suggestions          : Generate CPE suggestions via NVD CPE API calls")
+        print("  --alias-report             : Generate alias report via curator features (COMING SOON)")
+        print("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages")
         print("")
         print("Example usage:")
-        print("  python run_tools.py --cve CVE-2024-20515 --sdc-report true")
-        print("  python run_tools.py --cve CVE-2024-20515 --cpe-suggestions true --cpe-as-generator true")
+        print("  python run_tools.py --cve CVE-2024-20515 --sdc-report")
+        print("  python run_tools.py --cve CVE-2024-20515 --cpe-suggestions --cpe-as-generator")
         return 1
     
     # Set global source UUID for filtering throughout the pipeline
@@ -837,10 +871,10 @@ def main():
     
     # Comprehensive feature flag auditing
     logger.info("=== FEATURE FLAG AUDIT ===", group="initialization")
-    logger.info(f"SDC Report: {'ENABLED' if sdc_report else 'DISABLED'} (--sdc-report {args.sdc_report})", group="initialization")
-    logger.info(f"CPE Suggestions: {'ENABLED' if cpe_suggestions else 'DISABLED'} (--cpe-suggestions {args.cpe_suggestions})", group="initialization")
-    logger.info(f"Alias Report: {'ENABLED' if alias_report else 'DISABLED'} (--alias-report {args.alias_report})", group="initialization")
-    logger.info(f"CPE as Generator: {'ENABLED' if cpe_as_generator else 'DISABLED'} (--cpe-as-generator {args.cpe_as_generator})", group="initialization")
+    logger.info(f"SDC Report: {'ENABLED' if sdc_report else 'DISABLED'} ({'--sdc-report' if sdc_report else 'default'})", group="initialization")
+    logger.info(f"CPE Suggestions: {'ENABLED' if cpe_suggestions else 'DISABLED'} ({'--cpe-suggestions' if cpe_suggestions else 'default'})", group="initialization")
+    logger.info(f"Alias Report: {'ENABLED' if alias_report else 'DISABLED'} ({'--alias-report' if alias_report else 'default'})", group="initialization")
+    logger.info(f"CPE as Generator: {'ENABLED' if cpe_as_generator else 'DISABLED'} ({'--cpe-as-generator' if cpe_as_generator else 'default'})", group="initialization")
     
     # Log enabled features summary
     enabled_features = []
@@ -854,38 +888,11 @@ def main():
         enabled_features.append("CPE as Generator")
     logger.info(f"Enabled features: {', '.join(enabled_features) if enabled_features else 'None'}", group="initialization")
     
-    # Pipeline impact analysis
-    logger.info("=== PIPELINE IMPACT ANALYSIS ===", group="initialization")
-    if sdc_report:
-        logger.info("✓ Source Data Concerns: Platform entries will be analyzed for data quality issues", group="initialization")
-    else:
-        logger.info("✗ Source Data Concerns: Platform analysis SKIPPED - no SDC reports will be generated", group="initialization")
-    
-    if cpe_suggestions:
-        logger.info("✓ CPE Suggestions: NVD CPE API queries will be performed, HTML pages will be generated", group="initialization")
-    else:
-        logger.info("✗ CPE Suggestions: NVD CPE API queries SKIPPED - no CPE suggestion HTML will be generated", group="initialization")
-    
-    if alias_report:
-        logger.info("✓ Alias Report: Curator features will be utilized for alias analysis", group="initialization")
-    else:
-        logger.info("✗ Alias Report: Curator features SKIPPED - no alias reports will be generated", group="initialization")
-    
-    if cpe_as_generator:
-        logger.info("✓ CPE as Generator: Interactive HTML pages will be generated for CPE Applicability Statements", group="initialization")
-    else:
-        logger.info("✗ CPE as Generator: HTML generation SKIPPED - no interactive web pages will be created", group="initialization")
-    
     # Automatically enable appropriate flags if only SDC report is enabled
-    if sdc_report and not cpe_suggestions and not alias_report:
+    if sdc_report and not cpe_suggestions and not alias_report and not cpe_as_generator:
         args.no_cache = True
         args.no_browser = True
-        logger.info("=== SDC-ONLY MODE OPTIMIZATION ===", group="initialization")
-        logger.info("✓ Automatically enabled --no-cache for faster processing (no CPE cache needed)", group="initialization")
-        logger.info("✓ Automatically enabled --no-browser for efficiency (no HTML to display)", group="initialization")
-        logger.info("✓ Will skip NVD CPE API calls (not needed for SDC analysis)", group="initialization")
-        logger.info("✓ Will skip confirmed mappings processing (requires CPE suggestions)", group="initialization") 
-        logger.info("✓ Will skip HTML generation and browser launch (no visual output needed)", group="initialization")
+        logger.info("CPE features disabled - enabling optimizations (--no-cache, --no-browser)", group="initialization")
     
     logger.info("=== END FEATURE FLAG AUDIT ===", group="initialization")
     
@@ -907,6 +914,18 @@ def main():
     
     # Load configuration (logging will be started after run directory is created)
     config = processData.load_config()
+    
+    # Resolve local CVE repository path from config if needed
+    if args.local_cve_repo == 'CONFIG_DEFAULT':
+        local_cve_config = config.get('local_cve_repository', {})
+        if local_cve_config.get('enabled', False):
+            args.local_cve_repo = local_cve_config.get('default_path')
+            logger.info(f"Using configured local CVE repository: {args.local_cve_repo}", group="initialization")
+        else:
+            args.local_cve_repo = None
+            logger.info("Local CVE repository disabled in config, using API only", group="initialization")
+    elif args.local_cve_repo:
+        logger.info(f"Using specified local CVE repository: {args.local_cve_repo}", group="initialization")
     
     # Override external assets setting if CLI argument is provided
     if args.external_assets:
@@ -934,16 +953,25 @@ def main():
     
     # Get API key (shared by both test file and CVE processing)
     nvd_api_key = ""
-    if not args.test_file:  # Only check for API key if not processing test files
-        nvd_api_key = args.api_key or config['defaults']['default_api_key'] or ""
-        
-        if nvd_api_key:
-            logger.info(f"Using NVD API key for faster processing", group="initialization")
-        else:
-            logger.warning("No NVD API key provided - processing will be MUCH slower due to rate limiting", group="initialization")
-            logger.info("Consider using --api-key parameter or setting default_api_key in config.json for better performance", group="initialization")
+    
+    # Handle API key resolution with config fallback
+    if args.api_key == 'CONFIG_DEFAULT' or args.api_key is None:
+        # Use config default when --api-key is used without value or not provided
+        nvd_api_key = config['defaults']['default_api_key'] or ""
+        if nvd_api_key and args.api_key == 'CONFIG_DEFAULT':
+            logger.info(f"Using default NVD API key from config for faster processing", group="initialization")
+        elif not nvd_api_key and args.api_key == 'CONFIG_DEFAULT':
+            logger.warning("--api-key used without value but no default_api_key set in config.json", group="initialization")
+            logger.info("Set default_api_key in config.json or provide explicit key with --api-key YOUR_KEY", group="initialization")
     else:
-        nvd_api_key = args.api_key or ""  # API key is optional for test files
+        # Use explicitly provided API key
+        nvd_api_key = args.api_key
+        logger.info(f"Using provided NVD API key for faster processing", group="initialization")
+    
+    # Warn if no API key is available (for non-test files)
+    if not nvd_api_key and not args.test_file:
+        logger.warning("No NVD API key available - processing will be MUCH slower due to rate limiting", group="initialization")
+        logger.info("Use --api-key YOUR_KEY or --api-key (for config default) or set default_api_key in config.json", group="initialization")
     
     # Gather NVD Source Data (done once, shared by both paths)
     logger.info("Gathering NVD source entries...", group="initialization")
@@ -1049,20 +1077,65 @@ def main():
             
         logger.info(f"Using existing run directory: {run_path}", group="initialization")
     else:
-        # Create new run directory
-        run_context = None
+        # Create new run directory using enhanced naming
+        execution_type = "analysis"
+        
+        # Determine range/context specification
+        range_spec = None
         if args.cve and len(args.cve) == 1:
-            run_context = args.cve[0]
+            range_spec = args.cve[0]
         elif args.cve:
-            run_context = f"batch_{len(args.cve)}_CVEs"
+            range_spec = f"batch_{len(args.cve)}_CVEs"
         elif args.file:
-            run_context = os.path.basename(args.file).replace('.txt', '').replace('.', '_')
+            range_spec = os.path.basename(args.file).replace('.txt', '').replace('.', '_')
         
-        # Add feature suffix based on enabled features
-        if sdc_report and not cpe_suggestions and not alias_report:
-            run_context = f"{run_context}_sdc-only" if run_context else "sdc-only"
+        # Prepare tool flags (only include those that are true)
+        tool_flags = {}
+        if sdc_report:
+            tool_flags['sdc'] = True
+        if cpe_suggestions:
+            tool_flags['cpe-sug'] = True
+        if alias_report:
+            tool_flags['alias'] = True
+        if cpe_as_generator:
+            tool_flags['cpe-as-gen'] = True
         
-        run_path, run_id = create_run_directory(run_context)
+        # Get source shortname if available
+        source_shortname = None
+        if args.source_uuid:
+            # Try to resolve source UUID to shortname
+            try:
+                # Add src to path if not already there
+                import sys
+                from pathlib import Path
+                project_root = Path(__file__).parent.parent.parent.parent
+                src_path = project_root / "src"
+                if str(src_path) not in sys.path:
+                    sys.path.insert(0, str(src_path))
+                
+                from ..storage.nvd_source_manager import get_global_source_manager
+                
+                # Load NVD source data for shortname resolution
+                nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
+                source_manager = get_global_source_manager()
+                source_manager.initialize(nvd_source_data)
+                
+                # Get human-readable shortname (capped to 7-8 characters)
+                full_shortname = source_manager.get_source_shortname(args.source_uuid)
+                source_shortname = full_shortname[:8] if len(full_shortname) > 8 else full_shortname
+                
+                logger.info(f"Resolved source UUID {args.source_uuid[:8]}... to shortname: '{source_shortname}'", group="initialization")
+            except Exception as e:
+                logger.warning(f"Could not resolve source UUID to shortname: {e}", group="initialization")
+                source_shortname = None
+        
+        # Create run directory using enhanced naming
+        run_path, run_id = create_run_directory(
+            execution_type=execution_type,
+            source_shortname=source_shortname,
+            range_spec=range_spec,
+            tool_flags=tool_flags if tool_flags else None
+        )
         logger.info(f"Created analysis run directory: {run_id}", group="initialization")
         
         # Get paths for this run
@@ -1090,21 +1163,27 @@ def main():
     clear_badge_contents_collector()
     clear_dataset_contents_collector()
     
-    # Initialize badge contents collector
-    if initialize_badge_contents_report(str(run_paths["logs"])):
-        logger.info("Badge contents collector initialized for source data concerns reporting", group="initialization")
+    # Initialize badge contents collector - only create SDC report file if SDC reporting is enabled
+    if sdc_report:
+        if initialize_badge_contents_report(str(run_paths["logs"])):
+            logger.info("Badge contents collector initialized for source data concerns reporting", group="initialization")
+        else:
+            logger.warning("Failed to initialize badge contents collector", group="initialization")
     else:
-        logger.warning("Failed to initialize badge contents collector", group="initialization")
+        # For alias extraction, we still need the collector instance but don't create SDC report file
+        from ..logging.badge_contents_collector import get_badge_contents_collector
+        get_badge_contents_collector()  # This just creates the instance
+        logger.info("Badge contents collector initialized", group="initialization")
     
     # Initialize real-time dashboard collector
     # Determine processing mode for dashboard tracking
-    processing_mode = "sdc-only" if (sdc_report and not cpe_suggestions and not alias_report) else ("test" if args.test_file else "full")
+    processing_mode = "sdc-only" if (sdc_report and not cpe_suggestions and not alias_report and not cpe_as_generator) else ("test" if args.test_file else "full")
     
     # Determine cache disable reason
     cache_disabled = args.no_cache
     cache_disable_reason = None
     if cache_disabled:
-        if sdc_report and not cpe_suggestions and not alias_report:
+        if sdc_report and not cpe_suggestions and not alias_report and not cpe_as_generator:
             cache_disable_reason = "sdc-only"
         elif args.test_file:
             cache_disable_reason = "test-file"
@@ -1143,12 +1222,13 @@ def main():
       # Reverse the order of CVEs to process newer ones first (typically higher CVE numbers)
     cves_to_process.sort(reverse=True)
     
-    logger.info(f"Processing {len(cves_to_process)} CVE records (newest first)...", group="initialization")
+    total_cves = len(cves_to_process)
+    logger.info(f"Processing {total_cves} CVE records (newest first)...", group="initialization")
     
     # Start real-time dashboard processing run
     try:
         from ..logging.dataset_contents_collector import start_processing_run, update_total_cves
-        start_processing_run(len(cves_to_process))
+        start_processing_run(total_cves)
         # Synchronize collector's total with the actual CVE count after loading
         update_total_cves(total_cves)
         logger.info("Real-time dashboard collector configured for processing run", group="initialization")
@@ -1170,7 +1250,6 @@ def main():
     generated_files = []
     skipped_cves = []
     skipped_reasons = {}
-    total_cves = len(cves_to_process)
     start_time = time.time()
     progress_config = config.get('progress', {})
     show_progress = progress_config.get('enabled', True)
@@ -1247,14 +1326,17 @@ def main():
             # Handle results: successful processing, skipped CVEs, or failures
             if result:
                 if result['success']:
-                    # Handle results based on enabled features
-                    if result.get('sdc_report') and not result.get('cpe_suggestions') and not result.get('alias_report'):
-                        if show_timing:
-                            cve_elapsed = time.time() - cve_start_time
-                            logger.info(f"Successfully processed {cve} (SDC-only) in {cve_elapsed:.2f}s", group="processing")
-                        else:
-                            logger.info(f"Successfully processed {cve} (SDC-only)", group="processing")
-                    else:
+                    # Determine if HTML was generated using the same logic as process_cve
+                    html_was_generated = result.get('cve_as_generator') or (
+                        (result.get('sdc_report') or result.get('cpe_suggestions')) and not (
+                            # Skip HTML for single-feature modes that don't need interactive pages
+                            (result.get('sdc_report') and not result.get('cpe_suggestions') and not result.get('alias_report') and not result.get('cve_as_generator')) or
+                            (result.get('cpe_suggestions') and not result.get('sdc_report') and not result.get('alias_report') and not result.get('cve_as_generator')) or
+                            (result.get('alias_report') and not result.get('cpe_suggestions') and not result.get('sdc_report') and not result.get('cve_as_generator'))
+                        )
+                    )
+                    
+                    if html_was_generated:
                         # Normal processing with HTML file generation
                         generated_files.append(result['filepath'])
                         
@@ -1264,10 +1346,24 @@ def main():
                         else:
                             logger.info(f"Successfully processed {cve}", group="processing")
                         
-                        # Open in browser if single CVE
+                        # Open in browser if single CVE and HTML was generated
                         if len(cves_to_process) == 1 and not args.no_browser:
                             import webbrowser
                             webbrowser.open_new_tab(f"file:///{result['filepath']}")
+                    else:
+                        # Single-feature mode without HTML generation
+                        feature_names = []
+                        if result.get('sdc_report'): feature_names.append("SDC")
+                        if result.get('cpe_suggestions'): feature_names.append("CPE-suggestions")
+                        if result.get('alias_report'): feature_names.append("alias")
+                        if result.get('cve_as_generator'): feature_names.append("CPE-as-generator")
+                        feature_suffix = f" ({'-'.join(feature_names)}-only)" if feature_names else ""
+                        
+                        if show_timing:
+                            cve_elapsed = time.time() - cve_start_time
+                            logger.info(f"Successfully processed {cve}{feature_suffix} in {cve_elapsed:.2f}s", group="processing")
+                        else:
+                            logger.info(f"Successfully processed {cve}{feature_suffix}", group="processing")
                         
                 elif result.get('skipped'):
                     # CVE was skipped (e.g., REJECTED status)
@@ -1359,10 +1455,19 @@ def main():
             logger.info(f"  ... and {len(generated_files) - 10} more files", group="completion")
     
     # Finalize badge contents report
-    from ..logging.badge_contents_collector import finalize_badge_contents_report
+    from ..logging.badge_contents_collector import finalize_badge_contents_report, generate_alias_extraction_report
     badge_report_path = finalize_badge_contents_report()
     if badge_report_path:
         logger.info(f"Badge contents report finalized: {badge_report_path}", group="completion")
+    
+    # Generate alias extraction report if enabled
+    if args.alias_report:
+        source_uuid = getattr(args, 'source_uuid', None) or 'unknown_source'
+        alias_report_path = generate_alias_extraction_report(str(run_paths["logs"]), source_uuid)
+        if alias_report_path:
+            logger.info(f"Alias extraction report generated: {alias_report_path}", group="completion")
+        else:
+            logger.info("No alias extraction data found - alias report not generated", group="completion")
     
     # Finalize real-time dashboard collector
     try:

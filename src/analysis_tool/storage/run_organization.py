@@ -8,6 +8,56 @@ import datetime
 from pathlib import Path
 from typing import Tuple, Optional, List
 
+def _generate_enhanced_context(execution_type: str = None, source_shortname: str = None, 
+                              range_spec: str = None, status_list: List[str] = None, 
+                              tool_flags: dict = None) -> str:
+    """
+    Generate enhanced run context following pattern: <execution><source/status/range>_<tools>
+    
+    Args:
+        execution_type: Type of execution (e.g., 'dataset', 'analysis')
+        source_shortname: NVD source shortname (e.g., 'adobe', 'microsoft')
+        range_spec: Range specification (e.g., 'last_7_days', 'range_2024-01-01_to_2024-01-31')
+        status_list: List of CVE statuses (e.g., ['modified', 'published'])
+        tool_flags: Dictionary of tool flags with boolean values
+        
+    Returns:
+        Enhanced context string
+    """
+    context_parts = []
+    
+    # Add execution type (default to 'run' if not specified)
+    if execution_type:
+        context_parts.append(execution_type)
+    else:
+        context_parts.append("run")
+    
+    # Determine source/status/range component (prioritized in this order)
+    if source_shortname:
+        context_parts.append(source_shortname)
+    elif range_spec:
+        context_parts.append(range_spec)
+    elif status_list:
+        # Join statuses with hyphens and lowercase
+        status_str = "_".join([status.lower() for status in status_list])
+        context_parts.append(status_str)
+    else:
+        context_parts.append("general")
+    
+    base_context = "_".join(context_parts)
+    
+    # Add tool parameters that are true (only true values)
+    if tool_flags:
+        tool_parts = []
+        for flag_name, flag_value in tool_flags.items():
+            if flag_value is True:
+                tool_parts.append(flag_name)
+        
+        if tool_parts:
+            return f"{base_context}_{'_'.join(tool_parts)}"
+    
+    return base_context
+
 def get_analysis_tools_root() -> Path:
     """Get the root directory of the Analysis_Tools project"""
     current_file = Path(__file__).resolve()
@@ -20,18 +70,26 @@ def get_analysis_tools_root() -> Path:
     raise RuntimeError("Could not find Analysis_Tools project root")
 
 def create_run_directory(run_context: str = None, is_test: bool = False, 
-                        subdirs: List[str] = None) -> Tuple[Path, str]:
+                        subdirs: List[str] = None, execution_type: str = None,
+                        source_shortname: str = None, range_spec: str = None,
+                        status_list: List[str] = None, tool_flags: dict = None) -> Tuple[Path, str]:
     """
     Create a new run directory with timestamp-based naming.
     
-    Supports consolidated test runs to avoid cluttering the main runs directory.
+    Supports enhanced naming pattern: <date><execution><source/status/range>_<tools>
+    Also supports consolidated test runs to avoid cluttering the main runs directory.
     When running under CONSOLIDATED_TEST_RUN environment, test runs are created
     within the consolidated test directory structure.
     
     Args:
-        run_context: Optional context string (e.g., CVE ID, batch name) to append to timestamp
+        run_context: Optional legacy context string (e.g., CVE ID, batch name) to append to timestamp
         is_test: Whether this is a test run (adds 'TEST_' prefix to context)
         subdirs: Optional list of subdirectories to create (defaults to ["generated_pages", "logs"])
+        execution_type: Type of execution (e.g., 'dataset', 'analysis') for enhanced naming
+        source_shortname: NVD source shortname (e.g., 'adobe', 'microsoft') for enhanced naming
+        range_spec: Range specification (e.g., 'last_7_days', 'range_2024-01-01_to_2024-01-31') for enhanced naming
+        status_list: List of CVE statuses (e.g., ['modified', 'published']) for enhanced naming
+        tool_flags: Dictionary of tool flags with boolean values (e.g., {'sdc': True, 'cpe-sug': False}) for enhanced naming
         
     Returns:
         Tuple of (run_directory_path, run_id)
@@ -76,8 +134,27 @@ def create_run_directory(run_context: str = None, is_test: bool = False,
     # Generate timestamp-based run ID
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     
-    if run_context:
+    # Use enhanced context generation if parameters are provided
+    if any([execution_type, source_shortname, range_spec, status_list, tool_flags]):
+        enhanced_context = _generate_enhanced_context(
+            execution_type=execution_type,
+            source_shortname=source_shortname,
+            range_spec=range_spec,
+            status_list=status_list,
+            tool_flags=tool_flags
+        )
+        
         # Add test prefix if this is a test run
+        if is_test:
+            clean_context = f"TEST_{enhanced_context}"
+        else:
+            clean_context = enhanced_context
+            
+        # Clean the context string for filesystem safety
+        clean_context = "".join(c for c in clean_context if c.isalnum() or c in ("-", "_", "."))
+        run_id = f"{timestamp}_{clean_context}"
+    elif run_context:
+        # Legacy run_context support
         if is_test:
             clean_context = f"TEST_{run_context}"
         else:

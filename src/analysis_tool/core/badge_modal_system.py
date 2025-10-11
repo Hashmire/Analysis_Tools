@@ -40,7 +40,8 @@ PLATFORM_ENTRY_NOTIFICATION_REGISTRY = {
     'updatePatterns': {},      # table_index -> update pattern data
     'jsonGenerationRules': {}, # table_index -> combined JSON generation rules data
     'supportingInformation': {}, # table_index -> supporting information data
-    'sourceDataConcerns': {}   # table_index -> source data quality concerns
+    'sourceDataConcerns': {},   # table_index -> source data quality concerns
+    'aliasExtraction': {}      # table_index -> alias extraction data for curator functionality
 }
 # Global KB exclusions tracking
 global_kb_exclusions = []
@@ -121,7 +122,8 @@ def clear_all_registries():
         'updatePatterns': {},
         'jsonGenerationRules': {},
         'supportingInformation': {},
-        'sourceDataConcerns': {}
+        'sourceDataConcerns': {},
+        'aliasExtraction': {}
     }
     
     logger.debug("Cleared all badge and modal registries", group="badge_modal")
@@ -808,7 +810,7 @@ def get_consolidated_platform_notification_script() -> str:
         return ""
     
     script_content = ""
-    all_data_types = ['wildcardGeneration', 'updatePatterns', 'jsonGenerationRules', 'supportingInformation', 'sourceDataConcerns']
+    all_data_types = ['wildcardGeneration', 'updatePatterns', 'jsonGenerationRules', 'supportingInformation', 'sourceDataConcerns', 'aliasExtraction']
     
     # Process each platform data type
     for data_type in all_data_types:
@@ -2950,7 +2952,9 @@ def _initialize_clean_state():
         'wildcardGeneration': {},
         'updatePatterns': {},
         'jsonGenerationRules': {},
-        'supportingInformation': {}
+        'supportingInformation': {},
+        'sourceDataConcerns': {},
+        'aliasExtraction': {}
     }
 
 # Call initialization immediately
@@ -4343,4 +4347,189 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     badge_html = f'<span class="badge modal-badge bg-sourceDataConcern" onclick="BadgeModalManager.openSourceDataConcernsModal(\'{table_index}\', \'{header_identifier}\')" title="{tooltip}">🔍 Source Data Concerns ({final_count})</span> '
     
     return badge_html
+
+
+def create_alias_extraction_badge(table_index: int, raw_platform_data: Dict, row: Dict) -> Optional[str]:
+    """
+    Create an Alias Extraction badge for curator functionality integration.
+    
+    Extracts alias data from CVE platform entries for curator-style source mapping analysis.
+    This function follows the curator's platform expansion logic where platforms arrays
+    are broken out into separate alias entries for collector compatibility.
+    
+    Args:
+        table_index: The table index for unique identification
+        raw_platform_data: The raw platform data to extract aliases from
+        row: The complete row data for header information
+        
+    Returns:
+        HTML string for the badge, or None if no alias data can be extracted
+    """
+    
+    # Initialize the alias extraction registry
+    PLATFORM_ENTRY_NOTIFICATION_REGISTRY['aliasExtraction'] = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('aliasExtraction', {})
+    
+    # CRITICAL: Check for meaningful properties following curator logic exactly
+    meaningful_properties = []
+    for prop in ['vendor', 'product', 'platforms', 'modules', 'packageName', 'repo', 'programRoutines', 'programFiles', 'collectionURL']:
+        if prop in raw_platform_data and not _is_placeholder_value(raw_platform_data[prop]):
+            meaningful_properties.append(prop)
+    
+    # Silently skip if no meaningful properties (expected for many CVEs, following curator pattern)
+    if not meaningful_properties:
+        return None
+    
+    # Extract CVE ID for source tracking (curator requirement)
+    cve_id = None
+    if hasattr(row, 'get'):
+        cve_id = row.get('cve_id') or row.get('CVE_ID') or row.get('cveId')
+    elif isinstance(row, dict):
+        cve_id = row.get('cve_id') or row.get('CVE_ID') or row.get('cveId')
+    
+    # Extract base properties
+    vendor = raw_platform_data.get('vendor')
+    product = raw_platform_data.get('product')
+    platforms = raw_platform_data.get('platforms', [])
+    
+    # Platform expansion logic following curator pattern exactly
+    entry_count = 0
+    
+    if not platforms:
+        # Create single entry without platform data
+        alias_data = _create_alias_data(raw_platform_data, vendor, product, None, cve_id)
+        if alias_data:  # Only store if meaningful data exists
+            PLATFORM_ENTRY_NOTIFICATION_REGISTRY['aliasExtraction'][str(table_index)] = alias_data
+            entry_count += 1
+    else:
+        # Create separate entries for each platform (curator pattern)
+        for i, platform in enumerate(platforms):
+            # Skip placeholder platforms (curator filtering)
+            if not _is_placeholder_value(platform):
+                alias_data = _create_alias_data(raw_platform_data, vendor, product, platform, cve_id)
+                if alias_data:  # Only store if meaningful data exists
+                    # Use unique table index for each platform entry (collector compatibility)
+                    platform_index = f"{table_index}_platform_{i}"
+                    PLATFORM_ENTRY_NOTIFICATION_REGISTRY['aliasExtraction'][platform_index] = alias_data
+                    entry_count += 1
+    
+    # Return None if no valid entries created (curator pattern)
+    if entry_count == 0:
+        return None
+    
+    # Build header identifier for the modal
+    header_parts = []
+    if 'cna' in raw_platform_data:
+        header_parts.append(raw_platform_data['cna'])
+    if 'source_id' in raw_platform_data:
+        header_parts.append(raw_platform_data['source_id'])
+    if vendor and not _is_placeholder_value(vendor):
+        header_parts.append(vendor)
+    if product and not _is_placeholder_value(product):
+        header_parts.append(product)
+    
+    header_identifier = f"Platform Entry {table_index} ({', '.join(header_parts)})"
+    
+    # Create tooltip with curator-style information
+    tooltip = f"Source mapping extraction data&#013;{entry_count} alias entries with meaningful properties&#013;Click to view detailed alias information"
+    
+    # Create the badge HTML with curator theme (blue for extraction)
+    badge_html = f'<span class="badge modal-badge bg-info" onclick="BadgeModalManager.openAliasExtractionModal(\'{table_index}\', \'{header_identifier}\')" title="{tooltip}">📋 Aliases ({entry_count})</span> '
+    
+    return badge_html
+
+
+def _create_alias_data(affected_item: Dict, vendor: str = None, product: str = None, platform: str = None, cve_id: str = None) -> Dict:
+    """
+    Create alias data entry following curator logic exactly.
+    
+    Args:
+        affected_item: The affected item data
+        vendor: Vendor name (may be None)
+        product: Product name (may be None)  
+        platform: Platform name (may be None)
+        cve_id: CVE ID for source tracking
+        
+    Returns:
+        Dictionary containing alias data, or empty dict if no meaningful data
+    """
+    # Initialize with source_cve tracking (curator pattern)
+    alias_data = {'source_cve': []}
+    if cve_id:
+        alias_data['source_cve'] = [cve_id]
+    
+    # Core identification fields - only include if meaningful and not None
+    if vendor is not None and not _is_placeholder_value(vendor):
+        alias_data['vendor'] = vendor
+        
+    if product is not None and not _is_placeholder_value(product):
+        alias_data['product'] = product
+        
+    if platform is not None and not _is_placeholder_value(platform):
+        alias_data['platform'] = platform
+    
+    # Additional CVE 5.X fields - only include if they exist and are meaningful  
+    # Note: defaultStatus is excluded as it doesn't represent alias data (curator pattern)
+    additional_fields = ['collectionURL', 'packageName', 'repo']
+    
+    for field_name in additional_fields:
+        if field_name in affected_item:
+            field_value = affected_item[field_name]
+            if not _is_placeholder_value(field_value):
+                alias_data[field_name] = field_value
+    
+    # Handle complex fields (arrays) if they exist and have meaningful content
+    for complex_field in ['programRoutines', 'programFiles', 'modules']:
+        if complex_field in affected_item:
+            field_value = affected_item[complex_field]
+            if isinstance(field_value, list):
+                # Filter placeholder values from arrays
+                meaningful_values = [v for v in field_value if not _is_placeholder_value(v)]
+                if meaningful_values:
+                    alias_data[complex_field] = meaningful_values
+            elif not _is_placeholder_value(field_value):
+                alias_data[complex_field] = field_value
+    
+    # Only return alias if it has meaningful data beyond just source_cve (curator pattern)
+    if len(alias_data) > 1:  # More than just 'source_cve'
+        # Generate unique alias key based on ALL meaningful properties (curator pattern)
+        key_parts = []
+        for key_field in sorted(alias_data.keys()):
+            if key_field != 'source_cve':  # Exclude source_cve from grouping key
+                key_parts.append(f"{key_field}:{str(alias_data[key_field]).lower()}")
+        alias_data['_alias_key'] = '||'.join(key_parts)  # Store for collector use
+        return alias_data
+    
+    return {}
+
+
+def _is_placeholder_value(value) -> bool:
+    """
+    Check if a value is considered a placeholder following curator logic exactly.
+    
+    Args:
+        value: The value to check
+        
+    Returns:
+        True if the value is a placeholder, False otherwise
+    """
+    if not value or value in [None, "", 0]:
+        return True
+        
+    # Convert to string and normalize for checking (matching curator exactly)
+    str_value = str(value).lower().strip()
+    
+    # Comprehensive placeholder patterns (based on curator sourceDataConcern analysis)
+    placeholder_patterns = [
+        'n/a', 'n\\/a', 'n\\a', 'na', 'unknown', 'unspecified', 'not specified',
+        'not applicable', 'none', 'null', 'undefined', '-', '--', '---',
+        'tbd', 'to be determined', 'pending', 'missing', 'empty', 'blank',
+        'default', 'generic', 'various', 'multiple', 'mixed', 'other',
+        'all', 'any', '*', 'no information', 'no data', 'not available',
+        'not disclosed', 'confidential', 'redacted', 'vendor', 'product',
+        # Platform-specific placeholders
+        'all platforms', 'multiple platforms', 'various platforms', 'unspecified platform',
+        'all versions', 'multiple versions', 'various versions', 'all systems'
+    ]
+    
+    return str_value in placeholder_patterns
 

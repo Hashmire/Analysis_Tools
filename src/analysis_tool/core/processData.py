@@ -1203,9 +1203,9 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False):
             # End the CPE generation stage now that we have generated the CPE match strings
             end_unique_cpe_generation("CPE base strings extracted")
             
-            # SDC-only mode: Skip expensive NVD CPE API calls but keep source data concerns analysis
+            # CPE features disabled: Skip expensive NVD CPE API calls but keep source data concerns analysis
             if sdc_only:
-                logger.info("SDC-only mode: Skipping NVD CPE API calls - source data concerns analysis complete", group="data_processing")
+                logger.info("CPE features disabled: Skipping NVD CPE API calls - source data concerns analysis complete", group="data_processing")
                 return rawDataset
             
             # Start the CPE queries stage for the actual API calls

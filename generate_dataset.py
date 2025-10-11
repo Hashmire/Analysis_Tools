@@ -515,20 +515,20 @@ def main():
     
     # Group 1: Tool Output - What analysis outputs to generate
     output_group = parser.add_argument_group('Tool Output', 'Select which analysis outputs to generate')
-    output_group.add_argument('--sdc-report', type=str, choices=['true', 'false'], default='false',
-                             help='Generate Source Data Concerns report (default: false)')
-    output_group.add_argument('--cpe-suggestions', type=str, choices=['true', 'false'], default='false', 
-                             help='Generate CPE suggestions via NVD CPE API calls (default: false)')
-    output_group.add_argument('--alias-report', type=str, choices=['true', 'false'], default='false',
-                             help='Generate alias report via curator features (COMING SOON) (default: false)')
-    output_group.add_argument('--cpe-as-generator', type=str, choices=['true', 'false'], default='false',
-                             help='Generate CPE Applicability Statements as interactive HTML pages (default: false)')
+    output_group.add_argument('--sdc-report', nargs='?', const='true', choices=['true', 'false'], default='false',
+                             help='Generate Source Data Concerns report (default: false, true if flag provided without value)')
+    output_group.add_argument('--cpe-suggestions', nargs='?', const='true', choices=['true', 'false'], default='false', 
+                             help='Generate CPE suggestions via NVD CPE API calls (default: false, true if flag provided without value)')
+    output_group.add_argument('--alias-report', nargs='?', const='true', choices=['true', 'false'], default='false',
+                             help='Generate alias report via curator features (default: false, true if flag provided without value)')
+    output_group.add_argument('--cpe-as-generator', nargs='?', const='true', choices=['true', 'false'], default='false',
+                             help='Generate CPE Applicability Statements as interactive HTML pages (default: false, true if flag provided without value)')
     
     # Group 2: Data Input/Sources - Specify what data to process and where to get it
     input_group = parser.add_argument_group('Data Input/Sources', 'Specify input data and data sources')
-    input_group.add_argument('--api-key', type=str, help='NVD API key (optional but recommended)')
-    input_group.add_argument('--local-cve-repo', type=str,
-                            help='Path to local CVE repository for integrated analysis (e.g., /path/to/cvelistV5/cves)')
+    input_group.add_argument('--api-key', nargs='?', const='CONFIG_DEFAULT', help='NVD API key. Use without value to use config default, or provide explicit key')
+    input_group.add_argument('--local-cve-repo', type=str, nargs='?', const='CONFIG_DEFAULT',
+                            help='Path to local CVE repository for integrated analysis. Use without value to use config default, or provide explicit path (e.g., /path/to/cvelistV5/cves)')
     
     # Group 3: Processing Control - Control how processing is performed and output is presented
     control_group = parser.add_argument_group('Processing Control', 'Control processing behavior and output presentation')
@@ -566,7 +566,14 @@ def main():
     statuses_explicitly_provided = '--statuses' in sys.argv
     
     # Resolve API key from command line, config, or default to None
-    resolved_api_key = args.api_key or config['defaults']['default_api_key'] or None
+    if args.api_key == 'CONFIG_DEFAULT':
+        resolved_api_key = config['defaults']['default_api_key']
+        logger.info("Using default NVD API key from config for faster processing", group="initialization")
+    elif args.api_key:
+        resolved_api_key = args.api_key
+        logger.info("Using provided NVD API key for faster processing", group="initialization")
+    else:
+        resolved_api_key = config['defaults']['default_api_key'] or None
     
     if not resolved_api_key:
         logger.error("API key is required for dataset generation", group="initialization")
@@ -578,6 +585,18 @@ def main():
     if args.source_uuid:
         logger.info(f"UUID filtering enabled: {args.source_uuid}", group="initialization")
     
+    # Resolve local CVE repository path from config if needed
+    if args.local_cve_repo == 'CONFIG_DEFAULT':
+        local_cve_config = config.get('local_cve_repository', {})
+        if local_cve_config.get('enabled', False):
+            args.local_cve_repo = local_cve_config.get('default_path')
+            logger.info(f"Using configured local CVE repository: {args.local_cve_repo}", group="initialization")
+        else:
+            args.local_cve_repo = None
+            logger.info("Local CVE repository disabled in config, using API only", group="initialization")
+    elif args.local_cve_repo:
+        logger.info(f"Using specified local CVE repository: {args.local_cve_repo}", group="initialization")
+    
     # Create run directory first - ALL dataset generation creates runs
     from src.analysis_tool.storage.run_organization import create_run_directory
     
@@ -587,56 +606,85 @@ def main():
     alias_report = args.alias_report.lower() == 'true'
     cpe_as_generator = args.cpe_as_generator.lower() == 'true'
     
-    # Check for unimplemented features
-    if alias_report:
-        print("ERROR: Alias report feature is not yet implemented!")
-        print("This feature is coming soon. Please use other available features:")
-        print("  --sdc-report true          : Generate Source Data Concerns report")
-        print("  --cpe-suggestions true     : Generate CPE suggestions via NVD CPE API calls")
-        print("  --cpe-as-generator true    : Generate CPE Applicability Statements as interactive HTML pages")
-        print("\nExample usage:")
-        print("  python generate_dataset.py --last-days 7 --sdc-report true")
-        print("  python generate_dataset.py --last-days 7 --cpe-suggestions true")
+    # Validate feature combinations
+    if alias_report and not args.source_uuid:
+        print("ERROR: --alias-report requires --source-uuid to determine the appropriate confirmed mappings file")
+        print("Example usage:")
+        print("  python generate_dataset.py --last-days 7 --alias-report --source-uuid your-uuid-here")
         return
     
     # Validate that at least one feature is enabled
     if not any([sdc_report, cpe_suggestions, alias_report, cpe_as_generator]):
         print("ERROR: At least one feature must be enabled for dataset generation!")
         print("Available features:")
-        print("  --sdc-report true          : Generate Source Data Concerns report")
-        print("  --cpe-suggestions true     : Generate CPE suggestions via NVD CPE API calls")
-        print("  --alias-report true        : Generate alias report via curator features (COMING SOON)")
-        print("  --cpe-as-generator true    : Generate CPE Applicability Statements as interactive HTML pages")
+        print("  --sdc-report               : Generate Source Data Concerns report")
+        print("  --cpe-suggestions          : Generate CPE suggestions via NVD CPE API calls")
+        print("  --alias-report             : Generate alias report via curator features")
+        print("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages")
         print("")
         print("Example usage:")
-        print("  python generate_dataset.py --last-days 7 --sdc-report true")
-        print("  python generate_dataset.py --last-days 7 --cpe-suggestions true --cpe-as-generator true")
+        print("  python generate_dataset.py --last-days 7 --sdc-report")
+        print("  python generate_dataset.py --last-days 7 --cpe-suggestions --cpe-as-generator")
         return 1
     
-    # Generate initial run context
-    uuid_suffix = f"_uuid_{args.source_uuid[:8]}" if args.source_uuid else ""
+    # Generate initial run context with source shortname resolution
+    source_suffix = ""
+    if args.source_uuid:
+        # Resolve source shortname for better human readability in directory names
+        import sys
+        from pathlib import Path
+        
+        # Add src to path if not already there
+        project_root = Path(__file__).parent
+        src_path = project_root / "src"
+        if str(src_path) not in sys.path:
+            sys.path.insert(0, str(src_path))
+        
+        from analysis_tool.core import gatherData
+        from analysis_tool.storage.nvd_source_manager import get_global_source_manager
+        
+        # Load NVD source data for shortname resolution
+        logger.info("Loading NVD source data for shortname resolution...", group="initialization")
+        nvd_source_data = gatherData.gatherNVDSourceData(resolved_api_key)
+        source_manager = get_global_source_manager()
+        source_manager.initialize(nvd_source_data)
+        
+        # Get human-readable shortname (capped to 7-8 characters)
+        full_shortname = source_manager.get_source_shortname(args.source_uuid)
+        source_shortname = full_shortname[:8] if len(full_shortname) > 8 else full_shortname
+        source_suffix = f"_{source_shortname}"
+        
+        logger.info(f"Resolved source UUID {args.source_uuid[:8]}... to shortname: '{source_shortname}'", group="initialization")
     
-    # Generate feature suffix based on enabled features
-    feature_parts = []
-    if sdc_report:
-        feature_parts.append("sdc")
-    if cpe_suggestions:
-        feature_parts.append("cpe")
-    if alias_report:
-        feature_parts.append("alias")
-    if not cpe_as_generator:
-        feature_parts.append("no-html")
-    feature_suffix = f"_{'-'.join(feature_parts)}" if feature_parts else "_minimal"
+    # Prepare enhanced naming parameters
+    execution_type = "dataset"
     
+    # Determine range specification
+    range_spec = None
     if args.last_days:
-        initial_context = f"last_{args.last_days}_days_dataset{uuid_suffix}{feature_suffix}"
+        range_spec = f"last_{args.last_days}_days"
     elif args.start_date and args.end_date:
-        initial_context = f"range_{args.start_date}_to_{args.end_date}_dataset{uuid_suffix}{feature_suffix}"
-    else:
-        initial_context = f"status_based_dataset{uuid_suffix}{feature_suffix}"
+        range_spec = f"range_{args.start_date}_to_{args.end_date}"
     
-    # Create run directory
-    run_directory, run_id = create_run_directory(initial_context)
+    # Prepare tool flags (only include those that are true)
+    tool_flags = {}
+    if sdc_report:
+        tool_flags['sdc'] = True
+    if cpe_suggestions:
+        tool_flags['cpe-sug'] = True
+    if alias_report:
+        tool_flags['alias'] = True
+    if cpe_as_generator:
+        tool_flags['cpe-as-gen'] = True
+    
+    # Create run directory using enhanced naming
+    run_directory, run_id = create_run_directory(
+        execution_type=execution_type,
+        source_shortname=source_shortname,
+        range_spec=range_spec,
+        status_list=args.statuses if args.statuses else None,
+        tool_flags=tool_flags if tool_flags else None
+    )
     logger.info(f"Created dataset generation run: {run_id}", group="initialization")
     logger.info(f"Run directory: {run_directory}", group="initialization")
     

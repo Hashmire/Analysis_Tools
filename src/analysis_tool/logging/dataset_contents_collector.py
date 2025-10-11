@@ -68,6 +68,10 @@ class UnifiedDashboardCollector:
         self._save_interval_seconds = 5  # Save every 5 seconds at most
         self._save_every_n_operations = 100  # Or every 100 operations (increased from 50)
         
+        # Initialize temporary tracking dictionaries
+        self._temp_query_tracking = {}
+        self._temp_cve_tracking = {}
+        
         # Load and inject configuration data
         self._inject_config_data()
         
@@ -143,6 +147,15 @@ class UnifiedDashboardCollector:
             
             if logger:
                 logger.warning(f"Could not load config for injection: {e}", group="initialization")
+    
+    def _json_datetime_handler(self, obj):
+        """
+        JSON serialization handler for datetime objects.
+        Converts datetime objects to ISO format strings for JSON serialization.
+        """
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
     
     def _initialize_data_structure(self) -> Dict[str, Any]:
         """Initialize the unified dashboard data structure"""
@@ -1027,7 +1040,9 @@ class UnifiedDashboardCollector:
                         
                         # Just update the log stats counts without disturbing the detailed categorized data
                         if logger:
-                            logger.debug(f"Preserving {sum(len(entries) for entries in self.data['warnings'].values())} warnings and {sum(len(entries) for entries in self.data['errors'].values())} errors from real-time attribution", group="data_processing")
+                            warnings_count = sum(len(entries) for entries in self.data['warnings'].values() if isinstance(entries, list))
+                            errors_count = sum(len(entries) for entries in self.data['errors'].values() if isinstance(entries, list))
+                            logger.debug(f"Preserving {warnings_count} warnings and {errors_count} errors from real-time attribution", group="data_processing")
                     
         except Exception as e:
             if logger:
@@ -1847,10 +1862,10 @@ class UnifiedDashboardCollector:
             if log_file_path:
                 export_data['metadata']['log_file'] = log_file_path
             
-            # Write final version to JSON file using atomic write
+            # Write final version to JSON file using atomic write with datetime handling
             temp_file_path = self.output_file_path + '.tmp'
             with open(temp_file_path, 'w', encoding='utf-8') as f:
-                json.dump(export_data, f, indent=2, ensure_ascii=False)
+                json.dump(export_data, f, indent=2, ensure_ascii=False, default=self._json_datetime_handler)
             os.replace(temp_file_path, self.output_file_path)
             
             # Print final summary
@@ -2047,7 +2062,7 @@ def _set_tracked_properties_for_mode(collector, processing_mode: str, cache_disa
         if cache_disable_reason == "manual":
             collector.data["cache"]["note"] = "Cache manually disabled with --no-cache flag"
         elif cache_disable_reason == "sdc-only" or is_sdc_only:
-            collector.data["cache"]["note"] = "Cache automatically disabled in SDC-only mode (--sdc-only)"
+            collector.data["cache"]["note"] = "Cache automatically disabled - CPE features disabled (--sdc-only)"
         elif cache_disable_reason == "test-file" or is_test_mode:
             collector.data["cache"]["note"] = "Cache automatically disabled for test file mode (--test-file)"
         else:
@@ -2057,24 +2072,24 @@ def _set_tracked_properties_for_mode(collector, processing_mode: str, cache_disa
     collector.data["api"]["tracked"] = True  # Always track API calls
     collector.data["api"]["tracking_note"] = {
         "full": "All API calls tracked",
-        "sdc-only": "NVD /cpe/ API calls are skipped in SDC-only mode",
+        "sdc-only": "NVD /cpe/ API calls skipped - CPE features disabled",
         "test": "Limited API calls in test mode"
     }.get(processing_mode, "API tracking enabled")
     
     # File stats - not tracked in sdc-only (no HTML files generated)
     collector.data["file_stats"]["tracked"] = not is_sdc_only
     if is_sdc_only:
-        collector.data["file_stats"]["note"] = "HTML file generation skipped in SDC-only mode"
+        collector.data["file_stats"]["note"] = "HTML file generation skipped - CPE features disabled"
     
     # CPE query stats - not tracked in sdc-only (no CPE queries)
     collector.data["cpe_query_stats"]["tracked"] = is_full_mode
     if is_sdc_only:
-        collector.data["cpe_query_stats"]["note"] = "CPE queries skipped in SDC-only mode"
+        collector.data["cpe_query_stats"]["note"] = "CPE queries skipped - CPE features disabled"
     
     # Mapping stats - not tracked in sdc-only (no confirmed mappings)
     collector.data["mapping_stats"]["tracked"] = is_full_mode
     if is_sdc_only:
-        collector.data["mapping_stats"]["note"] = "Confirmed mappings skipped in SDC-only mode"
+        collector.data["mapping_stats"]["note"] = "Confirmed mappings skipped - CPE features disabled"
     
     # Performance, processing, log_stats, warnings, errors always tracked
     collector.data["performance"]["tracked"] = True

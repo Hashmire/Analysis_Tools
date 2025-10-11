@@ -3,10 +3,10 @@
 Badge Contents Collection System
 
 Simple implementation to collect Platform Entry Notification badge contents
-during the main processing pipeline and export to sourceDataConcernReport.json
+during the main processing pipeline and export to JSON reports
 in the existing logs directory structure.
 
-SCOPE: Platform Entry Notifications only - specifically Source Data Concerns
+SCOPE: Platform Entry Notifications - Source Data Concerns AND Alias Extraction
 
 SCHEMA STRUCTURE:
 {
@@ -68,6 +68,12 @@ try:
     from ..storage.nvd_source_manager import get_source_name
 except ImportError:
     get_source_name = None
+
+# Import confirmed mappings loader from gatherData
+try:
+    from ..core.gatherData import load_confirmed_mappings_for_uuid
+except ImportError:
+    load_confirmed_mappings_for_uuid = None
 
 class BadgeContentsCollector:
     """
@@ -329,6 +335,203 @@ class BadgeContentsCollector:
                 'source_name': source_name,  # Add human-readable name
                 'cleanPlatformCount': 1
             })
+
+    def collect_alias_extraction(self, table_index: int, source_id: str, alias_data: Dict, 
+                                entry_count: int, cve_id: str = None) -> None:
+        """
+        Collect Alias Extraction badge contents during badge generation.
+        
+        This function collects curator-style alias extraction data for the --alias-report
+        functionality, following the exact same patterns as the curator system.
+        
+        Args:
+            table_index: Table index for the platform entry
+            source_id: Actual source UUID from the data
+            alias_data: Dictionary containing alias extraction data from registry
+            entry_count: Number of alias entries extracted (for platform expansion)
+            cve_id: CVE identifier for source tracking
+        """
+        if not self.current_cve_data:
+            if logger:
+                logger.warning(f"No current CVE set for alias collection - table_index {table_index}", group="badge_generation")
+            return
+        
+        # Validate input data integrity
+        if not isinstance(alias_data, dict):
+            if logger:
+                logger.error(f"Invalid alias_data for table_index {table_index}: must be dictionary", group="badge_generation")
+            return
+            
+        if entry_count < 0:
+            if logger:
+                logger.error(f"Invalid entry_count for table_index {table_index}: cannot be negative", group="badge_generation")
+            return
+        
+        # Track consolidated statistics
+        self.consolidated_metadata['total_platform_entries'] += 1
+        self.current_cve_data['cve_metadata']['total_platform_entries'] += 1
+        
+        if entry_count > 0:
+            # Initialize alias_extractions array if it doesn't exist
+            if 'alias_extractions' not in self.current_cve_data:
+                self.current_cve_data['alias_extractions'] = []
+            
+            # Resolve source ID to human-readable name (consistent with other collectors)
+            source_name = 'Unknown Source'
+            if get_source_name and source_id:
+                resolved_name = get_source_name(source_id)
+                if resolved_name:
+                    source_name = resolved_name
+                    if logger:
+                        logger.debug(f"Source name resolved for alias entry: {source_id} -> {source_name}", group="badge_generation")
+                else:
+                    if logger:
+                        logger.warning(f"Source name resolution failed for alias entry: {source_id}", group="badge_generation")
+            else:
+                if logger:
+                    logger.warning(f"Source name resolution unavailable for alias entry: {source_id}", group="badge_generation")
+            
+            # Create platform entry object following curator patterns
+            alias_entry = {
+                'platform_entry_id': f"entry_{table_index}",
+                'table_index': table_index,
+                'source_id': source_id,
+                'source_name': source_name,
+                'cve_id': cve_id or 'Unknown',
+                'entry_count': entry_count,  # Number of aliases extracted (platform expansion count)
+                'alias_data': alias_data,    # The actual alias extraction data
+                'extraction_timestamp': datetime.now().isoformat()
+            }
+            
+            # Add to alias extractions array
+            self.current_cve_data['alias_extractions'].append(alias_entry)
+            
+            if logger:
+                logger.debug(f"Collected alias extraction for table_index {table_index}: {entry_count} entries", group="badge_generation")
+
+    def generate_alias_report(self, logs_directory: str, source_uuid: str) -> Optional[str]:
+        """
+        Generate curator-compatible alias extraction report (aliasReport.json).
+        
+        This method creates the exact output format that the curator produces,
+        enabling seamless integration with existing Analysis_Tools workflow.
+        
+        Args:
+            logs_directory: Directory to save the alias report
+            source_uuid: Source UUID for confirmed mappings matching
+            
+        Returns:
+            Path to generated aliasReport.json file, or None if generation failed
+        """
+        try:
+            # Collect all alias data from CVE processing
+            all_alias_data = {}
+            total_extractions = 0
+            
+            for cve_data in self.cve_data:
+                if 'alias_extractions' in cve_data:
+                    for extraction in cve_data['alias_extractions']:
+                        alias_data = extraction.get('alias_data', {})
+                        
+                        # Process each alias entry (handling platform expansion)
+                        for key, value in alias_data.items():
+                            if isinstance(value, dict) and '_alias_key' in value:
+                                # Use the curator-style alias key for deduplication
+                                alias_key = value['_alias_key']
+                                
+                                if alias_key not in all_alias_data:
+                                    # Create new alias entry without _alias_key (curator format)
+                                    clean_alias = {k: v for k, v in value.items() if k != '_alias_key'}
+                                    all_alias_data[alias_key] = clean_alias
+                                    total_extractions += 1
+                                else:
+                                    # Merge CVE references if multiple occurrences
+                                    existing_cves = all_alias_data[alias_key].get('source_cve', [])
+                                    new_cves = value.get('source_cve', [])
+                                    combined_cves = list(set(existing_cves + new_cves))
+                                    all_alias_data[alias_key]['source_cve'] = combined_cves
+            
+            if total_extractions == 0:
+                if logger:
+                    logger.info("No alias extractions found - skipping alias report generation", group="completion")
+                return None
+            
+            # Group aliases by property pattern (curator logic)
+            consolidated_groups = {}
+            
+            for alias_data in all_alias_data.values():
+                # Create grouping key based on property types (not values)
+                property_types = []
+                for key_field in sorted(alias_data.keys()):
+                    if key_field != 'source_cve':
+                        if isinstance(alias_data[key_field], list):
+                            property_types.append(f"{key_field}({len(alias_data[key_field])})")
+                        else:
+                            property_types.append(key_field)
+                
+                # Create meaningful group name
+                group_key = "_".join(property_types) if property_types else "unknown_properties"
+                
+                if group_key not in consolidated_groups:
+                    consolidated_groups[group_key] = []
+                    
+                consolidated_groups[group_key].append(alias_data)
+            
+            # Create alias groups from consolidated groups
+            alias_groups = []
+            for group_key, aliases in consolidated_groups.items():
+                # Sort aliases by CVE count (most referenced first)
+                aliases.sort(key=lambda x: len(x.get('source_cve', [])), reverse=True)
+                
+                alias_groups.append({
+                    'alias_group': group_key,
+                    'aliases': aliases
+                })
+            
+            # Sort alias groups by total alias count (largest first)
+            alias_groups.sort(key=lambda group: -len(group['aliases']))
+            
+            # Load confirmed mappings for this UUID
+            confirmed_mappings = []
+            if load_confirmed_mappings_for_uuid and source_uuid:
+                confirmed_mappings = load_confirmed_mappings_for_uuid(source_uuid)
+                if logger and confirmed_mappings:
+                    logger.info(f"Loaded {len(confirmed_mappings)} confirmed mappings for UUID {source_uuid}", group="completion")
+                elif logger:
+                    logger.debug(f"No confirmed mappings found for UUID {source_uuid}", group="completion")
+            
+            # Create curator-compatible output structure
+            output_data = {
+                'metadata': {
+                    'extraction_timestamp': datetime.now().isoformat(),
+                    'target_uuid': source_uuid,
+                    'total_cves_processed': self.consolidated_metadata['total_cves_processed'],
+                    'unique_aliases_extracted': len(all_alias_data),
+                    'product_groups_created': len(alias_groups),
+                    'extraction_source': 'Analysis_Tools_Badge_System',
+                    'curator_compatibility': True
+                },
+                'aliasGroups': alias_groups,
+                'confirmedMappings': confirmed_mappings  # Now loaded from existing mapping files
+            }
+            
+            # Write alias report file
+            os.makedirs(logs_directory, exist_ok=True)
+            output_filename = "aliasExtractionReport.json"
+            output_path = os.path.join(logs_directory, output_filename)
+            
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(output_data, f, indent=2, ensure_ascii=False)
+            
+            if logger:
+                logger.info(f"Alias report generated: {len(alias_groups)} groups, {len(all_alias_data)} unique aliases", group="completion")
+            
+            return output_path
+            
+        except Exception as e:
+            if logger:
+                logger.error(f"Failed to generate alias report: {e}", group="completion")
+            return None
     
     def _increment_concern_type_count(self, concern_counts_array: List[Dict], concern_type: str) -> None:
         """Increment concern type count in array format."""
@@ -482,6 +685,35 @@ def collect_clean_platform_entry(source_id: str) -> None:
     """Collect a platform entry that has no source data concerns."""
     collector = get_badge_contents_collector()
     collector.collect_clean_platform_entry(source_id)
+
+def collect_alias_extraction_data(table_index: int, source_id: str, alias_data: Dict, 
+                                 entry_count: int, cve_id: str = None) -> None:
+    """
+    Collect alias extraction data for the --alias-report functionality.
+    
+    Args:
+        table_index: Table index for the platform entry
+        source_id: Actual source UUID from the data
+        alias_data: Dictionary containing alias extraction data from registry
+        entry_count: Number of alias entries extracted (for platform expansion)
+        cve_id: CVE identifier for source tracking
+    """
+    collector = get_badge_contents_collector()
+    collector.collect_alias_extraction(table_index, source_id, alias_data, entry_count, cve_id)
+
+def generate_alias_extraction_report(logs_directory: str, source_uuid: str) -> Optional[str]:
+    """
+    Generate curator-compatible alias extraction report.
+    
+    Args:
+        logs_directory: Directory to save the alias report
+        source_uuid: Source UUID for confirmed mappings matching
+        
+    Returns:
+        Path to generated aliasReport.json file, or None if generation failed
+    """
+    collector = get_badge_contents_collector()
+    return collector.generate_alias_report(logs_directory, source_uuid)
 
 def finalize_badge_contents_report() -> Optional[str]:
     """Finalize the badge contents report at the end of a run."""
