@@ -3,13 +3,13 @@
 Alias Extraction Dashboard Compatibility Test Suite
 
 This test suite validates the new alias extraction workflow through run_tools.py
-and ensures compatibility with confirmedMappingDashboard.html.
+and ensures compatibility with aliasMappingDashboard.html.
 
 Test Coverage:
 - Phase 1: Basic alias extraction through run_tools.py
 - Phase 2: Output format validation for dashboard compatibility
 - Phase 3: Dashboard data structure requirements
-- Phase 4: Integration with confirmedMappingDashboard.html
+- Phase 4: Integration with aliasMappingDashboard.html
 - Phase 5: Edge case handling and data quality
 
 Replaces legacy curator.py tests with new workflow validation.

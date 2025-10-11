@@ -1,6 +1,6 @@
 """
-Confirmed Mapping Dashboard Test Suite
-Comprehensive validation system for the confirmedMappingDashboard.html
+Alias Mapping Dashboard Test Suite
+Comprehensive validation system for the aliasMappingDashboard.html
 
 Test Coverage:
 - Phase 1: DataManager structure, utility methods, dataset isolation
@@ -9,7 +9,7 @@ Test Coverage:
 - JavaScript: Function extraction and validation
 - Export: Source UUID filename formatting and microsoft.json compliance
 
-This validates the core functionality of the confirmed mapping dashboard.
+This validates the core functionality of the alias mapping dashboard.
 """
 
 import unittest
@@ -21,12 +21,12 @@ import re
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-class ConfirmedMappingDashboardTestSuite(unittest.TestCase):
+class AliasMappingDashboardTestSuite(unittest.TestCase):
     
     def setUp(self):
         """Set up test data and project paths"""
         self.project_root = Path(__file__).parent.parent
-        self.dashboard_path = self.project_root / "dashboards" / "confirmedMappingDashboard.html"
+        self.dashboard_path = self.project_root / "dashboards" / "aliasMappingDashboard.html"
         
         # Sample data structures matching real curator patterns
         self.sample_confirmed_mapping = [
@@ -1247,7 +1247,7 @@ class ConfirmedMappingDashboardTestSuite(unittest.TestCase):
     def test_19_comprehensive_dashboard_elements(self):
         """Test comprehensive dashboard HTML structure and elements."""
         if not hasattr(self, 'html_content') or not self.html_content:
-            dashboard_path = self.project_root / "dashboards" / "confirmedMappingDashboard.html"
+            dashboard_path = self.project_root / "dashboards" / "aliasMappingDashboard.html"
             with open(dashboard_path, 'r', encoding='utf-8') as f:
                 html_content = f.read()
         else:
@@ -1271,7 +1271,7 @@ class ConfirmedMappingDashboardTestSuite(unittest.TestCase):
     def test_20_comprehensive_javascript_functions(self):
         """Test comprehensive JavaScript function presence and structure."""
         if not hasattr(self, 'html_content') or not self.html_content:
-            dashboard_path = self.project_root / "dashboards" / "confirmedMappingDashboard.html"
+            dashboard_path = self.project_root / "dashboards" / "aliasMappingDashboard.html"
             with open(dashboard_path, 'r', encoding='utf-8') as f:
                 html_content = f.read()
         else:
@@ -1330,7 +1330,7 @@ class ConfirmedMappingDashboardTestSuite(unittest.TestCase):
     def test_22_datamanager_object_validation(self):
         """Test DataManager object structure and comprehensive methods."""
         if not hasattr(self, 'html_content') or not self.html_content:
-            dashboard_path = self.project_root / "dashboards" / "confirmedMappingDashboard.html"
+            dashboard_path = self.project_root / "dashboards" / "aliasMappingDashboard.html"
             with open(dashboard_path, 'r', encoding='utf-8') as f:
                 html_content = f.read()
         else:
@@ -1847,7 +1847,7 @@ class ConfirmedMappingDashboardTestSuite(unittest.TestCase):
 
 if __name__ == '__main__':
     print("=" * 70)
-    print("CONFIRMED MAPPING DASHBOARD TEST SUITE")
+    print("ALIAS MAPPING DASHBOARD TEST SUITE")
     print("=" * 70)
     print("Phase 1: DataManager Structure & Utility Methods")
     print("Phase 3: Dataset Processing Methods")  
@@ -1856,7 +1856,7 @@ if __name__ == '__main__':
     print("=" * 70)
     
     # Create test suite and run tests
-    suite = unittest.TestLoader().loadTestsFromTestCase(ConfirmedMappingDashboardTestSuite)
+    suite = unittest.TestLoader().loadTestsFromTestCase(AliasMappingDashboardTestSuite)
     
     # Handle unified test runner environment
     if 'UNIFIED_TEST_RUNNER' in os.environ:
@@ -1876,11 +1876,11 @@ if __name__ == '__main__':
     tests_total = result.testsRun
     
     # Output standardized format for unified test runner
-    print(f"TEST_RESULTS: PASSED={tests_passed} TOTAL={tests_total} SUITE=\"Confirmed Mapping Dashboard\"")
+    print(f"TEST_RESULTS: PASSED={tests_passed} TOTAL={tests_total} SUITE=\"Alias Mapping Dashboard\"")
     
     if 'UNIFIED_TEST_RUNNER' not in os.environ:
         print("\n" + "=" * 70)
-        print("CONFIRMED MAPPING DASHBOARD TEST SUITE SUMMARY")
+        print("ALIAS MAPPING DASHBOARD TEST SUITE SUMMARY")
         print("=" * 70)
         print("PASS DataManager structure validation")
         print("PASS Dataset processing methods validation") 

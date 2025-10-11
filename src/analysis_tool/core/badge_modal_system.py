@@ -4056,6 +4056,38 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                         concerns_count += 1
                                         break  # Only record first match per field
         
+    # Vendor Bloat Text Detection - detect vendor text redundantly included in product/packageName fields
+    if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str):
+        vendor_value = raw_platform_data['vendor'].strip()
+        if vendor_value and not _is_placeholder_value(vendor_value, GENERAL_PLACEHOLDER_VALUES):
+            vendor_lower = vendor_value.lower()
+            
+            # Check for vendor text in product field
+            if 'product' in raw_platform_data and isinstance(raw_platform_data['product'], str):
+                product_value = raw_platform_data['product'].strip()
+                if product_value:
+                    product_lower = product_value.lower()
+                    if vendor_lower in product_lower and product_lower != vendor_lower:
+                        concerns_data["bloatTextDetection"].append({
+                            "field": "product",
+                            "sourceValue": product_value,
+                            "detectedPattern": {"detectedValue": vendor_value, "patternType": "vendor_redundancy"}
+                        })
+                        concerns_count += 1
+            
+            # Check for vendor text in packageName field
+            if 'packageName' in raw_platform_data and isinstance(raw_platform_data['packageName'], str):
+                package_name_value = raw_platform_data['packageName'].strip()
+                if package_name_value:
+                    package_name_lower = package_name_value.lower()
+                    if vendor_lower in package_name_lower and package_name_lower != vendor_lower:
+                        concerns_data["bloatTextDetection"].append({
+                            "field": "packageName",
+                            "sourceValue": package_name_value,
+                            "detectedPattern": {"detectedValue": vendor_value, "patternType": "vendor_redundancy"}
+                        })
+                        concerns_count += 1
+        
         # Update concern types if bloat text detection found issues
         if concerns_data["bloatTextDetection"]:
             concern_types.append("Bloat Text Detection")
@@ -4504,7 +4536,7 @@ def _create_alias_data(affected_item: Dict, vendor: str = None, product: str = N
 
 def _is_placeholder_value(value) -> bool:
     """
-    Check if a value is considered a placeholder following curator logic exactly.
+    Check if a value is considered a placeholder.
     
     Args:
         value: The value to check
@@ -4515,21 +4547,9 @@ def _is_placeholder_value(value) -> bool:
     if not value or value in [None, "", 0]:
         return True
         
-    # Convert to string and normalize for checking (matching curator exactly)
+    # Convert to string and normalize for checking
     str_value = str(value).lower().strip()
     
-    # Comprehensive placeholder patterns (based on curator sourceDataConcern analysis)
-    placeholder_patterns = [
-        'n/a', 'n\\/a', 'n\\a', 'na', 'unknown', 'unspecified', 'not specified',
-        'not applicable', 'none', 'null', 'undefined', '-', '--', '---',
-        'tbd', 'to be determined', 'pending', 'missing', 'empty', 'blank',
-        'default', 'generic', 'various', 'multiple', 'mixed', 'other',
-        'all', 'any', '*', 'no information', 'no data', 'not available',
-        'not disclosed', 'confidential', 'redacted', 'vendor', 'product',
-        # Platform-specific placeholders
-        'all platforms', 'multiple platforms', 'various platforms', 'unspecified platform',
-        'all versions', 'multiple versions', 'various versions', 'all systems'
-    ]
-    
-    return str_value in placeholder_patterns
+    # Use the existing centralized placeholder patterns from this module
+    return str_value in [pattern.lower() for pattern in GENERAL_PLACEHOLDER_VALUES]
 

@@ -10,7 +10,7 @@ For comprehensive insight into the challenges this tool addresses, see [CPE Auto
 
 **Dashboard Quick Links**:  
 
-- [Confirmed Mapping Dashboard](https://hashmire.github.io/Analysis_Tools/dashboards/confirmedMappingDashboard.html)
+- [Alias Mapping Dashboard](https://hashmire.github.io/Analysis_Tools/dashboards/aliasMappingDashboard.html)
 - [Source Data Concerns Dashboard](https://hashmire.github.io/Analysis_Tools/dashboards/sourceDataConcernDashboard.html)
 - [Generate Dataset Dashboard](https://hashmire.github.io/Analysis_Tools/dashboards/generateDatasetDashboard.html)
 

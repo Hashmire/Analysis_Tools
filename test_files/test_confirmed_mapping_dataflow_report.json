@@ -1,6 +1,6 @@
 {
-  "test_name": "test_confirmed_mapping_dataflow",
-  "description": "Confirmed mapping dashboard dataflow validation",
+  "test_name": "test_alias_mapping_dataflow",
+  "description": "Alias mapping dashboard dataflow validation",
   "test_date": "2025-09-06",
   "validation_source": "User test results with console output",
   "test_scenarios": [

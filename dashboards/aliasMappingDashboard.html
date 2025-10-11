@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hashmire/Analysis_Tools v0.2.0 - CPE Confirmed Mapping Dashboard</title>
+    <title>Hashmire/Analysis_Tools v0.2.0 - CPE Alias Mapping Dashboard</title>
     <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script> -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -1650,7 +1650,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>CPE Confirmed Mapping Dashboard</h1>
+            <h1>CPE Alias Mapping Dashboard</h1>
             <p>
                 Analyze CVE Platform Aliases and Assign them to CPE Base Strings <br />
                 Hashmire/Analysis_Tools v0.2.0
@@ -1699,7 +1699,7 @@
                 <div class="doc-intro">
                     <p>
                         <strong>Overview:  </strong><br />
-                        The Common Plaform Enumeration (CPE) Confirmed Mapping Dashboard is designed to help systematically convert platform alias data into validated CPE Base String mappings for a specific external data contributor. <br />
+                        The Common Plaform Enumeration (CPE) Alias Mapping Dashboard is designed to help systematically convert platform alias data into validated CPE Base String mappings for a specific external data contributor. <br />
                         The files generated are to enhance the coverage and precision of <a href="https://github.com/Hashmire/Analysis_Tools/tree/main/src/analysis_tool/mappings" target="_blank" style="color: #0066cc; text-decoration: none;">Existing Confirmed Mapping Files</a>.<br />
                         These mappings help to resolve <a href="https://github.com/Hashmire/Analysis_Tools/blob/main/documentation/cpe_automation_challenges.md#problem-domain-1-cpe-base-string-determination" target="_blank" style="color: #0066cc; text-decoration: none;">Problem Domain #1 - CPE Base String Determination</a> 
                         challenges by providing a vetted set of aliases that can be programmatically associated with CPE Base Strings for CPE Automation needs.
@@ -2671,64 +2671,55 @@
         // ========== CACHED DOM ELEMENTS ==========
         let fileInput, searchButton, clearButton, errorMessage, loadingMessage, mainContent, statsGrid;
 
-        // Data Concern patterns (synchronized with curator.py placeholder filtering)
-        const NON_SPECIFIC_VALUES = [
-            // Core placeholder patterns (exact match from curator)
-            'n/a', 'n\\/a', 'n\\a', 'na', 'unknown', 'unspecified', 'not specified',
-            'not applicable', 'none', 'null', 'undefined', '-', '--', '---',
-            'tbd', 'to be determined', 'pending', 'missing', 'empty', 'blank',
-            'default', 'generic', 'various', 'multiple', 'mixed', 'other',
-            'all', 'any', '*', 'no information', 'no data', 'not available',
-            'not disclosed', 'confidential', 'redacted', 'vendor', 'product',
-            // Platform-specific placeholders
-            'all platforms', 'multiple platforms', 'various platforms', 'unspecified platform',
-            'all versions', 'multiple versions', 'various versions', 'all systems',
-            // Additional dashboard-specific patterns for comprehensive coverage
-            'unavailable', 'nil', 'not determined', 'not known', 'not listed', 'not provided'
+        // ===========================================
+        // DATA PATTERN DEFINITIONS FOR REVIEW
+        // Organized by detection category for easy maintenance
+        // Should be synchronized with Python badge_modal_system.py patterns
+        // ===========================================
+        
+        // === PLACEHOLDER DETECTION PATTERNS ===
+        const GENERAL_PLACEHOLDER_VALUES = [
+            'unspecified', 'unknown', 'none', 'undefined', 'various',
+            'n/a', 'not available', 'not applicable', 'unavailable',
+            'na', 'nil', 'tbd', 'to be determined', 'pending',
+            'not specified', 'not determined', 'not known', 'not listed',
+            'not provided', 'missing', 'empty', 'null', '-',
+            'see references', 'see advisory', 'check', 'noted', 'all',
+            'contact vendor', 'check with vendor'
         ];
 
-        // Version text patterns that indicate problematic version information
-        const VERSION_TEXT_PATTERNS = [
-            // Range indicators
-            'through', 'thru', 'to', 'between', 'and',
-            
-            // Upper bound indicators
-            'before', 'prior to', 'earlier than', 'up to', 'until', 
-            'not after', 'older than', 'below',
-            
-            // Lower bound indicators
-            'after', 'since', 'later than', 'newer than', 
-            'starting with', 'from', 'above',
-            
-            // Approximation indicators
-            'about', 'approximately', 'circa', 'around', 'roughly',
-            
-            // Inclusive/exclusive indicators
-            'inclusive', 'exclusive', 'including', 'excluding',
-            
-            // Non-specific versions
-            'all versions', 'any version', 'multiple versions',
-            
-            // Reference directives
-            'see references', 'see advisory', 'refer to', 'check', 'as noted',
-            
-            // Descriptive statements
-            'supported', 'unstable', 'development', 'beta', 'release candidate', 'nightly'
-        ];
+        // === TEXT COMPARATOR DETECTION PATTERNS ===
+        const TEXT_COMPARATOR_PATTERNS = {
+            'Upper Bound Comparators': ['prior to', 'earlier than', 'before', 'until', 'below', 'up to'],
+            'Lower Bound Comparators': ['later than', 'newer than', 'after', 'since', 'from', 'above'],
+            'Range Separators': ['through', 'thru', 'between', 'and', 'to'],
+            'Approximation Patterns': ['about', 'approximately', 'circa', 'around', 'roughly'],
+            'Inclusive/Exclusive Indicators': ['inclusive', 'exclusive', 'including', 'excluding'],
+            'Temporal/Status Indicators': ['earliest', 'recent', 'legacy', 'past', 'future', 'latest', 'current']
+        };
         
-        // Conjunction patterns that indicate multiple values in single field (requires context analysis)
-        const CONJUNCTION_PATTERNS = [
-            { pattern: ' and ', context: 'conjunction', description: 'conjunction indicating multiple values' },
-            { pattern: ' or ', context: 'conjunction', description: 'conjunction indicating multiple values' },
-            { pattern: ' to ', context: 'conjunction', description: 'potential range indicator' },
-            { pattern: 'inclusive', context: 'conjunction', description: 'range boundary modifier' },
-            { pattern: 'exclusive', context: 'conjunction', description: 'range boundary modifier' },
-            { pattern: 'including', context: 'conjunction', description: 'range boundary modifier' },
-            { pattern: 'excluding', context: 'conjunction', description: 'range boundary modifier' }
-        ];
+        // Flattened list for detection logic
+        const ALL_TEXT_COMPARATOR_PATTERNS = [];
+        for (const patternType in TEXT_COMPARATOR_PATTERNS) {
+            ALL_TEXT_COMPARATOR_PATTERNS.push(...TEXT_COMPARATOR_PATTERNS[patternType]);
+        }
+
+        // === REGEX PATTERN DEFINITIONS ===
+        const HYPHENATED_VERSION_RANGE_REGEX = /\d+(?:\.\d+)*\s+-\s+\d+(?:\.\d+)*/i;
+        
+        // Whitespace detection patterns
+        const LEADING_WHITESPACE_REGEX = /^\s+/;
+        const TRAILING_WHITESPACE_REGEX = /\s+$/;
+        const EXCESSIVE_SPACES_REGEX = /\s{2,}/;  // 2+ consecutive spaces
+
+        // === MATHEMATICAL COMPARATOR PATTERNS ===
+        const MATHEMATICAL_COMPARATOR_PATTERNS = ['<', '>', '=', '<=', '=<', '=>', '>=', '!='];
+
+        // === INVALID CHARACTER PATTERNS ===
+        const VALID_VERSION_PATTERN = /^(\*|[a-zA-Z0-9]+[-*_:.+()~a-zA-Z0-9]*)$/;
+        const INVALID_CHARS_FINDER = /[^a-zA-Z0-9\-*_:.+()~]/g;
 
         // ========== GLOBAL CONSTANTS ==========
-        const placeholderPatterns = ['n/a', 'null', 'none', 'unknown', 'tbd', 'pending', '*', 'n\\/a'];
         const cve5Properties = [
             'vendor', 'product', 'platform', 'collectionURL', 'packageName', 'cpes', 
             'modules', 'programFiles', 'programRoutines', 'repo'
@@ -2745,15 +2736,7 @@
             statsGrid = document.getElementById('statsGrid');
         }
 
-        function isPlaceholderValue(value) {
-            if (!value || value === '' || value === null || value === undefined) {
-                return true;
-            }
-            const stringValue = String(value).toLowerCase().trim();
-            return placeholderPatterns.some(pattern => stringValue === pattern || stringValue.includes(pattern));
-        }
-
-        // Helper function to check if a value is a placeholder or should be omitted
+        // Synchronized placeholder detection function
         function isPlaceholderValue(value) {
             if (!value || value === '' || value === null || value === undefined) {
                 return true;
@@ -2761,8 +2744,7 @@
             
             if (typeof value === 'string') {
                 const valueLower = value.toLowerCase().trim();
-                const placeholders = ['unknown', 'n/a', 'na', 'null', 'none', 'tbd', 'pending', '*', 'unspecified', 'not specified', '-'];
-                return placeholders.includes(valueLower);
+                return GENERAL_PLACEHOLDER_VALUES.some(placeholder => valueLower === placeholder.toLowerCase());
             }
             
             return false;
@@ -2776,122 +2758,175 @@
         function detectSourceDataConcerns(alias) {
             const concerns = [];
             
-            // Check vendor field for placeholder data
-            if (alias.vendor && typeof alias.vendor === 'string') {
-                const vendorLower = alias.vendor.toLowerCase();
-                const isPlaceholder = NON_SPECIFIC_VALUES.some(val => vendorLower === val.toLowerCase());
-                const isSingleDash = alias.vendor.trim() === '-';
-                
-                if (isPlaceholder || isSingleDash) {
-                    const issueType = isSingleDash ? "single dash placeholder" : "placeholder value";
-                    concerns.push({
-                        type: "placeholderData",
-                        field: "vendor",
-                        value: alias.vendor,
-                        issue: `Vendor field contains ${issueType} preventing proper CPE matching`
-                    });
-                }
-                
-                // Check for version patterns in vendor field (should not be there)
-                VERSION_TEXT_PATTERNS.forEach(pattern => {
-                    if (vendorLower.includes(pattern.toLowerCase())) {
+            // ===========================================
+            // COMPLETE PYTHON SDC REPLICATION (9/9 GROUPS)
+            // Implements all Python badge_modal_system.py detection groups
+            // ===========================================
+            
+            // Use centralized field list to ensure all supported fields are checked
+            const aliasFields = cve5Properties.filter(field => 
+                ['vendor', 'product', 'platform', 'packageName', 'collectionURL', 'repo'].includes(field)
+            );
+            
+            // === 1. PLACEHOLDER DETECTION (Python: placeholderValues) ===
+            aliasFields.forEach(fieldName => {
+                if (alias[fieldName] && typeof alias[fieldName] === 'string') {
+                    const fieldValue = alias[fieldName];
+                    const fieldLower = fieldValue.toLowerCase().trim();
+                    
+                    // Check against centralized placeholder patterns
+                    const isPlaceholder = GENERAL_PLACEHOLDER_VALUES.some(val => fieldLower === val.toLowerCase());
+                    
+                    if (isPlaceholder) {
                         concerns.push({
-                            type: "versionInField",
-                            field: "vendor", 
-                            value: alias.vendor,
-                            pattern: pattern,
-                            issue: `Vendor field contains version pattern '${pattern}' which should not be in vendor name`
+                            type: "placeholderValues",
+                            field: fieldName,
+                            value: fieldValue,
+                            detectedPattern: fieldValue,
+                            issue: `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} field contains placeholder value preventing CPE matching`
                         });
                     }
-                });
-            }
-            
-            // Check product field for placeholder data
-            if (alias.product && typeof alias.product === 'string') {
-                const productLower = alias.product.toLowerCase();
-                const isPlaceholder = NON_SPECIFIC_VALUES.some(val => productLower === val.toLowerCase());
-                const isSingleDash = alias.product.trim() === '-';
-                
-                if (isPlaceholder || isSingleDash) {
-                    const issueType = isSingleDash ? "single dash placeholder" : "placeholder value";
-                    concerns.push({
-                        type: "placeholderData",
-                        field: "product",
-                        value: alias.product,
-                        issue: `Product field contains ${issueType} preventing proper CPE matching`
-                    });
                 }
-                
-                // Check for version patterns in product field (should not be there)
-                VERSION_TEXT_PATTERNS.forEach(pattern => {
-                    if (productLower.includes(pattern.toLowerCase())) {
+            });
+            
+            // === 2. WHITESPACE ISSUES (Python: whitespaceIssues) ===
+            aliasFields.forEach(fieldName => {
+                if (alias[fieldName] && typeof alias[fieldName] === 'string') {
+                    const fieldValue = alias[fieldName];
+                    
+                    // Leading whitespace
+                    if (LEADING_WHITESPACE_REGEX.test(fieldValue)) {
                         concerns.push({
-                            type: "versionInField",
+                            type: "whitespaceIssues",
+                            field: fieldName,
+                            value: fieldValue,
+                            detectedPattern: "leading whitespace",
+                            issue: `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} field has leading whitespace`
+                        });
+                    }
+                    
+                    // Trailing whitespace
+                    if (TRAILING_WHITESPACE_REGEX.test(fieldValue)) {
+                        concerns.push({
+                            type: "whitespaceIssues",
+                            field: fieldName,
+                            value: fieldValue,
+                            detectedPattern: "trailing whitespace",
+                            issue: `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} field has trailing whitespace`
+                        });
+                    }
+                    
+                    // Excessive internal spaces (2+ consecutive)
+                    if (EXCESSIVE_SPACES_REGEX.test(fieldValue)) {
+                        concerns.push({
+                            type: "whitespaceIssues",
+                            field: fieldName,
+                            value: fieldValue,
+                            detectedPattern: "excessive spaces",
+                            issue: `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} field contains excessive internal spaces`
+                        });
+                    }
+                }
+            });
+            
+            // === 3. TEXT COMPARATOR DETECTION (Python: textComparators) ===
+            aliasFields.forEach(fieldName => {
+                if (alias[fieldName] && typeof alias[fieldName] === 'string') {
+                    const fieldValue = alias[fieldName];
+                    const fieldLower = fieldValue.toLowerCase();
+                    
+                    // Check string patterns by category
+                    for (const [patternType, patterns] of Object.entries(TEXT_COMPARATOR_PATTERNS)) {
+                        patterns.forEach(pattern => {
+                            if (fieldLower.includes(pattern.toLowerCase())) {
+                                concerns.push({
+                                    type: "textComparators",
+                                    field: fieldName,
+                                    value: fieldValue,
+                                    detectedPattern: pattern,
+                                    patternType: patternType,
+                                    issue: `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} field contains text comparator '${pattern}'`
+                                });
+                            }
+                        });
+                    }
+                    
+                    // Check regex patterns (hyphenated version ranges)
+                    const regexMatch = fieldValue.match(HYPHENATED_VERSION_RANGE_REGEX);
+                    if (regexMatch) {
+                        concerns.push({
+                            type: "textComparators",
+                            field: fieldName,
+                            value: fieldValue,
+                            detectedPattern: regexMatch[0],
+                            patternType: "Hyphenated Version Range",
+                            issue: `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} field contains version range pattern '${regexMatch[0]}'`
+                        });
+                    }
+                }
+            });
+            
+            // === 4. INVALID CHARACTER DETECTION (Python: invalidCharacters) ===
+            aliasFields.forEach(fieldName => {
+                if (alias[fieldName] && typeof alias[fieldName] === 'string') {
+                    const fieldValue = alias[fieldName];
+                    
+                    // Use allow-list approach like Python
+                    if (!VALID_VERSION_PATTERN.test(fieldValue) && fieldValue !== '*') {
+                        // Find specific invalid characters
+                        const invalidChars = fieldValue.match(INVALID_CHARS_FINDER);
+                        if (invalidChars) {
+                            // Report each unique invalid character
+                            [...new Set(invalidChars)].forEach(char => {
+                                concerns.push({
+                                    type: "invalidCharacters",
+                                    field: fieldName,
+                                    value: fieldValue,
+                                    detectedPattern: char,
+                                    issue: `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} field contains invalid character '${char}'`
+                                });
+                            });
+                        }
+                    }
+                }
+            });
+            
+            // === 5. BLOAT TEXT DETECTION ===
+            // Detects vendor text redundantly included in product and packageName fields
+            if (alias.vendor && typeof alias.vendor === 'string' && alias.vendor.trim() !== '' && 
+                !isPlaceholderValue(alias.vendor)) {
+                
+                const vendorLower = alias.vendor.toLowerCase().trim();
+                
+                // Check for vendor text in product field
+                if (alias.product && typeof alias.product === 'string') {
+                    const productLower = alias.product.toLowerCase().trim();
+                    if (productLower.includes(vendorLower) && productLower !== vendorLower) {
+                        concerns.push({
+                            type: "bloatTextDetection",
                             field: "product",
                             value: alias.product,
-                            pattern: pattern,
-                            issue: `Product field contains version pattern '${pattern}' which may indicate multiple product variants`
+                            detectedPattern: alias.vendor,
+                            patternType: "vendor_redundancy",
+                            issue: `Product field contains redundant vendor text '${alias.vendor}'`
                         });
                     }
-                });
-            }
-            
-            // Check platform field for placeholder data and version patterns
-            if (alias.platform && typeof alias.platform === 'string') {
-                const platformLower = alias.platform.toLowerCase();
-                const isPlaceholder = NON_SPECIFIC_VALUES.some(val => platformLower === val.toLowerCase());
-                const isSingleDash = alias.platform.trim() === '-';
-                
-                if (isPlaceholder || isSingleDash) {
-                    const issueType = isSingleDash ? "single dash placeholder" : "placeholder value";
-                    concerns.push({
-                        type: "placeholderData",
-                        field: "platform",
-                        value: alias.platform,
-                        issue: `Platform field contains ${issueType} preventing proper CPE matching`
-                    });
                 }
                 
-                // Check for version patterns in platform field (should not be there)
-                VERSION_TEXT_PATTERNS.forEach(pattern => {
-                    if (platformLower.includes(pattern.toLowerCase())) {
+                // Check for vendor text in packageName field
+                if (alias.packageName && typeof alias.packageName === 'string') {
+                    const packageNameLower = alias.packageName.toLowerCase().trim();
+                    if (packageNameLower.includes(vendorLower) && packageNameLower !== vendorLower) {
                         concerns.push({
-                            type: "versionInField",
-                            field: "platform",
-                            value: alias.platform,
-                            pattern: pattern,
-                            issue: `Platform field contains version pattern '${pattern}' which should not be in platform name`
+                            type: "bloatTextDetection", 
+                            field: "packageName",
+                            value: alias.packageName,
+                            detectedPattern: alias.vendor,
+                            patternType: "vendor_redundancy",
+                            issue: `PackageName field contains redundant vendor text '${alias.vendor}'`
                         });
                     }
-                });
-            }
-            
-            // Check for commas indicating multiple product variants
-            if (alias.vendor && typeof alias.vendor === 'string' && alias.vendor.includes(',')) {
-                concerns.push({
-                    type: "multipleVariants",
-                    field: "vendor",
-                    value: alias.vendor,
-                    issue: "Vendor field contains commas indicating multiple vendor variants that should be separated"
-                });
-            }
-            
-            if (alias.product && typeof alias.product === 'string' && alias.product.includes(',')) {
-                concerns.push({
-                    type: "multipleVariants",
-                    field: "product", 
-                    value: alias.product,
-                    issue: "Product field contains commas indicating multiple product variants that should be separated"
-                });
-            }
-            
-            if (alias.platform && typeof alias.platform === 'string' && alias.platform.includes(',')) {
-                concerns.push({
-                    type: "multipleVariants",
-                    field: "platform",
-                    value: alias.platform,
-                    issue: "Platform field contains commas indicating multiple platform variants that should be separated"
-                });
+                }
             }
             
             return concerns;

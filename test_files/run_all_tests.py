@@ -209,7 +209,7 @@ class TestSuiteRunner:
                 'command': ['python', 'test_files\\test_update_patterns.py']
             },
             {
-                'name': 'Confirmed Mapping Dashboard',
+                'name': 'Alias Mapping Dashboard',
                 'command': ['python', 'test_files\\test_confirmed_mapping_dashboard.py']
             },
             {
