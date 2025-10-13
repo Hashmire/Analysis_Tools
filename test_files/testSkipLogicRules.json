@@ -1,0 +1,264 @@
+{
+  "dataType": "CVE_RECORD",
+  "dataVersion": "5.1.1",
+  "cveMetadata": {
+    "cveId": "CVE-9999-00099",
+    "assignerOrgId": "skip-logic-test-org-12345",
+    "state": "PUBLISHED",
+    "assignerShortName": "SkipLogicTestOrg",
+    "datePublished": "2024-01-20T10:00:00.000Z",
+    "dateUpdated": "2024-01-20T12:30:00.000Z",
+    "dateReserved": "2024-01-15T08:00:00.000Z",
+    "serial": 99
+  },
+  "containers": {
+    "cna": {
+      "providerMetadata": {
+        "orgId": "skip-logic-test-org-12345",
+        "shortName": "SkipLogicTestOrg",
+        "dateUpdated": "2024-01-20T12:30:00.000Z"
+      },
+      "dateAssigned": "2024-01-15T08:00:00.000Z",
+      "datePublic": "2024-01-20T10:00:00.000Z",
+      "title": "Comprehensive Skip Logic Rules Test Cases",
+      "descriptions": [
+        {
+          "lang": "en",
+          "value": "This CVE record is specifically designed to test skip logic rules that prevent improper multi-count findings. Each test case validates specific skip conditions across detection groups to ensure overlap elimination works correctly: Priority 1 (Placeholder), Priority 2 (Mathematical Comparators), Priority 3 (Text Comparators), Priority 4 (Whitespace), and Priority 5+ (All Others)."
+        }
+      ],
+      "affected": [
+        {
+          "vendor": "n/a",
+          "product": "Test Product with/special",
+          "packageName": "test_package",
+          "platforms": ["Linux"],
+          "versions": [{"version": "1.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": ">=2.0 Product",
+          "packageName": "test_package",
+          "platforms": ["Windows"],
+          "versions": [{"version": "2.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["macOS"],
+          "versions": [{"version": "<=3.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["Linux"],
+          "versions": [{"version": "1.0 to 2.0", "status": "affected"}]
+        },
+        {
+          "vendor": " TestVendor ",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["Windows"],
+          "versions": [{"version": "4.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["Linux"],
+          "versions": [{"version": " 5.0.0 ", "status": "affected"}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["Windows"],
+          "versions": [{"version": "before 6.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["macOS"],
+          "versions": [{"version": "1.0 - 2.0", "status": "affected"}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["Linux"],
+          "versions": [{"version": "7.0@build", "status": "affected"}]
+        },
+        {
+          "vendor": "n/a",
+          "product": ">=Product",
+          "packageName": "unknown",
+          "platforms": [" Linux "],
+          "versions": [{"version": "through 8.0", "status": "affected"}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["Windows"],
+          "versions": [{"version": "9.0.0", "lessThan": ">=10.0", "status": "affected"}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["Linux"],
+          "versions": [{"version": "11.0", "changes": [{"at": "unknown", "status": "unaffected"}]}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["Windows"],
+          "versions": [{"version": "12.0", "changes": [{"at": "<=13.0", "status": "unaffected"}]}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["macOS"],
+          "versions": [{"version": "14.0", "changes": [{"at": "before 15.0", "status": "unaffected"}]}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["Linux"],
+          "versions": [{"version": "16.0", "changes": [{"at": " 17.0 ", "status": "unaffected"}]}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["Windows"],
+          "versions": [{"version": "18.0", "changes": [{"at": "1.0 - 2.0", "status": "unaffected"}]}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["macOS"],
+          "versions": [{"version": "19.0", "changes": [{"at": "20.0#build", "status": "unaffected"}]}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["Linux"],
+          "versions": [{"version": "21.0$stable", "status": "affected"}]
+        },
+        {
+          "vendor": "TestVendor", 
+          "product": "Product",
+          "packageName": "test_package",
+          "platforms": ["Windows"],
+          "versions": [{"version": "22.0", "lessThan": "23.0@patch", "status": "affected"}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Multi-Platform Test",
+          "packageName": "test_package",
+          "platforms": ["n/a", ">=Linux", " Windows ", "Valid-Platform"],
+          "versions": [{"version": "1.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Multi-Version Test",
+          "packageName": "test_package", 
+          "platforms": ["Linux"],
+          "versions": [
+            {"version": "unknown", "status": "affected"},
+            {"version": "<=2.0.0", "status": "affected"},
+            {"version": " 3.0.0 ", "status": "affected"},
+            {"version": "4.0@build", "status": "affected"}
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Single Version Multi-Changes Test",
+          "packageName": "test_package",
+          "platforms": ["Linux"],
+          "versions": [
+            {
+              "version": "5.0.0",
+              "status": "affected",
+              "changes": [
+                {"at": "n/a", "status": "unaffected"},
+                {"at": ">=6.0", "status": "unaffected"},
+                {"at": "1.0 - 2.0", "status": "unaffected"},
+                {"at": " 7.0 ", "status": "unaffected"},
+                {"at": "8.0#patch", "status": "unaffected"}
+              ]
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Multi-Version Multi-Changes Test",
+          "packageName": "test_package",
+          "platforms": ["Linux"],
+          "versions": [
+            {
+              "version": "9.0.0",
+              "status": "affected",
+              "changes": [
+                {"at": "unknown", "status": "unaffected"},
+                {"at": "<=10.0", "status": "unaffected"}
+              ]
+            },
+            {
+              "version": "11.0.0", 
+              "status": "affected",
+              "changes": [
+                {"at": "before 12.0", "status": "unaffected"},
+                {"at": " 13.0 ", "status": "unaffected"},
+                {"at": "14.0$beta", "status": "unaffected"}
+              ]
+            }
+          ]
+        },
+        {
+          "vendor": "TestVendor",
+          "product": "Complex Nested Arrays Test",
+          "packageName": "test_package",
+          "platforms": ["n/a", " Linux "],
+          "versions": [
+            {
+              "version": ">=15.0",
+              "lessThan": "through 16.0",
+              "status": "affected",
+              "changes": [
+                {"at": "unknown", "status": "unaffected"},
+                {"at": " 17.0 ", "status": "unaffected"}
+              ]
+            },
+            {
+              "version": " 18.0 ",
+              "lessThan": "19.0@stable",
+              "status": "affected", 
+              "changes": [
+                {"at": "<=20.0", "status": "unaffected"},
+                {"at": "1.0 - 2.0", "status": "unaffected"},
+                {"at": "21.0%rc", "status": "unaffected"}
+              ]
+            }
+          ]
+        },
+        {
+          "vendor": "ValidVendor",
+          "product": "ValidProduct",
+          "packageName": "valid_package",
+          "platforms": ["Linux"],
+          "versions": [{"version": "1.0.0", "status": "affected"}]
+        }
+      ]
+    }
+  }
+}

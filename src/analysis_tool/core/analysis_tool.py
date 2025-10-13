@@ -336,24 +336,23 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData)
         primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
 
-        # CPE Processing
+        # Platform Data Processing and CPE Generation
         if cpe_suggestions:
+            # Full CPE processing: platform data + CPE generation + API calls
             try:
                 primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1)
             except Exception as cpe_error:
-                # Handle CPE suggestion errors
                 logger.warning(f"CPE suggestion failed for {cve_id}: Unable to complete CPE data suggestion - {str(cpe_error)}", group="data_processing")
                 logger.info("Continuing with available data...", group="data_processing")
         elif sdc_report or alias_report:
-            # SDC report or alias extraction: Process platform entries for analysis
-            # but skip expensive NVD CPE API calls for sdc_report only
+            # Platform data processing only (no CPE generation or API calls)
             try:
-                primaryDataframe = processData.suggestCPEData(None, primaryDataframe, 1, sdc_only=True)
-            except Exception as cpe_error:
-                logger.warning(f"Platform processing failed for {cve_id}: Unable to complete platform analysis - {str(cpe_error)}", group="data_processing")
+                primaryDataframe = processData.processPlatformDataOnly(primaryDataframe)
+            except Exception as platform_error:
+                logger.warning(f"Platform processing failed for {cve_id}: Unable to complete platform analysis - {str(platform_error)}", group="data_processing")
                 logger.info("Continuing with available data...", group="data_processing")
         else:
-            logger.info(f"CPE processing skipped - CPE suggestions, alias report, and CAS generator all disabled", group="data_processing")
+            logger.info(f"Platform processing skipped - no features requiring platform data are enabled", group="data_processing")
         
         # Note: CPE generation and query stages are now handled internally by suggestCPEData
         
@@ -874,7 +873,7 @@ def main():
     logger.info(f"SDC Report: {'ENABLED' if sdc_report else 'DISABLED'} ({'--sdc-report' if sdc_report else 'default'})", group="initialization")
     logger.info(f"CPE Suggestions: {'ENABLED' if cpe_suggestions else 'DISABLED'} ({'--cpe-suggestions' if cpe_suggestions else 'default'})", group="initialization")
     logger.info(f"Alias Report: {'ENABLED' if alias_report else 'DISABLED'} ({'--alias-report' if alias_report else 'default'})", group="initialization")
-    logger.info(f"CPE as Generator: {'ENABLED' if cpe_as_generator else 'DISABLED'} ({'--cpe-as-generator' if cpe_as_generator else 'default'})", group="initialization")
+    logger.info(f"CPE-AS Generator: {'ENABLED' if cpe_as_generator else 'DISABLED'} ({'--cpe-as-generator' if cpe_as_generator else 'default'})", group="initialization")
     
     # Log enabled features summary
     enabled_features = []

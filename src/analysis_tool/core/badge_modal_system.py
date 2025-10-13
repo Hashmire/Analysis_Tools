@@ -43,6 +43,50 @@ PLATFORM_ENTRY_NOTIFICATION_REGISTRY = {
     'sourceDataConcerns': {},   # table_index -> source data quality concerns
     'aliasExtraction': {}      # table_index -> alias extraction data for curator functionality
 }
+
+# Skip Logic Registry (per-platform processing - keyed by table index, then field)
+# Structure: table_index -> field_name -> {detection_type: skip_data}
+SKIP_LOGIC_REGISTRY = {}
+
+# ===== SKIP LOGIC FUNCTIONS =====
+
+def normalize_field_name(field, version_idx=None, change_idx=None):
+    """Standardize field names across all detection groups"""
+    if version_idx is not None:
+        if change_idx is not None:
+            return f"versions[{version_idx}].changes[{change_idx}].{field}"
+        else:
+            return f"versions[{version_idx}].{field}"
+    elif field.startswith('platforms['):
+        return field  # Already normalized
+    else:
+        return field  # vendor, product, packageName
+
+def register_field_skip(table_index, field_name, skip_type, skip_data=True):
+    """Register a skip condition for a specific field in a platform entry"""
+    if table_index not in SKIP_LOGIC_REGISTRY:
+        SKIP_LOGIC_REGISTRY[table_index] = {}
+    
+    if field_name not in SKIP_LOGIC_REGISTRY[table_index]:
+        SKIP_LOGIC_REGISTRY[table_index][field_name] = {}
+    
+    SKIP_LOGIC_REGISTRY[table_index][field_name][skip_type] = skip_data
+
+def should_skip_field(table_index, field_name, detection_type):
+    """Check if a field should be skipped for a specific detection type"""
+    if table_index not in SKIP_LOGIC_REGISTRY:
+        return False
+    
+    if field_name not in SKIP_LOGIC_REGISTRY[table_index]:
+        return False
+    
+    return SKIP_LOGIC_REGISTRY[table_index][field_name].get(detection_type, False)
+
+def clear_skip_logic_registry():
+    """Clear the skip logic registry for new processing"""
+    global SKIP_LOGIC_REGISTRY
+    SKIP_LOGIC_REGISTRY = {}
+
 # Global KB exclusions tracking
 global_kb_exclusions = []
 
@@ -3489,6 +3533,62 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     concerns_count = 0
     concern_types = []
     
+    # === SKIP LOGIC INFRASTRUCTURE ===
+    # Track skip conditions per field to eliminate improper multi-count findings
+    field_skip_registry = {}  # field_name -> {"placeholder": bool, "math_comparators": set(), "text_regex": bool, "whitespace": bool}
+    
+    def normalize_field_name(field, version_idx=None, change_idx=None):
+        """Standardize field names across all detection groups"""
+        if version_idx is not None:
+            if change_idx is not None:
+                return f"versions[{version_idx}].changes[{change_idx}].{field}"
+            else:
+                return f"versions[{version_idx}].{field}"
+        elif field.startswith('platforms['):
+            return field  # Already normalized
+        else:
+            return field  # vendor, product, packageName
+    
+    def register_field_skip(field_name, skip_type, skip_data=None):
+        """Register a skip condition for a specific field"""
+        if field_name not in field_skip_registry:
+            field_skip_registry[field_name] = {
+                "placeholder": False, 
+                "math_comparators": set(), 
+                "text_regex": False, 
+                "whitespace": False
+            }
+        
+        if skip_type == "placeholder":
+            field_skip_registry[field_name]["placeholder"] = True
+        elif skip_type == "math_comparators":
+            field_skip_registry[field_name]["math_comparators"].update(skip_data)
+        elif skip_type == "text_regex":
+            field_skip_registry[field_name]["text_regex"] = True
+        elif skip_type == "whitespace":
+            field_skip_registry[field_name]["whitespace"] = True
+    
+    def should_skip_field(field_name, detection_type):
+        """Check if a field should be skipped for a specific detection type"""
+        if field_name not in field_skip_registry:
+            return False
+        
+        registry = field_skip_registry[field_name]
+        
+        # Priority 1: Placeholder skips ALL other detections
+        if registry["placeholder"]:
+            return True
+        
+        # Handle specific detection type exclusions
+        if detection_type == "mathematical_comparators":
+            return bool(registry["math_comparators"])
+        elif detection_type == "text_regex":
+            return registry["text_regex"]
+        elif detection_type == "whitespace":
+            return registry["whitespace"]
+        
+        return False
+    
     # Vendor Placeholder Data Detection
     if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str):
         vendor_value = raw_platform_data['vendor'].strip()
@@ -3497,6 +3597,9 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         is_placeholder = vendor_lower in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]
         
         if is_placeholder:
+            # Register skip condition for this field
+            register_field_skip("vendor", "placeholder")
+            
             detected_pattern = next(v for v in GENERAL_PLACEHOLDER_VALUES if v.lower() == vendor_lower)
             concerns_data["placeholderData"].append({
                 "field": "vendor",
@@ -3512,6 +3615,9 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         is_placeholder = product_lower in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]
         
         if is_placeholder:
+            # Register skip condition for this field
+            register_field_skip("product", "placeholder")
+            
             detected_pattern = next(v for v in GENERAL_PLACEHOLDER_VALUES if v.lower() == product_lower)
             concerns_data["placeholderData"].append({
                 "field": "product", 
@@ -3527,7 +3633,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     if 'versions' in curated_platform_data and isinstance(curated_platform_data['versions'], list):
         version_fields = ['version', 'lessThan', 'lessThanOrEqual']
         
-        for version_entry in curated_platform_data['versions']:
+        for version_idx, version_entry in enumerate(curated_platform_data['versions']):
             if isinstance(version_entry, dict):
                 # Check standard version fields
                 for field in version_fields:
@@ -3538,6 +3644,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                         is_placeholder = field_value_lower in [v.lower() for v in VERSION_PLACEHOLDER_VALUES]
                         
                         if is_placeholder:
+                            # Register skip condition for this specific version field
+                            normalized_field = normalize_field_name(field, version_idx)
+                            register_field_skip(normalized_field, "placeholder")
+                            
                             detected_pattern = next(v for v in VERSION_PLACEHOLDER_VALUES if v.lower() == field_value_lower)
                             concerns_data["placeholderData"].append({
                                 "field": field,
@@ -3557,6 +3667,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                 is_placeholder = field_value_lower in [v.lower() for v in VERSION_PLACEHOLDER_VALUES]
                                 
                                 if is_placeholder:
+                                    # Register skip condition for this specific change field
+                                    normalized_field = normalize_field_name("at", version_idx, idx)
+                                    register_field_skip(normalized_field, "placeholder")
+                                    
                                     detected_pattern = next(v for v in VERSION_PLACEHOLDER_VALUES if v.lower() == field_value_lower)
                                     concerns_data["placeholderData"].append({
                                         "field": f"changes[{idx}].at",
@@ -3578,6 +3692,9 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                 is_placeholder = platform_lower in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]
                 
                 if is_placeholder:
+                    # Register skip condition for this platform field
+                    register_field_skip(f"platforms[{idx}]", "placeholder")
+                    
                     detected_pattern = next(v for v in GENERAL_PLACEHOLDER_VALUES if v.lower() == platform_lower)
                     concerns_data["placeholderData"].append({
                         "field": f"platforms[{idx}]",
@@ -3598,6 +3715,9 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         is_placeholder = package_lower in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]
         
         if is_placeholder:
+            # Register skip condition for this field
+            register_field_skip("packageName", "placeholder")
+            
             detected_pattern = next(v for v in GENERAL_PLACEHOLDER_VALUES if v.lower() == package_lower)
             concerns_data["placeholderData"].append({
                 "field": "packageName", 
@@ -3712,6 +3832,9 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             vendor_lower = vendor_value.lower()
             matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in vendor_lower]
             if matching_comparators:
+                # Register skip condition for invalid characters - exclude math operators
+                register_field_skip("vendor", "math_comparators", set(['<', '>', '=', '!']))
+                
                 concerns_data["mathematicalComparators"].append({
                     "field": "vendor",
                     "sourceValue": vendor_value,
@@ -3726,6 +3849,9 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             product_lower = product_value.lower()
             matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in product_lower]
             if matching_comparators:
+                # Register skip condition for invalid characters - exclude math operators
+                register_field_skip("product", "math_comparators", set(['<', '>', '=', '!']))
+                
                 concerns_data["mathematicalComparators"].append({
                     "field": "product",
                     "sourceValue": product_value,
@@ -3742,6 +3868,9 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                     platform_lower = platform_value.lower()
                     matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in platform_lower]
                     if matching_comparators:
+                        # Register skip condition for invalid characters - exclude math operators
+                        register_field_skip(f"platforms[{idx}]", "math_comparators", set(['<', '>', '=', '!']))
+                        
                         concerns_data["mathematicalComparators"].append({
                             "field": f"platforms[{idx}]",
                             "sourceValue": platform_value,
@@ -3756,6 +3885,9 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             package_lower = package_value.lower()
             matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in package_lower]
             if matching_comparators:
+                # Register skip condition for invalid characters - exclude math operators
+                register_field_skip("packageName", "math_comparators", set(['<', '>', '=', '!']))
+                
                 concerns_data["mathematicalComparators"].append({
                     "field": "packageName",
                     "sourceValue": package_value,
@@ -3771,7 +3903,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     if 'versions' in curated_platform_data and isinstance(curated_platform_data['versions'], list):
         version_fields = ['version', 'lessThan', 'lessThanOrEqual']
         
-        for version_entry in curated_platform_data['versions']:
+        for version_idx, version_entry in enumerate(curated_platform_data['versions']):
             if isinstance(version_entry, dict):
                 # Check standard version fields
                 for field in version_fields:
@@ -3780,6 +3912,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                         field_lower = field_value.lower()
                         matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in field_lower]
                         if matching_comparators:
+                            # Register skip condition for invalid characters - exclude math operators
+                            normalized_field = normalize_field_name(field, version_idx)
+                            register_field_skip(normalized_field, "math_comparators", set(['<', '>', '=', '!']))
+                            
                             concerns_data["mathematicalComparators"].append({
                                 "field": field,
                                 "sourceValue": field_value,
@@ -3796,6 +3932,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                 field_lower = change_at_value.lower()
                                 matching_comparators = [comp for comp in COMPARATOR_PATTERNS if comp in field_lower]
                                 if matching_comparators:
+                                    # Register skip condition for invalid characters - exclude math operators
+                                    normalized_field = normalize_field_name("at", version_idx, idx)
+                                    register_field_skip(normalized_field, "math_comparators", set(['<', '>', '=', '!']))
+                                    
                                     concerns_data["mathematicalComparators"].append({
                                         "field": f"changes[{idx}].at",
                                         "sourceValue": change_at_value,
@@ -3812,7 +3952,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     if 'versions' in curated_platform_data and isinstance(curated_platform_data['versions'], list):
         version_fields = ['version', 'lessThan', 'lessThanOrEqual']
         
-        for version_entry in curated_platform_data['versions']:
+        for version_idx, version_entry in enumerate(curated_platform_data['versions']):
             if isinstance(version_entry, dict):
                 # Check standard version fields
                 for field in version_fields:
@@ -3822,7 +3962,15 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                         # Check each string pattern and report individually with pattern type
                         for pattern_type, patterns in TEXT_COMPARATOR_PATTERNS.items():
                             for pattern in patterns:
-                                if pattern in field_lower:
+                                # Use word boundary detection to prevent false positives like "Connector" triggering "to"
+                                import re
+                                pattern_regex = r'\b' + re.escape(pattern) + r'\b'
+                                if re.search(pattern_regex, field_lower):
+                                    # Register skip condition for invalid characters - exclude space for Range Separators only
+                                    if pattern_type == "Range Separators":
+                                        normalized_field = normalize_field_name(field, version_idx)
+                                        register_field_skip(normalized_field, "text_regex", True)
+                                    
                                     concerns_data["textComparators"].append({
                                         "field": field,
                                         "sourceValue": field_value,
@@ -3837,6 +3985,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                         for regex_pattern in TEXT_COMPARATOR_REGEX_PATTERNS:
                             match = regex_pattern['pattern'].search(field_value)
                             if match:
+                                # Register skip condition for invalid characters - exclude space for regex patterns only
+                                normalized_field = normalize_field_name(field, version_idx)
+                                register_field_skip(normalized_field, "text_regex", True)
+                                
                                 concerns_data["textComparators"].append({
                                     "field": field,
                                     "sourceValue": field_value,
@@ -3858,7 +4010,13 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                 # Check each string pattern and report individually with pattern type
                                 for pattern_type, patterns in TEXT_COMPARATOR_PATTERNS.items():
                                     for pattern in patterns:
-                                        if pattern in field_lower:
+                                        # Use word boundary detection to prevent false positives
+                                        pattern_regex = r'\b' + re.escape(pattern) + r'\b'
+                                        if re.search(pattern_regex, field_lower):
+                                            # Register skip condition for invalid characters - exclude space for text comparators in changes arrays
+                                            normalized_field = normalize_field_name("at", version_idx, idx)
+                                            register_field_skip(normalized_field, "text_regex", True)
+                                            
                                             concerns_data["textComparators"].append({
                                                 "field": f"changes[{idx}].at",
                                                 "sourceValue": change_at_value,
@@ -3873,6 +4031,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                 for regex_pattern in TEXT_COMPARATOR_REGEX_PATTERNS:
                                     match = regex_pattern['pattern'].search(change_at_value)
                                     if match:
+                                        # Register skip condition for invalid characters - exclude space for regex patterns only
+                                        normalized_field = normalize_field_name("at", version_idx, idx)
+                                        register_field_skip(normalized_field, "text_regex", True)
+                                        
                                         concerns_data["textComparators"].append({
                                             "field": f"changes[{idx}].at",
                                             "sourceValue": change_at_value,
@@ -3890,7 +4052,14 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                 # Check each string pattern and report individually with pattern type
                                 for pattern_type, patterns in TEXT_COMPARATOR_PATTERNS.items():
                                     for pattern in patterns:
-                                        if pattern in field_lower:
+                                        # Use word boundary detection to prevent false positives
+                                        pattern_regex = r'\b' + re.escape(pattern) + r'\b'
+                                        if re.search(pattern_regex, field_lower):
+                                            # Register skip condition for invalid characters - exclude space for Range Separators only
+                                            if pattern_type == "Range Separators":
+                                                normalized_field = normalize_field_name("status", version_idx, idx)
+                                                register_field_skip(normalized_field, "text_regex", True)
+                                            
                                             concerns_data["textComparators"].append({
                                                 "field": f"changes[{idx}].status",
                                                 "sourceValue": change_status_value,
@@ -3905,6 +4074,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                 for regex_pattern in TEXT_COMPARATOR_REGEX_PATTERNS:
                                     match = regex_pattern['pattern'].search(change_status_value)
                                     if match:
+                                        # Register skip condition for invalid characters - exclude space for regex patterns only
+                                        normalized_field = normalize_field_name("status", version_idx, idx)
+                                        register_field_skip(normalized_field, "text_regex", True)
+                                        
                                         concerns_data["textComparators"].append({
                                             "field": f"changes[{idx}].status",
                                             "sourceValue": change_status_value,
@@ -4059,7 +4232,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     # Vendor Bloat Text Detection - detect vendor text redundantly included in product/packageName fields
     if 'vendor' in raw_platform_data and isinstance(raw_platform_data['vendor'], str):
         vendor_value = raw_platform_data['vendor'].strip()
-        if vendor_value and not _is_placeholder_value(vendor_value, GENERAL_PLACEHOLDER_VALUES):
+        if vendor_value and not _is_placeholder_value(vendor_value):
             vendor_lower = vendor_value.lower()
             
             # Check for vendor text in product field
@@ -4125,6 +4298,9 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         vendor_value = raw_platform_data['vendor']
         whitespace_data = detect_whitespace_issues(vendor_value)
         if whitespace_data:
+            # Register skip condition for invalid characters - exclude space
+            register_field_skip("vendor", "whitespace", True)
+            
             concerns_data["whitespaceIssues"].append({
                 "field": "vendor",
                 "sourceValue": vendor_value,
@@ -4137,6 +4313,9 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         product_value = raw_platform_data['product']
         whitespace_data = detect_whitespace_issues(product_value)
         if whitespace_data:
+            # Register skip condition for invalid characters - exclude space
+            register_field_skip("product", "whitespace", True)
+            
             concerns_data["whitespaceIssues"].append({
                 "field": "product",
                 "sourceValue": product_value,
@@ -4149,6 +4328,9 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         package_value = raw_platform_data['packageName']
         whitespace_data = detect_whitespace_issues(package_value)
         if whitespace_data:
+            # Register skip condition for invalid characters - exclude space
+            register_field_skip("packageName", "whitespace", True)
+            
             concerns_data["whitespaceIssues"].append({
                 "field": "packageName",
                 "sourceValue": package_value,
@@ -4162,6 +4344,9 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
             if isinstance(platform_item, str):
                 whitespace_data = detect_whitespace_issues(platform_item)
                 if whitespace_data:
+                    # Register skip condition for invalid characters - exclude space
+                    register_field_skip(f"platforms[{idx}]", "whitespace", True)
+                    
                     concerns_data["whitespaceIssues"].append({
                         "field": f"platforms[{idx}]",
                         "sourceValue": platform_item,
@@ -4180,6 +4365,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                     if isinstance(field_value, str):
                         whitespace_data = detect_whitespace_issues(field_value)
                         if whitespace_data:
+                            # Register skip condition for invalid characters - exclude space
+                            normalized_field = normalize_field_name(field, version_idx)
+                            register_field_skip(normalized_field, "whitespace", True)
+                            
                             concerns_data["whitespaceIssues"].append({
                                 "field": f"versions[{version_idx}].{field}",
                                 "sourceValue": field_value,
@@ -4195,6 +4384,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                             if isinstance(at_value, str):
                                 whitespace_data = detect_whitespace_issues(at_value)
                                 if whitespace_data:
+                                    # Register skip condition for invalid characters - exclude space
+                                    normalized_field = normalize_field_name("at", version_idx, change_idx)
+                                    register_field_skip(normalized_field, "whitespace", True)
+                                    
                                     concerns_data["whitespaceIssues"].append({
                                         "field": f"versions[{version_idx}].changes[{change_idx}].at",
                                         "sourceValue": at_value,
@@ -4207,6 +4400,10 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                             if isinstance(status_value, str):
                                 whitespace_data = detect_whitespace_issues(status_value)
                                 if whitespace_data:
+                                    # Register skip condition for invalid characters - exclude space
+                                    normalized_field = normalize_field_name("status", version_idx, change_idx)
+                                    register_field_skip(normalized_field, "whitespace", True)
+                                    
                                     concerns_data["whitespaceIssues"].append({
                                         "field": f"versions[{version_idx}].changes[{change_idx}].status",
                                         "sourceValue": status_value,
@@ -4254,7 +4451,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         # Allows: alphanumeric, hyphens, asterisks, underscores, colons, dots, plus, parentheses, tildes
         valid_version_pattern = r'^(\*|[a-zA-Z0-9]+[-*_:.+()~a-zA-Z0-9]*)$'
         
-        for version_entry in curated_platform_data['versions']:
+        for version_idx, version_entry in enumerate(curated_platform_data['versions']):
             if isinstance(version_entry, dict):
                 version_fields = ['version', 'lessThan', 'lessThanOrEqual']
                 for field in version_fields:
@@ -4265,8 +4462,31 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                             # Find specific invalid characters by excluding valid ones
                             invalid_chars = list(set(re.findall(r'[^a-zA-Z0-9\-*_:.+()~]', field_value)))
                             if invalid_chars:  # Only add if we actually found invalid characters
-                                # Use proper format for individual invalid characters
+                                # Check if this field should be skipped for invalid character detection
+                                normalized_field = normalize_field_name(field, version_idx)
+                                
+                                if should_skip_field(normalized_field, "invalid_characters"):
+                                    continue  # Skip invalid character detection for this field entirely
+                                
+                                # Get exclusion sets from field registry for non-skipped fields
+                                if normalized_field in field_skip_registry:
+                                    registry = field_skip_registry[normalized_field]
+                                    excluded_chars = set()
+                                    excluded_chars.update(registry["math_comparators"])  # Math operators
+                                    if registry["text_regex"]:
+                                        excluded_chars.add(' ')  # Space from hyphenated ranges
+                                    if registry["whitespace"]:
+                                        excluded_chars.add(' ')  # Space from whitespace issues
+                                else:
+                                    excluded_chars = set()
+                                
+                                filtered_chars = []
                                 for invalid_char in invalid_chars:
+                                    if invalid_char not in excluded_chars:
+                                        filtered_chars.append(invalid_char)
+                                
+                                # Use proper format for individual invalid characters
+                                for invalid_char in filtered_chars:
                                     concerns_data["invalidCharacters"].append({
                                         "field": field,
                                         "sourceValue": field_value,
@@ -4276,7 +4496,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                 
                 # Check changes array for invalid characters
                 if 'changes' in version_entry and isinstance(version_entry['changes'], list):
-                    for idx, change in enumerate(version_entry['changes']):
+                    for change_idx, change in enumerate(version_entry['changes']):
                         if isinstance(change, dict):
                             change_at_value = change.get('at')
                             if isinstance(change_at_value, str) and change_at_value.strip():
@@ -4285,16 +4505,37 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                     # Find specific invalid characters by excluding valid ones
                                     invalid_chars = list(set(re.findall(r'[^a-zA-Z0-9\-*_:.+()~]', change_at_value)))
                                     if invalid_chars:  # Only add if we actually found invalid characters
-                                        # Use proper format for individual invalid characters
+                                        # Check if this field should be skipped for invalid character detection
+                                        normalized_field = normalize_field_name("at", version_idx, change_idx)
+                                        
+                                        if should_skip_field(normalized_field, "invalid_characters"):
+                                            continue  # Skip invalid character detection for this field entirely
+                                        
+                                        # Get exclusion sets from field registry for non-skipped fields
+                                        if normalized_field in field_skip_registry:
+                                            registry = field_skip_registry[normalized_field]
+                                            excluded_chars = set()
+                                            excluded_chars.update(registry["math_comparators"])  # Math operators
+                                            if registry["text_regex"]:
+                                                excluded_chars.add(' ')  # Space from hyphenated ranges
+                                            if registry["whitespace"]:
+                                                excluded_chars.add(' ')  # Space from whitespace issues
+                                        else:
+                                            excluded_chars = set()
+                                        
+                                        filtered_chars = []
                                         for invalid_char in invalid_chars:
+                                            if invalid_char not in excluded_chars:
+                                                filtered_chars.append(invalid_char)
+                                        
+                                        # Use proper format for individual invalid characters
+                                        for invalid_char in filtered_chars:
                                             concerns_data["invalidCharacters"].append({
-                                                "field": f"changes[{idx}].at",
+                                                "field": f"changes[{change_idx}].at",
                                                 "sourceValue": change_at_value,
                                                 "detectedPattern": {"detectedValue": invalid_char}
                                             })
-                                            concerns_count += 1
-    
-    # Update concern types for invalid character detection
+                                            concerns_count += 1    # Update concern types for invalid character detection
     if concerns_data["invalidCharacters"]:
         concern_types.append("Invalid Character Detection")
     

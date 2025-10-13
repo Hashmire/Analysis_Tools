@@ -2,6 +2,10 @@
 
 Comprehensive enumeration of implemented Source Data Concern checks with exact modal content.
 
+- [Source Data Concerns Enhanced Table](#source-data-concerns-enhanced-table)
+  - [Architectural Overview](#architectural-overview)
+  - [Skip Logic Rules](#skip-logic-rules)
+
 ## Architectural Overview
 
 All source data concern checks use **curated platform data** preprocessed through update pattern transformation to prevent false positives from legitimate update patterns.
@@ -45,3 +49,21 @@ All source data concern checks use **curated platform data** preprocessed throug
 | └─ | **#2 Version Parsing and CPE-AS Generation** | `cve.containers.*.affected[*]` | **[affectedArray]** contains multiple entries with identical alias data and versions content that contain overlapping ranges which may create ambiguous range definitions. | `{ "field": "affected[1].versions[*]", "sourceValue": "affected[1].versions[2] & affected[2].versions[3]", "detectedPattern": { "overlapType": "partial_overlap", "range1Source": "affected[1].versions[2]", "range2Source": "affected[2].versions[3]", "range1": "5.0.0 to 6.5.0", "range2": "5.1.0 to 7.0.0" } }` | **Problem:**<br />Overlapping version ranges create ambiguous range definitions which may affect platform matching precision. | **Data:**<br />Overlap Type: **[overlapType]** <br />Range 1: **[range1]** (from **[range1Source]**) <br />Range 2: **[range2]** (from **[range2Source]**) | **Resolution:** <br />Replace multiple affected array entries for the same platform with a singular consolidated entry for identical platform instances.<br />Use the `defaultStatus`, `version`, `lessThan`, `lessThanOrEqual`, `changes[*].at` and/or `changes[*]status` syntax to precisely represent the explicit range boundaries. | **(Refactored) Badge Generation** |
 | | | | | | | | | |
 
+## Skip Logic Rules
+
+To eliminate improper multi-count findings where the same underlying issue triggers multiple detection groups, the following skip conditions are implemented:
+
+| **Priority** | **Detection Group** | **Skip Conditions** | **Rationale** | **Implementation** |
+|:-------------|:-------------------|:-------------------|:--------------|:-------------------|
+| **1** | **placeholderData** | Skip ALL other detections for this field if detected | Placeholder values indicate intentionally incomplete data - other "issues" are meaningless noise | Early return for field after placeholder detection |
+| **2** | **mathematicalComparators** | Skip invalidCharacters detection for `<`, `>`, `=`, `!` if detected | Mathematical operators are valid in version contexts - not invalid characters | Exclude these characters from invalid character scan |
+| **3** | **textComparators** | Skip invalidCharacters detection for `space` if TEXT_COMPARATOR_REGEX_PATTERNS detected | Only hyphenated ranges (e.g., "1.0 - 2.0") use structural spaces | Exclude space character when regex patterns detected |
+| **4** | **whitespaceIssues** | Skip invalidCharacters detection for `space` if detected | Space character whitespace issues shouldn't also be flagged as invalid | Exclude space character from invalid character scan |
+| **5-9** | **All Others** | **No skip conditions** | Independent detections that can legitimately coexist | Standard processing |
+
+**Key Overlap Examples Resolved:**
+
+- `"n/a"` → **Placeholder only** (skips "/" invalid character detection)
+- `"<= 3.1.4"` → **Mathematical + InvalidChar** (excludes "<", "=", "!" from invalid scan)
+- `"1.0 - 2.0"` → **TextComparator + InvalidChar** (excludes space from invalid scan for regex patterns only)
+- `" apache "` → **Whitespace + InvalidChar** (excludes space from invalid scan)

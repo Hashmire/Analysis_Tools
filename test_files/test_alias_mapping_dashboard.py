@@ -1875,32 +1875,18 @@ if __name__ == '__main__':
     tests_passed = result.testsRun - len(result.failures) - len(result.errors)
     tests_total = result.testsRun
     
-    # Output standardized format for unified test runner
-    print(f"TEST_RESULTS: PASSED={tests_passed} TOTAL={tests_total} SUITE=\"Alias Mapping Dashboard\"")
-    
+    # SDC-style final summary
     if 'UNIFIED_TEST_RUNNER' not in os.environ:
-        print("\n" + "=" * 70)
-        print("ALIAS MAPPING DASHBOARD TEST SUITE SUMMARY")
-        print("=" * 70)
-        print("PASS DataManager structure validation")
-        print("PASS Dataset processing methods validation") 
-        print("PASS Source UUID export functionality")
-        print("PASS Complete workflow integration")
-        print("PASS Display integration validation")
-        print("PASS DataManager loading integration")
-        print("PASS JavaScript function extraction")
-        print("PASS Query-based data access validation")
-        print("PASS Comprehensive data structure validation")
-        print("PASS CPE string format compliance")
-        print("PASS Complete workflow simulation")
-        print("PASS ID-based optimization validation")
-        print("PASS Source consistency validation")
-        print("PASS Comprehensive dashboard elements")
-        print("PASS JavaScript function validation")
-        print("PASS Performance characteristics validation")
-        print("PASS End-to-end integration workflow")
-        print("PASS Intersection-based coverage calculation validation")
-        print("=" * 70)
-        print("Dashboard ready for interactive data curation!")
-        print("=" * 70)
+        if tests_passed == tests_total:
+            print(f"\nPASS Alias Mapping Dashboard (test duration) ({tests_passed}/{tests_total} tests)")
+            print(f"   {tests_passed}/{tests_total} tests passed")
+            print(f"   Test breakdown: dashboard structure validation, JavaScript integration, workflow simulation")
+        else:
+            print(f"\nFAIL Alias Mapping Dashboard (test duration) ({tests_passed}/{tests_total} tests)")
+            print(f"   {tests_passed}/{tests_total} tests passed")
+            print(f"   Test breakdown: dashboard structure validation, JavaScript integration, workflow simulation")
+    
+    # Output standardized format for unified test runner
+    print("=" * 80)
+    print(f"TEST_RESULTS: PASSED={tests_passed} TOTAL={tests_total} SUITE=\"Alias Mapping Dashboard\"")
 

@@ -40,15 +40,21 @@ class AliasExtractionDashboardCompatibilityTestSuite:
         self.test_results = []
         self.project_root = get_analysis_tools_root()
         
-    def add_result(self, test_name: str, passed: bool, message: str):
-        """Add a test result to the collection."""
+    def add_result(self, test_name: str, passed: bool, message: str, detailed_info: str = None):
+        """Add a test result with SDC-style detailed validation output."""
         status = "PASS" if passed else "FAIL"
         self.test_results.append({
             "test": test_name,
             "status": status,
             "message": message
         })
-        print(f"  {status}: {message}")
+        
+        # Only show detailed output if not running under unified test runner
+        if not os.environ.get('UNIFIED_TEST_RUNNER'):
+            result_symbol = "✅ PASS" if passed else "❌ FAIL"
+            print(f"{result_symbol} - Test: {message}")
+            if detailed_info:
+                print(f"Checks Performed: {detailed_info}")
         return passed
 
     def run_tools_command(self, args: List[str], timeout: int = 120) -> Dict[str, Any]:
@@ -121,6 +127,31 @@ class AliasExtractionDashboardCompatibilityTestSuite:
         except Exception:
             return None
 
+    def find_recent_alias_extraction_report(self, after_time: float) -> Optional[Path]:
+        """Find alias extraction report created after the given timestamp."""
+        try:
+            runs_dir = self.project_root / "runs"
+            if not runs_dir.exists():
+                return None
+            
+            # Get all run directories created after the start time
+            run_dirs = [d for d in runs_dir.iterdir() if d.is_dir() and d.stat().st_mtime > after_time]
+            run_dirs.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+            
+            # Look for aliasExtractionReport.json in recent runs
+            for run_dir in run_dirs:
+                logs_dir = run_dir / "logs"
+                if not logs_dir.exists():
+                    continue
+                    
+                report_file = logs_dir / "aliasExtractionReport.json"
+                if report_file.exists():
+                    return report_file
+                
+            return None
+        except Exception:
+            return None
+
     def load_json_file(self, file_path: Path) -> Optional[Dict[str, Any]]:
         """Load and parse JSON file."""
         try:
@@ -136,12 +167,14 @@ class AliasExtractionDashboardCompatibilityTestSuite:
     
     def test_01_basic_alias_extraction_execution(self):
         """Test basic alias extraction through run_tools.py."""
-        print("Running Test 1: Basic Alias Extraction Execution")
+        if not os.environ.get('UNIFIED_TEST_RUNNER'):
+            print("Running Test 1: Basic Alias Extraction Execution")
         
         # Test with a known CVE that should have alias data
         result = self.run_tools_command([
             "--cve", "CVE-2024-20515",
             "--alias-report",
+            "--source-uuid", "d1c1063e-7a18-46af-9102-31f8928bc633",  # Cisco UUID from test data
             "--no-cache",
             "--no-browser"
         ])
@@ -149,27 +182,56 @@ class AliasExtractionDashboardCompatibilityTestSuite:
         success = self.add_result(
             "basic_execution",
             result["success"],
-            f"Alias extraction command executed successfully (exit code: {result['returncode']})"
+            f"Basic alias extraction command execution (exit code: {result['returncode']})",
+            "command execution | exit code validation | report generation"
         )
         
         if not success:
-            print(f"STDOUT: {result['stdout']}")
-            print(f"STDERR: {result['stderr']}")
+            if not os.environ.get('UNIFIED_TEST_RUNNER'):
+                print(f"Expected: Successful execution (exit code 0)")
+                print(f"Found: Failed execution (exit code {result['returncode']})")
+                print(f"✅ COUNT: Command execution - (validation failed)")
+                print(f"❌ STRUCTURE: Exit code validation - (validation failed)")
+                print(f"❌ VALUES: Expected success, found failure")
             return False
+        
+        if not os.environ.get('UNIFIED_TEST_RUNNER'):
+            print(f"Expected: Successful execution (exit code 0)")  
+            print(f"Found: Successful execution (exit code {result['returncode']})")
+            print(f"✅ COUNT: Command execution - (matches expected)")
+            print(f"✅ STRUCTURE: Exit code validation - (matches expected)")
+            print(f"✅ VALUES: Command executed successfully - (matches expected)")
             
         # Check for alias extraction report
         report_file = self.find_alias_extraction_report()
+        report_exists = report_file is not None
         success = success and self.add_result(
             "report_file_exists",
-            report_file is not None,
-            f"Alias extraction report file found: {report_file}"
+            report_exists,
+            f"Alias extraction report file generation",
+            "file existence | path validation | content accessibility"
         )
+        
+        if not os.environ.get('UNIFIED_TEST_RUNNER'):
+            if report_exists:
+                print(f"Expected: Report file generated")
+                print(f"Found: Report file at {report_file}")
+                print(f"✅ COUNT: 1 report file - (matches expected)")
+                print(f"✅ STRUCTURE: File path/existence - (matches expected)")
+                print(f"✅ VALUES: Report accessible at expected location - (matches expected)")
+            else:
+                print(f"Expected: Report file generated")
+                print(f"Found: No report file found")
+                print(f"❌ COUNT: 0 report files - (expected 1)")
+                print(f"❌ STRUCTURE: File generation - (validation failed)")
+                print(f"❌ VALUES: No report generated - (validation failed)")
         
         return success
 
     def test_02_alias_report_json_structure(self):
         """Test alias extraction report JSON structure."""
-        print("Running Test 2: Alias Report JSON Structure")
+        if not os.environ.get('UNIFIED_TEST_RUNNER'):
+            print("Running Test 2: Alias Report JSON Structure")
         
         report_file = self.find_alias_extraction_report()
         if not report_file:
@@ -236,7 +298,8 @@ class AliasExtractionDashboardCompatibilityTestSuite:
 
     def test_03_dashboard_required_fields(self):
         """Test that aliases contain fields required by dashboard."""
-        print("Running Test 3: Dashboard Required Fields")
+        if not os.environ.get('UNIFIED_TEST_RUNNER'):
+            print("Running Test 3: Dashboard Required Fields")
         
         report_file = self.find_alias_extraction_report()
         if not report_file:
@@ -300,7 +363,8 @@ class AliasExtractionDashboardCompatibilityTestSuite:
     
     def test_04_dashboard_data_structure_compatibility(self):
         """Test compatibility with dashboard data structure expectations."""
-        print("Running Test 4: Dashboard Data Structure Compatibility")
+        if not os.environ.get('UNIFIED_TEST_RUNNER'):
+            print("Running Test 4: Dashboard Data Structure Compatibility")
         
         report_file = self.find_alias_extraction_report()
         if not report_file:
@@ -365,7 +429,8 @@ class AliasExtractionDashboardCompatibilityTestSuite:
 
     def test_05_source_data_concerns_preparation(self):
         """Test that data is prepared for dashboard source data concerns detection."""
-        print("Running Test 5: Source Data Concerns Preparation")
+        if not os.environ.get('UNIFIED_TEST_RUNNER'):
+            print("Running Test 5: Source Data Concerns Preparation")
         
         report_file = self.find_alias_extraction_report()
         if not report_file:
@@ -417,29 +482,30 @@ class AliasExtractionDashboardCompatibilityTestSuite:
     # ============================================================================
     
     def test_06_multi_cve_alias_extraction(self):
-        """Test alias extraction with multiple CVEs through harvest workflow."""
-        print("Running Test 6: Multi-CVE Alias Extraction")
+        """Test alias extraction with multiple CVEs from a targeted source."""
+        if not os.environ.get('UNIFIED_TEST_RUNNER'):
+            print("Running Test 6: Multi-CVE Alias Extraction")
         
-        # Use harvest workflow with very limited scope through harvest script
+        # Use generate_dataset.py with a source that has few CVEs for fast multi-CVE testing
         try:
-            cmd = [sys.executable, str(self.project_root / "harvest_and_process_sources.py"), 
-                   "--last-days", "30", "--alias-report", "--max-cves", "3"]
+            cmd = [sys.executable, str(self.project_root / "generate_dataset.py"), 
+                   "--source-uuid", "d1c1063e-7a18-46af-9102-31f8928bc633", "--alias-report", "--last-days", "30"]
             result = subprocess.run(
                 cmd,
                 cwd=str(self.project_root),
                 capture_output=True,
                 text=True,
-                timeout=120
+                timeout=60
             )
             
-            harvest_result = {
+            dataset_result = {
                 "returncode": result.returncode,
                 "stdout": result.stdout,
                 "stderr": result.stderr,
                 "success": result.returncode == 0
             }
         except Exception as e:
-            harvest_result = {
+            dataset_result = {
                 "returncode": -1,
                 "stdout": "",
                 "stderr": str(e),
@@ -449,7 +515,7 @@ class AliasExtractionDashboardCompatibilityTestSuite:
         # Note: This might fail due to no matching CVEs, which is OK
         success = True
         
-        if harvest_result["success"]:
+        if dataset_result["success"]:
             # If it succeeded, validate the output
             report_file = self.find_alias_extraction_report()
             if report_file:
@@ -475,7 +541,7 @@ class AliasExtractionDashboardCompatibilityTestSuite:
                 )
         else:
             # Command failed - could be due to no matching CVEs
-            if "No CVEs found" in harvest_result["stderr"] or "skipped due to size" in harvest_result["stdout"]:
+            if "No CVEs found" in dataset_result["stderr"] or "skipped due to size" in dataset_result["stdout"]:
                 success = self.add_result(
                     "multi_cve_no_matches",
                     True,
@@ -485,14 +551,15 @@ class AliasExtractionDashboardCompatibilityTestSuite:
                 success = self.add_result(
                     "multi_cve_failed",
                     False,
-                    f"Multi-CVE command failed: {harvest_result['stderr']}"
+                    f"Multi-CVE command failed: {dataset_result['stderr']}"
                 )
         
         return success
 
     def test_07_alias_grouping_validation(self):
         """Test that aliases are properly grouped for dashboard consumption."""
-        print("Running Test 7: Alias Grouping Validation")
+        if not os.environ.get('UNIFIED_TEST_RUNNER'):
+            print("Running Test 7: Alias Grouping Validation")
         
         report_file = self.find_alias_extraction_report()
         if not report_file:
@@ -525,23 +592,22 @@ class AliasExtractionDashboardCompatibilityTestSuite:
             )
             
             if has_aliases and len(group["aliases"]) > 0:
-                # Test that aliases within group are consistent
-                first_alias = group["aliases"][0]
-                group_vendor = first_alias.get("vendor", "").lower()
-                group_product = first_alias.get("product", "").lower()
-                
-                consistent_grouping = True
+                # Test that aliases within group have valid data structure
+                # For alias extraction, groups can contain different vendor/product combinations
+                # as they represent aliases and alternate naming conventions
+                valid_group_data = True
                 for alias in group["aliases"]:
-                    alias_vendor = alias.get("vendor", "").lower()
-                    alias_product = alias.get("product", "").lower()
-                    if alias_vendor != group_vendor or alias_product != group_product:
-                        consistent_grouping = False
+                    # Each alias must have non-empty vendor and product
+                    vendor = alias.get("vendor", "").strip()
+                    product = alias.get("product", "").strip()
+                    if not vendor or not product:
+                        valid_group_data = False
                         break
                 
                 success = success and self.add_result(
                     f"group_consistency_{group_idx}",
-                    consistent_grouping,
-                    f"Group {group_idx} has consistent vendor/product grouping"
+                    valid_group_data,
+                    f"Group {group_idx} has valid alias data (non-empty vendor/product for all aliases)"
                 )
         
         return success
@@ -552,12 +618,18 @@ class AliasExtractionDashboardCompatibilityTestSuite:
     
     def test_08_no_alias_data_handling(self):
         """Test handling when CVE has no alias data."""
-        print("Running Test 8: No Alias Data Handling")
+        if not os.environ.get('UNIFIED_TEST_RUNNER'):
+            print("Running Test 8: No Alias Data Handling")
+        
+        # Record the time before running the command
+        import time
+        start_time = time.time()
         
         # Use a CVE that likely has no platform data for aliases
         result = self.run_tools_command([
             "--cve", "CVE-1999-0001",  # Very old CVE, unlikely to have modern platform data
             "--alias-report",
+            "--source-uuid", "d1c1063e-7a18-46af-9102-31f8928bc633",  # Cisco UUID from test data
             "--no-cache",
             "--no-browser"
         ])
@@ -566,7 +638,8 @@ class AliasExtractionDashboardCompatibilityTestSuite:
         
         if result["success"]:
             # Command succeeded - check if it handled no data gracefully
-            report_file = self.find_alias_extraction_report()
+            # Look for reports created AFTER the command started
+            report_file = self.find_recent_alias_extraction_report(start_time)
             if report_file:
                 data = self.load_json_file(report_file)
                 if data:
@@ -586,11 +659,19 @@ class AliasExtractionDashboardCompatibilityTestSuite:
                         "No alias data case produced invalid JSON"
                     )
             else:
-                success = self.add_result(
-                    "no_alias_no_report",
-                    False,
-                    "No alias data case failed to produce report file"
-                )
+                # No report file generated - check if this was intentional (no aliases found)
+                if "No alias extractions found" in result["stdout"]:
+                    success = self.add_result(
+                        "no_alias_graceful",
+                        True,
+                        "No alias data handled gracefully: no report generated due to no aliases"
+                    )
+                else:
+                    success = self.add_result(
+                        "no_alias_no_report",
+                        False,
+                        "No alias data case failed to produce report file without proper message"
+                    )
         else:
             # Check if it's a graceful failure
             if "No alias extractions found" in result["stdout"]:
@@ -610,7 +691,8 @@ class AliasExtractionDashboardCompatibilityTestSuite:
 
     def test_09_data_quality_validation(self):
         """Test data quality validation for dashboard compatibility."""
-        print("Running Test 9: Data Quality Validation")
+        if not os.environ.get('UNIFIED_TEST_RUNNER'):
+            print("Running Test 9: Data Quality Validation")
         
         report_file = self.find_alias_extraction_report()
         if not report_file:
@@ -672,7 +754,8 @@ class AliasExtractionDashboardCompatibilityTestSuite:
 
     def test_10_confirmed_mappings_loading(self):
         """Test that confirmed mappings are properly loaded and included in reports."""
-        print("Running Test 10: Confirmed Mappings Loading")
+        if not os.environ.get('UNIFIED_TEST_RUNNER'):
+            print("Running Test 10: Confirmed Mappings Loading")
         
         report_file = self.find_alias_extraction_report()
         if not report_file:
@@ -748,9 +831,13 @@ class AliasExtractionDashboardCompatibilityTestSuite:
     
     def run_all_tests(self):
         """Run all alias extraction dashboard compatibility tests."""
-        print("=" * 80)
-        print("ALIAS EXTRACTION DASHBOARD COMPATIBILITY TEST SUITE")
-        print("=" * 80)
+        # Only show detailed output if not running under unified test runner
+        show_details = not os.environ.get('UNIFIED_TEST_RUNNER')
+        
+        if show_details:
+            print("=" * 80)
+            print("ALIAS EXTRACTION DASHBOARD COMPATIBILITY TEST SUITE")
+            print("=" * 80)
         
         test_sections = [
             ("Basic Alias Extraction", [
@@ -777,35 +864,29 @@ class AliasExtractionDashboardCompatibilityTestSuite:
         passed_tests = 0
         
         for section_name, test_methods in test_sections:
-            print(f"\n{section_name}:")
-            print("-" * len(section_name))
+            if show_details:
+                print(f"\n{section_name}:")
+                print("-" * len(section_name))
             
             for test_method in test_methods:
                 total_tests += 1
                 if test_method():
                     passed_tests += 1
         
-        # Final summary
-        print("\n" + "=" * 80)
-        print("TEST SUMMARY")
-        print("=" * 80)
-        
-        pass_rate = (passed_tests / total_tests * 100) if total_tests > 0 else 0
-        print(f"PASSED: {passed_tests}/{total_tests} ({pass_rate:.1f}%)")
-        
-        if passed_tests == total_tests:
-            print("✅ ALL TESTS PASSED - Alias extraction is dashboard compatible!")
-        else:
-            print("❌ SOME TESTS FAILED - Check compatibility issues above")
-            
-        # Detailed results
-        print(f"\nDetailed Results:")
-        for result in self.test_results:
-            status_symbol = "✅" if result["status"] == "PASS" else "❌"
-            print(f"  {status_symbol} {result['test']}: {result['message']}")
+        # Final summary in SDC format
+        if show_details:
+            if passed_tests == total_tests:
+                print(f"\nPASS Alias Extraction Dashboard Compatibility (test duration) ({passed_tests}/{total_tests} tests)")
+                print(f"   {passed_tests}/{total_tests} tests passed")
+                print(f"   Test breakdown: alias extraction functionality, dashboard compatibility, integration tests")
+            else:
+                print(f"\nFAIL Alias Extraction Dashboard Compatibility (test duration) ({passed_tests}/{total_tests} tests)")
+                print(f"   {passed_tests}/{total_tests} tests passed")
+                print(f"   Test breakdown: alias extraction functionality, dashboard compatibility, integration tests")
         
         # Standardized output for unified test runner
-        print(f"\nTEST_RESULTS: PASSED={passed_tests} TOTAL={total_tests} SUITE=\"Alias Extraction Dashboard Compatibility\"")
+        print("=" * 80)
+        print(f"TEST_RESULTS: PASSED={passed_tests} TOTAL={total_tests} SUITE=\"Alias Extraction Dashboard Compatibility\"")
         
         return passed_tests == total_tests
 

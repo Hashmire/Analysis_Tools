@@ -787,7 +787,7 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
         logger.info(f"SDC Report: {'ENABLED' if sdc_report else 'DISABLED'} (--sdc-report {'true' if sdc_report else 'false'})", group="initialization")
         logger.info(f"CPE Suggestions: {'ENABLED' if cpe_suggestions else 'DISABLED'} (--cpe-suggestions {'true' if cpe_suggestions else 'false'})", group="initialization")
         logger.info(f"Alias Report: {'ENABLED' if alias_report else 'DISABLED'} (--alias-report {'true' if alias_report else 'false'})", group="initialization")
-        logger.info(f"CPE as Generator: {'ENABLED' if cpe_as_generator else 'DISABLED'} (--cpe-as-generator {'true' if cpe_as_generator else 'false'})", group="initialization")
+        logger.info(f"CPE-AS Generator: {'ENABLED' if cpe_as_generator else 'DISABLED'} (--cpe-as-generator {'true' if cpe_as_generator else 'false'})", group="initialization")
         
         # Log enabled features summary
         enabled_features = []

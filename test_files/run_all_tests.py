@@ -200,9 +200,13 @@ class TestSuiteRunner:
                 'name': 'SDC Invalid Character Detection',
                 'command': ['python', 'test_files\\test_sdc_invalid_character_detection.py']
             },
+                        {
+                'name': 'SDC Overlapping Ranges Detection',
+                'command': ['python', 'test_files\\test_sdc_overlapping_ranges_detection.py']
+            },
             {
-                'name': 'Overlapping Ranges Detection',
-                'command': ['python', 'test_files\\test_overlapping_ranges.py']
+                'name': 'SDC Skip Logic Rules',
+                'command': ['python', 'test_files\\test_sdc_skip_logic_rules.py']
             },
             {
                 'name': 'Update Patterns',
@@ -210,11 +214,11 @@ class TestSuiteRunner:
             },
             {
                 'name': 'Alias Mapping Dashboard',
-                'command': ['python', 'test_files\\test_confirmed_mapping_dashboard.py']
+                'command': ['python', 'test_files\\test_alias_mapping_dashboard.py']
             },
             {
-                'name': 'Confirmed Mapping Curator',
-                'command': ['python', 'test_files\\test_confirmed_mapping_curator.py']
+                'name': 'Alias Extraction Report to Dashboard Compatibility',
+                'command': ['python', 'test_files\\test_alias_extraction_dashboard_compatibility.py']
             },
             {
                 'name': 'Provenance Assistance',
@@ -239,6 +243,10 @@ class TestSuiteRunner:
             {
                 'name': 'Support Platform Badges',
                 'command': ['python', 'test_files\\test_support_platform_badges.py']
+            },
+            {
+                'name': 'Platform Badges',
+                'command': ['python', 'test_files\\test_platform_badges.py']
             }
         ]
 

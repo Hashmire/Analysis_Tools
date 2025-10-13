@@ -2373,3 +2373,20 @@ def validate_cpe_specificity(cpe_string):
             return False, f"Two characters or less '{attribute_value}' in only populated attribute '{attribute_name}' - too broad"
     
     return True, "Valid specificity"
+
+
+def processPlatformDataOnly(rawDataset):
+    """
+    Process platform data for SDC and Alias features without CPE generation.
+    
+    This function extracts and processes platform data from CVE records for features
+    that need platform information but don't require CPE generation or API calls.
+    
+    Args:
+        rawDataset: DataFrame containing CVE data
+        
+    Returns:
+        DataFrame with populated rawPlatformData column
+    """
+    # Reuse the existing platform processing logic but skip CPE generation
+    return suggestCPEData(None, rawDataset, 1, sdc_only=True)
