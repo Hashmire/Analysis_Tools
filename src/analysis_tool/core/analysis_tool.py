@@ -16,6 +16,18 @@ import subprocess
 import threading
 from datetime import datetime, timedelta
 
+def _ensure_src_path():
+    """Ensure src directory is in Python path"""
+    if not hasattr(_ensure_src_path, '_initialized'):
+        project_root = Path(__file__).parent.parent.parent.parent  # Go up to Analysis_Tools/
+        src_path = project_root / "src"
+        if str(src_path) not in sys.path:
+            sys.path.insert(0, str(src_path))
+        _ensure_src_path._initialized = True
+
+# Initialize path setup
+_ensure_src_path()
+
 from . import gatherData
 from . import processData
 from . import generateHTML

@@ -85,7 +85,7 @@ def check_alias_match(alias: dict, raw_platform_data: dict) -> bool:
             # Handle pandas Series or other non-string types
             if hasattr(platform_field_value, 'iloc'):
                 # It's a pandas Series, get the first value
-                platform_value = normalize_string_for_comparison(platform_field_value.iloc[0] if len(platform_field_value) > 0 else '')
+                platform_value = normalize_string_for_comparison(platform_field_value.iloc[0] if not platform_field_value.empty else '')
             elif isinstance(platform_field_value, (list, tuple)):
                 # It's a list/tuple, get the first value
                 platform_value = normalize_string_for_comparison(platform_field_value[0] if len(platform_field_value) > 0 else '')
@@ -103,7 +103,7 @@ def check_alias_match(alias: dict, raw_platform_data: dict) -> bool:
         
         # Handle pandas Series
         if hasattr(raw_platforms, 'iloc'):
-            raw_platforms = raw_platforms.tolist() if len(raw_platforms) > 0 else []
+            raw_platforms = raw_platforms.tolist() if not raw_platforms.empty else []
         
         # Handle both string and array cases
         if isinstance(raw_platforms, list):

@@ -36,8 +36,8 @@ class ProvenanceAssistanceTestSuite:
         
         # Get the project root path
         current_dir = Path.cwd()
-        project_root = current_dir if (current_dir / "run_tools.py").exists() else current_dir.parent
-        run_analysis_path = project_root / "run_tools.py"
+        project_root = current_dir if (current_dir / "generate_dataset.py").exists() else current_dir.parent
+        run_analysis_path = project_root / "src" / "analysis_tool" / "core" / "analysis_tool.py"
         
         if not run_analysis_path.exists():
             self.add_result("HTML_GENERATION", False, f"Analysis tool entry point not found at {run_analysis_path}")
@@ -48,7 +48,7 @@ class ProvenanceAssistanceTestSuite:
             # Disable cache for faster testing unless specifically testing cache functionality
             cmd = [
                 sys.executable, 
-                str(run_analysis_path), 
+                "-m", "src.analysis_tool.core.analysis_tool", 
                 "--test-file", 
                 str(self.test_file_path.resolve()),
                 "--no-cache",

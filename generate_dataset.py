@@ -10,6 +10,7 @@ Enhanced with tracking capabilities and integration with the enhanced dataset ge
 import requests
 import json
 import os
+import sys
 import datetime
 from time import sleep
 import argparse
@@ -730,18 +731,9 @@ def main():
 
 
 def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=None, external_assets=False, sdc_report=False, cpe_suggestions=False, alias_report=False, cpe_as_generator=False, source_uuid=None, local_cve_repo=None):
-    """Run the analysis tool on the generated dataset within an existing run context"""
-    import subprocess
+    """Run the analysis tool on the generated dataset within an existing run context (direct integration)"""
     
     try:
-        # Get paths
-        root_path = get_analysis_tools_root()
-        run_tools_path = root_path / "run_tools.py"
-        
-        if not run_tools_path.exists():
-            logger.error(f"run_tools.py not found at {run_tools_path}", group="data_processing")
-            return False
-
         # If we have a run directory context, the dataset should be in that run
         if not run_directory:
             raise RuntimeError("Run directory required for integrated analysis - legacy behavior removed")
@@ -758,36 +750,12 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
             logger.error(f"Failed to count CVEs in dataset: {e}", group="data_processing")
             cve_count = 0
         
-        # Build command with run context integration
-        cmd = [
-            "python", str(run_tools_path),
-            "--file", str(dataset_path)
-        ]
-        
-        # Add run context if available
-        if run_id:
-            cmd.extend(["--run-id", run_id])
-            logger.info(f"Continuing analysis within existing run: {run_id}", group="initialization")
-        
-        
-        if api_key:
-            cmd.extend(["--api-key", api_key])
-        
-        if external_assets:
-            cmd.append("--external-assets")
-        
-        # Add feature flags
-        cmd.extend(["--sdc-report", "true" if sdc_report else "false"])
-        cmd.extend(["--cpe-suggestions", "true" if cpe_suggestions else "false"])
-        cmd.extend(["--alias-report", "true" if alias_report else "false"])
-        cmd.extend(["--cpe-as-generator", "true" if cpe_as_generator else "false"])
-        
         # Comprehensive feature flag auditing for integrated analysis
         logger.info("=== INTEGRATED ANALYSIS FEATURE FLAG AUDIT ===", group="initialization")
-        logger.info(f"SDC Report: {'ENABLED' if sdc_report else 'DISABLED'} (--sdc-report {'true' if sdc_report else 'false'})", group="initialization")
-        logger.info(f"CPE Suggestions: {'ENABLED' if cpe_suggestions else 'DISABLED'} (--cpe-suggestions {'true' if cpe_suggestions else 'false'})", group="initialization")
-        logger.info(f"Alias Report: {'ENABLED' if alias_report else 'DISABLED'} (--alias-report {'true' if alias_report else 'false'})", group="initialization")
-        logger.info(f"CPE-AS Generator: {'ENABLED' if cpe_as_generator else 'DISABLED'} (--cpe-as-generator {'true' if cpe_as_generator else 'false'})", group="initialization")
+        logger.info(f"SDC Report: {'ENABLED' if sdc_report else 'DISABLED'}", group="initialization")
+        logger.info(f"CPE Suggestions: {'ENABLED' if cpe_suggestions else 'DISABLED'}", group="initialization")
+        logger.info(f"Alias Report: {'ENABLED' if alias_report else 'DISABLED'}", group="initialization")
+        logger.info(f"CPE-AS Generator: {'ENABLED' if cpe_as_generator else 'DISABLED'}", group="initialization")
         
         # Log enabled features summary
         enabled_features = []
@@ -802,44 +770,68 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
         logger.info(f"Enabled features: {', '.join(enabled_features) if enabled_features else 'None'}", group="initialization")
         logger.info("=== END INTEGRATED ANALYSIS AUDIT ===", group="initialization")
         
+        if run_id:
+            logger.info(f"Continuing analysis within existing run: {run_id}", group="initialization")
+        
         if source_uuid:
-            cmd.extend(["--source-uuid", source_uuid])
             logger.info(f"Source UUID filter will be applied during analysis: {source_uuid}", group="initialization")
         
         if local_cve_repo:
-            cmd.extend(["--local-cve-repo", local_cve_repo])
             logger.info(f"Local CVE repository will be used with API fallback: {local_cve_repo}", group="initialization")
-        
-        logger.info(f"Executing: {' '.join(cmd)}", group="initialization")
         
         if run_directory:
             logger.info(f"Analysis will continue in run directory: {run_directory}", group="initialization")
         else:
             logger.info(f"Analysis will create new run directory", group="initialization")
         
-        # Run the analysis tool with live output
-        logger.info("Handing off to analysis tool - live output will follow:", group="initialization")
+        # Import and run analysis tool directly (eliminates subprocess overhead)
+        logger.info("Executing analysis tool via direct integration:", group="initialization")
         logger.info("-" * 60, group="initialization")
         
-        result = subprocess.run(
-            cmd,
-            cwd=str(root_path)
-        )
+        # Direct import from analysis_tool
+        from src.analysis_tool.core.analysis_tool import main
         
-        logger.info("-" * 60, group="initialization")
-        if result.returncode == 0:
+        # Temporarily replace sys.argv to pass parameters to main()
+        original_argv = sys.argv[:]
+        try:
+            # Build argument list for analysis tool
+            sys.argv = ["analysis_tool.py", "--file", str(dataset_path)]
+            
+            # Add run context if available
+            if run_id:
+                sys.argv.extend(["--run-id", run_id])
+            
+            if api_key:
+                sys.argv.extend(["--api-key", api_key])
+            
+            if external_assets:
+                sys.argv.append("--external-assets")
+            
+            # Add feature flags
+            sys.argv.extend(["--sdc-report", "true" if sdc_report else "false"])
+            sys.argv.extend(["--cpe-suggestions", "true" if cpe_suggestions else "false"])
+            sys.argv.extend(["--alias-report", "true" if alias_report else "false"])
+            sys.argv.extend(["--cpe-as-generator", "true" if cpe_as_generator else "false"])
+            
+            if source_uuid:
+                sys.argv.extend(["--source-uuid", source_uuid])
+            
+            if local_cve_repo:
+                sys.argv.extend(["--local-cve-repo", local_cve_repo])
+            
+            # Execute analysis tool main function
+            main()
+            
+            logger.info("-" * 60, group="initialization")
             logger.info("Analysis tool completed successfully", group="initialization")
             if run_directory:
                 logger.info(f"Results available in: {run_directory}", group="initialization")
             return True
-        else:
-            logger.error(f"Analysis tool failed with return code {result.returncode}", 
-                        group="data_processing")
-            return False
             
-    except FileNotFoundError:
-        logger.error("Python interpreter not found", group="data_processing")
-        return False
+        finally:
+            # Restore original sys.argv
+            sys.argv = original_argv
+            
     except Exception as e:
         logger.error(f"Failed to run analysis tool: {e}", group="data_processing")
         return False

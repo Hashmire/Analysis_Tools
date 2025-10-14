@@ -58,9 +58,9 @@ class AliasExtractionDashboardCompatibilityTestSuite:
         return passed
 
     def run_tools_command(self, args: List[str], timeout: int = 120) -> Dict[str, Any]:
-        """Execute run_tools.py command and return results."""
+        """Execute analysis_tool.py command and return results."""
         try:
-            cmd = [sys.executable, str(self.project_root / "run_tools.py")] + args
+            cmd = [sys.executable, "-m", "src.analysis_tool.core.analysis_tool"] + args
             result = subprocess.run(
                 cmd,
                 cwd=str(self.project_root),
