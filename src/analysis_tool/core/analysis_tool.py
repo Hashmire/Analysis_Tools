@@ -1016,6 +1016,12 @@ def main():
         from ..logging.badge_contents_collector import initialize_badge_contents_report
         initialize_badge_contents_report(current_run_paths["logs"])
         
+        # Configure alias reporting for incremental saves if enabled in test mode
+        if alias_report and args.source_uuid:
+            from ..logging.badge_contents_collector import configure_alias_reporting
+            configure_alias_reporting(current_run_paths["logs"], args.source_uuid)
+            logger.info("Alias reporting configured for incremental saves during test file processing", group="initialization")
+        
         # Initialize dashboard collector for test file mode
         from ..logging.dataset_contents_collector import initialize_dashboard_collector
         processing_mode = "test"
@@ -1173,6 +1179,12 @@ def main():
         from ..logging.badge_contents_collector import get_badge_contents_collector
         get_badge_contents_collector()  # This just creates the instance
         logger.info("Badge contents collector initialized", group="initialization")
+    
+    # Configure alias reporting for incremental saves if enabled
+    if alias_report and args.source_uuid:
+        from ..logging.badge_contents_collector import configure_alias_reporting
+        configure_alias_reporting(str(run_paths["logs"]), args.source_uuid)
+        logger.info("Alias reporting configured for incremental saves during CVE processing", group="initialization")
     
     # Initialize real-time dashboard collector
     # Determine processing mode for dashboard tracking

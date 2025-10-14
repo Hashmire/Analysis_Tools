@@ -92,6 +92,32 @@ class BadgeContentsCollector:
         }
         self.current_cve_data: Optional[Dict] = None
         self.output_file_path: Optional[str] = None
+        
+        # Alias report configuration tracking for incremental saves
+        self.alias_report_enabled: bool = False
+        self.alias_report_source_uuid: Optional[str] = None
+        self.alias_report_logs_directory: Optional[str] = None
+        
+        # Frequency control for intelligent save operations (aligned with dataset collector)
+        self._save_counter = 0
+        self._last_save_time = datetime.now()
+        self._save_interval_seconds = 5  # Save every 5 seconds at most
+        self._save_every_n_operations = 100  # Or every 100 operations
+    
+    def configure_alias_reporting(self, logs_directory: str, source_uuid: str) -> None:
+        """
+        Configure alias reporting for incremental saves during CVE processing.
+        
+        Args:
+            logs_directory: Directory to save alias reports
+            source_uuid: Source UUID for alias extraction targeting
+        """
+        self.alias_report_enabled = True
+        self.alias_report_logs_directory = logs_directory
+        self.alias_report_source_uuid = source_uuid
+        
+        if logger:
+            logger.info("Badge contents collector configured for alias report incremental saves", group="initialization")
     
     def initialize_output_file(self, logs_directory: str) -> bool:
         """
@@ -158,18 +184,32 @@ class BadgeContentsCollector:
     def complete_cve_processing(self) -> bool:
         """
         Complete processing for the current CVE and save to file.
+        Also performs incremental alias report saves if alias reporting is enabled.
         
         Returns:
             True if save successful, False otherwise
         """
-        if not self.current_cve_data or not self.output_file_path:
+        # Check if we have valid CVE data for processing
+        if not self.current_cve_data:
             return False
         
-        return self._save_to_file()
+        # Perform intelligent SDC save (only if SDC output file is configured)
+        sdc_save_success = True
+        if self.output_file_path:
+            # Use auto-save with frequency control for better performance
+            self._auto_save()
+            sdc_save_success = True  # Auto-save handles its own error logging
+        
+        # Perform incremental alias report save if enabled (independent of SDC)
+        alias_save_success = True
+        if self.alias_report_enabled and self.alias_report_logs_directory and self.alias_report_source_uuid:
+            alias_save_success = self._save_incremental_alias_report()
+        
+        return sdc_save_success and alias_save_success
     
     def _save_to_file(self) -> bool:
         """
-        Save current state to the JSON file.
+        Save current state to the JSON file using atomic write pattern.
         
         Returns:
             True if save successful, False otherwise
@@ -189,15 +229,104 @@ class BadgeContentsCollector:
                 'cve_data': self.cve_data
             }
             
-            # Write to JSON file
-            with open(self.output_file_path, 'w', encoding='utf-8') as f:
+            # Atomic write: Write to temporary file first, then rename
+            os.makedirs(os.path.dirname(self.output_file_path), exist_ok=True)
+            temp_file_path = self.output_file_path + '.tmp'
+            
+            with open(temp_file_path, 'w', encoding='utf-8') as f:
                 json.dump(export_data, f, indent=2, ensure_ascii=False)
+            
+            # Atomic rename - prevents readers from seeing partial/corrupted files
+            os.replace(temp_file_path, self.output_file_path)
             
             return True
             
         except Exception as e:
             if logger:
                 logger.error(f"Failed to save badge contents: {e}", group="badge_generation")
+            # Clean up temp file if it exists
+            temp_file_path = self.output_file_path + '.tmp' if self.output_file_path else None
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.remove(temp_file_path)
+                except:
+                    pass
+            return False
+    
+    def _auto_save(self, force: bool = False) -> bool:
+        """Auto-save data to file with intelligent frequency control (aligned with dataset collector)
+        
+        Args:
+            force: If True, bypass frequency limits and save immediately
+            
+        Returns:
+            True if save successful or skipped (no error), False on error
+        """
+        if not self.output_file_path:
+            return False
+            
+        try:
+            # Increment operation counter
+            self._save_counter += 1
+            
+            # Check if we should save based on frequency controls
+            now = datetime.now()
+            time_since_last_save = (now - self._last_save_time).total_seconds()
+            
+            # Enforce 5-second minimum to prevent I/O waste - primary check
+            if time_since_last_save < self._save_interval_seconds and not force:
+                return True  # Skip this save - too soon since last save (not an error)
+            
+            # Additional conditions that allow save (when 5+ seconds have passed or forced)
+            should_save = (
+                force or  # Forced save
+                self._save_counter >= self._save_every_n_operations or  # Hit operation limit
+                time_since_last_save >= self._save_interval_seconds  # Hit time limit
+            )
+            
+            if not should_save:
+                return True  # Skip this save (not an error)
+            
+            # Reset counters
+            self._save_counter = 0
+            self._last_save_time = now
+            
+            # Perform the save
+            return self._save_to_file()
+            
+        except Exception as e:
+            if logger:
+                logger.error(f"Auto-save failed: {e}", group="badge_generation")
+            return False
+    
+    def _save_incremental_alias_report(self) -> bool:
+        """
+        Save incremental alias extraction report during CVE processing.
+        Uses the same logic as the final alias report generation but saves incrementally.
+        
+        Returns:
+            True if save successful, False otherwise
+        """
+        if not self.alias_report_enabled or not self.alias_report_logs_directory or not self.alias_report_source_uuid:
+            return True  # Not an error if alias reporting isn't configured
+        
+        try:
+            # Use the existing generate_alias_extraction_report logic but call it incrementally
+            alias_report_path = generate_alias_extraction_report(
+                self.alias_report_logs_directory, 
+                self.alias_report_source_uuid,
+                is_final=False  # Mark as incremental save
+            )
+            
+            # Log incremental saves at info level for visibility during large dataset processing
+            if alias_report_path and logger:
+                logger.info(f"Incremental alias report saved: {os.path.basename(alias_report_path)}", group="data_processing")
+            
+            return alias_report_path is not None
+            
+        except Exception as e:
+            if logger:
+                logger.error(f"Failed to save incremental alias report: {e}", group="badge_generation")
             return False
     
     def collect_source_data_concern(self, table_index: int, source_id: str, vendor: str, product: str,
@@ -282,6 +411,9 @@ class BadgeContentsCollector:
             
             # Add to platform entries array
             self.current_cve_data['platform_entries'].append(platform_entry)
+            
+            # Trigger intelligent auto-save after collecting data
+            self._auto_save()
 
     def collect_clean_platform_entry(self, source_id: str) -> None:
         """
@@ -335,6 +467,9 @@ class BadgeContentsCollector:
                 'source_name': source_name,  # Add human-readable name
                 'cleanPlatformCount': 1
             })
+            
+        # Trigger intelligent auto-save after collecting data
+        self._auto_save()
 
     def collect_alias_extraction(self, table_index: int, source_id: str, alias_data: Dict, 
                                 entry_count: int, cve_id: str = None) -> None:
@@ -406,10 +541,13 @@ class BadgeContentsCollector:
             # Add to alias extractions array
             self.current_cve_data['alias_extractions'].append(alias_entry)
             
+            # Trigger intelligent auto-save after collecting data
+            self._auto_save()
+            
             if logger:
                 logger.debug(f"Collected alias extraction for table_index {table_index}: {entry_count} entries", group="badge_generation")
 
-    def generate_alias_report(self, logs_directory: str, source_uuid: str) -> Optional[str]:
+    def generate_alias_report(self, logs_directory: str, source_uuid: str, is_final: bool = False) -> Optional[str]:
         """
         Generate curator-compatible alias extraction report (aliasReport.json).
         
@@ -500,7 +638,7 @@ class BadgeContentsCollector:
                 elif logger:
                     logger.debug(f"No confirmed mappings found for UUID {source_uuid}", group="completion")
             
-            # Create curator-compatible output structure
+            # Create curator-compatible output structure with status tracking for incremental saves
             output_data = {
                 'metadata': {
                     'extraction_timestamp': datetime.now().isoformat(),
@@ -509,19 +647,26 @@ class BadgeContentsCollector:
                     'unique_aliases_extracted': len(all_alias_data),
                     'product_groups_created': len(alias_groups),
                     'extraction_source': 'Analysis_Tools_Badge_System',
-                    'curator_compatibility': True
+                    'curator_compatibility': True,
+                    'status': 'completed' if is_final else 'in_progress',
+                    'run_started_at': self.consolidated_metadata.get('run_started_at', datetime.now().isoformat())
                 },
                 'aliasGroups': alias_groups,
                 'confirmedMappings': confirmed_mappings  # Now loaded from existing mapping files
             }
             
-            # Write alias report file
+            # Write alias report file using atomic write to prevent corruption during incremental saves
             os.makedirs(logs_directory, exist_ok=True)
             output_filename = "aliasExtractionReport.json"
             output_path = os.path.join(logs_directory, output_filename)
             
-            with open(output_path, 'w', encoding='utf-8') as f:
+            # Use atomic write pattern (same as dataset collector and SDC collector)
+            temp_file_path = output_path + '.tmp'
+            with open(temp_file_path, 'w', encoding='utf-8') as f:
                 json.dump(output_data, f, indent=2, ensure_ascii=False)
+            
+            # Atomic rename - prevents readers from seeing partial/corrupted files
+            os.replace(temp_file_path, output_path)
             
             if logger:
                 logger.info(f"Alias report generated: {len(alias_groups)} groups, {len(all_alias_data)} unique aliases", group="completion")
@@ -531,6 +676,15 @@ class BadgeContentsCollector:
         except Exception as e:
             if logger:
                 logger.error(f"Failed to generate alias report: {e}", group="completion")
+            
+            # Clean up temp file if it exists
+            temp_file_path = output_path + '.tmp' if 'output_path' in locals() else None
+            if temp_file_path and os.path.exists(temp_file_path):
+                try:
+                    os.remove(temp_file_path)
+                except:
+                    pass
+            
             return None
     
     def _increment_concern_type_count(self, concern_counts_array: List[Dict], concern_type: str) -> None:
@@ -599,57 +753,42 @@ class BadgeContentsCollector:
         
         if total_entries_with_concerns == 0:
             # Still save the file for completeness, but mark it
-            try:
-                export_data = {
-                    'metadata': {
-                        **self.consolidated_metadata,
-                        'run_completed_at': datetime.now().isoformat(),
-                        'report_scope': 'Platform Entry Notifications - Source Data Concerns Only',
-                        'status': 'completed_no_concerns'
-                    },
-                    'cve_data': self.cve_data
-                }
-                
-                with open(self.output_file_path, 'w', encoding='utf-8') as f:
-                    json.dump(export_data, f, indent=2, ensure_ascii=False)
-                    
-            except Exception as e:
+            self.consolidated_metadata.update({
+                'run_completed_at': datetime.now().isoformat(),
+                'report_scope': 'Platform Entry Notifications - Source Data Concerns Only',
+                'status': 'completed_no_concerns'
+            })
+            
+            # Force final save with completion metadata
+            if not self._auto_save(force=True):
                 if logger:
-                    logger.error(f"Failed to finalize empty badge contents report: {e}", group="completion")
+                    logger.error(f"Failed to finalize empty badge contents report", group="completion")
             
             return self.output_file_path
         
-        try:
-            # Update final metadata and mark as complete
-            export_data = {
-                'metadata': {
-                    **self.consolidated_metadata,
-                    'run_completed_at': datetime.now().isoformat(),
-                    'report_scope': 'Platform Entry Notifications - Source Data Concerns Only',
-                    'status': 'completed'
-                },
-                'cve_data': self.cve_data
-            }
-            
-            # Write final version to JSON file
-            with open(self.output_file_path, 'w', encoding='utf-8') as f:
-                json.dump(export_data, f, indent=2, ensure_ascii=False)
-            
-            # Print final summary
-            cves_processed = self.consolidated_metadata['total_cves_processed']
-            cves_with_concerns = len([cve for cve in self.cve_data if cve['cve_metadata']['entries_with_concerns'] > 0])
-            entries_processed = self.consolidated_metadata['total_platform_entries']
-            
+        # Update final metadata and mark as complete
+        self.consolidated_metadata.update({
+            'run_completed_at': datetime.now().isoformat(),
+            'report_scope': 'Platform Entry Notifications - Source Data Concerns Only',
+            'status': 'completed'
+        })
+        
+        # Force final save with completion metadata
+        if not self._auto_save(force=True):
             if logger:
-                logger.info(f"Badge contents report complete: {cves_with_concerns}/{cves_processed} CVEs with concerns, "
-                          f"{total_entries_with_concerns}/{entries_processed} entries with concerns", group="completion")
-            
-            return self.output_file_path
-            
-        except Exception as e:
-            if logger:
-                logger.error(f"Failed to finalize badge contents report: {e}", group="completion")
+                logger.error(f"Failed to finalize badge contents report", group="completion")
             return None
+        
+        # Print final summary
+        cves_processed = self.consolidated_metadata['total_cves_processed']
+        cves_with_concerns = len([cve for cve in self.cve_data if cve['cve_metadata']['entries_with_concerns'] > 0])
+        entries_processed = self.consolidated_metadata['total_platform_entries']
+        
+        if logger:
+            logger.info(f"Badge contents report complete: {cves_with_concerns}/{cves_processed} CVEs with concerns, "
+                      f"{total_entries_with_concerns}/{entries_processed} entries with concerns", group="completion")
+        
+        return self.output_file_path
 
 # Global collector instance
 _badge_contents_collector = None
@@ -701,19 +840,31 @@ def collect_alias_extraction_data(table_index: int, source_id: str, alias_data: 
     collector = get_badge_contents_collector()
     collector.collect_alias_extraction(table_index, source_id, alias_data, entry_count, cve_id)
 
-def generate_alias_extraction_report(logs_directory: str, source_uuid: str) -> Optional[str]:
+def generate_alias_extraction_report(logs_directory: str, source_uuid: str, is_final: bool = True) -> Optional[str]:
     """
     Generate curator-compatible alias extraction report.
     
     Args:
         logs_directory: Directory to save the alias report
         source_uuid: Source UUID for confirmed mappings matching
+        is_final: Whether this is the final report (marks as completed) or incremental (in_progress)
         
     Returns:
         Path to generated aliasReport.json file, or None if generation failed
     """
     collector = get_badge_contents_collector()
-    return collector.generate_alias_report(logs_directory, source_uuid)
+    return collector.generate_alias_report(logs_directory, source_uuid, is_final)
+
+def configure_alias_reporting(logs_directory: str, source_uuid: str) -> None:
+    """
+    Configure alias reporting for incremental saves during CVE processing.
+    
+    Args:
+        logs_directory: Directory to save alias reports  
+        source_uuid: Source UUID for alias extraction targeting
+    """
+    collector = get_badge_contents_collector()
+    collector.configure_alias_reporting(logs_directory, source_uuid)
 
 def finalize_badge_contents_report() -> Optional[str]:
     """Finalize the badge contents report at the end of a run."""

@@ -2152,17 +2152,38 @@ class BadgeModalFactory {
     }
 
     static generateBloatTextDetectionContent(concern) {
+        // Determine specific problem and resolution based on pattern type
+        let problemText = `${concern.field} contains bloat text which creates additional downstream parsing complexity and may impact version identification or CPE-AS generation.`;
+        let resolutionText = `
+            <li>Remove bloat text from version fields.</li>
+            <li>Example: <code>"version": "Version 2.011"</code> should be represented as <code>"version": "2.011"</code>.</li>
+        `;
+
+        if (concern.detectedPattern.patternType === 'vendor_redundancy') {
+            problemText = `${concern.field} field contains redundant vendor value which creates additional downstream parsing complexity and may impact platform identification.`;
+            
+            // Generate specific example based on the actual data
+            const vendorName = concern.detectedPattern.detectedValue;
+            const originalProduct = concern.sourceValue;
+            const suggestedProduct = originalProduct.replace(new RegExp(`\\b${vendorName}\\b\\s*`, 'gi'), '').trim();
+            
+            resolutionText = `
+                <strong>Resolution:</strong><br>
+                Remove the redundant vendor value from <code>${concern.field}</code>
+            `;
+        }
+
         return `
             <div class="concern-content">
                 <div class="problem-description mb-2">
                     <strong class="text-danger">Problem:</strong>
-                    <p class="mb-2">${concern.field} contains bloat text which creates additional downstream parsing complexity and may impact version identification or CPE-AS generation.</p>
+                    <p class="mb-2">${problemText}</p>
                 </div>
                 <div class="problematic-data mb-2">
                     <strong class="text-warning">Problematic Data:</strong>
                     <div class="data-display mt-1">
                         <div class="mb-2">
-                            Pattern <strong>${concern.detectedPattern.detectedValue}</strong> detected in <strong>${concern.field}</strong> content
+                            Pattern <strong>${concern.detectedPattern.detectedValue}</strong> (${concern.detectedPattern.patternType}) detected in <strong>${concern.field}</strong> content
                         </div>
                         <div class="code-block bg-light p-2 rounded border">
                             <code>"${concern.field}": "${concern.sourceValue}"</code>
@@ -2172,8 +2193,7 @@ class BadgeModalFactory {
                 <div class="resolution-guidance">
                     <strong class="text-success">Resolution:</strong>
                     <ul class="mb-0 text-muted">
-                        <li>Remove bloat text from version fields.</li>
-                        <li>Example: <code>"version": "Version 2.011"</code> should be represented as <code>"version": "2.011"</code>.</li>
+                        ${resolutionText}
                     </ul>
                 </div>
             </div>

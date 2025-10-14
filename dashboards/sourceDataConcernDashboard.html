@@ -3913,6 +3913,23 @@
         function generateBloatTextDetectionContent(concern) {
             const detectedValue = concern.detectedPattern?.detectedValue || 'Unknown';
             
+            // Enhanced vendor redundancy handling
+            if (concern.detectedPattern.patternType === 'vendor_redundancy') {
+                const suggestedProduct = concern.sourceValue.replace(detectedValue, '').trim();
+                return `
+                    <div class="sdc-concern-problem mb-2">
+                        <strong>Problem:</strong> Product field contains redundant vendor value which creates additional downstream parsing complexity and may impact platform identification.
+                    </div>
+                    <div class="sdc-concern-data mb-2">
+                        <strong>Data:</strong> Pattern <strong>${detectedValue}</strong> detected in <code>${concern.field}</code> content <code>"${concern.field}": "${concern.sourceValue}"</code>
+                    </div>
+                    <div class="sdc-concern-resolution">
+                        <strong>Resolution:</strong><br>
+                        Remove the redundant vendor value from <code>${concern.field}</code>
+                    </div>
+                `;
+            }
+            
             return `
                 <div class="sdc-concern-problem mb-2">
                     <strong>Problem:</strong> ${concern.field} contains bloat text which creates additional downstream parsing complexity and may impact version identification or CPE-AS generation.
