@@ -644,11 +644,20 @@ def main():
         from analysis_tool.core import gatherData
         from analysis_tool.storage.nvd_source_manager import get_global_source_manager
         
-        # Load NVD source data for shortname resolution
-        logger.info("Loading NVD source data for shortname resolution...", group="initialization")
-        nvd_source_data = gatherData.gatherNVDSourceData(resolved_api_key)
+        # Initialize NVD source manager with fallback logic for standalone execution
         source_manager = get_global_source_manager()
-        source_manager.initialize(nvd_source_data)
+        
+        if source_manager.is_initialized():
+            logger.info("NVD source manager already initialized", group="initialization")
+            logger.info(f"Using existing source data with {source_manager.get_source_count()} entries", group="initialization")
+        else:
+            logger.info("NVD source manager not initialized - loading source data from API", group="initialization")
+            logger.info("If generate_dataset was not executed directly, there may be an issue with the unified source managment", group="initialization")
+            
+            # Load NVD source data as fallback for standalone execution
+            nvd_source_data = gatherData.gatherNVDSourceData(resolved_api_key)
+            source_manager.initialize(nvd_source_data)
+            logger.info(f"NVD source manager initialized from API with {source_manager.get_source_count()} entries", group="initialization")
         
         # Get human-readable shortname (capped to 7-8 characters)
         full_shortname = source_manager.get_source_shortname(args.source_uuid)

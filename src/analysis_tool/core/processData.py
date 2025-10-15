@@ -536,7 +536,7 @@ def deriveCPEMatchStringList(rawDataSet):
     return distinct_values_list
 #
 # Generates a list of CPE Base Strings and relevant contextual information about each
-def suggestCPEData(apiKey, rawDataset, case, sdc_only=False):
+def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False, cpe_as_generator=False):
     match case:
         # Case 1 CVE List
         case 1:
@@ -1203,6 +1203,13 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False):
             # End the CPE generation stage now that we have generated the CPE match strings
             end_unique_cpe_generation("CPE base strings extracted")
             
+            # Process confirmed mappings if alias report or CPE-as-generator features are enabled
+            if alias_report or cpe_as_generator:
+                logger.info("Processing confirmed mappings for alias/CPE features", group="data_processing")
+                rawDataset = process_confirmed_mappings(rawDataset)
+            else:
+                logger.info("Confirmed mappings skipped - feature not enabled", group="data_processing")
+            
             # CPE features disabled: Skip expensive NVD CPE API calls but keep source data concerns analysis
             if sdc_only:
                 logger.info("CPE features disabled: Skipping NVD CPE API calls - source data concerns analysis complete", group="data_processing")
@@ -1505,12 +1512,13 @@ def processCVEData(dataframe, cveRecordData):
     # Log source UUID filtering configuration
     if source_uuid:
         logger.info(f"Source UUID filtering enabled: {source_uuid}", group="data_processing")
-        # Validate that the source exists
+        # Validate that the source exists in unified registry
         source_info = manager.get_source_by_id(source_uuid)
         if source_info:
             logger.info(f"Filtering to source: {source_info['name']}", group="data_processing")
         else:
-            logger.warning(f"Source UUID {source_uuid} not found in registry - continuing with filtering", group="data_processing")
+            logger.warning(f"Source UUID {source_uuid} not found in unified registry - this indicates a manager synchronization issue", group="data_processing")
+            logger.info("Source data should have been initialized before CVE processing - check initialization order", group="data_processing")
     else:
         logger.info("Source UUID filtering disabled (processing all sources)", group="data_processing")
     
@@ -2375,7 +2383,7 @@ def validate_cpe_specificity(cpe_string):
     return True, "Valid specificity"
 
 
-def processPlatformDataOnly(rawDataset):
+def processPlatformDataOnly(rawDataset, alias_report=False, cpe_as_generator=False):
     """
     Process platform data for SDC and Alias features without CPE generation.
     
@@ -2384,9 +2392,12 @@ def processPlatformDataOnly(rawDataset):
     
     Args:
         rawDataset: DataFrame containing CVE data
+        alias_report: Whether alias report feature is enabled
+        cpe_as_generator: Whether CPE-as-generator feature is enabled
         
     Returns:
-        DataFrame with populated rawPlatformData column
+        DataFrame with populated rawPlatformData column and confirmed mappings if applicable
     """
     # Reuse the existing platform processing logic but skip CPE generation
-    return suggestCPEData(None, rawDataset, 1, sdc_only=True)
+    return suggestCPEData(None, rawDataset, 1, sdc_only=True, 
+                         alias_report=alias_report, cpe_as_generator=cpe_as_generator)

@@ -29,6 +29,12 @@ class UnifiedSourceManager:
         # Load source data from global NVD source manager
         global_manager = get_global_source_manager()
         
+        # Ensure the global manager is properly initialized before copying data
+        if not global_manager.is_initialized():
+            # Global manager not ready - this should not happen if initialization order is correct
+            self._initialized = True  # Mark as initialized to prevent infinite recursion
+            return
+        
         # Build unified registry from global manager data
         # The GlobalNVDSourceManager has _source_lookup which maps IDs to source info
         # BUT it has duplicate entries (same source_info for orgId and each sourceIdentifier)
@@ -258,17 +264,11 @@ console.debug('Unified Source Manager initialized with', Object.keys(window.UNIF
         
         Args:
             source_uuid: The source UUID to filter by, or None to disable filtering
+            
+        Note: UUID validation is deferred until the source managers are properly initialized
+        to avoid timing issues during early argument parsing.
         """
         self._filter_source_uuid = source_uuid
-        
-        # Initialize if not already done to validate the UUID
-        if not self._initialized:
-            self.initialize()
-            
-        # Validate that the source UUID exists if provided
-        if source_uuid and source_uuid not in self._source_registry:
-            # Log warning but don't fail - allow processing to continue
-            print(f"Warning: Source UUID {source_uuid} not found in source registry")
     
     def get_source_uuid_filter(self) -> Optional[str]:
         """Get the current source UUID filter.

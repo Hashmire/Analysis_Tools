@@ -352,27 +352,25 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         if cpe_suggestions:
             # Full CPE processing: platform data + CPE generation + API calls
             try:
-                primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1)
+                primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1, 
+                                                            alias_report=alias_report, cpe_as_generator=cpe_as_generator)
             except Exception as cpe_error:
                 logger.warning(f"CPE suggestion failed for {cve_id}: Unable to complete CPE data suggestion - {str(cpe_error)}", group="data_processing")
                 logger.info("Continuing with available data...", group="data_processing")
-        elif sdc_report or alias_report:
+        elif sdc_report or alias_report or cpe_as_generator:
             # Platform data processing only (no CPE generation or API calls)
             try:
-                primaryDataframe = processData.processPlatformDataOnly(primaryDataframe)
+                primaryDataframe = processData.processPlatformDataOnly(primaryDataframe, 
+                                                                     alias_report=alias_report, cpe_as_generator=cpe_as_generator)
             except Exception as platform_error:
                 logger.warning(f"Platform processing failed for {cve_id}: Unable to complete platform analysis - {str(platform_error)}", group="data_processing")
                 logger.info("Continuing with available data...", group="data_processing")
         else:
             logger.info(f"Platform processing skipped - no features requiring platform data are enabled", group="data_processing")
         
-        # Note: CPE generation and query stages are now handled internally by suggestCPEData
-        
         # HTML Generation Decision
-        if sdc_report and not cpe_suggestions and not alias_report and not cpe_as_generator:
+        if not cpe_as_generator:
             logger.info("HTML generation skipped - CPE features disabled", group="data_processing")
-        elif alias_report and not cpe_suggestions and not sdc_report and not cpe_as_generator:
-            logger.info("HTML generation skipped - alias-only mode", group="data_processing")
             
         # Source Data Concerns Processing
         if sdc_report:
@@ -489,15 +487,8 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
                 logger.info("Continuing without alias extraction...", group="data_processing")
         
         # HTML generation decision based on feature flags
-        # Only generate HTML for CPE as Generator mode or when multiple features are enabled
-        should_generate_html = cpe_as_generator or (
-            (sdc_report or cpe_suggestions) and not (
-                # Skip HTML for single-feature modes that don't need interactive pages
-                (sdc_report and not cpe_suggestions and not alias_report and not cpe_as_generator) or
-                (cpe_suggestions and not sdc_report and not alias_report and not cpe_as_generator) or
-                (alias_report and not cpe_suggestions and not sdc_report and not cpe_as_generator)
-            )
-        )
+        # Only generate HTML when cpe_as_generator is enabled (the only feature that needs interactive HTML pages)
+        should_generate_html = cpe_as_generator
         
         if not should_generate_html:
             logger.info("HTML generation skipped for this feature configuration", group="page_generation")
@@ -899,8 +890,8 @@ def main():
         enabled_features.append("CPE as Generator")
     logger.info(f"Enabled features: {', '.join(enabled_features) if enabled_features else 'None'}", group="initialization")
     
-    # Automatically enable appropriate flags if only SDC report is enabled
-    if sdc_report and not cpe_suggestions and not alias_report and not cpe_as_generator:
+    # Automatically enable appropriate flags when CPE features are disabled
+    if not cpe_suggestions and not cpe_as_generator:
         args.no_cache = True
         args.no_browser = True
         logger.info("CPE features disabled - enabling optimizations (--no-cache, --no-browser)", group="initialization")
@@ -984,14 +975,27 @@ def main():
         logger.warning("No NVD API key available - processing will be MUCH slower due to rate limiting", group="initialization")
         logger.info("Use --api-key YOUR_KEY or --api-key (for config default) or set default_api_key in config.json", group="initialization")
     
-    # Gather NVD Source Data (done once, shared by both paths)
-    logger.info("Gathering NVD source entries...", group="initialization")
-    nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
-    
-    # Initialize global NVD source manager (done once per session, shared by both paths)
+    # Initialize global NVD source manager with fallback logic for direct execution
     from ..storage.nvd_source_manager import get_global_source_manager
     source_manager = get_global_source_manager()
-    source_manager.initialize(nvd_source_data)
+    
+    if source_manager.is_initialized():
+        logger.info("NVD source manager already initialized", group="initialization")
+        logger.info(f"Using existing source data with {source_manager.get_source_count()} entries", group="initialization")
+    else:
+        logger.info("NVD source manager not initialized - gathering source data from API", group="initialization")
+        logger.warning("NVD /source/ API content not found, confirm if analysis_tools was run directly", group="initialization")
+        
+        # Gather NVD Source Data as fallback for direct execution
+        nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
+        source_manager.initialize(nvd_source_data)
+        logger.info(f"NVD source manager initialized from API with {source_manager.get_source_count()} entries", group="initialization")
+    
+    # Initialize unified source manager
+    from .unified_source_manager import get_unified_source_manager
+    unified_manager = get_unified_source_manager()
+    unified_manager.initialize()
+    logger.info("Unified source manager initialized with synchronized data", group="initialization")
     
     # Initialize global CPE cache (done once per session, shared by both paths)
     from ..storage.cpe_cache import get_global_cache_manager
