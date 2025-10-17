@@ -2,11 +2,11 @@
 """
 Alias Extraction Dashboard Compatibility Test Suite
 
-This test suite validates the new alias extraction workflow through run_tools.py
+This test suite validates the new alias extraction workflow through the analysis tool
 and ensures compatibility with aliasMappingDashboard.html.
 
 Test Coverage:
-- Phase 1: Basic alias extraction through run_tools.py
+- Phase 1: Basic alias extraction through analysis tool module
 - Phase 2: Output format validation for dashboard compatibility
 - Phase 3: Dashboard data structure requirements
 - Phase 4: Integration with aliasMappingDashboard.html
@@ -166,7 +166,7 @@ class AliasExtractionDashboardCompatibilityTestSuite:
     # ============================================================================
     
     def test_01_basic_alias_extraction_execution(self):
-        """Test basic alias extraction through run_tools.py."""
+        """Test basic alias extraction through analysis tool module."""
         if not os.environ.get('UNIFIED_TEST_RUNNER'):
             print("Running Test 1: Basic Alias Extraction Execution")
         

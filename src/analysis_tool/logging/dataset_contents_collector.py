@@ -1071,150 +1071,6 @@ class UnifiedDashboardCollector:
             if logger:
                 logger.debug(f"Failed to start collection phase: {e}", group="data_processing")
 
-    def _parse_log_entry(self, log_line, level):
-        """Parse a single log entry and extract structured information"""
-        try:
-            import re
-            
-            # Parse log line format: [YYYY-MM-DD HH:MM:SS] [LEVEL] message
-            timestamp_pattern = r'\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]'
-            level_pattern = r'\[(WARNING|ERROR)\]'
-            
-            timestamp_match = re.search(timestamp_pattern, log_line)
-            level_match = re.search(level_pattern, log_line)
-            
-            if not timestamp_match or not level_match:
-                return None
-                
-            timestamp = timestamp_match.group(1)
-            message = log_line.split('] ', 2)[-1] if '] ' in log_line else log_line
-            
-            # Extract CVE context using multiple strategies
-            cve_id = self._extract_cve_context(message, timestamp)
-            
-            return {
-                "timestamp": timestamp,
-                "level": level,
-                "message": message.strip(),
-                "cve_id": cve_id,
-                "raw_line": log_line
-            }
-            
-        except Exception as e:
-            return None
-
-    def _extract_cve_context(self, message, timestamp):
-        """Extract CVE context using multiple strategies"""
-        import re
-        
-        # Strategy 1: Direct CVE ID in message (highest priority)
-        cve_pattern = r'CVE-\d{4}-\d{4,7}'
-        cve_match = re.search(cve_pattern, message)
-        if cve_match:
-            return cve_match.group(0)
-        
-        # Strategy 2: Look for processing context clues in the message
-        processing_patterns = [
-            (r'Processing ([A-Z][A-Z\-0-9]+)', r'CVE-\d{4}-\d{4,7}'),  # "Processing CVE-XXXX-XXXX"
-            (r'Gathering data for ([A-Z][A-Z\-0-9]+)', r'CVE-\d{4}-\d{4,7}'),  # "Gathering data for CVE-XXXX-XXXX"
-            (r'Started CVE processing: ([A-Z][A-Z\-0-9]+)', r'CVE-\d{4}-\d{4,7}'),  # Direct CVE processing messages
-            (r'([A-Z][A-Z\-0-9]+) has invalid', r'CVE-\d{4}-\d{4,7}'),  # "CVE-XXXX-XXXX has invalid..."
-            (r'([A-Z][A-Z\-0-9]+) is in REJECTED', r'CVE-\d{4}-\d{4,7}'),  # "CVE-XXXX-XXXX is in REJECTED..."
-        ]
-        
-        for pattern, cve_format in processing_patterns:
-            match = re.search(pattern, message)
-            if match:
-                potential_cve = match.group(1)
-                if re.match(cve_format, potential_cve):
-                    return potential_cve
-        
-        # Strategy 3: Use CVE processing timeline to match timestamp windows (MOST ACCURATE)
-        # This handles cases where messages occur during CVE processing but don't contain CVE IDs
-        cve_from_timeline = self._match_timestamp_to_cve(timestamp)
-        if cve_from_timeline:
-            return cve_from_timeline
-        
-        # Strategy 4: Use current processing context when timeline matching fails
-        if self.current_processing_cve:
-            return self.current_processing_cve
-        elif self.data["processing"]["current_cve"]:
-            return self.data["processing"]["current_cve"]
-        
-        # Debug: Log when we can't match a CVE for analysis
-        if hasattr(self, 'logger') and self.logger:
-            timeline_count = len(getattr(self, 'cve_processing_timeline', []))
-            current_cve = self.current_processing_cve or self.data["processing"]["current_cve"] or "None"
-            timeline_info = ""
-            if hasattr(self, 'cve_processing_timeline') and self.cve_processing_timeline:
-                recent_cves = [entry.get('cve_id', 'unknown') for entry in self.cve_processing_timeline[-3:]]
-                timeline_info = f", recent_timeline_cves={recent_cves}"
-            self.logger.debug(f"No CVE match for log at {timestamp}: current_cve={current_cve}, timeline_entries={timeline_count}{timeline_info}, message_preview={message[:50]}...", group="data_processing")
-        
-        # Strategy 5: Default to unknown for system-wide messages
-        return "unknown"
-
-    def _match_timestamp_to_cve(self, timestamp):
-        """Match a log timestamp to a CVE based on processing timeline"""
-        try:
-            from datetime import datetime
-            
-            # Parse the log timestamp
-            log_time = datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
-            
-            # Check if we have CVE processing timeline data
-            if not hasattr(self, 'cve_processing_timeline'):
-                return None
-            
-            if not self.cve_processing_timeline:
-                return None
-            
-            # Sort timeline entries by start time (newest first for best match)
-            sorted_timeline = []
-            for timeline_entry in self.cve_processing_timeline:
-                if 'start_time' in timeline_entry and 'cve_id' in timeline_entry:
-                    try:
-                        start_time_str = timeline_entry['start_time']
-                        # Handle ISO format with or without timezone
-                        if 'Z' in start_time_str:
-                            start_time_str = start_time_str.replace('Z', '+00:00')
-                        if '+' in start_time_str or start_time_str.endswith('Z'):
-                            entry_start = datetime.fromisoformat(start_time_str)
-                            # Remove timezone info for comparison
-                            if entry_start.tzinfo:
-                                entry_start = entry_start.replace(tzinfo=None)
-                        else:
-                            entry_start = datetime.fromisoformat(start_time_str)
-                        
-                        sorted_timeline.append({
-                            'cve_id': timeline_entry['cve_id'],
-                            'start_time': entry_start
-                        })
-                    except (ValueError, KeyError):
-                        continue
-            
-            # Sort by start time (newest first)
-            sorted_timeline.sort(key=lambda x: x['start_time'], reverse=True)
-            
-            # Find the best match - the most recent CVE processing that started before this log
-            for entry in sorted_timeline:
-                entry_start = entry['start_time']
-                
-                if entry_start <= log_time:
-                    # Check that the log occurred within a reasonable time window
-                    time_diff = (log_time - entry_start).total_seconds()
-                    # Use more reasonable time window - 10 minutes for dataset generation context
-                    if time_diff <= 600:  # Within 10 minutes of CVE processing start
-                        return entry['cve_id']
-            
-            return None
-            
-        except Exception as e:
-            # Debug: Log the exception to understand what's going wrong
-            if hasattr(self, 'logger') and self.logger:
-                self.logger.debug(f"Timeline matching error for timestamp {timestamp}: {e}", group="data_processing")
-            return None
-
     def _categorize_warning(self, message):
         """Categorize warning messages into appropriate sub-categories"""
         message_lower = message.lower()
@@ -1272,137 +1128,6 @@ class UnifiedDashboardCollector:
         
         else:
             return "other_errors"
-
-    def _consolidate_log_entries(self):
-        """Consolidate similar log entries per CVE to reduce storage and improve readability"""
-        try:
-            # Consolidate warnings
-            for category in self.data["warnings"]:
-                self.data["warnings"][category] = self._consolidate_entries_by_cve(
-                    self.data["warnings"][category]
-                )
-            
-            # Consolidate errors
-            for category in self.data["errors"]:
-                self.data["errors"][category] = self._consolidate_entries_by_cve(
-                    self.data["errors"][category]
-                )
-                
-        except Exception as e:
-            if logger:
-                logger.debug(f"Failed to consolidate log entries: {e}", group="data_processing")
-
-    def _consolidate_entries_by_cve(self, entries):
-        """Consolidate entries by CVE ID first, then by error category within each CVE"""
-        if not entries:
-            return []
-            
-        try:
-            import re
-            cve_groups = {}
-            
-            for entry in entries:
-                # Handle both raw entries and already consolidated entries
-                if "cve_subcategories" in entry:
-                    # This is already a consolidated entry, skip re-consolidation
-                    continue
-                    
-                if "message" not in entry:
-                    # Invalid entry structure, skip
-                    continue
-                    
-                cve_id = entry.get("cve_id", "unknown")
-                message = entry["message"]
-                timestamp = entry.get("timestamp", "")
-                
-                # Determine the error category based on message content
-                category = self._determine_error_category(message)
-                
-                # Group by CVE ID first
-                if cve_id not in cve_groups:
-                    cve_groups[cve_id] = {
-                        "cve_id": cve_id,
-                        "total_count": 0,
-                        "first_occurrence": timestamp,
-                        "last_occurrence": timestamp,
-                        "cve_subcategories": {}
-                    }
-                
-                cve_group = cve_groups[cve_id]
-                cve_group["total_count"] += 1
-                
-                # Update timestamps
-                if timestamp:
-                    if not cve_group["first_occurrence"] or timestamp < cve_group["first_occurrence"]:
-                        cve_group["first_occurrence"] = timestamp
-                    if timestamp > cve_group["last_occurrence"]:
-                        cve_group["last_occurrence"] = timestamp
-                
-                # Group by category within the CVE
-                if category not in cve_group["cve_subcategories"]:
-                    cve_group["cve_subcategories"][category] = {
-                        "category": category,
-                        "count": 0,
-                        "messages": [],
-                        "first_occurrence": timestamp,
-                        "last_occurrence": timestamp
-                    }
-                
-                subcategory = cve_group["cve_subcategories"][category]
-                subcategory["count"] += 1
-                
-                # Update subcategory timestamps
-                if timestamp:
-                    if not subcategory["first_occurrence"] or timestamp < subcategory["first_occurrence"]:
-                        subcategory["first_occurrence"] = timestamp
-                    if timestamp > subcategory["last_occurrence"]:
-                        subcategory["last_occurrence"] = timestamp
-                
-                # Store unique messages (limit to 5 per subcategory to prevent bloat)
-                if message not in subcategory["messages"] and len(subcategory["messages"]) < 5:
-                    subcategory["messages"].append(message)
-            
-            # Convert to list and sort by total count descending, then by CVE ID
-            result = list(cve_groups.values())
-            result.sort(key=lambda x: (-x["total_count"], x["cve_id"]))
-            
-            # Add back any already-consolidated entries that we skipped
-            already_consolidated = [entry for entry in entries if "cve_subcategories" in entry]
-            result.extend(already_consolidated)
-            
-            # Limit to top 30 CVEs per category to prevent excessive data
-            return result[:30]
-            
-        except Exception as e:
-            if logger:
-                logger.error(f"Entry consolidation failed: {str(e)}. This indicates a data processing issue that requires investigation.", group="data_processing")
-
-    def _determine_error_category(self, message):
-        """Determine the error category based on message content"""
-        message_lower = message.lower()
-        
-        # API-related
-        if any(keyword in message_lower for keyword in ['api', 'request failed', 'connection', 'authentication', 'network', 'rate limit', 'timeout']):
-            return "API Issues"
-        
-        # File-related
-        elif any(keyword in message_lower for keyword in ['file not found', 'read', 'write', 'permission denied', 'io error', 'disk', 'space']):
-            return "File System Issues"
-        
-        # Cache-related
-        elif any(keyword in message_lower for keyword in ['cache', 'expired', 'miss', 'hit rate']):
-            return "Cache Issues"
-        
-        # Processing/Data
-        elif any(keyword in message_lower for keyword in ['processing', 'parse', 'format', 'data', 'field', 'validation', 'schema', 'invalid', 'malformed']):
-            return "Data Processing Issues"
-        
-        # System/Configuration
-        elif any(keyword in message_lower for keyword in ['memory', 'system', 'dependency', 'import', 'module', 'config', 'setting', 'parameter']):
-            return "System/Config Issues"
-        
-        else:
-            return "Other Issues"
 
     def _update_eta(self):
         """Update ETA calculation - single source of truth used by both progress and detailed sections"""
@@ -1473,8 +1198,6 @@ class UnifiedDashboardCollector:
             self._save_counter = 0
             self._last_save_time = now
             
-            # Update log statistics before saving
-            self.update_log_statistics()
             
             # Calculate file_stats from detailed_files to avoid double counting
             detailed_files = self.data["file_stats"]["detailed_files"]
@@ -1606,10 +1329,10 @@ class UnifiedDashboardCollector:
             logger.error(f"Failed to record dataset API call: {e}", group="collection")
     
     def record_error(self, error_message: str):
-        """Record an error during processing - now handled by log parsing system"""
+        """Record an error during processing - handled by real-time logging system"""
         try:
-            # Actual error tracking is done through log file parsing in update_log_statistics()
-            # This method just logs the error
+            # Error tracking is handled in real-time through record_cve_error()
+            # This method just logs the error for immediate visibility
             if logger:
                 logger.error(error_message, group="collection")
             
@@ -1759,11 +1482,9 @@ class UnifiedDashboardCollector:
             if logger and hasattr(logger, 'current_log_path'):
                 self.data["metadata"]["log_file"] = logger.current_log_path
                 
-                # Perform enhanced log analysis before saving final data
                 try:
-                    self.update_log_statistics()
                     if logger:
-                        logger.debug("Enhanced log analysis completed and integrated into dashboard data", group="completion")
+                        logger.debug("Enhanced log analysis skipped - using real-time warning/error data", group="completion")
                 except Exception as log_error:
                     if logger:
                         logger.error(f"Enhanced log analysis failed: {log_error}", group="completion")

@@ -28,6 +28,86 @@ def load_config():
         return json.load(f)
 
 
+def create_source_data_cache(api_key):
+    """
+    Create a localized cache of NVD source data for the harvest session.
+    This prevents each subprocess from having to reload the same source data.
+    """
+    print("🔄 Initializing NVD source data cache for harvest session...")
+    
+    try:
+        # Import the source manager
+        sys.path.insert(0, str(get_analysis_tools_root() / "src"))
+        from analysis_tool.storage.nvd_source_manager import get_global_source_manager, try_load_from_environment_cache
+        from analysis_tool.core.gatherData import gatherNVDSourceData
+        
+        # Check existing cache age and refresh if needed
+        source_manager = get_global_source_manager()
+        
+        # Check if we need to refresh the cache
+        should_refresh = True
+        if not source_manager.is_initialized():
+            # Try to load existing cache first
+            if try_load_from_environment_cache():
+                print("🔄 Found existing cache, checking age...")
+                
+                # Check cache age
+                from datetime import datetime
+                import json
+                from pathlib import Path
+                
+                try:
+                    cache_metadata_path = get_analysis_tools_root() / "src" / "cache" / "cache_metadata.json"
+                    if cache_metadata_path.exists():
+                        with open(cache_metadata_path, 'r') as f:
+                            metadata = json.load(f)
+                        
+                        if 'datasets' in metadata and 'nvd_source_data' in metadata['datasets']:
+                            last_updated = datetime.fromisoformat(metadata['datasets']['nvd_source_data']['last_updated'])
+                            age_hours = (datetime.now() - last_updated).total_seconds() / 3600
+                            
+                            if age_hours < 6:  # Cache is less than 6 hours old
+                                print(f"✅ Using existing cache (age: {age_hours:.1f} hours)")
+                                should_refresh = False
+                            else:
+                                print(f"⚠️  Cache is {age_hours:.1f} hours old - refreshing")
+                except Exception as e:
+                    print(f"⚠️  Could not check cache age: {e} - refreshing anyway")
+        
+        if should_refresh:
+            print("🔄 Fetching fresh NVD source data...")
+            source_data = gatherNVDSourceData(api_key)
+            source_manager.initialize(source_data)
+        else:
+            print("🔄 Using cached NVD source data")
+        
+        # Create cache file for cross-process sharing
+        cache_file_path = source_manager.create_localized_cache()
+        
+        print(f"✅ Source data cached: {source_manager.get_source_count()} sources")
+        print(f"   Cache file: {cache_file_path}")
+        return cache_file_path
+        
+    except Exception as e:
+        print(f"⚠️  Warning: Could not create source data cache: {e}")
+        print("   Each subprocess will load source data independently")
+        return None
+
+
+def cleanup_source_data_cache(cache_file_path):
+    """Clean up the temporary source data cache file"""
+    if cache_file_path:
+        try:
+            # Use the source manager to clean up properly
+            sys.path.insert(0, str(get_analysis_tools_root() / "src"))
+            from analysis_tool.storage.nvd_source_manager import cleanup_cache
+            
+            cleanup_cache(cache_file_path)
+            print(f"🗑️  Cleaned up source data cache")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not clean up cache file: {e}")
+
+
 def check_source_cve_count(source_uuid, api_key, max_count):
     """
     Check how many CVEs a source has before processing
@@ -69,8 +149,9 @@ def check_source_cve_count(source_uuid, api_key, max_count):
 def harvest_source_uuids():
     """
     Fetch all source UUIDs from the NVD sources API
-    Returns a list of tuples: (source_name, source_uuid, last_modified)
-    Sorted by lastModified (newest first) to prioritize less prominent sources
+    Returns a tuple: (source_info_list, api_totals_dict)
+    where source_info_list is [(source_name, source_uuid, last_modified), ...]
+    and api_totals_dict contains counts for reporting
     """
     print("Harvesting source UUIDs from NVD API...")
     
@@ -81,11 +162,13 @@ def harvest_source_uuids():
         data = response.json()
         sources = data.get('sources', [])
         
-        print(f"Found {len(sources)} sources in NVD API")
+        print(f"📊 NVD API Report:")
+        print(f"   Total sources in API: {len(sources)}")
         
         source_info = []
         seen_uuids = set()
         duplicates_found = 0
+        no_uuid_sources = []
         
         for source in sources:
             source_name = source.get('name', 'Unknown')
@@ -108,16 +191,35 @@ def harvest_source_uuids():
                     source_info.append((source_name, uuid_identifier, last_modified))
                     print(f"  - {source_name}: {uuid_identifier} (modified: {last_modified})")
             else:
+                no_uuid_sources.append(source_name)
                 print(f"  - {source_name}: No UUID identifier found")
         
+        # Report filtering results
+        print(f"\n📋 Source Filtering Summary:")
+        print(f"   Total sources from API: {len(sources)}")
+        print(f"   Sources without UUID: {len(no_uuid_sources)} (filtered out)")
+        if no_uuid_sources:
+            print(f"      Sources without UUID: {', '.join(no_uuid_sources)}")
+        print(f"   Sources with UUID: {len(sources) - len(no_uuid_sources)}")
         if duplicates_found > 0:
-            print(f"\n⚠️  Found {duplicates_found} duplicate UUIDs (skipped)")
+            print(f"   Duplicate UUIDs found: {duplicates_found} (filtered out)")
+        print(f"   Unique sources available for processing: {len(source_info)}")
         
         # Sort by lastModified descending (newest first) to prioritize less prominent sources
         source_info.sort(key=lambda x: x[2], reverse=True)
         
         print(f"\nHarvested {len(source_info)} unique source UUIDs (sorted by lastModified, newest first)")
-        return source_info
+        
+        # Return both the source info and the totals for reporting
+        api_totals = {
+            'total_from_api': len(sources),
+            'sources_without_uuid': len(no_uuid_sources),
+            'sources_with_uuid': len(sources) - len(no_uuid_sources),
+            'duplicates_found': duplicates_found,
+            'unique_sources_available': len(source_info)
+        }
+        
+        return source_info, api_totals
         
     except requests.RequestException as e:
         print(f"Error fetching source data: {e}")
@@ -127,7 +229,7 @@ def harvest_source_uuids():
         sys.exit(1)
 
 
-def run_generate_dataset(source_name, source_uuid, allow_logging=True, **kwargs):
+def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_file_path=None, **kwargs):
     """
     Run generate_dataset.py for a specific source UUID
     
@@ -135,6 +237,7 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True, **kwargs)
         source_name (str): Human-readable source name for logging
         source_uuid (str): UUID of the source to process
         allow_logging (bool): Whether to allow console logging to pass through
+        cache_file_path (str): Path to NVD source data cache file for efficient loading
         **kwargs: All processed parameters to pass to generate_dataset.py
     """
     project_root = get_analysis_tools_root()
@@ -184,13 +287,19 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True, **kwargs)
     print(f"{'='*60}")
     
     try:
+        # Prepare environment with cache path for subprocess
+        env = os.environ.copy()
+        if cache_file_path:
+            env['NVD_SOURCE_CACHE_PATH'] = cache_file_path
+            print(f"Using cached source data: {cache_file_path}")
+        
         if allow_logging:
             # Allow all output to pass through to console
-            result = subprocess.run(cmd, check=True, cwd=project_root)
+            result = subprocess.run(cmd, check=True, cwd=project_root, env=env)
         else:
             # Capture output but still show it
             result = subprocess.run(cmd, check=True, cwd=project_root, 
-                                  capture_output=False, text=True)
+                                  capture_output=False, text=True, env=env)
         
         print(f"[SUCCESS] Successfully processed {source_name}")
         return True
@@ -308,6 +417,29 @@ def main():
     
     args = parser.parse_args()
     
+    # === FEATURE FLAG VALIDATION ===
+    # Ensure at least one tool output feature is enabled
+    feature_flags = ['sdc_report', 'cpe_suggestions', 'alias_report', 'cpe_as_generator']
+    enabled_features = []
+    
+    for flag in feature_flags:
+        flag_value = getattr(args, flag, None)
+        if flag_value is not None and flag_value.lower() == 'true':
+            enabled_features.append(flag.replace('_', '-'))
+    
+    if not enabled_features:
+        print("ERROR: At least one feature must be enabled for harvest processing!")
+        print("Available features:")
+        print("  --sdc-report               : Generate Source Data Concerns report")
+        print("  --cpe-suggestions          : Generate CPE suggestions via NVD CPE API calls")
+        print("  --alias-report             : Generate alias report via curator features")
+        print("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages")
+        print()
+        print("Example usage:")
+        print("  python harvest_and_process_sources.py --sdc-report")
+        print("  python harvest_and_process_sources.py --cpe-suggestions --cpe-as-generator")
+        sys.exit(1)
+    
     # === INTELLIGENT PARAMETER HANDLING ===
     
     # Process Tool Output parameters (always pass explicit boolean values)
@@ -322,6 +454,21 @@ def main():
         else:
             # No parameter provided - pass as false
             processed_params[flag] = False
+    
+    # Validate that at least one feature is enabled
+    feature_enabled = any(processed_params[flag] for flag in ['sdc_report', 'cpe_suggestions', 'alias_report', 'cpe_as_generator'])
+    if not feature_enabled:
+        print("ERROR: At least one feature must be enabled for harvest processing!")
+        print("Available features:")
+        print("  --sdc-report               : Generate Source Data Concerns report")
+        print("  --cpe-suggestions          : Generate CPE suggestions via NVD CPE API calls")
+        print("  --alias-report             : Generate alias report via curator features")
+        print("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages")
+        print("")
+        print("Example usage:")
+        print("  python harvest_and_process_sources.py --sdc-report")
+        print("  python harvest_and_process_sources.py --cpe-suggestions --cpe-as-generator")
+        sys.exit(1)
     
     # Handle API key with intelligent config resolution
     api_key = None
@@ -425,11 +572,15 @@ def main():
     print(f"Using API key for enhanced rate limits")
     
     # Harvest source UUIDs
-    source_info = harvest_source_uuids()
+    source_info, api_totals = harvest_source_uuids()
     
     if not source_info:
         print("No source UUIDs found to process")
         sys.exit(1)
+    
+    # Create localized source data cache for efficient subprocess sharing
+    print(f"\n🔧 Preparing NVD source data cache for efficient processing...")
+    cache_file_path = create_source_data_cache(processed_params['api_key'])
     
     # Process each source
     print(f"\nStarting to process {len(source_info)} sources...")
@@ -454,6 +605,7 @@ def main():
                 source_name=source_name,
                 source_uuid=source_uuid,
                 allow_logging=not args.quiet_individual,
+                cache_file_path=cache_file_path,
                 **processed_params
             )
             
@@ -470,7 +622,12 @@ def main():
     print(f"\n{'='*60}")
     print(f"PROCESSING COMPLETE")
     print(f"{'='*60}")
-    print(f"Total sources evaluated: {len(source_info)}")
+    print(f"Total sources from NVD API: {api_totals['total_from_api']}")
+    print(f"Sources filtered out (no UUID): {api_totals['sources_without_uuid']}")
+    if api_totals['duplicates_found'] > 0:
+        print(f"Sources filtered out (duplicates): {api_totals['duplicates_found']}")
+    print(f"Sources available for processing: {api_totals['unique_sources_available']}")
+    print(f"Sources actually processed: {successful + failed}")
     print(f"Successful: {successful}")
     print(f"Failed: {failed}")
     print(f"Skipped (too many CVEs): {skipped}")
@@ -485,6 +642,11 @@ def main():
             print(f"  UUID: {source_uuid}")
             print(f"  CVE Count: {cve_count:,}")
             print()
+    
+    # Clean up cache file
+    if cache_file_path:
+        print(f"\n🧹 Cleaning up cache...")
+        cleanup_source_data_cache(cache_file_path)
     
     if failed > 0:
         print(f"\n⚠️  {failed} sources failed to process. Check the logs above for details.")

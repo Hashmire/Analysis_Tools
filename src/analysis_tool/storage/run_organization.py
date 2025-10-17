@@ -63,7 +63,7 @@ def get_analysis_tools_root() -> Path:
     current_file = Path(__file__).resolve()
     
     # Walk up the directory tree to find the project root
-    # Look for multiple project markers since run_tools.py has been removed
+    # Look for multiple project markers to identify the project root
     for parent in current_file.parents:
         if (parent / "generate_dataset.py").exists() and (parent / "src").exists():
             return parent

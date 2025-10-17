@@ -5,6 +5,14 @@ This module provides a singleton global manager for NVD source data that loads o
 and persists across all CVE processing runs. It follows the same pattern as the
 existing GlobalCPECacheManager for consistency.
 
+Features:
+- Singleton pattern for global access
+- JSON-based cache storage for transparency and debugging
+- Localized cache support for harvest script efficiency
+- Automatic cache creation and cleanup
+- Cross-process cache sharing via unified /src/cache directory
+- Consistent with CPE cache storage format and location
+
 Usage:
     from .nvd_source_manager import get_global_source_manager
     
@@ -15,11 +23,20 @@ Usage:
     # Use throughout the codebase
     source_name = source_manager.get_source_name('some-uuid')
     source_info = source_manager.get_source_info('some-uuid')
+    
+    # For harvest scripts - create cache for cross-process sharing
+    cache_path = source_manager.create_localized_cache()
+    # Pass cache_path to subprocesses via environment or arguments
 """
 
 from typing import Dict, Any, Optional, List
 import pandas as pd
 import re
+import os
+import time
+import json
+from datetime import datetime
+from pathlib import Path
 
 from ..logging.workflow_logger import get_logger
 
@@ -37,6 +54,7 @@ class GlobalNVDSourceManager:
         self._source_data = None
         self._source_lookup = {}  # UUID/orgId -> source info lookup
         self._initialized = False
+        self._cache_file_path = None  # For localized cache management
     
     def initialize(self, nvd_source_data: pd.DataFrame):
         """Initialize the global source manager with NVD source data"""
@@ -164,6 +182,219 @@ class GlobalNVDSourceManager:
     def get_source_count(self) -> int:
         """Get total number of sources loaded"""
         return len(self._source_lookup) if self._initialized else 0
+    
+    def create_localized_cache(self, cache_dir: Optional[str] = None) -> str:
+        """
+        Create a localized cache file for cross-process source data sharing.
+        
+        This allows harvest scripts to initialize source data once and share it
+        across multiple subprocess calls to generate_dataset.py and analysis_tool.py.
+        
+        Args:
+            cache_dir: Optional directory for cache file. If None, uses system temp directory.
+            
+        Returns:
+            str: Path to the created cache file
+            
+        Raises:
+            RuntimeError: If source manager is not initialized
+        """
+        if not self._initialized:
+            raise RuntimeError("Cannot create cache: NVD Source Manager not initialized")
+        
+        # Determine cache directory - use project cache directory like CPE cache
+        if cache_dir:
+            cache_path = Path(cache_dir)
+            cache_path.mkdir(parents=True, exist_ok=True)
+        else:
+            # Use project root cache directory (same as CPE cache)
+            current_file = Path(__file__).resolve()
+            project_root = current_file.parent.parent.parent.parent 
+            cache_path = project_root / "src" / "cache"
+            cache_path.mkdir(parents=True, exist_ok=True)
+        
+        # Use consistent JSON filename (managed via metadata)
+        cache_filename = "nvd_source_data.json"
+        cache_file_path = cache_path / cache_filename
+        
+        try:
+            current_time = datetime.now()
+            
+            # Save source data to JSON cache file - handle NaN values properly
+            source_data_records = []
+            if self._source_data is not None:
+                # Convert DataFrame to records and clean NaN values
+                for record in self._source_data.to_dict('records'):
+                    cleaned_record = {}
+                    for key, value in record.items():
+                        # Convert NaN/None values to None, which JSON can handle
+                        try:
+                            if pd.isna(value) or value is None:
+                                cleaned_record[key] = None
+                            else:
+                                cleaned_record[key] = value
+                        except (TypeError, ValueError):
+                            # Handle array-like values or other types that can't use pd.isna directly
+                            if value is None:
+                                cleaned_record[key] = None
+                            else:
+                                # For non-scalar values, convert to list or appropriate JSON-serializable format
+                                if hasattr(value, 'tolist'):
+                                    cleaned_record[key] = value.tolist()
+                                else:
+                                    cleaned_record[key] = value
+                    source_data_records.append(cleaned_record)
+            
+            cache_data = {
+                'source_data': source_data_records,
+                'source_lookup': self._source_lookup,
+                'created_at': current_time.isoformat(),
+                'process_id': os.getpid(),
+                'source_count': len(self._source_lookup),
+            }
+            
+            with open(cache_file_path, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, indent=2, ensure_ascii=False)
+            
+            # Update metadata file
+            self._update_cache_metadata(cache_path, current_time)
+            
+            # Store cache path for cleanup
+            self._cache_file_path = str(cache_file_path)
+            
+            logger.info(f"Created NVD source data cache: {cache_file_path} ({len(self._source_lookup)} sources)", 
+                       group="cache_management")
+            logger.info(f"Updated unified cache metadata: {cache_path / 'cache_metadata.json'}", group="cache_management")
+            
+            return str(cache_file_path)
+            
+        except Exception as e:
+            logger.error(f"Failed to create source data cache: {e}", group="cache_management")
+            raise RuntimeError(f"Cache creation failed: {e}")
+    
+    def load_from_cache(self, cache_file_path: str) -> bool:
+        """
+        Load source data from a localized cache file.
+        
+        Args:
+            cache_file_path: Path to the cache file created by create_localized_cache()
+            
+        Returns:
+            bool: True if successfully loaded, False otherwise
+        """
+        if not os.path.exists(cache_file_path):
+            logger.warning(f"Cache file not found: {cache_file_path}", group="cache_management")
+            return False
+        
+        try:
+            # Load JSON cache file
+            with open(cache_file_path, 'r', encoding='utf-8') as f:
+                cache_data = json.load(f)
+            
+            # Validate cache data structure
+            required_keys = ['source_data', 'source_lookup']
+            if not all(key in cache_data for key in required_keys):
+                logger.warning(f"Invalid JSON cache file structure: {cache_file_path}", group="cache_management")
+                return False
+            
+            # Convert source_data back to DataFrame
+            source_data_records = cache_data['source_data']
+            if source_data_records:
+                self._source_data = pd.DataFrame(source_data_records)
+            else:
+                self._source_data = pd.DataFrame()
+            
+            # Load lookup data
+            self._source_lookup = cache_data['source_lookup']
+            self._initialized = True
+            
+            # Calculate age from either new or old format
+            if 'created_at' in cache_data:
+                created_at = datetime.fromisoformat(cache_data['created_at'])
+                cache_age_hours = (datetime.now() - created_at).total_seconds() / 3600
+            elif 'timestamp' in cache_data:
+                cache_age_hours = (time.time() - cache_data['timestamp']) / 3600
+            else:
+                cache_age_hours = 0.0
+            
+            logger.info(f"Loaded NVD source data from cache: {cache_file_path}", group="cache_management")
+            logger.info(f"Cache contains {len(self._source_lookup)} sources (age: {cache_age_hours:.1f}h)", group="cache_management")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to load from cache {cache_file_path}: {e}", group="cache_management")
+            return False
+    
+    def _update_cache_metadata(self, cache_path: Path, update_time: datetime) -> None:
+        """Update the unified cache metadata file with NVD source data info"""
+        metadata_file = cache_path / "cache_metadata.json"
+        
+        try:
+            # Load existing metadata
+            if metadata_file.exists():
+                with open(metadata_file, 'r') as f:
+                    metadata = json.load(f)
+            else:
+                metadata = {
+                    "cache_version": "2.0",
+                    "last_updated": update_time.isoformat(),
+                    "datasets": {}
+                }
+            
+            # Update NVD source data metadata
+            if "datasets" not in metadata:
+                metadata["datasets"] = {}
+            
+            nvd_metadata = metadata["datasets"].get("nvd_source_data", {
+                "filename": "nvd_source_data.json",
+                "created": None,
+                "description": "NVD source organization data for cross-process sharing"
+            })
+            
+            # Update with current information
+            if nvd_metadata.get("created") is None:
+                nvd_metadata["created"] = update_time.isoformat()
+            
+            nvd_metadata.update({
+                "last_updated": update_time.isoformat(),
+                "total_entries": len(self._source_lookup),
+                "source_count": len(self._source_lookup)
+            })
+            
+            metadata["datasets"]["nvd_source_data"] = nvd_metadata
+            metadata["last_updated"] = update_time.isoformat()
+            
+            # Save metadata
+            with open(metadata_file, 'w') as f:
+                json.dump(metadata, f, indent=2, sort_keys=True)
+                
+        except Exception as e:
+            logger.warning(f"Could not update cache metadata: {e}", group="cache_management")
+
+    def cleanup_cache(self, cache_file_path: Optional[str] = None) -> None:
+        """
+        Clean up localized cache file.
+        
+        Args:
+            cache_file_path: Specific cache file to clean up. If None, uses stored cache path.
+        """
+        target_path = cache_file_path or self._cache_file_path
+        
+        if target_path and os.path.exists(target_path):
+            try:
+                os.unlink(target_path)
+                logger.info(f"Cleaned up cache file: {target_path}", group="cache_management")
+                
+                if target_path == self._cache_file_path:
+                    self._cache_file_path = None
+                    
+            except Exception as e:
+                logger.warning(f"Could not clean up cache file {target_path}: {e}", group="cache_management")
+    
+    def get_cache_file_path(self) -> Optional[str]:
+        """Get the path to the current cache file, if any"""
+        return self._cache_file_path
 
 
 def get_global_source_manager():
@@ -193,3 +424,52 @@ def get_source_info(source_id: str) -> Optional[Dict[str, Any]]:
 def get_all_sources_for_cve(used_source_ids: List[str]) -> List[Dict[str, Any]]:
     """Convenience function to get all sources for a CVE"""
     return get_global_source_manager().get_all_sources_for_cve(used_source_ids)
+
+
+# Cache management convenience functions
+def create_localized_cache(cache_dir: Optional[str] = None) -> str:
+    """Convenience function to create a localized cache"""
+    return get_global_source_manager().create_localized_cache(cache_dir)
+
+
+def load_from_cache(cache_file_path: str) -> bool:
+    """Convenience function to load from cache"""
+    return get_global_source_manager().load_from_cache(cache_file_path)
+
+
+def cleanup_cache(cache_file_path: Optional[str] = None) -> None:
+    """Convenience function to cleanup cache"""
+    return get_global_source_manager().cleanup_cache(cache_file_path)
+
+
+def try_load_from_environment_cache() -> bool:
+    """
+    Try to load source data from cache path specified in environment variables or standard location.
+    
+    Checks for:
+    1. NVD_SOURCE_CACHE_PATH environment variable (for harvest script coordination)
+    2. Standard project cache location (for consistent cache usage)
+    
+    Returns:
+        bool: True if successfully loaded from any cache source, False otherwise
+    """
+    # First, try environment variable (harvest script coordination)
+    env_cache_path = os.environ.get('NVD_SOURCE_CACHE_PATH')
+    if env_cache_path:
+        logger.info(f"Found NVD source cache path in environment: {env_cache_path}", group="cache_management")
+        if load_from_cache(env_cache_path):
+            return True
+    
+    # Second, try standard project cache location
+    try:
+        current_file = Path(__file__).resolve()
+        project_root = current_file.parent.parent.parent.parent 
+        standard_cache_path = project_root / "src" / "cache" / "nvd_source_data.json"
+        
+        if standard_cache_path.exists():
+            logger.info(f"Found NVD source cache at standard location: {standard_cache_path}", group="cache_management")
+            return load_from_cache(str(standard_cache_path))
+    except Exception as e:
+        logger.warning(f"Could not check standard cache location: {e}", group="cache_management")
+    
+    return False

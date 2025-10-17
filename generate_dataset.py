@@ -298,7 +298,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         logger.info("Dataset generated successfully!", group="initialization")
         logger.info(f"Collected {len(matching_cves)} CVE records", group="initialization")
         logger.info(f"File saved: {output_file_resolved}", group="initialization")
-        logger.info(f"You can now run: python run_tools.py --file {output_file_resolved}", group="initialization")
+        logger.info(f"You can now run: python -m src.analysis_tool.core.analysis_tool --file {output_file_resolved}", group="initialization")
         
         # Record output file in dataset contents collector
         if run_directory:
@@ -534,7 +534,7 @@ def main():
     # Group 3: Processing Control - Control how processing is performed and output is presented
     control_group = parser.add_argument_group('Processing Control', 'Control processing behavior and output presentation')
     control_group.add_argument('--external-assets', action='store_true',
-                              help='Enable external assets in analysis (passed through to run_tools.py)')
+                              help='Enable external assets in analysis (passed through to analysis tool)')
     
     # Group 4: Dataset Generation - Control what CVE data is included in the dataset
     dataset_group = parser.add_argument_group('Dataset Generation', 'Control CVE data selection and dataset creation')
@@ -641,23 +641,69 @@ def main():
         if str(src_path) not in sys.path:
             sys.path.insert(0, str(src_path))
         
-        from analysis_tool.core import gatherData
+        from analysis_tool.core.gatherData import gatherNVDSourceData
         from analysis_tool.storage.nvd_source_manager import get_global_source_manager
         
-        # Initialize NVD source manager with fallback logic for standalone execution
+        # Initialize NVD source manager with cache-aware fallback logic
         source_manager = get_global_source_manager()
         
         if source_manager.is_initialized():
             logger.info("NVD source manager already initialized", group="initialization")
             logger.info(f"Using existing source data with {source_manager.get_source_count()} entries", group="initialization")
         else:
-            logger.info("NVD source manager not initialized - loading source data from API", group="initialization")
-            logger.info("If generate_dataset was not executed directly, there may be an issue with the unified source managment", group="initialization")
+            # Try to load from cache first
+            from analysis_tool.storage.nvd_source_manager import try_load_from_environment_cache
             
-            # Load NVD source data as fallback for standalone execution
-            nvd_source_data = gatherData.gatherNVDSourceData(resolved_api_key)
-            source_manager.initialize(nvd_source_data)
-            logger.info(f"NVD source manager initialized from API with {source_manager.get_source_count()} entries", group="initialization")
+            if try_load_from_environment_cache():
+                # Check if cache is too old (more than 24 hours)
+                from datetime import datetime, timedelta
+                try:
+                    from pathlib import Path
+                    import json
+                    current_file = Path(__file__).resolve()
+                    project_root = current_file.parent
+                    cache_metadata_path = project_root / "src" / "cache" / "cache_metadata.json"
+                    
+                    if cache_metadata_path.exists():
+                        with open(cache_metadata_path, 'r') as f:
+                            metadata = json.load(f)
+                        
+                        if 'datasets' in metadata and 'nvd_source_data' in metadata['datasets']:
+                            last_updated = datetime.fromisoformat(metadata['datasets']['nvd_source_data']['last_updated'])
+                            age_hours = (datetime.now() - last_updated).total_seconds() / 3600
+                            
+                            if age_hours > 24:
+                                logger.warning(f"NVD source cache is {age_hours:.1f} hours old - refreshing from API", group="initialization")
+                                # Refresh the cache
+                                nvd_source_data = gatherNVDSourceData(resolved_api_key)
+                                source_manager.initialize(nvd_source_data)
+                                source_manager.create_localized_cache()
+                                logger.info(f"NVD source cache refreshed with {source_manager.get_source_count()} entries", group="initialization")
+                            else:
+                                logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries (age: {age_hours:.1f}h)", group="initialization")
+                        else:
+                            logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries", group="initialization")
+                    else:
+                        logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries", group="initialization")
+                except Exception as e:
+                    logger.warning(f"Could not check cache age: {e}", group="initialization")
+                    logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries", group="initialization")
+            else:
+                logger.warning("NVD source cache not found - creating fresh cache", group="initialization")
+                
+                # Fallback: Load NVD source data as fallback for standalone execution
+                logger.info("Gathering NVD source data from API for standalone dataset generation", group="initialization")
+                nvd_source_data = gatherNVDSourceData(resolved_api_key)
+                source_manager.initialize(nvd_source_data)
+                
+                # Create cache for future use
+                try:
+                    cache_path = source_manager.create_localized_cache()
+                    logger.info(f"Created NVD source cache for future use: {cache_path}", group="initialization")
+                except Exception as e:
+                    logger.warning(f"Could not create source cache: {e}", group="initialization")
+                
+                logger.info(f"NVD source manager initialized from API with {source_manager.get_source_count()} entries", group="initialization")
         
         # Get human-readable shortname (capped to 7-8 characters)
         full_shortname = source_manager.get_source_shortname(args.source_uuid)

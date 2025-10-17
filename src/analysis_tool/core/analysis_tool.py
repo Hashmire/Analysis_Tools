@@ -16,6 +16,9 @@ import subprocess
 import threading
 from datetime import datetime, timedelta
 
+# Import for potential scoping issues 
+import datetime as dt
+
 def _ensure_src_path():
     """Ensure src directory is in Python path"""
     if not hasattr(_ensure_src_path, '_initialized'):
@@ -851,7 +854,7 @@ def main():
     if alias_report and not args.source_uuid:
         print("ERROR: --alias-report requires --source-uuid to determine the appropriate confirmed mappings file")
         print("Example usage:")
-        print("  python run_tools.py --cve CVE-2024-XXXX --alias-report --source-uuid your-uuid-here")
+        print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-XXXX --alias-report --source-uuid your-uuid-here")
         return
     
     # Validate that at least one feature is enabled
@@ -864,8 +867,8 @@ def main():
         print("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages")
         print("")
         print("Example usage:")
-        print("  python run_tools.py --cve CVE-2024-20515 --sdc-report")
-        print("  python run_tools.py --cve CVE-2024-20515 --cpe-suggestions --cpe-as-generator")
+        print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-20515 --sdc-report")
+        print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-20515 --cpe-suggestions --cpe-as-generator")
         return 1
     
     # Set global source UUID for filtering throughout the pipeline
@@ -983,13 +986,59 @@ def main():
         logger.info("NVD source manager already initialized", group="initialization")
         logger.info(f"Using existing source data with {source_manager.get_source_count()} entries", group="initialization")
     else:
-        logger.info("NVD source manager not initialized - gathering source data from API", group="initialization")
-        logger.warning("NVD /source/ API content not found, confirm if analysis_tools was run directly", group="initialization")
+        # Try to load from cache first
+        from ..storage.nvd_source_manager import try_load_from_environment_cache
         
-        # Gather NVD Source Data as fallback for direct execution
-        nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
-        source_manager.initialize(nvd_source_data)
-        logger.info(f"NVD source manager initialized from API with {source_manager.get_source_count()} entries", group="initialization")
+        if try_load_from_environment_cache():
+            # Check if cache is too old (more than 24 hours)
+            from datetime import datetime, timedelta
+            from pathlib import Path
+            try:
+                current_file = Path(__file__).resolve()
+                project_root = current_file.parent.parent.parent.parent 
+                cache_metadata_path = project_root / "src" / "cache" / "cache_metadata.json"
+                
+                if cache_metadata_path.exists():
+                    import json
+                    with open(cache_metadata_path, 'r') as f:
+                        metadata = json.load(f)
+                    
+                    if 'datasets' in metadata and 'nvd_source_data' in metadata['datasets']:
+                        last_updated = datetime.fromisoformat(metadata['datasets']['nvd_source_data']['last_updated'])
+                        age_hours = (datetime.now() - last_updated).total_seconds() / 3600
+                        
+                        if age_hours > 24:
+                            logger.warning(f"NVD source cache is {age_hours:.1f} hours old - refreshing from API", group="initialization")
+                            # Refresh the cache
+                            nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
+                            source_manager.initialize(nvd_source_data)
+                            source_manager.create_localized_cache()
+                            logger.info(f"NVD source cache refreshed with {source_manager.get_source_count()} entries", group="initialization")
+                        else:
+                            logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries (age: {age_hours:.1f}h)", group="initialization")
+                    else:
+                        logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries", group="initialization")
+                else:
+                    logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries", group="initialization")
+            except Exception as e:
+                logger.warning(f"Could not check cache age: {e}", group="initialization")
+                logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries", group="initialization")
+        else:
+            logger.warning("NVD source cache not found - creating fresh cache", group="initialization")
+            
+            # Fallback: Create fresh source data and cache it
+            logger.info("Gathering NVD source data from API as fallback for direct execution", group="initialization")
+            nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
+            source_manager.initialize(nvd_source_data)
+            
+            # Create cache for future use
+            try:
+                cache_path = source_manager.create_localized_cache()
+                logger.info(f"Created NVD source cache for future use: {cache_path}", group="initialization")
+            except Exception as e:
+                logger.warning(f"Could not create source cache: {e}", group="initialization")
+            
+            logger.info(f"NVD source manager initialized from API with {source_manager.get_source_count()} entries", group="initialization")
     
     # Initialize unified source manager
     from .unified_source_manager import get_unified_source_manager
@@ -1134,12 +1183,26 @@ def main():
                 if str(src_path) not in sys.path:
                     sys.path.insert(0, str(src_path))
                 
-                from ..storage.nvd_source_manager import get_global_source_manager
+                from ..storage.nvd_source_manager import get_global_source_manager, try_load_from_environment_cache
                 
-                # Load NVD source data for shortname resolution
-                nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
                 source_manager = get_global_source_manager()
-                source_manager.initialize(nvd_source_data)
+                # Try to load from cache first
+                if not source_manager.is_initialized():
+                    if not try_load_from_environment_cache():
+                        logger.warning(f"NVD source cache not available for shortname resolution - loading from API", group="initialization")
+                        
+                        # Fallback: Load NVD source data for shortname resolution
+                        nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
+                        source_manager.initialize(nvd_source_data)
+                        
+                        # Create cache for future use
+                        try:
+                            cache_path = source_manager.create_localized_cache()
+                            logger.info(f"Created NVD source cache during shortname resolution: {cache_path}", group="initialization")
+                        except Exception as e:
+                            logger.warning(f"Could not create source cache: {e}", group="initialization")
+                        
+                        logger.info(f"NVD source manager initialized from API for shortname resolution", group="initialization")
                 
                 # Get human-readable shortname (capped to 7-8 characters)
                 full_shortname = source_manager.get_source_shortname(args.source_uuid)
@@ -1297,11 +1360,11 @@ def main():
                 avg_time_per_cve = elapsed_time / index
                 remaining_cves = total_cves - index
                 estimated_remaining_time = avg_time_per_cve * remaining_cves
-                eta = datetime.now() + timedelta(seconds=estimated_remaining_time)
-                
+                eta = datetime.now() + dt.timedelta(seconds=estimated_remaining_time)
+
                 # Format time estimates
-                elapsed_str = str(timedelta(seconds=int(elapsed_time)))
-                remaining_str = str(timedelta(seconds=int(estimated_remaining_time)))
+                elapsed_str = str(dt.timedelta(seconds=int(elapsed_time)))
+                remaining_str = str(dt.timedelta(seconds=int(estimated_remaining_time)))
                 eta_str = eta.strftime("%H:%M:%S")
                 progress_msg = (f"Processing CVE {current_cve_num}/{total_cves} ({cve}) | "
                               f"Progress: {(current_cve_num-1)/total_cves*100:.1f}% | "
@@ -1329,9 +1392,9 @@ def main():
                 if current_cve_num > 1:
                     avg_time_per_cve = elapsed_time / (current_cve_num - 1)
                     estimated_remaining_time = avg_time_per_cve * (total_cves - current_cve_num + 1)
-                    elapsed_str = str(timedelta(seconds=int(elapsed_time)))
-                    remaining_str = str(timedelta(seconds=int(estimated_remaining_time)))
-                    eta = datetime.now() + timedelta(seconds=estimated_remaining_time)
+                    elapsed_str = str(dt.timedelta(seconds=int(elapsed_time)))
+                    remaining_str = str(dt.timedelta(seconds=int(estimated_remaining_time)))
+                    eta = datetime.now() + dt.timedelta(seconds=estimated_remaining_time)
                     eta_str = eta.strftime("%H:%M:%S")
                     
                     logger.debug(f"Processing statistics: {(current_cve_num-1)/total_cves*100:.1f}% complete", group="INIT")
@@ -1447,7 +1510,7 @@ def main():
     logger.info(f"Total CVEs processed: {total_cves}", group="completion")
     logger.info(f"Successfully generated: {success_count}", group="completion")
     logger.info(f"Skipped: {len(skipped_cves)}", group="completion")
-    logger.info(f"Total time: {str(timedelta(seconds=int(total_time)))}", group="completion")
+    logger.info(f"Total time: {str(dt.timedelta(seconds=int(total_time)))}", group="completion")
     
     # Wait for any pending background dashboard updates and perform final update
     wait_for_dashboard_updates()

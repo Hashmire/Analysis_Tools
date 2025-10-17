@@ -1837,8 +1837,26 @@
             document.getElementById('cpe-queries').textContent = formatNumber(cpe_query_stats.total_queries || data.summary?.cpe_queries || 0);
             document.getElementById('cpe-results').textContent = formatNumber(cpe_query_stats.total_results || 0);
             
-            document.getElementById('warning-count').textContent = formatNumber(log_stats.warning_count || 0);
-            document.getElementById('error-count').textContent = formatNumber(log_stats.error_count || 0);
+            // Calculate warning/error counts from structured data (not log parsing)
+            const warnings = data.warnings || {};
+            const errors = data.errors || {};
+            
+            const totalWarnings = Object.values(warnings).reduce((sum, category) => {
+                if (!category || !Array.isArray(category)) return sum;
+                return sum + category.reduce((catSum, cveGroup) => {
+                    return catSum + (cveGroup.total_count || cveGroup.count || 1);
+                }, 0);
+            }, 0);
+            
+            const totalErrors = Object.values(errors).reduce((sum, category) => {
+                if (!category || !Array.isArray(category)) return sum;
+                return sum + category.reduce((catSum, cveGroup) => {
+                    return catSum + (cveGroup.total_count || cveGroup.count || 1);
+                }, 0);
+            }, 0);
+            
+            document.getElementById('warning-count').textContent = formatNumber(totalWarnings);
+            document.getElementById('error-count').textContent = formatNumber(totalErrors);
 
             // Populate all detailed sections
             populateRuntimeSection(data);
@@ -2151,11 +2169,11 @@
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Warning Messages ⓘ</div>
-                        <div class="detail-value">${formatNumber(totalWarnings || log_stats.warning_count || 0)}</div>
+                        <div class="detail-value">${formatNumber(totalWarnings)}</div>
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Error Messages ⓘ</div>
-                        <div class="detail-value">${formatNumber(totalErrors || log_stats.error_count || 0)}</div>
+                        <div class="detail-value">${formatNumber(totalErrors)}</div>
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Log File Size ⓘ</div>
@@ -2442,7 +2460,7 @@
                 });
                 
                 html += `</div></div>`;
-            } else if ((log_stats.warning_count > 0) || (log_stats.error_count > 0)) {
+            } else if ((totalWarnings > 0) || (totalErrors > 0)) {
                 // No categorized structure - minimal display
                 html += `
                     <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 15px; margin: 15px 0;">
@@ -2450,7 +2468,7 @@
                             <div style="font-size: 1.2em; margin-right: 10px;">⚠️</div>
                             <div>
                                 <strong>Log Data Available</strong><br>
-                                <small>Found ${log_stats.warning_count} warnings and ${log_stats.error_count} errors.</small>
+                                <small>Found ${totalWarnings} warnings and ${totalErrors} errors.</small>
                             </div>
                         </div>
                     </div>

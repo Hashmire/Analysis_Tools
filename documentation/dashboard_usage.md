@@ -25,7 +25,7 @@ Dashboard data collection requires no manual setup:
 
 ```bash
 # CVE analysis - dashboard data generated automatically
-python run_tools.py --cve CVE-2024-20515
+python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-20515
 
 # Dataset generation - monitoring available  
 python generate_dataset.py --last-days 30

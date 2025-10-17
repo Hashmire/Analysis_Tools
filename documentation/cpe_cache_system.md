@@ -124,8 +124,8 @@ The cache system integrates automatically with existing workflows:
 
 ```bash
 # Cache benefits all analysis types automatically
-python run_tools.py --cve CVE-2024-20515     # Single CVE analysis
-python run_tools.py --file dataset.txt       # Batch processing
+python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-20515     # Single CVE analysis
+python -m src.analysis_tool.core.analysis_tool --file dataset.txt       # Batch processing
 python generate_dataset.py --last-days 30    # Dataset generation
 ```
 
