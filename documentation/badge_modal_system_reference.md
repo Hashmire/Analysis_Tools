@@ -75,19 +75,22 @@ Each table uses consistent columns to describe badge/modal functionality:
 
 #### **Table 3: Source Data Concerns Badge/Modal** 🟪
 
+**Architecture:** Source data concerns use curated platform data with sophisticated skip logic to prevent duplicate issue detection. Two primary problem domains: **#1 CPE Base String Determination** (vendor/product/platform identification) and **#2 Version Parsing and CPE-AS Generation** (version processing and match generation).
+
 | **Badge Name** | **Granular Check** | **Tooltip or Tab Content Example** | **Root Cause Owner** | **Dev Handled** | **Audiences** |
 |:---|:---|:---|:---:|:---:|:---:|
-| **🟪 🔍 Source Data Concerns (X)** | **Unified modal with up to 10 tabs** | *Tooltip: "Source data quality issues detected&#013;5 issues: Placeholder Data, Version Text Patterns&#013;Click to view detailed LINT analysis"* | **External Source** | **❌** | **👤🔧🗃️** |
-| → **Tab 1: Placeholder Data Detected** | Vendor/product placeholder values (n/a, -, etc.) | *Tab Content: Field-by-field analysis showing "Vendor field contains placeholder value 'n/a' which prevents proper CPE matching"* | External Source | ❌ | 👤🗃️ |
-| → **Tab 2: Version Text Patterns** | Text indicators + invalid characters in versions | *Tab Content: Character validation showing "Invalid characters in version: &lt;script&gt; (chars: &lt;, &gt;, /) - prevents proper processing"* | External Source | ❌ | 👤🗃️ |
-| → **Tab 3: Comparator Patterns** | Mathematical operators in version strings | *Tab Content: Version analysis showing "Version '>= 1.0' contains comparator '>=' that prevents exact version matching"* | External Source | ❌ | 👤🗃️ |
-| → **Tab 4: Version Granularity** | Inconsistent version part counts within same base | *Tab Content: Granularity analysis showing "3.3: 2-part vs 3-part versions (3.3 Patch 2, 3.3.0)"* | External Source | ❌ | 👤🗃️ |
-| → **Tab 5: Wildcard Branches** | Wildcard pattern routing validation | *Tab Content: Wildcard analysis showing detected patterns and routing decisions* | External Source | ❌ | 👤🗃️ |
-| → **Tab 6: CPE Array Issues** | Empty/malformed CPE arrays + format validation | *Tab Content: CPE validation showing "Position 2: Invalid CPE format - missing 'cpe:' prefix"* | External Source | ❌ | 👤🗃️ |
-| → **Tab 7: Duplicate Entries** | Duplicate row tracking and consolidation | *Tab Content: Duplicate analysis showing "Identical platform appears at rows: [2, 5, 8]"* | External Source | ℹ️ | 👤🗃️ |
-| → **Tab 8: Platform Data Issues** | Misaligned vendor/product data patterns | *Tab Content: Platform analysis showing "Unexpected Platforms data detected in affected entry"* | External Source | ❌ | 👤🗃️ |
-| → **Tab 9: Missing Affected Products** | No products marked as affected/unknown | *Tab Content: Product analysis showing "No products marked as 'affected' - verify at least one should be affected"* | External Source | ❌ | 👤🗃️ |
-| → **Tab 10: Overlapping Ranges** | Version ranges overlap within same CPE Base String | *Tab Content: Range analysis showing "IDENTICAL overlap: v1.0-v2.0 conflicts with v1.0-v2.0 (Row 5)" with consolidation suggestions* | External Source | ❌ | 👤🗃️ |
+| **🟪 🔍 Source Data Concerns (X)** | **Unified modal with dynamic tabs** | *Tooltip: "Source data quality issues detected&#013;5 issues: Placeholder Data, Version Text Patterns&#013;Click to view detailed LINT analysis"* | **External Source** | **❌** | **👤🔧🗃️** |
+| → **Tab 1: Placeholder Data Detected** | CPE fields (vendor/product/platforms) + version fields with placeholder values | *Tab Content: Problem/Data/Resolution format showing detected placeholder patterns and replacement guidance* | External Source | ❌ | 👤🗃️ |
+| → **Tab 2: Text Comparators** | Version fields with text-based range indicators | *Tab Content: Temporal/range pattern analysis with CVE JSON syntax recommendations* | External Source | ❌ | 👤🗃️ |
+| → **Tab 3: Comparator Patterns** | Version and CPE fields containing mathematical operators | *Tab Content: Shows detected operators with syntax guidance for proper range representation* | External Source | ❌ | 👤🗃️ |
+| → **Tab 4: Whitespace Issues** | Leading/trailing/excessive whitespace in fields | *Tab Content: Before/after field content comparison with cleanup guidance* | External Source | ❌ | 👤🗃️ |
+| → **Tab 5: Invalid Characters** | Version fields with non-allowed character sets | *Tab Content: Character validation using allow-list (a-zA-Z0-9-*_:.+()~) with examples* | External Source | ❌ | 👤🗃️ |
+| → **Tab 6: Version Granularity** | Inconsistent version part counts within platform groups | *Tab Content: Base version group analysis showing mixed granularity patterns* | External Source | ❌ | 👤🗃️ |
+| → **Tab 7: Overlapping Ranges** | Version ranges with semantic conflicts | *Tab Content: Range overlap analysis (identical/partial/nested) with consolidation guidance* | External Source | ❌ | 👤🗃️ |
+| → **Tab 8: All Versions Patterns** | Version fields containing "all versions" text patterns | *Tab Content: Pattern analysis showing "all versions" → "*" standardization guidance* | External Source | ❌ | 👤🗃️ |
+| → **Tab 9: Bloat Text Detection** | CPE and version fields with redundant/bloat text | *Tab Content: Vendor redundancy and version prefix removal analysis with examples* | External Source | ❌ | 👤🗃️ |
+
+**📋 Implementation Reference:** See `documentation/source_data_concerns_enhanced_table.md` for comprehensive field mappings, exact modal text, data structures, skip logic rules, and code locations.
 
 #### **Table 4: Individual Platform Entry Badges (Non-Modal)**
 
