@@ -90,8 +90,10 @@ def extract_bloat_text_patterns(report_data):
                                 detected_pattern = concern.get('detectedPattern', '')
                                 if isinstance(detected_pattern, dict):
                                     pattern_value = detected_pattern.get('detectedValue', '')
+                                    pattern_type = detected_pattern.get('patternType', '')
                                 else:
                                     pattern_value = detected_pattern
+                                    pattern_type = ''
                                 
                                 # Transform to expected format
                                 pattern_info = {
@@ -101,6 +103,11 @@ def extract_bloat_text_patterns(report_data):
                                     "field": concern.get('field', ''),
                                     "sourceValue": concern.get('sourceValue', '')
                                 }
+                                
+                                # Add patternType if present (for vendor_redundancy cases)
+                                if pattern_type:
+                                    pattern_info["patternType"] = pattern_type
+                                    
                                 patterns.append(pattern_info)
     
     except Exception as e:
@@ -175,6 +182,33 @@ def get_test_cases():
             "detectedPattern": "versions",
             "field": "lessThanOrEqual",
             "sourceValue": "versions 7.2"
+        },
+        {
+            "description": "Vendor redundancy - full word match (should detect)",
+            "vendor": "NodeJS",
+            "product": "NodeJS Product",
+            "detectedPattern": "NodeJS",
+            "patternType": "vendor_redundancy",
+            "field": "product",
+            "sourceValue": "NodeJS Product"
+        },
+        {
+            "description": "Vendor redundancy - case insensitive full word match (should detect)",
+            "vendor": "NodeJS",
+            "product": "Fun nodejs product",
+            "detectedPattern": "NodeJS", 
+            "patternType": "vendor_redundancy",
+            "field": "product",
+            "sourceValue": "Fun nodejs product"
+        },
+        {
+            "description": "Vendor redundancy - Apache full word match (should detect)",
+            "vendor": "Apache",
+            "product": "My Apache Server",
+            "detectedPattern": "Apache",
+            "patternType": "vendor_redundancy", 
+            "field": "product",
+            "sourceValue": "My Apache Server"
         }
     ]
 
@@ -188,7 +222,9 @@ def validate_test_case(expected_case, actual_patterns):
             p['product'] == expected_case['product'] and
             p['detectedPattern'].lower() == expected_case['detectedPattern'].lower() and
             p['field'] == expected_case['field'] and
-            p['sourceValue'] == expected_case['sourceValue'])
+            p['sourceValue'] == expected_case['sourceValue'] and
+            # Check patternType if specified in expected case
+            (not expected_case.get('patternType') or p.get('patternType') == expected_case.get('patternType')))
     ]
     
     if matching_patterns:
@@ -242,6 +278,47 @@ def validate_test_case_detailed(expected_case, actual_patterns):
     return len(matching_patterns) > 0, "\n".join(output_lines)
 
 
+def get_false_positive_test_cases():
+    """Get test cases that should NOT be detected (avoiding false positives)."""
+    return [
+        {
+            "description": "Vendor redundancy - partial string match (should NOT detect)",
+            "vendor": "NodeJS", 
+            "product": "nodejs-fun-product",
+            "field": "product"
+        },
+        {
+            "description": "Vendor redundancy - partial string match suffix (should NOT detect)",
+            "vendor": "NodeJS",
+            "product": "fun-nodejs-product", 
+            "field": "product"
+        },
+        {
+            "description": "Vendor redundancy - partial string match in compound word (should NOT detect)",
+            "vendor": "Apache",
+            "product": "apache-server",
+            "field": "product"
+        }
+    ]
+
+
+def validate_false_positive_case(false_positive_case, actual_patterns):
+    """Validate that a pattern should NOT be detected."""
+    # Look for patterns that should not exist
+    matching_patterns = [
+        p for p in actual_patterns
+        if (p['vendor'] == false_positive_case['vendor'] and
+            p['product'] == false_positive_case['product'] and
+            p['field'] == false_positive_case['field'] and
+            p.get('patternType') == 'vendor_redundancy')
+    ]
+    
+    if not matching_patterns:
+        return True, f"✅ PASS: {false_positive_case['description']} - Correctly NOT detected"
+    else:
+        return False, f"❌ FAIL: {false_positive_case['description']} - False positive detected: {matching_patterns[0]['detectedPattern']}"
+
+
 def main():
     """Main test function."""
     print("=" * 84)
@@ -265,13 +342,25 @@ def main():
     
     # Get expected test cases
     expected_cases = get_test_cases()
+    false_positive_cases = get_false_positive_test_cases()
     
     # Validate each test case
     passed_tests = 0
-    total_tests = len(expected_cases)
+    total_tests = len(expected_cases) + len(false_positive_cases)
     
+    print("Testing expected detections:")
+    print("-" * 50)
     for expected_case in expected_cases:
         is_valid, detailed_output = validate_test_case_detailed(expected_case, actual_patterns)
+        if is_valid:
+            passed_tests += 1
+        print(detailed_output)
+        print()  # Add spacing between tests
+    
+    print("Testing false positive prevention:")
+    print("-" * 50)
+    for false_positive_case in false_positive_cases:
+        is_valid, detailed_output = validate_false_positive_case(false_positive_case, actual_patterns)
         if is_valid:
             passed_tests += 1
         print(detailed_output)

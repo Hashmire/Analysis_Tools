@@ -4235,12 +4235,15 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         if vendor_value and not _is_placeholder_value(vendor_value):
             vendor_lower = vendor_value.lower()
             
-            # Check for vendor text in product field
+            # Check for vendor text in product field (full word match only)
             if 'product' in raw_platform_data and isinstance(raw_platform_data['product'], str):
                 product_value = raw_platform_data['product'].strip()
                 if product_value:
                     product_lower = product_value.lower()
-                    if vendor_lower in product_lower and product_lower != vendor_lower:
+                    # Use pattern that matches vendor as separate word (surrounded by whitespace or string boundaries)
+                    # This prevents matching in hyphenated compounds like "nodejs-fun-product"
+                    vendor_pattern = r'(?:^|\s)' + re.escape(vendor_lower) + r'(?:\s|$)'
+                    if re.search(vendor_pattern, product_lower) and product_lower != vendor_lower:
                         concerns_data["bloatTextDetection"].append({
                             "field": "product",
                             "sourceValue": product_value,
@@ -4248,12 +4251,15 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                         })
                         concerns_count += 1
             
-            # Check for vendor text in packageName field
+            # Check for vendor text in packageName field (full word match only)
             if 'packageName' in raw_platform_data and isinstance(raw_platform_data['packageName'], str):
                 package_name_value = raw_platform_data['packageName'].strip()
                 if package_name_value:
                     package_name_lower = package_name_value.lower()
-                    if vendor_lower in package_name_lower and package_name_lower != vendor_lower:
+                    # Use pattern that matches vendor as separate word (surrounded by whitespace or string boundaries)
+                    # This prevents matching in hyphenated compounds like "nodejs-fun-product"
+                    vendor_pattern = r'(?:^|\s)' + re.escape(vendor_lower) + r'(?:\s|$)'
+                    if re.search(vendor_pattern, package_name_lower) and package_name_lower != vendor_lower:
                         concerns_data["bloatTextDetection"].append({
                             "field": "packageName",
                             "sourceValue": package_name_value,

@@ -67,6 +67,36 @@
           "vendor": "Test Vendor",
           "product": "Test Product",
           "versions": [{"version": "5.0.0", "lessThanOrEqual": "versions 7.2", "status": "affected"}]
+        },
+        {
+          "vendor": "NodeJS",
+          "product": "NodeJS Product",
+          "versions": [{"version": "1.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "NodeJS",
+          "product": "nodejs-fun-product",
+          "versions": [{"version": "1.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "NodeJS",
+          "product": "fun-nodejs-product",
+          "versions": [{"version": "1.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "NodeJS",
+          "product": "Fun nodejs product",
+          "versions": [{"version": "1.0.0", "status": "affected"}]
+        },
+        {
+          "vendor": "Apache",
+          "product": "apache-server",
+          "versions": [{"version": "2.4.0", "status": "affected"}]
+        },
+        {
+          "vendor": "Apache",
+          "product": "My Apache Server",
+          "versions": [{"version": "2.4.0", "status": "affected"}]
         }
       ],
       "references": [
