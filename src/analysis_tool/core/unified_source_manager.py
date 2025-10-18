@@ -20,6 +20,7 @@ class UnifiedSourceManager:
         self._org_to_sources: Dict[str, List[str]] = {}
         self._initialized = False
         self._filter_source_uuid: Optional[str] = None 
+        self.initialize() 
     
     def initialize(self) -> None:
         """Initialize the unified source manager with data from global NVD source manager."""
@@ -37,7 +38,7 @@ class UnifiedSourceManager:
         
         # Build unified registry from global manager data
         # The GlobalNVDSourceManager has _source_lookup which maps IDs to source info
-        # BUT it has duplicate entries (same source_info for orgId and each sourceIdentifier)
+        # It has duplicate entries (same source_info for each sourceIdentifier)
         # We need to deduplicate to avoid storing the same source multiple times
         if hasattr(global_manager, '_source_lookup') and global_manager._source_lookup:
             processed_uuids = set()  # Track unique UUIDs to avoid duplicates
@@ -70,20 +71,14 @@ class UnifiedSourceManager:
                     'role': 'CNA'  # Could be enhanced with actual role detection
                 }
                 
-                # Include orgId if available
-                org_id = source_info.get('orgId', '')
-                if org_id:
-                    source_data['orgId'] = org_id
-                
                 # Store with UUID as key for JavaScript UUID lookups
                 self._source_registry[source_id] = source_data
                 
-                # Build org to sources mapping using orgId when available
-                if org_id:
-                    if org_id not in self._org_to_sources:
-                        self._org_to_sources[org_id] = []
-                    if source_id not in self._org_to_sources[org_id]:
-                        self._org_to_sources[org_id].append(source_id)
+                # Build org to sources mapping using the source_id (UUID) as the org identifier
+                if source_id not in self._org_to_sources:
+                    self._org_to_sources[source_id] = []
+                if source_id not in self._org_to_sources[source_id]:
+                    self._org_to_sources[source_id].append(source_id)
         
         self._initialized = True
     

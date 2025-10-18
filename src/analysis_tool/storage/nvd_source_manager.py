@@ -71,29 +71,24 @@ class GlobalNVDSourceManager:
         self._source_lookup = {}
         
         for _, source_row in self._source_data.iterrows():
+            source_identifiers = source_row.get('sourceIdentifiers', [])
+            
+            # Create source info using the actual NVD data structure (no artificial orgId)
             source_info = {
-                'orgId': source_row.get('orgId', ''),
                 'name': source_row.get('name', 'Unknown'),
                 'contactEmail': source_row.get('contactEmail', ''),
-                'sourceIdentifiers': source_row.get('sourceIdentifiers', [])
+                'sourceIdentifiers': source_identifiers
             }
             
-            # Add lookup by orgId
-            org_id = source_row.get('orgId', '')
-            if org_id:
-                self._source_lookup[org_id] = source_info
-            
-            # Add lookup by each sourceIdentifier UUID
-            source_identifiers = source_row.get('sourceIdentifiers', [])
+            # Add lookup by each sourceIdentifier (UUIDs and emails)
             if isinstance(source_identifiers, list):
-                for uuid in source_identifiers:
-                    if uuid:
-                        self._source_lookup[uuid] = source_info
+                for identifier in source_identifiers:
+                    if identifier:
+                        self._source_lookup[identifier] = source_info
         
         # Special handling for NIST/NVD
         if 'nvd@nist.gov' not in self._source_lookup:
             nist_info = {
-                'orgId': 'nvd@nist.gov',
                 'name': 'NIST',
                 'contactEmail': 'nvd@nist.gov',
                 'sourceIdentifiers': ['nvd@nist.gov']
@@ -165,13 +160,12 @@ class GlobalNVDSourceManager:
             raise RuntimeError("NVD Source Manager not initialized - call initialize() first")
         
         sources = []
-        added_sources = set()
         
         for source_id in used_source_ids:
             source_info = self._source_lookup.get(source_id)
-            if source_info and source_info['orgId'] not in added_sources:
+            if source_info:
+                # Return original NVD structure - no artificial orgId field needed
                 sources.append(source_info)
-                added_sources.add(source_info['orgId'])
         
         return sources
     
@@ -180,8 +174,13 @@ class GlobalNVDSourceManager:
         return self._initialized
     
     def get_source_count(self) -> int:
-        """Get total number of sources loaded"""
-        return len(self._source_lookup) if self._initialized else 0
+        """Get total number of unique source organizations (not lookup table entries)"""
+        if not self._initialized:
+            return 0
+        
+        # Count unique source organizations by counting original DataFrame rows
+        # Each row represents one organization, regardless of how many lookup keys it has
+        return len(self._source_data) if self._source_data is not None else 0
     
     def create_localized_cache(self, cache_dir: Optional[str] = None) -> str:
         """
@@ -250,7 +249,7 @@ class GlobalNVDSourceManager:
                 'source_lookup': self._source_lookup,
                 'created_at': current_time.isoformat(),
                 'process_id': os.getpid(),
-                'source_count': len(self._source_lookup),
+                'source_count': len(self._source_data) if self._source_data is not None else 0,  # Count unique sources, not lookup entries
             }
             
             with open(cache_file_path, 'w', encoding='utf-8') as f:
@@ -262,7 +261,7 @@ class GlobalNVDSourceManager:
             # Store cache path for cleanup
             self._cache_file_path = str(cache_file_path)
             
-            logger.info(f"Created NVD source data cache: {cache_file_path} ({len(self._source_lookup)} sources)", 
+            logger.info(f"Created NVD source data cache: {cache_file_path} ({self.get_source_count()} unique sources)", 
                        group="cache_management")
             logger.info(f"Updated unified cache metadata: {cache_path / 'cache_metadata.json'}", group="cache_management")
             
@@ -304,8 +303,8 @@ class GlobalNVDSourceManager:
             else:
                 self._source_data = pd.DataFrame()
             
-            # Load lookup data
-            self._source_lookup = cache_data['source_lookup']
+            # Rebuild lookup tables with corrected logic (don't use cached lookup)
+            self._build_lookup_tables()
             self._initialized = True
             
             # Calculate age from either new or old format
@@ -318,7 +317,7 @@ class GlobalNVDSourceManager:
                 cache_age_hours = 0.0
             
             logger.info(f"Loaded NVD source data from cache: {cache_file_path}", group="cache_management")
-            logger.info(f"Cache contains {len(self._source_lookup)} sources (age: {cache_age_hours:.1f}h)", group="cache_management")
+            logger.info(f"Cache contains {self.get_source_count()} unique sources (age: {cache_age_hours:.1f}h)", group="cache_management")
             
             return True
             

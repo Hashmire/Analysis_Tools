@@ -85,11 +85,11 @@ class NVDSourceManagerIntegrationTestSuite:
                     "sourceIdentifiers": ["psirt@cisco.com", "d1c1063e-7a18-46af-9102-31f8928bc633"]
                 },
                 {
-                    # Standard entry with proper orgId
+                    # Standard entry - UUID in sourceIdentifiers for proper lookup
                     "orgId": "12345678-1234-4567-8901-123456789abc",
                     "name": "Test Organization", 
                     "contactEmail": "test@example.com",
-                    "sourceIdentifiers": ["test@example.com"]
+                    "sourceIdentifiers": ["test@example.com", "12345678-1234-4567-8901-123456789abc"]
                 },
                 {
                     # Another real-world case - UUID as orgId
@@ -110,10 +110,10 @@ class NVDSourceManagerIntegrationTestSuite:
             else:
                 self.add_result("EMPTY_ORGID_LOOKUP", False, f"Got '{cisco_name}', expected 'Cisco Systems, Inc.'")
             
-            # Test standard orgId lookup
+            # Test standard UUID lookup via sourceIdentifiers
             test_name = manager.get_source_name("12345678-1234-4567-8901-123456789abc")
             if test_name == "Test Organization":
-                self.add_result("STANDARD_ORGID_LOOKUP", True, "Standard orgId lookup working")
+                self.add_result("STANDARD_ORGID_LOOKUP", True, "Standard UUID lookup working")
             else:
                 self.add_result("STANDARD_ORGID_LOOKUP", False, f"Got '{test_name}', expected 'Test Organization'")
                 
@@ -131,7 +131,8 @@ class NVDSourceManagerIntegrationTestSuite:
             if len(sources) > 0:
                 source = sources[0]
                 # Verify the structure matches what completion tracker expects
-                required_fields = ['orgId', 'name', 'contactEmail', 'sourceIdentifiers']
+                # Updated for sourceIdentifiers-based approach (no artificial orgId)
+                required_fields = ['name', 'contactEmail', 'sourceIdentifiers']
                 has_all_fields = all(field in source for field in required_fields)
                 
                 if has_all_fields and source['name'] == "Cisco Systems, Inc.":
@@ -270,17 +271,18 @@ class NVDSourceManagerIntegrationTestSuite:
                     source = sources[0]
                     
                     # Verify structure matches what JavaScript completion tracker expects
-                    required_fields = ['orgId', 'name', 'contactEmail', 'sourceIdentifiers']
+                    # Updated for sourceIdentifiers-based approach (no artificial orgId)
+                    required_fields = ['name', 'contactEmail', 'sourceIdentifiers']
                     has_all_fields = all(field in source for field in required_fields)
                     
                     if has_all_fields:
                         self.add_result("JS_SOURCE_DATA_STRUCTURE", True, f"Source data has all required fields: {list(source.keys())}")
                         
-                        # Test critical case: empty orgId scenario
-                        if source['orgId'] == "" and source['name'] == "Cisco Systems, Inc.":
-                            self.add_result("JS_EMPTY_ORGID_CASE", True, "Empty orgId case properly structured for JavaScript")
+                        # Test critical case: Cisco Systems structure (no orgId needed)
+                        if source['name'] == "Cisco Systems, Inc.":
+                            self.add_result("JS_EMPTY_ORGID_CASE", True, "Cisco case properly structured for JavaScript (sourceIdentifiers-based)")
                         else:
-                            self.add_result("JS_EMPTY_ORGID_CASE", False, f"Empty orgId case failed: orgId='{source['orgId']}', name='{source['name']}'")
+                            self.add_result("JS_EMPTY_ORGID_CASE", False, f"Cisco case failed: name='{source['name']}'")
                             
                         # Test sourceIdentifiers array structure
                         if isinstance(source['sourceIdentifiers'], list) and "d1c1063e-7a18-46af-9102-31f8928bc633" in source['sourceIdentifiers']:
@@ -420,20 +422,21 @@ class NVDSourceManagerIntegrationTestSuite:
                     if len(source_data) > 0:
                         cisco_source = source_data[0]
                         
-                        # Critical test: verify the source resolved correctly despite empty orgId
+                        # Critical test: verify the source resolved correctly
                         if cisco_source.get('name') == "Cisco Systems, Inc.":
                             self.add_result("E2E_CVE_PROCESSING", True, "CVE processing correctly injects Cisco source data")
                             
                             # Verify structure has all fields JavaScript needs
-                            required_fields = ['orgId', 'name', 'contactEmail', 'sourceIdentifiers']
+                            # Updated for sourceIdentifiers-based approach (no artificial orgId)
+                            required_fields = ['name', 'contactEmail', 'sourceIdentifiers']
                             if all(field in cisco_source for field in required_fields):
                                 self.add_result("E2E_METADATA_STRUCTURE", True, "Source metadata has all required fields for JavaScript")
                                 
-                                # Verify the critical empty orgId case
-                                if cisco_source['orgId'] == "":
-                                    self.add_result("E2E_EMPTY_ORGID_HANDLING", True, "Empty orgId properly handled in end-to-end pipeline")
+                                # Verify sourceIdentifiers array is present and properly structured
+                                if isinstance(cisco_source.get('sourceIdentifiers'), list):
+                                    self.add_result("E2E_EMPTY_ORGID_HANDLING", True, "SourceIdentifiers properly handled in end-to-end pipeline")
                                 else:
-                                    self.add_result("E2E_EMPTY_ORGID_HANDLING", False, f"Expected empty orgId, got: '{cisco_source['orgId']}'")
+                                    self.add_result("E2E_EMPTY_ORGID_HANDLING", False, f"Expected sourceIdentifiers list, got: {type(cisco_source.get('sourceIdentifiers'))}")
                             else:
                                 missing = [f for f in required_fields if f not in cisco_source]
                                 self.add_result("E2E_METADATA_STRUCTURE", False, f"Missing fields: {missing}")
@@ -499,14 +502,14 @@ class NVDSourceManagerIntegrationTestSuite:
                 if len(sources) > 0:
                     source = sources[0]
                     
-                    # Critical regression test: ensure we're testing with realistic data
-                    has_empty_orgId = source.get('orgId') == ""
+                    # Critical regression test: ensure we're testing with realistic sourceIdentifiers-based data
+                    has_no_orgId = 'orgId' not in source  # No artificial orgId field
                     has_uuid_in_identifiers = "d1c1063e-7a18-46af-9102-31f8928bc633" in source.get('sourceIdentifiers', [])
                     
-                    if has_empty_orgId and has_uuid_in_identifiers:
-                        self.add_result("E2E_REGRESSION_PROTECTION", True, "Test uses realistic data structure (empty orgId, UUID in identifiers)")
-                    elif not has_empty_orgId:
-                        self.add_result("E2E_REGRESSION_PROTECTION", False, f"Test data has orgId='{source.get('orgId')}' (should be empty for Cisco case)")
+                    if has_no_orgId and has_uuid_in_identifiers:
+                        self.add_result("E2E_REGRESSION_PROTECTION", True, "Test uses realistic data structure (no orgId, UUID in identifiers)")
+                    elif not has_no_orgId:
+                        self.add_result("E2E_REGRESSION_PROTECTION", False, f"Test data has artificial orgId field (should not exist)")
                     elif not has_uuid_in_identifiers:
                         self.add_result("E2E_REGRESSION_PROTECTION", False, "Test data missing UUID in sourceIdentifiers array")
                     else:

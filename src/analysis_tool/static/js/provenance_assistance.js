@@ -4,7 +4,7 @@
 
 /**
  * Resolve source ID to human-readable display name using unified source system
- * @param {string} sourceId - The source ID (UUID or orgId) to resolve
+ * @param {string} sourceId - The source ID (UUID) to resolve
  * @returns {string} Human-readable source name or original ID if not found
  */
 function resolveSourceDisplay(sourceId) {
@@ -240,12 +240,10 @@ function addWordPressProvenanceLinks(rowIndex, platformData, linksContainer) {
                 ];
                 
                 isWordPressSource = metadata.sourceData.some(source => {
-                    // Check both orgId and sourceIdentifiers for WordPress UUIDs
-                    const orgId = source.orgId || '';
+                    // Check sourceIdentifiers for WordPress UUIDs (original NVD structure)
                     const sourceIdentifiers = source.sourceIdentifiers || [];
                     
-                    return wordpressUuids.includes(orgId) || 
-                           wordpressUuids.some(uuid => sourceIdentifiers.includes(uuid));
+                    return wordpressUuids.some(uuid => sourceIdentifiers.includes(uuid));
                 });
             }
         } catch (e) {
