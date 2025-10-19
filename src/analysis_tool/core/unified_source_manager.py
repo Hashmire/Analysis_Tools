@@ -32,8 +32,8 @@ class UnifiedSourceManager:
         
         # Ensure the global manager is properly initialized before copying data
         if not global_manager.is_initialized():
-            # Global manager not ready - this should not happen if initialization order is correct
-            self._initialized = True  # Mark as initialized to prevent infinite recursion
+            # Global manager not ready - wait for proper initialization
+            # Don't mark as initialized so we can retry later
             return
         
         # Build unified registry from global manager data
