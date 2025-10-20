@@ -1559,16 +1559,6 @@ def main():
         else:
             logger.info("No alias extraction data found - alias report not generated", group="completion")
     
-    # Finalize real-time dashboard collector
-    try:
-        from ..logging.dataset_contents_collector import save_dashboard_data
-        dashboard_file_path = str(run_paths["logs"] / "generateDatasetReport.json")
-        dashboard_report_path = save_dashboard_data(dashboard_file_path)
-        if dashboard_report_path:
-            logger.info(f"Real-time dashboard report finalized: {dashboard_report_path}", group="completion")
-    except Exception as e:
-        logger.warning(f"Failed to finalize real-time dashboard collector: {e}", group="completion")
-    
     # Stop file logging
     logger.stop_file_logging()
 

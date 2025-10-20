@@ -45,62 +45,6 @@ def resolve_output_path(output_file, run_directory=None):
         # No run directory provided - fail fast
         raise RuntimeError("Run directory required for dataset generation - standalone usage not supported")
 
-def record_dataset_run(output_file, cve_count, run_directory, run_type="status_based"):
-    """Record this dataset generation run in the run-specific tracking system"""
-    try:
-        # Write tracking data directly to logs directory (consolidated storage)
-        run_logs_dir = run_directory / "logs"
-        run_logs_dir.mkdir(exist_ok=True)
-        tracker_file = run_logs_dir / "dataset_tracker.json"
-        
-        # Load existing tracking data from logs directory if it exists
-        if tracker_file.exists():
-            with open(tracker_file, 'r') as f:
-                tracker_data = json.load(f)
-        else:
-            tracker_data = {
-                "last_full_pull": None,
-                "last_differential_pull": None,
-                "run_history": [],
-                "cve_history": {},
-                "metadata": {
-                    "version": "1.0",
-                    "created": datetime.datetime.now().isoformat()
-                }
-            }
-        
-        # Generate descriptive run ID and context
-        timestamp_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-        dataset_name = Path(output_file).stem
-        run_context = f"{dataset_name}_{cve_count}CVEs" if cve_count > 0 else dataset_name
-        
-        # Add new run record with enhanced context
-        run_record = {
-            "run_id": f"{run_type}_{timestamp_str}",
-            "run_type": run_type,
-            "timestamp": datetime.datetime.now().isoformat(),
-            "cve_count": cve_count,
-            "output_file": str(output_file),
-            "run_context": run_context,  # For integration with run-based structure
-            "size_category": "large" if cve_count > 10000 else "medium" if cve_count > 1000 else "small"
-        }
-        
-        tracker_data["run_history"].append(run_record)
-        
-        # Update last full pull timestamp for status-based runs
-        if run_type == "status_based":
-            tracker_data["last_full_pull"] = datetime.datetime.now().isoformat()
-        
-        # Save updated tracking data to run directory only
-        with open(tracker_file, 'w') as f:
-            json.dump(tracker_data, f, indent=2, default=str)
-            
-        logger.info(f"Run recorded in tracking system: {run_record['run_id']}", group="initialization")
-        logger.info(f"Dataset prepared for analysis context: {run_context}", group="initialization")
-        
-    except Exception as e:
-        logger.error(f"Failed to record run in tracking system: {e}", group="data_processing")
-
 # Load configuration
 def load_config():
     """Load configuration from config.json"""
@@ -304,9 +248,6 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         if run_directory:
             record_output_file(output_file, str(output_file_resolved), len(matching_cves))
         
-        # Record this run in the tracking system
-        record_dataset_run(output_file_resolved, len(matching_cves), run_directory, "status_based")
-        
     except Exception as e:
         logger.error(f"Dataset file creation failed: Unable to write dataset output to '{output_file_resolved}' - {e}", group="data_processing")
         return False
@@ -493,9 +434,6 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
         # Record output file in dataset contents collector
         if run_directory:
             record_output_file(output_file, str(output_file_resolved), len(matching_cves))
-        
-        # Record this run
-        record_dataset_run(output_file_resolved, len(matching_cves), run_directory, "date_range")
         
         # Finalize dataset contents report
         if run_directory:

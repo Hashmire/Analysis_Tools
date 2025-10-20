@@ -306,8 +306,6 @@ class UnifiedDashboardCollector:
             self.data["processing"]["processed_cves"] = 0
             self.data["processing"]["progress_percentage"] = 0.0
             
-            # Force save at start of processing run for immediate status visibility
-            self._auto_save(force=True)
             
         except Exception as e:
             logger.error(f"Failed to start processing run: {e}", group="data_processing")
@@ -453,7 +451,6 @@ class UnifiedDashboardCollector:
                 
                 # Regenerate top lists with updated data
                 self._update_cpe_top_lists_from_temp()
-                self._auto_save()
                 
         except Exception as e:
             if logger:
@@ -478,8 +475,6 @@ class UnifiedDashboardCollector:
             
         self.data["warnings"][category].append(warning_entry)
         
-        # Auto-save for real-time dashboard updates
-        self._auto_save()
 
     def record_cve_error(self, message: str, category: str = "processing_errors"):
         """Record an error directly associated with the current CVE (STREAMLINED)"""
@@ -496,8 +491,6 @@ class UnifiedDashboardCollector:
             
         self.data["errors"][category].append(error_entry)
         
-        # Auto-save for real-time dashboard updates
-        self._auto_save()
 
     def record_cve_info(self, message: str, category: str = "processing_info"):
         """Record informational event directly associated with the current CVE (STREAMLINED)"""
@@ -516,7 +509,6 @@ class UnifiedDashboardCollector:
         }
         
         self.data["info_events"][category].append(info_entry)
-        self._auto_save()
 
     def record_api_call(self, api_type: str, success: bool = True, response_time: float = 0.0):
         """Record API call statistics"""
@@ -547,7 +539,6 @@ class UnifiedDashboardCollector:
             elif "cpe" in api_type.lower():
                 self.data["api"]["nvd_cpe_calls"] += 1
             
-            self._auto_save()
             
         except Exception as e:
             logger.error(f"Failed to record API call for {api_type}: {e}", group="data_processing")
@@ -597,7 +588,6 @@ class UnifiedDashboardCollector:
             # Always update cache statistics to get current total_entries count
             self.update_cache_statistics()
             
-            self._auto_save()
             
         except Exception as e:
             logger.error(f"Failed to record cache activity: {e}", group="data_processing")
@@ -623,7 +613,6 @@ class UnifiedDashboardCollector:
                 if 'session_api_calls_saved' in cache_stats:
                     self.data["cache"]["session_api_calls_saved"] = cache_stats['session_api_calls_saved']
                 
-                self._auto_save()
                 
         except Exception as e:
             logger.debug(f"Failed to update cache statistics: {e}", group="data_processing")
@@ -671,7 +660,6 @@ class UnifiedDashboardCollector:
                 if logger:
                     logger.debug(f"Updated cache file size: {self.data['cache']['cache_file_size_formatted']}", group="data_processing")
                 
-                self._auto_save()
             else:
                 if logger:
                     logger.warning(f"Cache file not found at expected locations", group="data_processing")
@@ -701,7 +689,6 @@ class UnifiedDashboardCollector:
                 entries_with_mappings = self.data["mapping_stats"]["platform_entries_with_mappings"]
                 self.data["mapping_stats"]["mapping_percentage"] = round((entries_with_mappings / total_entries) * 100, 2)
             
-            self._auto_save()
             
         except Exception as e:
             logger.error(f"Failed to record mapping activity: {e}", group="data_processing")
@@ -776,7 +763,6 @@ class UnifiedDashboardCollector:
             # Generate top lists immediately from temp data (no periodic delay needed)
             self._update_cpe_top_lists_from_temp()
             
-            self._auto_save()
             
         except Exception as e:
             logger.error(f"Failed to record CPE query: {e}", group="data_processing")
@@ -921,7 +907,6 @@ class UnifiedDashboardCollector:
         """Finalize CPE statistics at the end of processing"""
         try:
             self._update_cpe_top_lists()
-            self._auto_save()
         except Exception as e:
             logger.error(f"Failed to finalize CPE stats: {e}", group="data_processing")
 
@@ -942,8 +927,6 @@ class UnifiedDashboardCollector:
             
             self.data["stages"][stage_name]["started"] = datetime.now().isoformat()
             self.data["stages"][stage_name]["status"] = "in_progress"
-            
-            self._auto_save()
             
         except Exception as e:
             logger.error(f"Failed to record stage start for {stage_name}: {e}", group="data_processing")
@@ -976,7 +959,6 @@ class UnifiedDashboardCollector:
                 except ValueError:
                     logger.warning(f"Could not parse start time for stage {stage_name}", group="data_processing")
             
-            self._auto_save()
             
         except Exception as e:
             logger.error(f"Failed to record stage end for {stage_name}: {e}", group="data_processing")
@@ -1277,8 +1259,6 @@ class UnifiedDashboardCollector:
                 "cves_processed": 0
             }
             
-            # Force save at phase start for immediate workflow visibility
-            self._auto_save(force=True)
             logger.info(f"Starting collection phase: {phase_name}", group="collection")
             
         except Exception as e:
@@ -1293,8 +1273,6 @@ class UnifiedDashboardCollector:
                 self.data["processing"]["current_cve"] = f"Discovering CVEs: {matched_cves} found"
                 self.data["processing"]["eta_simple"] = f"Scanning {current_count}/{total_count} CVEs"
                 
-                # Force save for real-time dashboard updates
-                self._auto_save(force=True)
                 
         except Exception as e:
             logger.error(f"Failed to update CVE discovery progress: {e}", group="collection")
@@ -1323,7 +1301,6 @@ class UnifiedDashboardCollector:
                     self.data["processing"]["processed_cves"] + cves_returned
                 )
                 
-            self._auto_save()
             
         except Exception as e:
             logger.error(f"Failed to record dataset API call: {e}", group="collection")
@@ -1381,8 +1358,6 @@ class UnifiedDashboardCollector:
         self.collection_phases.append(self.current_phase)
         self.current_phase = None
         
-        # Force save at phase completion for immediate workflow visibility
-        self._auto_save(force=True)
         return self._save_to_file()
     
     def record_output_file(self, filename: str, file_path: str, cve_count: int, 
@@ -1434,8 +1409,6 @@ class UnifiedDashboardCollector:
                 self.data["file_stats"]["detailed_files"].sort(key=lambda x: x.get('file_size', 0), reverse=True)
                 self.data["file_stats"]["detailed_files"] = self.data["file_stats"]["detailed_files"][:20]
             
-            # Update file stats - values will be calculated from detailed_files in _auto_save
-            
             # Update size tracking
             if file_size > self.data["file_stats"]["largest_file_size"]:
                 self.data["file_stats"]["largest_file_size"] = file_size
@@ -1465,7 +1438,6 @@ class UnifiedDashboardCollector:
             if self.current_phase:
                 self.current_phase["files_generated"] += 1
             
-            self._auto_save()
             
         except Exception as e:
             if logger:
@@ -1683,7 +1655,6 @@ def update_total_cves(total_cves: int):
     if collector:
         collector.data["processing"]["total_cves"] = total_cves
         collector.data["processing"]["remaining_cves"] = total_cves - collector.data["processing"]["processed_cves"]
-        collector._auto_save(force=True)
 
 def start_cve_processing(cve_id: str):
     """Start processing a specific CVE"""
