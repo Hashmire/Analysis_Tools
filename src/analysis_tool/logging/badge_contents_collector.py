@@ -51,6 +51,7 @@ SCHEMA STRUCTURE:
 
 import json
 import os
+import re
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from pathlib import Path

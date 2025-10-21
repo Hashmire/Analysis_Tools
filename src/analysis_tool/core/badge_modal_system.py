@@ -3512,6 +3512,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     Returns:
         HTML string for the badge, or None if no source data concerns detected
     """
+    import re  # Local import to ensure availability in this function scope
     
     # CRITICAL: Preprocess platform data to apply update pattern transformations
     # This prevents false positives where legitimate update patterns appear as overlaps or data concerns
