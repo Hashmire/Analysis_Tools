@@ -996,7 +996,7 @@ def main():
             try:
                 current_file = Path(__file__).resolve()
                 project_root = current_file.parent.parent.parent.parent 
-                cache_metadata_path = project_root / "src" / "cache" / "cache_metadata.json"
+                cache_metadata_path = project_root / "cache" / "cache_metadata.json"
                 
                 if cache_metadata_path.exists():
                     import json

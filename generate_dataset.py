@@ -600,7 +600,7 @@ def main():
                     import json
                     current_file = Path(__file__).resolve()
                     project_root = current_file.parent
-                    cache_metadata_path = project_root / "src" / "cache" / "cache_metadata.json"
+                    cache_metadata_path = project_root / "cache" / "cache_metadata.json"
                     
                     if cache_metadata_path.exists():
                         with open(cache_metadata_path, 'r') as f:

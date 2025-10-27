@@ -626,21 +626,10 @@ class UnifiedDashboardCollector:
         """
         try:
             if cache_file_path is None:
-                # Try to find the cache file using common patterns
+                # Use the standard cache location
                 from ..storage.run_organization import get_analysis_tools_root
                 project_root = get_analysis_tools_root()
-                
-                possible_cache_paths = [
-                    os.path.join(project_root, "src", "cache", "cpe_cache.json"),
-                    os.path.join(project_root, "cache", "cpe_cache.json"),
-                    os.path.join(project_root, "runs", "cache", "cpe_cache.json")
-                ]
-                
-                cache_file_path = None
-                for path in possible_cache_paths:
-                    if os.path.exists(path):
-                        cache_file_path = path
-                        break
+                cache_file_path = os.path.join(project_root, "cache", "cpe_cache.json")
             
             if cache_file_path and os.path.exists(cache_file_path):
                 file_size_bytes = os.path.getsize(cache_file_path)

@@ -57,7 +57,7 @@ def create_source_data_cache(api_key):
                 from pathlib import Path
                 
                 try:
-                    cache_metadata_path = get_analysis_tools_root() / "src" / "cache" / "cache_metadata.json"
+                    cache_metadata_path = get_analysis_tools_root() / "cache" / "cache_metadata.json"
                     if cache_metadata_path.exists():
                         with open(cache_metadata_path, 'r') as f:
                             metadata = json.load(f)

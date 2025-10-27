@@ -30,10 +30,10 @@ class CPECache:
         self.config = config
         self.disabled = config.get('disabled', False)  # Add disable flag
         
-        # Use project root cache directory instead of local cache
+        # Use project root cache directory
         current_file = Path(__file__).resolve()
         project_root = current_file.parent.parent.parent.parent 
-        self.cache_dir = project_root / "src" / "cache"
+        self.cache_dir = project_root / "cache"
         self.cache_file = self.cache_dir / 'cpe_cache.json'
         self.metadata_file = self.cache_dir / 'cache_metadata.json'
         self.cache_data = {}

@@ -10,7 +10,7 @@ Features:
 - JSON-based cache storage for transparency and debugging
 - Localized cache support for harvest script efficiency
 - Automatic cache creation and cleanup
-- Cross-process cache sharing via unified /src/cache directory
+- Cross-process cache sharing via unified /cache directory
 - Consistent with CPE cache storage format and location
 
 Usage:
@@ -209,7 +209,7 @@ class GlobalNVDSourceManager:
             # Use project root cache directory (same as CPE cache)
             current_file = Path(__file__).resolve()
             project_root = current_file.parent.parent.parent.parent 
-            cache_path = project_root / "src" / "cache"
+            cache_path = project_root / "cache"
             cache_path.mkdir(parents=True, exist_ok=True)
         
         # Use consistent JSON filename (managed via metadata)
@@ -463,7 +463,7 @@ def try_load_from_environment_cache() -> bool:
     try:
         current_file = Path(__file__).resolve()
         project_root = current_file.parent.parent.parent.parent 
-        standard_cache_path = project_root / "src" / "cache" / "nvd_source_data.json"
+        standard_cache_path = project_root / "cache" / "nvd_source_data.json"
         
         if standard_cache_path.exists():
             logger.info(f"Found NVD source cache at standard location: {standard_cache_path}", group="cache_management")
