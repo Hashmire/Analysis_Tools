@@ -34,17 +34,17 @@ class CPECache:
         current_file = Path(__file__).resolve()
         project_root = current_file.parent.parent.parent.parent 
         self.cache_dir = project_root / "cache"
-        self.cache_file = self.cache_dir / 'cpe_cache.json'
+        filename = self.config.get('filename', 'cpe_cache.json')
+        self.cache_file = self.cache_dir / filename
         self.metadata_file = self.cache_dir / 'cache_metadata.json'
         self.cache_data = {}
-        self.metadata = {
+        # Initialize minimal metadata for CPE cache section
+        self.cpe_metadata = {
             'created': datetime.now().isoformat(),
+            'description': 'NVD CPE API responses with per-entry expiration',
+            'filename': filename,
             'last_updated': datetime.now().isoformat(),
-            'cache_version': '1.0',
-            'total_entries': 0,
-            'hit_count': 0,
-            'miss_count': 0,
-            'api_calls_saved': 0
+            'total_entries': 0
         }
         self.session_stats = {
             'hits': 0,
@@ -81,11 +81,14 @@ class CPECache:
             else:
                 logger.info("No existing /cpes/ cache found - starting fresh cache", group="cpe_queries")
                 
-            # Load metadata
+            # Load CPE cache metadata from unified metadata file
             if self.metadata_file.exists():
                 with open(self.metadata_file, 'rb') as f:
                     stored_metadata = orjson.loads(f.read())
-                    self.metadata.update(stored_metadata)
+                    # Extract CPE cache specific metadata from datasets section
+                    if 'datasets' in stored_metadata and 'cpe_cache' in stored_metadata['datasets']:
+                        cpe_data = stored_metadata['datasets']['cpe_cache']
+                        self.cpe_metadata.update(cpe_data)
                     
         except (orjson.JSONDecodeError, FileNotFoundError) as e:
             logger.warning(f"Cache load error: {e} - starting with empty cache", group="cpe_queries")
@@ -102,9 +105,9 @@ class CPECache:
             
         start_time = time.time()
         try:
-            # Update metadata
-            self.metadata['last_updated'] = datetime.now().isoformat()
-            self.metadata['total_entries'] = len(self.cache_data)
+            # Update CPE cache metadata
+            self.cpe_metadata['last_updated'] = datetime.now().isoformat()
+            self.cpe_metadata['total_entries'] = len(self.cache_data)
             
             # Save main cache using orjson for performance
             if self.config.get('compression', False):
@@ -113,13 +116,28 @@ class CPECache:
                     # orjson produces bytes, decode for text mode
                     f.write(orjson.dumps(self.cache_data).decode('utf-8'))
             else:
-                # orjson is faster - write as binary
+                # orjson is faster - write as binary with human-readable formatting
                 with open(self.cache_file, 'wb') as f:
-                    f.write(orjson.dumps(self.cache_data))
+                    f.write(orjson.dumps(self.cache_data, option=orjson.OPT_INDENT_2))
                     
-            # Save metadata
+            # Update unified metadata file with CPE cache section
+            unified_metadata = {}
+            if self.metadata_file.exists():
+                try:
+                    with open(self.metadata_file, 'rb') as f:
+                        unified_metadata = orjson.loads(f.read())
+                except:
+                    pass
+            
+            # Ensure proper structure and update CPE cache data
+            if 'datasets' not in unified_metadata:
+                unified_metadata['datasets'] = {}
+            unified_metadata['datasets']['cpe_cache'] = self.cpe_metadata
+            unified_metadata['last_updated'] = datetime.now().isoformat()
+            
+            # Save updated unified metadata
             with open(self.metadata_file, 'wb') as f:
-                f.write(orjson.dumps(self.metadata, option=orjson.OPT_INDENT_2))
+                f.write(orjson.dumps(unified_metadata, option=orjson.OPT_INDENT_2))
             
             save_time = time.time() - start_time
             
@@ -155,7 +173,6 @@ class CPECache:
             
         if cpe_string not in self.cache_data:
             self.session_stats['misses'] += 1
-            self.metadata['miss_count'] += 1
             
             # Record cache miss for dashboard tracking
             try:
@@ -172,7 +189,6 @@ class CPECache:
         if self._is_expired(entry):
             del self.cache_data[cpe_string]
             self.session_stats['expired'] += 1
-            self.metadata['miss_count'] += 1
             
             # Record cache expiration for dashboard tracking
             try:
@@ -186,8 +202,6 @@ class CPECache:
         # Cache hit
         self.session_stats['hits'] += 1
         self.session_stats['api_calls_saved'] += 1
-        self.metadata['hit_count'] += 1
-        self.metadata['api_calls_saved'] += 1
         
         # Record cache hit for dashboard tracking
         try:
@@ -217,8 +231,7 @@ class CPECache:
             'query_response': api_response,
             'last_queried': datetime.now().isoformat(),
             'query_count': 1,
-            'total_results': api_response.get('totalResults', 0),
-            'cache_version': '1.0'
+            'total_results': api_response.get('totalResults', 0)
         }
         
         # Update existing entry or create new one
@@ -230,13 +243,21 @@ class CPECache:
             
         self.cache_data[cpe_string] = entry
         
+    def _get_entry_timestamp(self, entry: Dict[str, Any]) -> datetime:
+        """Get timestamp from entry using configured field path"""
+        # For "$.*.last_queried" or "$.last_queried" - extract 'last_queried'
+        field_name = 'last_queried'  # Simple implementation
+        timestamp_str = entry.get(field_name)
+        return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        
     def _is_expired(self, entry: Dict[str, Any]) -> bool:
-        """Check if a cache entry has expired (older than 12 hours)"""
-        max_age_hours = self.config.get('max_age_hours', 12)
+        """Check if a cache entry has expired (older than configured notify_age_hours)"""
+        refresh_strategy = self.config.get('refresh_strategy', {})
+        max_age_hours = refresh_strategy.get('notify_age_hours', 12)
         if max_age_hours <= 0:
             return False  # Never expire if max_age_hours is 0 or negative
             
-        last_queried = datetime.fromisoformat(entry['last_queried'].replace('Z', '+00:00'))
+        last_queried = self._get_entry_timestamp(entry)
         expiry_date = last_queried + timedelta(hours=max_age_hours)
         return datetime.now() > expiry_date
         
@@ -254,10 +275,7 @@ class CPECache:
             logger.info(f"Cache cleanup: removed {len(expired_keys)} entries older than 12 hours", group="cpe_queries")
             
     def get_stats(self) -> Dict[str, Any]:
-        """Get cache statistics"""
-        total_queries = self.metadata['hit_count'] + self.metadata['miss_count']
-        hit_rate = (self.metadata['hit_count'] / total_queries * 100) if total_queries > 0 else 0
-        
+        """Get cache statistics"""        
         return {
             'total_entries': len(self.cache_data),
             'session_hits': self.session_stats['hits'],
@@ -265,12 +283,8 @@ class CPECache:
             'session_expired': self.session_stats['expired'],
             'session_new_entries': self.session_stats['new_entries'],
             'session_api_calls_saved': self.session_stats['api_calls_saved'],
-            'lifetime_hits': self.metadata['hit_count'],
-            'lifetime_misses': self.metadata['miss_count'],
-            'lifetime_hit_rate': round(hit_rate, 1),
-            'lifetime_api_calls_saved': self.metadata['api_calls_saved'],
-            'cache_created': self.metadata['created'],
-            'last_updated': self.metadata['last_updated']
+            'cache_created': self.cpe_metadata['created'],
+            'last_updated': self.cpe_metadata['last_updated']
         }
     
     def _sync_dashboard_statistics(self):

@@ -246,7 +246,7 @@ def set_global_source_uuid(source_uuid):
     else:
         logger.info("Global source UUID cleared - processing all sources", group="initialization")
 
-def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, alias_report=False, cpe_as_generator=False, local_cve_repo=None):
+def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, alias_report=False, cpe_as_generator=False):
     """Process a single CVE using the analysis tool functionality.
     
     Args:
@@ -256,7 +256,6 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         cpe_suggestions: If True, perform NVD CPE API calls and generate suggestions
         alias_report: If True, generate alias report via curator features
         cpe_as_generator: If True, generate CPE Applicability Statements as interactive HTML pages
-        local_cve_repo: Path to local CVE repository for faster loading
     
     Note:
         Source UUID filtering is controlled by the global _global_source_uuid variable
@@ -287,7 +286,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         log_init(f"Processing {cve_id}")
 
         # Gather CVE List Record and NVD Dataset Records for the target CVE
-        cveRecordData = gatherData.gatherCVEListRecordLocal(cve_id, local_cve_repo)
+        cveRecordData = gatherData.gatherCVEListRecordLocal(cve_id)
         
         # Check if CVE is in REJECTED state
         if cveRecordData and 'cveMetadata' in cveRecordData:
@@ -711,7 +710,6 @@ def audit_cache_and_mappings_stats():
             session_hit_rate = (cache_stats['session_hits'] / session_total * 100) if session_total > 0 else 0
             
             stats_info.append(f"CPE cache: {cache_stats['session_hits']}/{session_total} session hits ({session_hit_rate:.1f}%)")
-            stats_info.append(f"CPE cache lifetime: {cache_stats['lifetime_hit_rate']}% hit rate, {cache_stats['lifetime_api_calls_saved']} API calls saved")
         else:
             stats_info.append("CPE cache: Not initialized")
           # Get confirmed mappings statistics
@@ -831,7 +829,6 @@ def main():
     input_sources.add_argument("--cve", nargs="+", help="One or more CVE IDs to process")
     input_sources.add_argument("--file", help="Text file with CVE IDs (one per line)")
     input_sources.add_argument("--test-file", help="JSON file with test CVE data for modular rules testing")
-    input_group.add_argument("--local-cve-repo", type=str, nargs='?', const='CONFIG_DEFAULT', help="Path to local CVE repository. Use without value to use config default, or provide explicit path (e.g., /path/to/cvelistV5/cves)")
     input_group.add_argument("--api-key", type=str, nargs='?', const='CONFIG_DEFAULT', help="NVD API Key. Use without value to use config default, or provide explicit key")
     input_group.add_argument("--source-uuid", help="Filter platform entries by source UUID")
     
@@ -920,18 +917,6 @@ def main():
     # Load configuration (logging will be started after run directory is created)
     config = processData.load_config()
     
-    # Resolve local CVE repository path from config if needed
-    if args.local_cve_repo == 'CONFIG_DEFAULT':
-        local_cve_config = config.get('local_cve_repository', {})
-        if local_cve_config.get('enabled', False):
-            args.local_cve_repo = local_cve_config.get('default_path')
-            logger.info(f"Using configured local CVE repository: {args.local_cve_repo}", group="initialization")
-        else:
-            args.local_cve_repo = None
-            logger.info("Local CVE repository disabled in config, using API only", group="initialization")
-    elif args.local_cve_repo:
-        logger.info(f"Using specified local CVE repository: {args.local_cve_repo}", group="initialization")
-    
     # Override external assets setting if CLI argument is provided
     if args.external_assets:
         logger.info("External assets enabled via CLI argument - overriding config setting", group="initialization")
@@ -1007,8 +992,10 @@ def main():
                         last_updated = datetime.fromisoformat(metadata['datasets']['nvd_source_data']['last_updated'])
                         age_hours = (datetime.now() - last_updated).total_seconds() / 3600
                         
-                        if age_hours > 24:
-                            logger.warning(f"NVD source cache is {age_hours:.1f} hours old - refreshing from API", group="initialization")
+                        from ..storage.nvd_source_manager import is_cache_stale, get_cache_age_threshold
+                        if is_cache_stale(age_hours):
+                            threshold = get_cache_age_threshold()
+                            logger.warning(f"NVD source cache is {age_hours:.1f} hours old (threshold: {threshold}h) - refreshing from API", group="initialization")
                             # Refresh the cache
                             nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
                             source_manager.initialize(nvd_source_data)
@@ -1053,11 +1040,11 @@ def main():
     if args.no_cache:
         logger.info("Cache disabled for testing mode", group="initialization")
         # Initialize with disabled cache configuration
-        cache_config = config.get('cache', {}).copy()
+        cache_config = config.get('cache_settings', {}).get('cpe_cache', {}).copy()
         cache_config['enabled'] = False
         cache_manager.initialize(cache_config)
     else:
-        cache_manager.initialize(config.get('cache', {}))
+        cache_manager.initialize(config.get('cache_settings', {}).get('cpe_cache', {}))
     
     # Handle test file processing
     if args.test_file:
@@ -1411,7 +1398,7 @@ def main():
                 end_audit("Checkpoint audit complete")
             
             # Process the CVE
-            result = process_cve(cve, nvd_api_key, sdc_report, cpe_suggestions, alias_report, cpe_as_generator, args.local_cve_repo)
+            result = process_cve(cve, nvd_api_key, sdc_report, cpe_suggestions, alias_report, cpe_as_generator)
             
             # Handle results: successful processing, skipped CVEs, or failures
             if result:

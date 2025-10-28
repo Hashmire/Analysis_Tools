@@ -59,6 +59,268 @@ TOOLNAME = config['application']['toolname']
 # Initialize logger
 logger = WorkflowLogger()
 
+# Global batch processing for cache updates
+_cache_batch = {
+    'nvd_updates': [],
+    'cve_list_updates': [],
+    'batch_size': 100
+}
+
+def _flush_cache_batches():
+    """Process all pending cache updates in batches"""
+    _flush_nvd_cache_batch()
+    _flush_cve_list_cache_batch()
+
+def _flush_cve_list_cache_batch():
+    """Process queued CVE List V5 cache updates in batch"""
+    if not _cache_batch['cve_list_updates']:
+        return
+    
+    from src.analysis_tool.core.gatherData import _update_cache_metadata
+    import requests
+    
+    batch = _cache_batch['cve_list_updates']
+    _cache_batch['cve_list_updates'] = []
+    
+    repo_paths = set()
+    
+    for item in batch:
+        try:
+            # Fetch CVE List V5 record from MITRE API
+            cve_org_url = config['api']['endpoints']['cve_list']
+            simple_cve_request_url = cve_org_url + item['cve_id']
+            
+            response = requests.get(simple_cve_request_url, timeout=config['api']['timeouts']['cve_org'])
+            response.raise_for_status()
+            cve_record_data = response.json()
+            
+            # Ensure directory exists
+            item['file_path'].parent.mkdir(parents=True, exist_ok=True)
+            
+            # Write with pretty formatting
+            with open(item['file_path'], 'w', encoding='utf-8') as f:
+                json.dump(cve_record_data, f, indent=2)
+            
+            repo_paths.add(item['repo_path'])
+            logger.debug(f"Batch updated CVE List V5: {item['cve_id']}", group="cache_management")
+            
+        except Exception as e:
+            logger.debug(f"Failed to update CVE List V5 cache for {item['cve_id']}: {e}", group="cache_management")
+    
+    # Update metadata once per batch
+    for repo_path in repo_paths:
+        try:
+            _update_cache_metadata('cve_list_v5', repo_path)
+        except Exception as e:
+            logger.debug(f"Failed to update CVE List V5 cache metadata: {e}", group="cache_management")
+    
+    if batch:
+        logger.info(f"Batch processed {len(batch)} CVE List V5 cache updates", group="cache_management")
+
+def _flush_nvd_cache_batch():
+    """Process queued NVD cache updates in batch"""
+    if not _cache_batch['nvd_updates']:
+        return
+    
+    from src.analysis_tool.core.gatherData import _update_cache_metadata
+    from datetime import datetime
+    
+    batch = _cache_batch['nvd_updates']
+    _cache_batch['nvd_updates'] = []
+    
+    repo_paths = set()
+    
+    for item in batch:
+        try:
+            # Ensure directory exists
+            item['file_path'].parent.mkdir(parents=True, exist_ok=True)
+            
+            # Create NVD API response format
+            nvd_response_data = {
+                "resultsPerPage": 1,
+                "startIndex": 0,
+                "totalResults": 1,
+                "format": "NVD_CVE", 
+                "version": "2.0",
+                "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+                "vulnerabilities": [item['vulnerability_record']]
+            }
+            
+            # Write with pretty formatting
+            with open(item['file_path'], 'w', encoding='utf-8') as f:
+                json.dump(nvd_response_data, f, indent=2)
+            
+            repo_paths.add(item['repo_path'])
+            logger.debug(f"Batch updated NVD 2.0 CVE: {item['cve_id']}", group="cache_management")
+            
+        except Exception as e:
+            logger.debug(f"Failed to write NVD cache file for {item['cve_id']}: {e}", group="cache_management")
+    
+    # Update metadata once per batch
+    for repo_path in repo_paths:
+        try:
+            _update_cache_metadata('nvd_2_0_cve', repo_path)
+        except Exception as e:
+            logger.debug(f"Failed to update NVD cache metadata: {e}", group="cache_management")
+    
+    if batch:
+        logger.info(f"Batch processed {len(batch)} NVD 2.0 cache updates", group="cache_management")
+
+def _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vulnerability_record):
+    """
+    Queue NVD CVE record for batch cache update during bulk dataset generation.
+    Only updates cache if API data is newer than existing cached data.
+    """
+    try:
+        # Import cache functions (delayed import to avoid circular dependencies)
+        from src.analysis_tool.core.gatherData import get_cache_config, _resolve_cve_cache_file_path
+        from datetime import datetime
+        
+        nvd_config = get_cache_config('nvd_2_0_cve')
+        if not nvd_config.get('enabled', False):
+            return False
+            
+        # Use 'cache/nvd_2.0_cves' as default path (parallel to cve_list_v5)
+        nvd_repo_path = nvd_config.get('path', 'cache/nvd_2.0_cves')
+        
+        nvd_file_path = _resolve_cve_cache_file_path(cve_id, nvd_repo_path)
+        if not nvd_file_path:
+            return False
+        
+        # Extract API lastModified timestamp
+        api_last_modified = vulnerability_record.get('cve', {}).get('lastModified')
+        if not api_last_modified:
+            logger.debug(f"No lastModified in API data for {cve_id} - skipping cache update", group="cache_management")
+            return False
+        
+        # Parse API timestamp
+        try:
+            if 'Z' in api_last_modified:
+                api_datetime_str = api_last_modified.replace('Z', '+00:00')
+            elif '+' not in api_last_modified and api_last_modified.count(':') >= 2:
+                api_datetime_str = api_last_modified + '+00:00'
+            else:
+                api_datetime_str = api_last_modified
+            api_datetime = datetime.fromisoformat(api_datetime_str)
+        except ValueError:
+            logger.debug(f"Could not parse API lastModified for {cve_id}: {api_last_modified}", group="cache_management")
+            return False
+            
+        # Check if file exists and compare timestamps
+        if nvd_file_path.exists():
+            try:
+                with open(nvd_file_path, 'r', encoding='utf-8') as f:
+                    cached_data = json.load(f)
+                
+                # Extract cached lastModified timestamp
+                cached_vulns = cached_data.get('vulnerabilities', [])
+                if cached_vulns:
+                    cached_last_modified = cached_vulns[0].get('cve', {}).get('lastModified')
+                    if cached_last_modified:
+                        # Parse cached timestamp
+                        if 'Z' in cached_last_modified:
+                            cached_datetime_str = cached_last_modified.replace('Z', '+00:00')
+                        elif '+' not in cached_last_modified and cached_last_modified.count(':') >= 2:
+                            cached_datetime_str = cached_last_modified + '+00:00'
+                        else:
+                            cached_datetime_str = cached_last_modified
+                        cached_datetime = datetime.fromisoformat(cached_datetime_str)
+                        
+                        # Compare timestamps - only update if API data is newer
+                        if api_datetime <= cached_datetime:
+                            logger.debug(f"NVD 2.0 cached record current for {cve_id} - skipping cache update", group="cache_management")
+                            return False
+                        
+                        logger.debug(f"NVD 2.0 cached record outdated for {cve_id} - queuing for batch update", group="cache_management")
+                        
+            except (json.JSONDecodeError, IOError) as e:
+                logger.debug(f"Could not read existing NVD 2.0 cached record for {cve_id}: {e} - queuing for batch update", group="cache_management")
+        
+        # Queue for batch processing instead of immediate write
+        _cache_batch['nvd_updates'].append({
+            'cve_id': cve_id,
+            'file_path': nvd_file_path,
+            'vulnerability_record': vulnerability_record,
+            'repo_path': nvd_repo_path
+        })
+        
+        # Process batch if it reaches target size
+        if len(_cache_batch['nvd_updates']) >= _cache_batch['batch_size']:
+            _flush_nvd_cache_batch()
+        
+        return True
+        
+    except Exception as e:
+        logger.debug(f"Failed to queue NVD 2.0 CVE for batch processing {cve_id}: {e}", group="cache_management")
+        return False
+
+def _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified):
+    """
+    Queue CVE List V5 record for batch cache update during bulk dataset generation.
+    Uses configurable sync behavior - can be disabled via manual_sync_only flag.
+    
+    Args:
+        cve_id: CVE identifier (e.g., "CVE-2024-12345")
+        nvd_last_modified: lastModified timestamp from NVD API response (used for logging only)
+    """
+    try:
+        # Import cache functions (delayed import to avoid circular dependencies)
+        from src.analysis_tool.core.gatherData import get_cache_config, _resolve_cve_cache_file_path
+        from datetime import datetime, timedelta
+        
+        cve_config = get_cache_config('cve_list_v5')
+        if not cve_config.get('enabled', False):
+            return False
+        
+        # Check if automatic sync is disabled
+        if cve_config.get('manual_sync_only', False):
+            logger.debug(f"CVE List V5 automatic sync disabled for {cve_id} - manual_sync_only=true", group="cache_management")
+            return False
+            
+        # Use 'cache/cve_list_v5' as default path
+        cve_repo_path = cve_config.get('path', 'cache/cve_list_v5')
+        
+        cve_file_path = _resolve_cve_cache_file_path(cve_id, cve_repo_path)
+        if not cve_file_path:
+            return False
+        
+        # Use file modification time + TTL approach (avoids cross-source timestamp comparison issues)
+        # Use configured notify_age_hours from cache settings
+        cache_ttl_hours = cve_config.get('refresh_strategy', {}).get('notify_age_hours', 168)  # Default to 168 hours (7 days)
+        
+        if cve_file_path.exists():
+            # Check file modification time vs TTL
+            file_modified_time = datetime.fromtimestamp(cve_file_path.stat().st_mtime)
+            file_age_hours = (datetime.now() - file_modified_time).total_seconds() / 3600
+            
+            if file_age_hours < cache_ttl_hours:
+                # File is within TTL - no update needed
+                logger.debug(f"CVE List V5 cache current for {cve_id} (age: {file_age_hours:.1f}h < {cache_ttl_hours}h TTL)", group="cache_management")
+                return False
+            
+            # File is older than TTL - queue for update
+            logger.debug(f"CVE List V5 cache stale for {cve_id} (age: {file_age_hours:.1f}h > {cache_ttl_hours}h TTL) - queuing for batch update", group="cache_management")
+        else:
+            # File doesn't exist - queue for creation
+            logger.debug(f"CVE List V5 cache missing for {cve_id} - queuing for batch creation", group="cache_management")
+        
+        # Queue for batch processing instead of immediate API call
+        _cache_batch['cve_list_updates'].append({
+            'cve_id': cve_id,
+            'file_path': cve_file_path,
+            'repo_path': cve_repo_path
+        })
+        
+        # Process batch if it reaches target size
+        if len(_cache_batch['cve_list_updates']) >= _cache_batch['batch_size']:
+            _flush_cve_list_cache_batch()
+        
+        return True
+        
+    except Exception as e:
+        logger.debug(f"Failed to queue CVE List V5 for batch processing {cve_id}: {e}", group="cache_management")
+        return False
+
 def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cve_dataset.txt", run_directory=None, source_uuid=None, statuses_explicitly_provided=False):
     """
     Query NVD API for CVEs with specific vulnerability statuses
@@ -191,15 +453,32 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
             vuln_status = cve_data.get('vulnStatus', '')
             
             # Determine if we should apply status filtering
+            should_include = False
             if source_uuid and not statuses_explicitly_provided:
                 # UUID filtering with default statuses - include all CVEs from this source
+                should_include = True
                 matching_cves.append(cve_id)
                 logger.info(f"MATCH: {cve_id} - Status: {vuln_status}, UUID: {source_uuid} (all statuses)", group="cve_queries")
             elif vuln_status in target_statuses:
                 # Either traditional status filtering or UUID + explicit status filtering
+                should_include = True
                 matching_cves.append(cve_id)
                 status_desc = f", UUID: {source_uuid}" if source_uuid else ""
                 logger.info(f"MATCH: {cve_id} - Status: {vuln_status}{status_desc}", group="cve_queries")
+            
+            # OPTIMIZATION: Cache both NVD and CVE List V5 records now to avoid re-fetching later
+            if should_include and cve_id:
+                # Extract NVD 2.0 API lastModified for timestamp comparisons
+                nvd_last_modified = cve_data.get('lastModified', '')
+                
+                # Cache NVD CVE record
+                _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vuln)
+                
+                # Cache CVE List V5 record (only if we have NVD timestamp for comparison)
+                if nvd_last_modified:
+                    _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified)
+                else:
+                    logger.warning(f"NVD 2.0 API response missing required lastModified field for {cve_id} - skipping CVE List V5 cache (malformed API response)", group="cache_management")
         
         # Check if we have more pages
         total_results = page_data.get('totalResults', 0)
@@ -229,6 +508,9 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                 logger.info(f"Waiting {wait_time} seconds before next page...", group="cve_queries")
                 sleep(wait_time)
     
+    # Flush any remaining cache updates
+    _flush_cache_batches()
+    
     # Write results to file
     output_file_resolved = resolve_output_path(output_file, run_directory)
     
@@ -242,6 +524,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         logger.info("Dataset generated successfully!", group="initialization")
         logger.info(f"Collected {len(matching_cves)} CVE records", group="initialization")
         logger.info(f"File saved: {output_file_resolved}", group="initialization")
+        
         logger.info(f"You can now run: python -m src.analysis_tool.core.analysis_tool --file {output_file_resolved}", group="initialization")
         
         # Record output file in dataset contents collector
@@ -401,6 +684,19 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
                     logger.info(f"FOUND: {cve_id} - UUID: {source_uuid}", group="cve_queries")
                 else:
                     logger.info(f"FOUND: {cve_id}", group="cve_queries")
+                
+                # OPTIMIZATION: Cache both NVD and CVE List V5 records now to avoid re-fetching later
+                # Extract NVD 2.0 API lastModified for timestamp comparisons
+                nvd_last_modified = cve_data.get('lastModified', '')
+                
+                # Cache NVD CVE record
+                _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vuln)
+                
+                # Cache CVE List V5 record (only if we have NVD timestamp for comparison)
+                if nvd_last_modified:
+                    _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified)
+                else:
+                    logger.warning(f"NVD 2.0 API response missing required lastModified field for {cve_id} - skipping CVE List V5 cached record creation (malformed API response)", group="cache_management")
         
         total_results = page_data.get('totalResults', 0)
         current_end = start_index + len(vulnerabilities)
@@ -420,6 +716,9 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
         wait_time = config['api']['retry']['page_delay_without_key'] if not api_key else config['api']['retry']['page_delay_with_key']
         if wait_time > 0:
             sleep(wait_time)
+    
+    # Flush any remaining cache updates
+    _flush_cache_batches()
     
     # Write results
     output_file_resolved = resolve_output_path(output_file, run_directory)
@@ -466,8 +765,6 @@ def main():
     # Group 2: Data Input/Sources - Specify what data to process and where to get it
     input_group = parser.add_argument_group('Data Input/Sources', 'Specify input data and data sources')
     input_group.add_argument('--api-key', nargs='?', const='CONFIG_DEFAULT', help='NVD API key. Use without value to use config default, or provide explicit key')
-    input_group.add_argument('--local-cve-repo', type=str, nargs='?', const='CONFIG_DEFAULT',
-                            help='Path to local CVE repository for integrated analysis. Use without value to use config default, or provide explicit path (e.g., /path/to/cvelistV5/cves)')
     
     # Group 3: Processing Control - Control how processing is performed and output is presented
     control_group = parser.add_argument_group('Processing Control', 'Control processing behavior and output presentation')
@@ -523,18 +820,6 @@ def main():
     logger.info("Using API key for enhanced rate limits", group="initialization")
     if args.source_uuid:
         logger.info(f"UUID filtering enabled: {args.source_uuid}", group="initialization")
-    
-    # Resolve local CVE repository path from config if needed
-    if args.local_cve_repo == 'CONFIG_DEFAULT':
-        local_cve_config = config.get('local_cve_repository', {})
-        if local_cve_config.get('enabled', False):
-            args.local_cve_repo = local_cve_config.get('default_path')
-            logger.info(f"Using configured local CVE repository: {args.local_cve_repo}", group="initialization")
-        else:
-            args.local_cve_repo = None
-            logger.info("Local CVE repository disabled in config, using API only", group="initialization")
-    elif args.local_cve_repo:
-        logger.info(f"Using specified local CVE repository: {args.local_cve_repo}", group="initialization")
     
     # Create run directory first - ALL dataset generation creates runs
     from src.analysis_tool.storage.run_organization import create_run_directory
@@ -610,8 +895,10 @@ def main():
                             last_updated = datetime.fromisoformat(metadata['datasets']['nvd_source_data']['last_updated'])
                             age_hours = (datetime.now() - last_updated).total_seconds() / 3600
                             
-                            if age_hours > 24:
-                                logger.warning(f"NVD source cache is {age_hours:.1f} hours old - refreshing from API", group="initialization")
+                            from analysis_tool.storage.nvd_source_manager import is_cache_stale, get_cache_age_threshold
+                            if is_cache_stale(age_hours):
+                                threshold = get_cache_age_threshold()
+                                logger.warning(f"NVD source cache is {age_hours:.1f} hours old (threshold: {threshold}h) - refreshing from API", group="initialization")
                                 # Refresh the cache
                                 nvd_source_data = gatherNVDSourceData(resolved_api_key)
                                 source_manager.initialize(nvd_source_data)
@@ -649,6 +936,9 @@ def main():
         source_suffix = f"_{source_shortname}"
         
         logger.info(f"Resolved source UUID {args.source_uuid[:8]}... to shortname: '{source_shortname}'", group="initialization")
+    else:
+        # No source UUID provided - use default shortname
+        source_shortname = None
     
     # Prepare enhanced naming parameters
     execution_type = "dataset"
@@ -709,10 +999,10 @@ def main():
         logger.info("Starting integrated analysis run...", group="initialization")
         
 
-        dataset_path = run_directory / "logs" / Path(output_file).name
+        dataset_path = run_directory / "logs" / output_file
         
         # Run analysis tool with existing run context
-        success = run_analysis_tool(output_file, resolved_api_key, run_directory, run_id, args.external_assets, sdc_report, cpe_suggestions, alias_report, cpe_as_generator, args.source_uuid, args.local_cve_repo)
+        success = run_analysis_tool(output_file, resolved_api_key, run_directory, run_id, args.external_assets, sdc_report, cpe_suggestions, alias_report, cpe_as_generator, args.source_uuid)
         if not success:
             logger.error("Analysis tool execution failed", group="data_processing")
             return 1
@@ -723,7 +1013,7 @@ def main():
     return 0
 
 
-def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=None, external_assets=False, sdc_report=False, cpe_suggestions=False, alias_report=False, cpe_as_generator=False, source_uuid=None, local_cve_repo=None):
+def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=None, external_assets=False, sdc_report=False, cpe_suggestions=False, alias_report=False, cpe_as_generator=False, source_uuid=None):
     """Run the analysis tool on the generated dataset within an existing run context (direct integration)"""
     
     try:
@@ -769,9 +1059,6 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
         if source_uuid:
             logger.info(f"Source UUID filter will be applied during analysis: {source_uuid}", group="initialization")
         
-        if local_cve_repo:
-            logger.info(f"Local CVE repository will be used with API fallback: {local_cve_repo}", group="initialization")
-        
         if run_directory:
             logger.info(f"Analysis will continue in run directory: {run_directory}", group="initialization")
         else:
@@ -808,9 +1095,6 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
             
             if source_uuid:
                 sys.argv.extend(["--source-uuid", source_uuid])
-            
-            if local_cve_repo:
-                sys.argv.extend(["--local-cve-repo", local_cve_repo])
             
             # Execute analysis tool main function
             main()

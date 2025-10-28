@@ -26,6 +26,130 @@ config = load_config()
 VERSION = config['application']['version']
 TOOLNAME = config['application']['toolname']
 
+# CONSOLIDATED CACHE CONFIGURATION FUNCTIONS
+def _get_cache_defaults(cache_type):
+    """Get default configuration for cache type"""
+    defaults = {
+        'cve_list_v5': {
+            'enabled': False,
+            'path': 'cache/cve_list_v5',
+            'fallback_to_api': True,
+            'description': 'CVE List V5 repository with per-file tracking',
+            'refresh_strategy': {
+                'field_path': '$.cveMetadata.dateUpdated',
+                'notify_age_hours': 168
+            }
+        },
+        'nvd_2_0_cve': {
+            'enabled': True,
+            'path': 'cache/nvd_2.0_cves',
+            'filename': 'nvd_2_0_cve.json',
+            'description': 'NVD CVE 2.0 API responses cache with per-file tracking',
+            'refresh_strategy': {
+                'field_path': '$.vulnerabilities.*.cve.lastModified',
+                'notify_age_hours': 24
+            }
+        }
+    }
+    return defaults.get(cache_type, {})
+
+def _get_cache_descriptions():
+    """Get standard descriptions for cache types"""
+    return {
+        'cve_list_v5': 'CVE List V5 local repository with per-file tracking',
+        'nvd_2_0_cve': 'NVD CVE 2.0 API responses with directory organization'
+    }
+
+def _update_cache_metadata(cache_type, repo_path):
+    """
+    Unified cache metadata updater for all cache types.
+    
+    Args:
+        cache_type: Type of cache ('cve_list_v5', 'nvd_2_0_cve')
+        repo_path: Path to the cache directory
+    """
+    try:
+        from datetime import datetime
+        from pathlib import Path
+        
+        # Get project root for cache metadata file
+        project_root = Path(__file__).parent.parent.parent.parent
+        cache_dir = project_root / "cache"
+        metadata_file = cache_dir / "cache_metadata.json"
+        
+        # Count total files - resolve path relative to project root
+        if isinstance(repo_path, str):
+            cache_path = Path(repo_path)
+        else:
+            cache_path = repo_path
+            
+        # If relative path, make it relative to project root
+        if not cache_path.is_absolute():
+            cache_path = project_root / cache_path
+            
+        total_files = len(list(cache_path.rglob("*.json"))) if cache_path.exists() else 0
+        current_time = datetime.now()
+        
+        # Load existing metadata
+        metadata = {}
+        if metadata_file.exists():
+            try:
+                with open(metadata_file, 'r') as f:
+                    metadata = json.load(f)
+            except:
+                pass
+        
+        # Initialize structure if needed
+        if 'datasets' not in metadata:
+            metadata['datasets'] = {}
+            
+        # Update cache metadata
+        cache_data = metadata['datasets'].get(cache_type, {})
+        
+        # Set creation time if this is the first entry
+        if 'created' not in cache_data and total_files > 0:
+            cache_data['created'] = current_time.isoformat()
+            
+        # Get description for this cache type
+        descriptions = _get_cache_descriptions()
+        description = descriptions.get(cache_type, f'{cache_type} cache')
+            
+        cache_data.update({
+            'description': description,
+            'directory_path': str(repo_path),
+            'last_updated': current_time.isoformat(),
+            'total_files': total_files
+        })
+        
+        metadata['datasets'][cache_type] = cache_data
+        metadata['last_updated'] = current_time.isoformat()
+        
+        # Save updated metadata
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2, sort_keys=True)
+            
+        logger.debug(f"Updated {cache_type} cache metadata: {total_files} files", group="cache_management")
+        
+    except Exception as e:
+        logger.warning(f"Could not update {cache_type} cache metadata: {e}", group="cache_management")
+
+def get_cache_config(cache_type):
+    """
+    Unified cache configuration getter.
+    
+    Args:
+        cache_type: Type of cache ('cve_list_v5', 'nvd_2_0_cve')
+        
+    Returns:
+        Cache configuration dictionary with defaults
+    """
+    try:
+        config = load_config()
+        return config.get('cache_settings', {}).get(cache_type, _get_cache_defaults(cache_type))
+    except Exception as e:
+        logger.warning(f"Could not load {cache_type} config, using defaults: {e}", group="cache_management")
+        return _get_cache_defaults(cache_type)
+
 
 
 def get_public_ip():
@@ -36,32 +160,41 @@ def get_public_ip():
         return response.text if response.status_code == 200 else "Unknown"
     except Exception as e:        return f"Could not retrieve IP: {str(e)}"
 
-def _resolve_cve_file_path(cve_id, repo_base_path):
+def _resolve_cve_cache_file_path(cve_id, repo_base_path):
     """
-    Convert CVE ID to local repository file path.
+    Unified CVE file path resolver for all cache types.
     CVE-2024-12345 → {repo_base_path}/2024/12xxx/CVE-2024-12345.json
+    
+    Args:
+        cve_id: CVE ID (e.g., "CVE-2024-12345")
+        repo_base_path: Base path for cache repository
+        
+    Returns:
+        Path object or None if CVE ID is invalid
     """
     try:
         parts = cve_id.split('-')
-        if len(parts) != 3:
+        if len(parts) != 3 or parts[0] != 'CVE':
             return None
             
         year = parts[1]
-        number = parts[2]
+        sequence = parts[2]
         
-        # Determine directory based on number ranges
-        if len(number) == 4:
-            dir_name = f"{number[0]}xxx"
-        elif len(number) == 5:
-            dir_name = f"{number[:2]}xxx"
-        elif len(number) >= 6:
-            dir_name = f"{number[:3]}xxx"
+        # Create directory name based on sequence length
+        if len(sequence) == 4:
+            dir_name = f"{sequence[0]}xxx"
+        elif len(sequence) == 5:
+            dir_name = f"{sequence[:2]}xxx"
+        elif len(sequence) >= 6:
+            dir_name = f"{sequence[:3]}xxx"
         else:
             return None
             
         return Path(repo_base_path) / year / dir_name / f"{cve_id}.json"
     except (IndexError, ValueError):
         return None
+
+
 
 def _load_cve_from_local_file(cve_file_path):
     """
@@ -86,11 +219,282 @@ def _load_cve_from_local_file(cve_file_path):
         logger.warning(f"Cannot read local CVE file {cve_file_path}: {e}", group="cve_queries")
         return None
 
+def _extract_field_value(data, simple_path):
+    """
+    Extract field value from JSON data using simple dot notation.
+    Supports basic patterns: field, nested.field, array.*.field
+    
+    Args:
+        data: JSON data structure
+        simple_path: Simple path like 'cveMetadata.dateUpdated' or 'vulnerabilities.*.cve.lastModified'
+    
+    Returns:
+        List of matching values
+    """
+    try:
+        if not simple_path or not data:
+            return []
+            
+        # Remove leading $. if present
+        path = simple_path.lstrip('$.')
+        parts = path.split('.')
+        
+        def _traverse(obj, parts_remaining):
+            if not parts_remaining:
+                return [obj] if obj is not None else []
+            
+            part = parts_remaining[0]
+            remaining = parts_remaining[1:]
+            
+            if part == '*':
+                # Wildcard - iterate over array/object values
+                if isinstance(obj, list):
+                    results = []
+                    for item in obj:
+                        results.extend(_traverse(item, remaining))
+                    return results
+                elif isinstance(obj, dict):
+                    results = []
+                    for item in obj.values():
+                        results.extend(_traverse(item, remaining))
+                    return results
+                else:
+                    return []
+            else:
+                # Regular field access
+                if isinstance(obj, dict) and part in obj:
+                    return _traverse(obj[part], remaining)
+                else:
+                    return []
+        
+        return _traverse(data, parts)
+    except Exception:
+        return []
+
+def _sync_cvelist_with_nvd_dataset(targetCve):
+    """
+    Check if CVE List V5 local data needs sync with NVD dataset based on modification dates.
+    Business rule: If NVD lastModified > CVE List V5 dateUpdated, refresh from MITRE API.
+    
+    Args:
+        targetCve: CVE ID to check for sync (e.g., "CVE-2024-12345")
+    """
+    try:
+        from datetime import datetime
+        
+        # Get NVD data for date comparison
+        nvd_data = gatherNVDCVERecord(config.get('api', {}).get('keys', {}).get('nvd_api'), targetCve)
+        if not nvd_data:
+            logger.debug(f"No NVD data available for sync check: {targetCve}", group="cache_management")
+            return
+        
+        # Extract NVD lastModified date using config field path
+        nvd_config = get_cache_config('nvd_2_0_cve')
+        nvd_field_path = nvd_config.get('refresh_strategy', {}).get('field_path', '$.vulnerabilities.*.cve.lastModified')
+        
+        nvd_dates = _extract_field_value(nvd_data, nvd_field_path)
+        
+        if not nvd_dates:
+            logger.warning(f"NVD 2.0 API response missing required lastModified field for {targetCve} (malformed API response)", group="cache_management")
+            return
+            
+        nvd_last_modified = max(nvd_dates)  # Take most recent if multiple matches
+        # Handle various datetime formats and ensure timezone awareness
+        if 'Z' in nvd_last_modified:
+            nvd_datetime_str = nvd_last_modified.replace('Z', '+00:00')
+        elif '+' not in nvd_last_modified and nvd_last_modified.count(':') >= 2:
+            nvd_datetime_str = nvd_last_modified + '+00:00'
+        else:
+            nvd_datetime_str = nvd_last_modified
+        nvd_datetime = datetime.fromisoformat(nvd_datetime_str)
+        
+        # Get CVE List V5 local data for comparison
+        cve_config = get_cache_config('cve_list_v5')
+        local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
+        
+        cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
+        if not cve_file_path or not cve_file_path.exists():
+            logger.debug(f"No local CVE file exists for sync check: {targetCve}", group="cache_management")
+            return
+            
+        local_data = _load_cve_from_local_file(cve_file_path)
+        if not local_data:
+            logger.debug(f"Could not load local CVE data for sync check: {targetCve}", group="cache_management")
+            return
+        
+        # Extract CVE List V5 dateUpdated using config field path
+        cvelist_field_path = cve_config.get('refresh_strategy', {}).get('field_path', '$.cveMetadata.dateUpdated')
+        
+        cvelist_dates = _extract_field_value(local_data, cvelist_field_path)
+        
+        if not cvelist_dates:
+            logger.debug(f"No CVE List V5 dateUpdated found for {targetCve}", group="cache_management")
+            return
+            
+        cvelist_date_updated = cvelist_dates[0]  # Should be single match
+        # Handle various datetime formats and ensure timezone awareness
+        if 'Z' in cvelist_date_updated:
+            cvelist_datetime_str = cvelist_date_updated.replace('Z', '+00:00')
+        elif '+' not in cvelist_date_updated and cvelist_date_updated.count(':') >= 2:
+            cvelist_datetime_str = cvelist_date_updated + '+00:00'
+        else:
+            cvelist_datetime_str = cvelist_date_updated
+        cvelist_datetime = datetime.fromisoformat(cvelist_datetime_str)
+        
+        # Compare dates and refresh if NVD is newer
+        if nvd_datetime > cvelist_datetime:
+            logger.info(f"NVD 2.0 API record newer than CVE List V5 cached record - refreshing CVE List V5 cached record for {targetCve} (NVD 2.0 API Record: {nvd_last_modified}, CVE List V5 Cached Record: {cvelist_date_updated})", group="cache_management")
+            _refresh_cvelist_from_mitre_api(targetCve, cve_file_path)
+        else:
+            logger.debug(f"CVE List V5 cached record current for {targetCve} (NVD 2.0 API Record: {nvd_last_modified}, CVE List V5 Cached Record: {cvelist_date_updated})", group="cache_management")
+    
+    except Exception as e:
+        logger.warning(f"CVE List V5 sync check failed for {targetCve}: {e}", group="cache_management")
+
+def _refresh_cvelist_from_mitre_api(targetCve, local_file_path):
+    """
+    Refresh CVE List V5 local file by fetching fresh data from MITRE CVE API.
+    
+    Args:
+        targetCve: CVE ID to refresh (e.g., "CVE-2024-12345")
+        local_file_path: Path object pointing to the local CVE file to update
+    """
+    try:
+        import os
+        
+        # Set the API Endpoint target for direct MITRE API call
+        cveOrgJSON = config['api']['endpoints']['cve_list']
+        simpleCveRequestUrl = cveOrgJSON + targetCve
+        
+        logger.info(f"Refreshing CVE List V5 cached record from MITRE API: {targetCve}", group="cache_management")
+        
+        # Make direct API call (bypass local loading)
+        r = requests.get(simpleCveRequestUrl, timeout=config['api']['timeouts']['cve_org'])
+        r.raise_for_status()  
+        fresh_cve_data = r.json()
+
+        # Validate fresh data
+        processData.integrityCheckCVE("cveIdMatch", targetCve, fresh_cve_data)
+        processData.integrityCheckCVE("cveStatusCheck", "REJECTED", fresh_cve_data)
+        
+        # Ensure directory structure exists
+        local_file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Write fresh data to local file
+        with open(local_file_path, 'w', encoding='utf-8') as f:
+            json.dump(fresh_cve_data, f, indent=2)
+        
+        logger.info(f"Updated CVE List V5 cached record: {targetCve}", group="cache_management")
+        
+        # Update cache metadata
+        cve_config = get_cache_config('cve_list_v5')
+        cve_repo_path = cve_config.get('path', 'cache/cve_list_v5')
+        _update_cache_metadata('cve_list_v5', cve_repo_path)
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"MITRE API refresh failed for {targetCve}: {e}", group="cache_management")
+    except (IOError, OSError) as e:
+        logger.error(f"File write failed during CVE refresh for {targetCve}: {e}", group="cache_management")
+    except Exception as e:
+        logger.error(f"Unexpected error during CVE refresh for {targetCve}: {e}", group="cache_management")
+
+
+
+def _load_nvd_cve_from_local_file(nvd_cve_file_path):
+    """
+    Load NVD CVE record from local JSON file.
+    Returns NVD CVE data dict or None if file doesn't exist or is invalid.
+    """
+    try:
+        if not nvd_cve_file_path.exists():
+            return None
+            
+        with open(nvd_cve_file_path, 'r', encoding='utf-8') as f:
+            nvd_data = json.load(f)
+            
+        # Validate basic NVD CVE structure
+        if 'vulnerabilities' in nvd_data and len(nvd_data['vulnerabilities']) > 0:
+            return nvd_data
+        else:
+            logger.warning(f"Invalid NVD CVE structure in local file: {nvd_cve_file_path}", group="cve_queries")
+            return None
+            
+    except (json.JSONDecodeError, IOError, UnicodeDecodeError) as e:
+        logger.warning(f"Cannot read local NVD CVE file {nvd_cve_file_path}: {e}", group="cve_queries")
+        return None
+
+def _save_nvd_cve_to_local_file(targetCve, nvd_data):
+    """
+    Save NVD CVE data to local cache file using same directory structure as CVE List V5.
+    
+    Args:
+        targetCve: CVE ID to save (e.g., "CVE-2024-12345")
+        nvd_data: NVD API response data to save
+    """
+    try:
+        nvd_config = get_cache_config('nvd_2_0_cve')
+        if not nvd_config.get('enabled', False):
+            return
+            
+        # Use 'cache/nvd_2.0_cves' as default path (parallel to cve_list_v5)
+        nvd_repo_path = nvd_config.get('path', 'cache/nvd_2.0_cves')
+        
+        nvd_file_path = _resolve_cve_cache_file_path(targetCve, nvd_repo_path)
+        if not nvd_file_path:
+            logger.warning(f"Could not resolve NVD file path for {targetCve}", group="cache_management")
+            return
+            
+        # Ensure directory structure exists
+        nvd_file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Write NVD data to local file
+        with open(nvd_file_path, 'w', encoding='utf-8') as f:
+            json.dump(nvd_data, f, indent=2)
+        
+        logger.debug(f"Updated NVD 2.0 CVE cached record: {targetCve}", group="cache_management")
+        
+        # Update cache metadata
+        _update_cache_metadata('nvd_2_0_cve', nvd_repo_path)
+        
+    except (IOError, OSError) as e:
+        logger.warning(f"Failed to save NVD CVE data for {targetCve}: {e}", group="cache_management")
+    except Exception as e:
+        logger.warning(f"Unexpected error saving NVD CVE data for {targetCve}: {e}", group="cache_management")
+
+
+
 # Update gatherCVEListRecord function
 def gatherCVEListRecord(targetCve):
-    # Set the API Endpoint target
+    """
+    Main CVE record gathering with config-driven local repository integration.
+    Checks local CVE List V5 first (if enabled), with sync detection and API fallback.
+    """
+    cve_config = get_cache_config('cve_list_v5')
+    
+    # If local repository is enabled, attempt local loading with sync detection
+    if cve_config.get('enabled', False):
+        local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
+        logger.debug(f"CVE List V5 enabled - attempting local load: {targetCve}", group="cve_queries")
+        
+        cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
+        if cve_file_path:
+            # Attempt sync with NVD dataset before loading
+            _sync_cvelist_with_nvd_dataset(targetCve)
+            
+            local_data = _load_cve_from_local_file(cve_file_path)
+            if local_data:
+                logger.info(f"Successfully loaded CVE from local repository: {targetCve}", group="cve_queries")
+                return local_data
+        
+        # Local loading failed - check fallback policy
+        if not cve_config.get('fallback_to_api', True):
+            logger.error(f"CVE List V5 local load failed and API fallback disabled: {targetCve}", group="cve_queries")
+            return None
+        
+        logger.warning(f"Local CVE load failed for {targetCve} - falling back to MITRE API", group="cve_queries")
+    
+    # Direct API call (either config disabled or fallback triggered)
     cveOrgJSON = config['api']['endpoints']['cve_list']
-    # create the simple URL using user input ID and expected URL
     simpleCveRequestUrl = cveOrgJSON + targetCve
     
     logger.api_call("MITRE CVE API", {"cve_id": targetCve}, group="cve_queries")
@@ -120,23 +524,27 @@ def gatherCVEListRecord(targetCve):
         
         return None
 
-def gatherCVEListRecordLocal(targetCve, local_repo_path=None):
+def gatherCVEListRecordLocal(targetCve):
     """
-    Load CVE record from local repository with API fallback.
-    Always audits when API fallback is used.
+    Load CVE record from local cache with API fallback.
+    Uses configured CVE List V5 cache path automatically.
     
     Args:
         targetCve: CVE ID to load (e.g., "CVE-2024-12345")
-        local_repo_path: Path to local CVE repository base directory
         
     Returns:
         CVE record dict or None if loading fails
     """
-    # Attempt local loading first if path provided
-    if local_repo_path:
+    # Get configured cache path
+    cve_config = get_cache_config('cve_list_v5')
+    if cve_config.get('enabled', False):
+        local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
+        logger.debug(f"Using configured CVE List V5 cache: {local_repo_path}", group="cve_queries")
+        
+        # Attempt local loading first
         logger.debug(f"Attempting local CVE load: {targetCve} from {local_repo_path}", group="cve_queries")
         
-        cve_file_path = _resolve_cve_file_path(targetCve, local_repo_path)
+        cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
         if cve_file_path:
             local_data = _load_cve_from_local_file(cve_file_path)
             if local_data:
@@ -152,6 +560,27 @@ def gatherCVEListRecordLocal(targetCve, local_repo_path=None):
 
 # Using provided CVE-ID, get the CVE data from the NVD API 
 def gatherNVDCVERecord(apiKey, targetCve):
+    """
+    Get CVE data from NVD API with local caching support.
+    Checks local NVD cache first (if enabled), then fetches from API and saves to cache.
+    """
+    nvd_config = get_cache_config('nvd_2_0_cve')
+    
+    # If NVD cache is enabled, attempt local loading first
+    if nvd_config.get('enabled', False):
+        nvd_repo_path = nvd_config.get('path', 'cache/nvd_2.0_cves')
+        logger.debug(f"NVD CVE cache enabled - attempting local load: {targetCve}", group="cve_queries")
+        
+        nvd_file_path = _resolve_cve_cache_file_path(targetCve, nvd_repo_path)
+        if nvd_file_path:
+            local_nvd_data = _load_nvd_cve_from_local_file(nvd_file_path)
+            if local_nvd_data:
+                logger.debug(f"Successfully loaded NVD 2.0 CVE record from local cache: {targetCve}", group="cve_queries")
+                return local_nvd_data
+        
+        logger.debug(f"NVD 2.0 CVE record not found in local cache - fetching from API: {targetCve}", group="cve_queries")
+    
+    # Fetch from NVD API
     logger.api_call("NVD CVE API", {"cve_id": targetCve}, group="cve_queries")
    
     url = config['api']['endpoints']['nvd_cves'] + "?cveId=" + targetCve
@@ -170,7 +599,12 @@ def gatherNVDCVERecord(apiKey, targetCve):
             response.raise_for_status()
             logger.api_response("NVD CVE API", "Success", group="cve_queries")
             
-            return response.json()
+            nvd_data = response.json()
+            
+            # Save to local cache if enabled
+            _save_nvd_cve_to_local_file(targetCve, nvd_data)
+            
+            return nvd_data
         except requests.exceptions.RequestException as e:
             public_ip = get_public_ip()
             logger.error(f"NVD CVE API request failed: Unable to fetch CVE record for {targetCve} (Attempt {attempt + 1}/{max_retries}) - {e}", group="cve_queries")

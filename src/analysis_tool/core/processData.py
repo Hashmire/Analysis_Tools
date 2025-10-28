@@ -1247,7 +1247,7 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
       # Get global cache instance
     cache_manager = get_global_cache_manager()
     if not cache_manager.is_initialized():
-        cache_manager.initialize(config.get('cache', {}))
+        cache_manager.initialize(config.get('cache_settings', {}).get('cpe_cache', {}))
     cache = cache_manager.get_cache()
     logger.debug("Using global CPE cache instance", group="cpe_queries")
     

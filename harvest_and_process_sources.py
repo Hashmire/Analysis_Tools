@@ -66,11 +66,13 @@ def create_source_data_cache(api_key):
                             last_updated = datetime.fromisoformat(metadata['datasets']['nvd_source_data']['last_updated'])
                             age_hours = (datetime.now() - last_updated).total_seconds() / 3600
                             
-                            if age_hours < 6:  # Cache is less than 6 hours old
-                                print(f"✅ Using existing cache (age: {age_hours:.1f} hours)")
+                            from analysis_tool.storage.nvd_source_manager import is_cache_stale, get_cache_age_threshold
+                            threshold = get_cache_age_threshold()
+                            if not is_cache_stale(age_hours):
+                                print(f"✅ Using existing cache (age: {age_hours:.1f} hours, threshold: {threshold}h)")
                                 should_refresh = False
                             else:
-                                print(f"⚠️  Cache is {age_hours:.1f} hours old - refreshing")
+                                print(f"⚠️  Cache is {age_hours:.1f} hours old (threshold: {threshold}h) - refreshing")
                 except Exception as e:
                     print(f"⚠️  Could not check cache age: {e} - refreshing anyway")
         
@@ -262,9 +264,6 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_fil
         cmd.extend(["--cpe-as-generator"])
     
     # Add optional parameters only if they exist
-    if 'local_cve_repo' in kwargs:
-        cmd.extend(["--local-cve-repo", kwargs['local_cve_repo']])
-    
     if kwargs.get('external_assets'):
         cmd.extend(["--external-assets"])
     
@@ -322,7 +321,7 @@ def main():
         config = load_config()
         harvest_config = config.get('harvest_and_process_sources', {})
         defaults_config = config.get('defaults', {})
-        local_cve_config = config.get('local_cve_repository', {})
+        local_cve_config = config.get('cache_settings', {}).get('cve_list_v5', {})
     except Exception as e:
         print(f"Warning: Could not load config file: {e}")
         harvest_config = {}
@@ -367,12 +366,6 @@ def main():
         nargs='?',
         const='CONFIG_DEFAULT',
         help="NVD API key. Use without value to use config default, or provide explicit key"
-    )
-    dataset_group.add_argument(
-        "--local-cve-repo",
-        nargs='?',
-        const='CONFIG_DEFAULT',
-        help="Path to local CVE repository. Use without value to use config default, or provide explicit path"
     )
     dataset_group.add_argument(
         "--external-assets",
@@ -499,28 +492,6 @@ def main():
     processed_params['api_key'] = api_key
     
     # Handle local CVE repo with intelligent config resolution
-    if args.local_cve_repo == 'CONFIG_DEFAULT':
-        # Parameter provided without value - check config for path
-        config_path = local_cve_config.get('default_path')
-        if config_path and os.path.exists(config_path):
-            processed_params['local_cve_repo'] = config_path
-        elif config_path:
-            print(f"ERROR: Local CVE repository path from config does not exist: {config_path}")
-            print("Check config.json local_cve_repository.default_path setting")
-            sys.exit(1)
-        else:
-            print("ERROR: Local CVE repository path is required when using --local-cve-repo")
-            print("No path found in config.json local_cve_repository.default_path setting")
-            sys.exit(1)
-    elif args.local_cve_repo:
-        # Parameter provided with value - validate and use
-        if os.path.exists(args.local_cve_repo):
-            processed_params['local_cve_repo'] = args.local_cve_repo
-        else:
-            print(f"ERROR: Local CVE repository path does not exist: {args.local_cve_repo}")
-            sys.exit(1)
-    # If no parameter provided, don't pass it (let generate_dataset use its defaults)
-    
     # Handle external assets
     if args.external_assets:
         processed_params['external_assets'] = True

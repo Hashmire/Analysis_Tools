@@ -8,10 +8,47 @@
         "enable_browser_open": true,
         "default_api_key": ""
     },
-    "local_cve_repository": {
-        "enabled": false,
-        "default_path": null,
-        "fallback_to_api": true
+    "cache_settings": {
+        "cpe_cache": {
+            "enabled": true,
+            "filename": "cpe_base_string_cache.json",
+            "compression": false,
+            "description": "NVD CPE API responses with per-entry expiration",
+            "refresh_strategy": {
+                "field_path": "$.*.last_queried",
+                "notify_age_hours": 100
+            }
+        },
+        "nvd_source_data": {
+            "enabled": true,
+            "filename": "nvd_source_data.json", 
+            "description": "NVD source organization data",
+            "refresh_strategy": {
+                "field_path": "$.created_at",
+                "notify_age_hours": 24
+            }
+        },
+        "cve_list_v5": {
+            "enabled": true,
+            "path": "cache/cve_list_v5",
+            "fallback_to_api": true,
+            "manual_sync_only": true,
+            "description": "CVE List V5 repository with per-file tracking",
+            "refresh_strategy": {
+                "field_path": "$.cveMetadata.dateUpdated",
+                "notify_age_hours": 24
+            }
+        },
+        "nvd_2_0_cve": {
+            "enabled": true,
+            "path": "cache/nvd_2.0_cves",
+            "filename": "nvd_2_0_cve.json",
+            "description": "NVD CVE 2.0 API responses cache with per-file tracking",
+            "refresh_strategy": {
+                "field_path": "$.vulnerabilities.*.cve.lastModified",
+                "notify_age_hours": 24
+            }
+        }
     },
     "progress": {
         "enabled": true,
@@ -73,15 +110,7 @@
         "skip_api_calls_when_found": false,
         "mappings_directory": "mappings"
     },
-    "cache": {
-        "enabled": true,
-        "directory": "cache",
-        "max_age_hours": 100,
-        "max_size_mb": 500,
-        "compression": false,
-        "validation_on_startup": true,
-        "auto_cleanup": true
-    },
+
     "harvest_and_process_sources": {
         "max_cves_per_source": 5000,
         "sdc_report": true,
