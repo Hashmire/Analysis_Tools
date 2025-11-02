@@ -50,6 +50,14 @@
             }
         }
     },
+    "nvd_ish_output": {
+        "enabled": true,
+        "path": "cache/nvd-ish_2.0_cves",
+        "description": "Enhanced NVD 2.0 format records with integrated CVE List V5 data and analysis tool processing outputs",
+        "attribution_source": "hashmire/analysis_tools",
+        "format": "NVD_CVE_Enhanced",
+        "version": "2.0"
+    },
     "progress": {
         "enabled": true,
         "show_eta": true,

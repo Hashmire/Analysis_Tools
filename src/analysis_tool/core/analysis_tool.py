@@ -271,7 +271,11 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
     
     # Initialize badge contents collection for this CVE
     from ..logging.badge_contents_collector import start_cve_collection, complete_cve_collection
+    from ..logging.nvd_ish_collector import get_nvd_ish_collector
     start_cve_collection(cve_id)
+    
+    # Get NVD-ish collector for this processing session
+    nvd_ish_collector = get_nvd_ish_collector()
     
     try:
         # Make sure the string is formatted well
@@ -498,6 +502,22 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
             # Complete badge contents collection for this CVE
             complete_cve_collection()
             
+            # Complete NVD-ish enhanced record collection for this CVE
+            logger.info(f"Starting NVD-ish enhanced record collection for {cve_id}", group="data_processing")
+            try:
+                nvd_ish_collector.start_cve_processing(cve_id)
+                
+                # Integrate available data sources
+                nvd_ish_collector.collect_nvd_base_record()  # Auto-loads from NVD 2.0 cache
+                nvd_ish_collector.collect_cve_list_v5_data()  # Auto-loads from CVE List V5 cache
+                
+                # Additional data sources based on enabled features
+
+                nvd_ish_collector.complete_cve_processing()
+                logger.info(f"NVD-ish enhanced record collection completed for {cve_id}", group="data_processing")
+            except Exception as collection_error:
+                logger.error(f"Failed to complete NVD-ish collection for {cve_id}: {collection_error}", group="data_processing")
+            
             return {
                 'success': True,
                 'sdc_report': sdc_report,
@@ -605,6 +625,22 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         # Complete badge contents collection for this CVE
         complete_cve_collection()
         
+        # Complete NVD-ish enhanced record collection for this CVE
+        logger.info(f"Starting NVD-ish enhanced record collection for {cve_id}", group="data_processing")
+        try:
+            nvd_ish_collector.start_cve_processing(cve_id)
+            
+            # Integrate available data sources
+            nvd_ish_collector.collect_nvd_base_record()  # Auto-loads from NVD 2.0 cache
+            nvd_ish_collector.collect_cve_list_v5_data()  # Auto-loads from CVE List V5 cache
+            
+            # Additional data sources based on enabled features
+           
+            nvd_ish_collector.complete_cve_processing()
+            logger.info(f"NVD-ish enhanced record collection completed for {cve_id}", group="data_processing")
+        except Exception as collection_error:
+            logger.error(f"Failed to complete NVD-ish collection for {cve_id}: {collection_error}", group="data_processing")
+        
         return {
             'success': True,
             'sdc_report': sdc_report,
@@ -620,6 +656,16 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         
         # Still complete badge contents collection even if processing failed
         complete_cve_collection()
+        
+        # Still complete NVD-ish enhanced record collection even if processing failed
+        try:
+            nvd_ish_collector.start_cve_processing(cve_id)
+            # Only integrate basic data if processing failed
+            nvd_ish_collector.collect_nvd_base_record()
+            nvd_ish_collector.collect_cve_list_v5_data()
+            nvd_ish_collector.complete_cve_processing()
+        except Exception as collection_error:
+            logger.error(f"Failed to complete NVD-ish collection for {cve_id}: {collection_error}", group="data_processing")
         
         return {
             'success': False,
@@ -1229,10 +1275,15 @@ def main():
         start_processing_run,
         initialize_dashboard_collector
     )
+    from ..logging.nvd_ish_collector import get_nvd_ish_collector
     
     # Clear any existing state
     clear_badge_contents_collector()
     clear_dataset_contents_collector()
+    
+    # Initialize NVD-ish collector for enhanced record generation
+    nvd_ish_collector = get_nvd_ish_collector()
+    logger.info("NVD-ish collector initialized for enhanced record generation", group="initialization")
     
     # Initialize badge contents collector - only create SDC report file if SDC reporting is enabled
     if sdc_report:
