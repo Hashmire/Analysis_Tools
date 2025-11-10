@@ -1,0 +1,23 @@
+{
+  "cnaId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "confirmedMappings": [
+    {
+      "cpeBaseString": "cpe:2.3:a:testvendor:testproduct:*:*:*:*:*:*:*:*",
+      "aliases": [
+        {
+          "vendor": "testvendor",
+          "product": "testproduct"
+        }
+      ]
+    },
+    {
+      "cpeBaseString": "cpe:2.3:a:münchen_café_unicode_test:unicode_product:*:*:*:*:*:*:*:*",
+      "aliases": [
+        {
+          "vendor": "münchen_café_unicode_test",
+          "product": "unicode_product"
+        }
+      ]
+    }
+  ]
+}

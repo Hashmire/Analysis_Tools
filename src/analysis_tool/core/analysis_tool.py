@@ -288,6 +288,9 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         start_cve_queries(f"Gathering data for {cve_id}")
         
         log_init(f"Processing {cve_id}")
+        
+        # Initialize tool execution metadata collection
+        tool_execution_timestamps = {}
 
         # Gather CVE List Record and NVD Dataset Records for the target CVE
         cveRecordData = gatherData.gatherCVEListRecordLocal(cve_id)
@@ -314,25 +317,6 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
                     'filepath': None
                 }
         
-        # TEMPORARILY DISABLED: NVD /cves/ API calls and processing
-        # TODO: Re-enable when NVD configuration data utilization is implemented
-        # This code is preserved for future enhancement when we add functionality to:
-        # 1. Process NVD configurations for cross-validation with CVE List data
-        # 2. Enable user selection and export of NVD-provided CPE configurations
-        # 3. Implement comparison/conflict resolution between CNA and NVD data
-        #
-        # try:
-        #     nvdRecordData = gatherData.gatherNVDCVERecord(nvd_api_key, cve_id)
-        # except Exception as api_error:
-        #     # Handle specific NVD API errors
-        #     error_str = str(api_error)
-        #     if "Invalid cpeMatchstring parameter" in error_str:
-        #         logger.warning(f"{cve_id} has invalid CPE match string - skipping processing", group="data_processing")
-        #         logger.debug(f"Error: {error_str}", group="data_processing")
-        #         return None
-        #     else:
-        #         # Re-raise other exceptions
-        #         raise
         
         # Create minimal mock NVD record data (no configurations) to maintain workflow compatibility
         nvdRecordData = {
@@ -357,6 +341,8 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         # Platform Data Processing and CPE Generation
         if cpe_suggestions:
             # Full CPE processing: platform data + CPE generation + API calls
+            tool_execution_timestamps['cpeSuggestions'] = datetime.now().isoformat() + 'Z'
+            tool_execution_timestamps['cpeSuggestionMetadata'] = datetime.now().isoformat() + 'Z'
             try:
                 primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1, 
                                                             alias_report=alias_report, cpe_as_generator=cpe_as_generator)
@@ -365,6 +351,8 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
                 logger.info("Continuing with available data...", group="data_processing")
         elif sdc_report or alias_report or cpe_as_generator:
             # Platform data processing only (no CPE generation or API calls)
+            if cpe_as_generator:
+                tool_execution_timestamps['cpeAsGenerationRules'] = datetime.now().isoformat() + 'Z'
             try:
                 primaryDataframe = processData.processPlatformDataOnly(primaryDataframe, 
                                                                      alias_report=alias_report, cpe_as_generator=cpe_as_generator)
@@ -377,10 +365,11 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         # HTML Generation Decision
         if not cpe_as_generator:
             logger.info("HTML generation skipped - CPE features disabled", group="data_processing")
-            
+        
         # Source Data Concerns Processing
         if sdc_report:
             logger.info("Generating Source Data Concerns report", group="data_processing")
+            tool_execution_timestamps['sourceDataConcerns'] = datetime.now().isoformat() + 'Z'
             
             # Process each row in the dataframe to collect source data concerns
             from .badge_modal_system import create_source_data_concerns_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
@@ -429,61 +418,81 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
             
             logger.info("SDC report processing completed", group="data_processing")
         
-        # Alias Extraction Processing
+        # Alias Extraction Processing (ignores source UUID filtering) - Runs independently of SDC
+        logger.debug(f"Checking alias_report flag: {alias_report}", group="data_processing")
         if alias_report:
             try:
-                logger.info("Starting alias extraction processing", group="data_processing")
+                logger.info("Starting alias extraction processing (all sources)", group="data_processing")
+                tool_execution_timestamps['aliasExtraction'] = datetime.now().isoformat() + 'Z'
                 
                 # Import alias extraction functions
                 from .badge_modal_system import create_alias_extraction_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
                 from ..logging.badge_contents_collector import collect_alias_extraction_data, get_badge_contents_collector
+                from .unified_source_manager import get_unified_source_manager
                 
                 collector = get_badge_contents_collector()
+                # Initialize CVE processing session for alias extraction
+                collector.start_cve_processing(cve_id)
+                logger.debug(f"Badge contents collector initialized for alias extraction - CVE {cve_id}", group="data_processing")
                 
-                # Process each row in the dataframe to collect alias extraction data
-                for index, row in primaryDataframe.iterrows():
-                    logger.debug(f"Processing alias extraction for row {index}", group="data_processing")
+                # Temporarily disable source UUID filtering for alias extraction
+                manager = get_unified_source_manager()
+                original_source_uuid = manager.get_source_uuid_filter()
+                manager.set_source_uuid_filter(None)  # Disable filtering temporarily
+                
+                try:
+                    # Reprocess CVE data without source UUID filtering to get all entries
+                    unfiltered_dataframe = gatherData.gatherPrimaryDataframe()
+                    unfiltered_dataframe, _ = processData.processCVEData(unfiltered_dataframe, cveRecordData)
                     
-                    # Extract basic row data
-                    source_id = row.get('sourceID', 'Unknown')
-                    raw_platform_data = row.get('rawPlatformData', {})
-                    cve_id_for_alias = row.get('cve_id', cve_id)  # Use row-specific CVE ID if available
-                    
-                    # Ensure the row has the CVE ID in the expected format for alias extraction
-                    row_with_cve = dict(row)
-                    row_with_cve['cve_id'] = cve_id_for_alias
-                    
-                    # Create alias extraction badge to populate the registry
-                    badge_result = create_alias_extraction_badge(
-                        table_index=index,
-                        raw_platform_data=raw_platform_data,
-                        row=row_with_cve
-                    )
-                    
-                    # Check if alias extraction data was generated and collect it
-                    alias_registry_data = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('aliasExtraction', {})
-                    
-                    # Count entries for this table index (including platform expansion)
-                    matching_entries = {}
-                    entry_count = 0
-                    
-                    for reg_key, reg_data in alias_registry_data.items():
-                        # Check for direct match or platform expansion match
-                        if reg_key == str(index) or reg_key.startswith(f"{index}_platform_"):
-                            matching_entries[reg_key] = reg_data
-                            entry_count += 1
-                    
-                    if matching_entries and badge_result:
-                        # Collect the alias extraction data for this platform entry
-                        collect_alias_extraction_data(
+                    # Process each row in the unfiltered dataframe to collect alias extraction data
+                    for index, row in unfiltered_dataframe.iterrows():
+                        logger.debug(f"Processing alias extraction for row {index} (all sources)", group="data_processing")
+                        
+                        # Extract basic row data
+                        source_id = row.get('sourceID', 'Unknown')
+                        raw_platform_data = row.get('rawPlatformData', {})
+                        cve_id_for_alias = row.get('cve_id', cve_id)  # Use row-specific CVE ID if available
+                        
+                        # Ensure the row has the CVE ID in the expected format for alias extraction
+                        row_with_cve = dict(row)
+                        row_with_cve['cve_id'] = cve_id_for_alias
+                        
+                        # Create alias extraction badge to populate the registry
+                        badge_result = create_alias_extraction_badge(
                             table_index=index,
-                            source_id=source_id,
-                            alias_data=matching_entries,
-                            entry_count=entry_count,
-                            cve_id=cve_id_for_alias
+                            raw_platform_data=raw_platform_data,
+                            row=row_with_cve
                         )
                         
-                logger.info("Alias extraction processing completed", group="data_processing")
+                        # Check if alias extraction data was generated and collect it
+                        alias_registry_data = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('aliasExtraction', {})
+                        
+                        # Count entries for this table index (including platform expansion)
+                        matching_entries = {}
+                        entry_count = 0
+                        
+                        for reg_key, reg_data in alias_registry_data.items():
+                            # Check for direct match or platform expansion match
+                            if reg_key == str(index) or reg_key.startswith(f"{index}_platform_"):
+                                matching_entries[reg_key] = reg_data
+                                entry_count += 1
+                        
+                        if matching_entries and badge_result:
+                            # Collect the alias extraction data for this platform entry
+                            collect_alias_extraction_data(
+                                table_index=index,
+                                source_id=source_id,
+                                alias_data=matching_entries,
+                                entry_count=entry_count,
+                                cve_id=cve_id_for_alias
+                            )
+                    
+                finally:
+                    # Restore original source UUID filtering
+                    manager.set_source_uuid_filter(original_source_uuid)
+                    
+                logger.info("Alias extraction processing completed (all sources)", group="data_processing")
                 
                 # Complete badge contents collection for this CVE
                 complete_cve_collection()
@@ -491,6 +500,62 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
             except Exception as alias_error:
                 logger.error(f"Alias extraction failed for {cve_id}: {str(alias_error)}", group="data_processing")
                 logger.info("Continuing without alias extraction...", group="data_processing")
+        
+        
+        # Confirmed Mappings Processing
+        if cpe_suggestions or alias_report or cpe_as_generator:
+            try:
+                logger.info("Starting confirmed mappings processing", group="data_processing")
+                
+                # Import confirmed mapping functions
+                from .processData import extract_confirmed_mappings_for_affected_entry
+                from .badge_modal_system import create_confirmed_mappings_registry_entry
+                
+                # Extract affected entries from CVE List V5 data for confirmed mapping processing
+                if cveRecordData and 'containers' in cveRecordData:
+                    affected_entries = []
+                    
+                    # Extract affected entries from all containers (CNA + ADP)
+                    for container_key, container_data in cveRecordData['containers'].items():
+                        if container_key == 'adp' and isinstance(container_data, list):
+                            # ADP is an array of containers
+                            for adp_index, adp_container in enumerate(container_data):
+                                if isinstance(adp_container, dict) and 'affected' in adp_container:
+                                    source_org_id = adp_container.get('providerMetadata', {}).get('orgId', 'unknown_source')
+                                    
+                                    for entry_index, affected_entry in enumerate(adp_container['affected']):
+                                        affected_with_source = affected_entry.copy()
+                                        affected_with_source['source'] = source_org_id
+                                        affected_with_source['cvelistv5AffectedEntryIndex'] = f'cve.containers.adp[{adp_index}].affected.[{entry_index}]'
+                                        affected_entries.append(affected_with_source)
+                        elif isinstance(container_data, dict) and 'affected' in container_data:
+                            # Regular container (like CNA)
+                            source_org_id = container_data.get('providerMetadata', {}).get('orgId', 'unknown_source')
+                            
+                            for entry_index, affected_entry in enumerate(container_data['affected']):
+                                affected_with_source = affected_entry.copy()
+                                affected_with_source['source'] = source_org_id
+                                affected_with_source['cvelistv5AffectedEntryIndex'] = f'cve.containers.{container_key}.affected.[{entry_index}]'
+                                affected_entries.append(affected_with_source)
+                    
+                    # Process each affected entry for confirmed mappings
+                    for table_index, affected_entry in enumerate(affected_entries):
+                        logger.debug(f"Processing confirmed mappings for affected entry {table_index}", group="data_processing")
+                        
+                        # Extract confirmed mappings for this affected entry
+                        confirmed_mappings = extract_confirmed_mappings_for_affected_entry(affected_entry)
+                        
+                        # Register confirmed mappings data for nvd-ish integration
+                        create_confirmed_mappings_registry_entry(table_index, confirmed_mappings, affected_entry)
+                        
+                        if confirmed_mappings:
+                            logger.debug(f"Found {len(confirmed_mappings)} confirmed mappings for affected entry {table_index}", group="data_processing")
+                
+                logger.info("Confirmed mappings processing completed", group="data_processing")
+                
+            except Exception as confirmed_error:
+                logger.error(f"Confirmed mappings processing failed for {cve_id}: {str(confirmed_error)}", group="data_processing")
+                logger.info("Continuing without confirmed mappings...", group="data_processing")
         
         # HTML generation decision based on feature flags
         # Only generate HTML when cpe_as_generator is enabled (the only feature that needs interactive HTML pages)
@@ -502,21 +567,8 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
             # Complete badge contents collection for this CVE
             complete_cve_collection()
             
-            # Complete NVD-ish enhanced record collection for this CVE
-            logger.info(f"Starting NVD-ish enhanced record collection for {cve_id}", group="data_processing")
-            try:
-                nvd_ish_collector.start_cve_processing(cve_id)
-                
-                # Integrate available data sources
-                nvd_ish_collector.collect_nvd_base_record()  # Auto-loads from NVD 2.0 cache
-                nvd_ish_collector.collect_cve_list_v5_data()  # Auto-loads from CVE List V5 cache
-                
-                # Additional data sources based on enabled features
-
-                nvd_ish_collector.complete_cve_processing()
-                logger.info(f"NVD-ish enhanced record collection completed for {cve_id}", group="data_processing")
-            except Exception as collection_error:
-                logger.error(f"Failed to complete NVD-ish collection for {cve_id}: {collection_error}", group="data_processing")
+            # Note: NVD-ish collector will run after all processing (including when HTML generation is skipped)
+            # This ensures it always accesses the complete registry data regardless of HTML generation
             
             return {
                 'success': True,
@@ -625,23 +677,8 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         # Complete badge contents collection for this CVE
         complete_cve_collection()
         
-        # Complete NVD-ish enhanced record collection for this CVE
-        logger.info(f"Starting NVD-ish enhanced record collection for {cve_id}", group="data_processing")
-        try:
-            nvd_ish_collector.start_cve_processing(cve_id)
-            
-            # Integrate available data sources
-            nvd_ish_collector.collect_nvd_base_record()  # Auto-loads from NVD 2.0 cache
-            nvd_ish_collector.collect_cve_list_v5_data()  # Auto-loads from CVE List V5 cache
-            
-            # Additional data sources based on enabled features
-           
-            nvd_ish_collector.complete_cve_processing()
-            logger.info(f"NVD-ish enhanced record collection completed for {cve_id}", group="data_processing")
-        except Exception as collection_error:
-            logger.error(f"Failed to complete NVD-ish collection for {cve_id}: {collection_error}", group="data_processing")
-        
-        return {
+        # Store success result before nvd-ish collector runs
+        success_result = {
             'success': True,
             'sdc_report': sdc_report,
             'cpe_suggestions': cpe_suggestions,
@@ -657,20 +694,64 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         # Still complete badge contents collection even if processing failed
         complete_cve_collection()
         
-        # Still complete NVD-ish enhanced record collection even if processing failed
-        try:
-            nvd_ish_collector.start_cve_processing(cve_id)
-            # Only integrate basic data if processing failed
+        # Store failure result
+        success_result = {
+            'success': False,
+            'error': str(e),
+            'cve_id': cve_id
+        }
+    
+    # Complete NVD-ish enhanced record collection for this CVE 
+    # This runs AFTER all processing (HTML generation, badge creation) to ensure full registry data
+    logger.info(f"Starting NVD-ish enhanced record collection for {cve_id}", group="data_processing")
+    try:
+        # Import Platform Entry Notification Registry for nvd-ish integration
+        from .badge_modal_system import PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+        
+        nvd_ish_collector.start_cve_processing(cve_id)
+        
+        # Integrate available data sources - only if main processing succeeded
+        if success_result.get('success', False):
+            nvd_ish_collector.collect_nvd_base_record()  # Auto-loads from NVD 2.0 cache
+            nvd_ish_collector.collect_cve_list_v5_data(cveRecordData)  # Pass CVE List V5 data from API/cache
+            
+            # Integrate source data concerns from Platform Entry Notification Registry
+            nvd_ish_collector.collect_source_data_concerns_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
+            
+            # Integrate CPE suggestions data from Platform Entry Notification Registry 
+            if cpe_suggestions:
+                nvd_ish_collector.collect_cpe_suggestions_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
+            
+            # Integrate alias extraction data from Platform Entry Notification Registry
+            if alias_report:
+                nvd_ish_collector.collect_alias_extraction_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
+            
+            # Integrate confirmed mappings data from Platform Entry Notification Registry
+            if cpe_suggestions or alias_report or cpe_as_generator:
+                nvd_ish_collector.collect_confirmed_mappings_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
+            
+            # Collect tool execution metadata with timestamps
+            if tool_execution_timestamps:
+                nvd_ish_collector.collect_tool_execution_metadata(tool_execution_timestamps)
+        else:
+            # Only collect basic data if main processing failed
             nvd_ish_collector.collect_nvd_base_record()
             nvd_ish_collector.collect_cve_list_v5_data()
-            nvd_ish_collector.complete_cve_processing()
-        except Exception as collection_error:
-            logger.error(f"Failed to complete NVD-ish collection for {cve_id}: {collection_error}", group="data_processing")
+       
+        nvd_ish_collector.complete_cve_processing()
         
-        return {
-            'success': False,
-            'error': str(e)
-        }
+        # Complete badge contents collector processing if alias extraction is enabled
+        if alias_report:
+            from ..logging.badge_contents_collector import get_badge_contents_collector
+            badge_collector = get_badge_contents_collector()
+            badge_collector.complete_cve_processing()
+            logger.debug(f"Badge contents collector completed for CVE {cve_id}", group="data_processing")
+        
+        logger.info(f"NVD-ish enhanced record collection completed for {cve_id}", group="data_processing")
+    except Exception as collection_error:
+        logger.error(f"Failed to complete NVD-ish collection for {cve_id}: {collection_error}", group="data_processing")
+    
+    return success_result
 
 def audit_global_state(warn_on_bloat=True):
     """Audit global state for potential bloat accumulation

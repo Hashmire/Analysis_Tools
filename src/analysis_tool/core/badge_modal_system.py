@@ -41,7 +41,11 @@ PLATFORM_ENTRY_NOTIFICATION_REGISTRY = {
     'jsonGenerationRules': {}, # table_index -> combined JSON generation rules data
     'supportingInformation': {}, # table_index -> supporting information data
     'sourceDataConcerns': {},   # table_index -> source data quality concerns
-    'aliasExtraction': {}      # table_index -> alias extraction data for curator functionality
+    'aliasExtraction': {},     # table_index -> alias extraction data for curator functionality
+    'confirmedMappings': {},   # table_index -> confirmed mapping data for nvd-ish integration
+    'cpeBaseStringSearches': {}, # table_index -> CPE match strings searched data for nvd-ish collector
+    'cpeMatchStringsCulled': {}, # table_index -> CPE match strings culled data for nvd-ish collector
+    'top10CPESuggestions': {}  # table_index -> top 10 CPE suggestions data for nvd-ish collector
 }
 
 # Skip Logic Registry (per-platform processing - keyed by table index, then field)
@@ -167,7 +171,10 @@ def clear_all_registries():
         'jsonGenerationRules': {},
         'supportingInformation': {},
         'sourceDataConcerns': {},
-        'aliasExtraction': {}
+        'aliasExtraction': {},
+        'confirmedMappings': {},
+        'cpeBaseStringSearches': {},
+        'cpeMatchStringsCulled': {}
     }
     
     logger.debug("Cleared all badge and modal registries", group="badge_modal")
@@ -854,7 +861,7 @@ def get_consolidated_platform_notification_script() -> str:
         return ""
     
     script_content = ""
-    all_data_types = ['wildcardGeneration', 'updatePatterns', 'jsonGenerationRules', 'supportingInformation', 'sourceDataConcerns', 'aliasExtraction']
+    all_data_types = ['wildcardGeneration', 'updatePatterns', 'jsonGenerationRules', 'supportingInformation', 'sourceDataConcerns', 'aliasExtraction', 'cpeBaseStringSearches', 'cpeMatchStringsCulled']
     
     # Process each platform data type
     for data_type in all_data_types:
@@ -920,7 +927,9 @@ Object.keys(window.{template_var_name}).forEach(templateId => {{
         rules_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['jsonGenerationRules'])
         supporting_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['supportingInformation'])
         concerns_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'])
-        logger.debug(f"Platform registrations - {wildcard_count} wildcard, {update_count} update patterns, {rules_count} rules, {supporting_count} supporting info, {concerns_count} data concerns", group="badge_modal")
+        cpe_searches_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['cpeBaseStringSearches'])
+        cpe_culled_count = len(PLATFORM_ENTRY_NOTIFICATION_REGISTRY['cpeMatchStringsCulled'])
+        logger.debug(f"Platform registrations - {wildcard_count} wildcard, {update_count} update patterns, {rules_count} rules, {supporting_count} supporting info, {concerns_count} data concerns, {cpe_searches_count} CPE searches, {cpe_culled_count} CPE culled", group="badge_modal")
         
         return f"""
 // Consolidated platform notification data registrations with template deduplication
@@ -2639,11 +2648,19 @@ def create_supporting_information_badge(table_index: int, row: Dict, platform_me
     if product and product != 'unknown':
         header_parts.append(product)
     
-    # Add other relevant identifiers
+    # Add other relevant identifiers - handle both string and list values
     if 'packageName' in raw_platform_data and raw_platform_data['packageName']:
-        header_parts.append(raw_platform_data['packageName'])
+        package_name = raw_platform_data['packageName']
+        if isinstance(package_name, list):
+            header_parts.append(', '.join(package_name))
+        else:
+            header_parts.append(package_name)
     elif 'repo' in raw_platform_data and raw_platform_data['repo']:
-        header_parts.append(raw_platform_data['repo'])
+        repo = raw_platform_data['repo']
+        if isinstance(repo, list):
+            header_parts.append(', '.join(repo))
+        else:
+            header_parts.append(repo)
     
     # Format as: Platform Entry X (CNA, SourceID, Vendor/Product/PackageName/etc.)
     display_value = f"Platform Entry {table_index} ({', '.join(header_parts)})"
@@ -3019,6 +3036,105 @@ def is_cpe_data_registered(cpe_base_string, data_type):
     
     base_key_safe = cpe_base_string.replace(":", "_").replace(".", "_").replace(" ", "_").replace("/", "_").replace("*", "star")
     return base_key_safe in GLOBAL_CPE_DATA_REGISTRY[data_type]
+
+def create_cpe_processing_registry_entry(table_index: int, cpe_base_strings: list, culled_cpe_strings: list) -> None:
+    """
+    Create and register separate CPE match strings searched and culled data for nvd-ish collector.
+    
+    This function properly isolates searched CPE strings from culled CPE strings by
+    placing them in separate registries for better data organization and processing.
+    
+    Args:
+        table_index: The table index for this entry
+        cpe_base_strings: List of valid CPE match strings that were searched
+        culled_cpe_strings: List of CPE match strings that were culled with reasons
+    """
+    try:
+        # Create separate data structures for searched vs culled CPE strings
+        cpe_searched_data = {
+            'used_strings': cpe_base_strings,
+            'used_count': len(cpe_base_strings)
+        }
+        
+        cpe_culled_data = {
+            'culled_strings': culled_cpe_strings,
+            'culled_count': len(culled_cpe_strings)
+        }
+        
+        # Register at top level in separate registries for proper isolation
+        register_platform_notification_data(table_index, 'cpeBaseStringSearches', cpe_searched_data)
+        register_platform_notification_data(table_index, 'cpeMatchStringsCulled', cpe_culled_data)
+            
+    except Exception as e:
+        logger.warning(f"Failed to create CPE base string searches registry entry for table {table_index}: {e}", group="badge_modal")
+
+def create_confirmed_mappings_registry_entry(table_index: int, confirmed_mappings: list, affected_entry: dict) -> None:
+    """
+    Create and register confirmed mappings data for nvd-ish collector integration.
+    
+    Args:
+        table_index: The table index for this entry  
+        confirmed_mappings: List of confirmed CPE base strings
+        affected_entry: The affected entry this relates to
+    """
+    try:
+        if not confirmed_mappings:
+            # No confirmed mappings found - still register empty entry for consistency
+            register_platform_notification_data(table_index, 'confirmedMappings', {
+                'sourceId': 'Hashmire/Analysis_Tools v0.2.0',
+                'cvelistv5AffectedEntryIndex': affected_entry.get('cvelistv5AffectedEntryIndex', 'unknown'),
+                'confirmedMappings': []
+            })
+            return
+        
+        # Create confirmed mappings structure for NVD-ish format
+        confirmed_mappings_data = {
+            'sourceId': 'Hashmire/Analysis_Tools v0.2.0',
+            'cvelistv5AffectedEntryIndex': affected_entry.get('cvelistv5AffectedEntryIndex', 'unknown'),
+            'confirmedMappings': confirmed_mappings  # Just the CPE base string list
+        }
+        
+        # Register confirmed mappings data for this table index
+        register_platform_notification_data(table_index, 'confirmedMappings', confirmed_mappings_data)
+        
+        if logger:
+            logger.debug(f"Registered {len(confirmed_mappings)} confirmed mappings for table {table_index}", group="badge_modal")
+            
+    except Exception as e:
+        logger.warning(f"Failed to create confirmed mappings registry entry for table {table_index}: {e}", group="badge_modal")
+
+def create_top10_cpe_suggestions_registry_entry(table_index: int, top10_data: dict) -> None:
+    """
+    Create and register top 10 CPE base string suggestions for nvd-ish collector integration.
+    
+    This stores the ranked CPE base string suggestions derived from NVD /cpes/ API analysis,
+    following the same pattern as other PENR registrations for proper data isolation.
+    
+    Args:
+        table_index: The table index for this entry
+        top10_data: Dictionary of top 10 CPE base strings with their metadata from reduceToTop10()
+    """
+    try:
+        # Transform the top10_data into the documented format with ranking
+        top10_suggestions = []
+        
+        for rank, (cpe_base_string, metadata) in enumerate(top10_data.items(), 1):
+            suggestion_entry = {
+                'cpeBaseString': cpe_base_string,
+                'rank': str(rank)
+            }
+            top10_suggestions.append(suggestion_entry)
+        
+        # Register the top 10 suggestions data in PENR
+        top10_registry_data = {
+            'top10SuggestedCPEBaseStrings': top10_suggestions,
+            'suggestion_count': len(top10_suggestions)
+        }
+        
+        register_platform_notification_data(table_index, 'top10CPESuggestions', top10_registry_data)
+        
+    except Exception as e:
+        logger.warning(f"Failed to create top 10 CPE suggestions registry entry for table {table_index}: {e}", group="badge_modal")
 
 def clear_global_html_state():
     """Clear global HTML generation state to prevent accumulation between CVE processing runs"""
@@ -4633,9 +4749,8 @@ def create_alias_extraction_badge(table_index: int, raw_platform_data: Dict, row
     """
     Create an Alias Extraction badge for curator functionality integration.
     
-    Extracts alias data from CVE platform entries for curator-style source mapping analysis.
-    This function follows the curator's platform expansion logic where platforms arrays
-    are broken out into separate alias entries for collector compatibility.
+    Extracts alias data from CVE platform entries by expanding platforms array into 
+    separate alias entries. Each alias entry contains flat key-value pairs with no arrays.
     
     Args:
         table_index: The table index for unique identification
@@ -4645,21 +4760,29 @@ def create_alias_extraction_badge(table_index: int, raw_platform_data: Dict, row
     Returns:
         HTML string for the badge, or None if no alias data can be extracted
     """
+    from ..logging.workflow_logger import get_logger
+    logger = get_logger()
     
     # Initialize the alias extraction registry
     PLATFORM_ENTRY_NOTIFICATION_REGISTRY['aliasExtraction'] = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('aliasExtraction', {})
     
-    # CRITICAL: Check for meaningful properties following curator logic exactly
+    # Check for meaningful properties
     meaningful_properties = []
     for prop in ['vendor', 'product', 'platforms', 'modules', 'packageName', 'repo', 'programRoutines', 'programFiles', 'collectionURL']:
         if prop in raw_platform_data and not _is_placeholder_value(raw_platform_data[prop]):
             meaningful_properties.append(prop)
     
-    # Silently skip if no meaningful properties (expected for many CVEs, following curator pattern)
+    # Check for unsupported array fields and log warnings
+    unsupported_arrays = ['modules', 'programFiles', 'programRoutines']
+    for field in unsupported_arrays:
+        if field in raw_platform_data and isinstance(raw_platform_data[field], list) and raw_platform_data[field]:
+            logger.warning(f"Found unsupported array field '{field}' with {len(raw_platform_data[field])} values in alias extraction - this will be supported in future versions")
+    
+    # Silently skip if no meaningful properties
     if not meaningful_properties:
         return None
     
-    # Extract CVE ID for source tracking (curator requirement)
+    # Extract CVE ID for source tracking
     cve_id = None
     if hasattr(row, 'get'):
         cve_id = row.get('cve_id') or row.get('CVE_ID') or row.get('cveId')
@@ -4709,10 +4832,10 @@ def create_alias_extraction_badge(table_index: int, raw_platform_data: Dict, row
     
     header_identifier = f"Platform Entry {table_index} ({', '.join(header_parts)})"
     
-    # Create tooltip with curator-style information
-    tooltip = f"Source mapping extraction data&#013;{entry_count} alias entries with meaningful properties&#013;Click to view detailed alias information"
+    # Create tooltip
+    tooltip = f"Alias extraction data&#013;{entry_count} alias entries&#013;Click to view detailed alias information"
     
-    # Create the badge HTML with curator theme (blue for extraction)
+    # Create the badge HTML
     badge_html = f'<span class="badge modal-badge bg-info" onclick="BadgeModalManager.openAliasExtractionModal(\'{table_index}\', \'{header_identifier}\')" title="{tooltip}">📋 Aliases ({entry_count})</span> '
     
     return badge_html
@@ -4720,13 +4843,16 @@ def create_alias_extraction_badge(table_index: int, raw_platform_data: Dict, row
 
 def _create_alias_data(affected_item: Dict, vendor: str = None, product: str = None, platform: str = None, cve_id: str = None) -> Dict:
     """
-    Create alias data entry following curator logic exactly.
+    Create a single alias entry with supported fields only.
     
     Args:
         affected_item: The affected item data
         vendor: Vendor name (may be None)
         product: Product name (may be None)  
         platform: Platform name (may be None)
+        collectionURL: Collection URL (may be None)
+        packageName: Package name (may be None)
+        repo: Repository name (may be None)
         cve_id: CVE ID for source tracking
         
     Returns:

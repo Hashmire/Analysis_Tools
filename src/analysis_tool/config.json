@@ -32,10 +32,10 @@
             "enabled": true,
             "path": "cache/cve_list_v5",
             "fallback_to_api": true,
-            "manual_sync_only": true,
+            "manual_sync_only": false,
             "description": "CVE List V5 repository with per-file tracking",
             "refresh_strategy": {
-                "field_path": "$.cveMetadata.dateUpdated",
+                "field_path": "cache_metadata.datasets.cve_list_v5.lastManualUpdate",
                 "notify_age_hours": 24
             }
         },

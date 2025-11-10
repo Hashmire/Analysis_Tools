@@ -13,7 +13,7 @@ import json
 # Import Analysis Tool 
 from . import gatherData
 from . import generateHTML
-from .badge_modal_system import GENERAL_PLACEHOLDER_VALUES
+from .badge_modal_system import GENERAL_PLACEHOLDER_VALUES, PLATFORM_ENTRY_NOTIFICATION_REGISTRY, register_platform_notification_data, create_cpe_processing_registry_entry, create_top10_cpe_suggestions_registry_entry
 from ..storage.cpe_cache import CPECache, get_global_cache_manager
 from ..storage.nvd_source_manager import get_source_name, get_source_info, get_all_sources_for_cve
 
@@ -154,6 +154,69 @@ def find_confirmed_mappings(raw_platform_data: dict, source_id: str) -> List[str
     culled_mappings = [cpe for cpe in confirmed_cpe_bases if cpe not in filtered_cpe_bases]
     
     return filtered_cpe_bases, culled_mappings
+
+def extract_confirmed_mappings_for_affected_entry(affected_entry: dict) -> List[str]:
+    """
+    Extract confirmed CPE mappings for a single CVE List V5 affected entry.
+    
+    This function is designed for NVD-ish collector integration to populate
+    confirmedMappings arrays with just the cpeBaseString values.
+    
+    Args:
+        affected_entry: A single affected entry from CVE List V5 data with source attribution
+        
+    Returns:
+        List of cpeBaseString values that match the affected entry's alias data
+    """
+    config = load_config()
+    
+    # Check if confirmed mappings are enabled
+    if not config.get('confirmed_mappings', {}).get('enabled', True):
+        return []
+    
+    # Extract source ID from affected entry
+    source_id = affected_entry.get('source', affected_entry.get('sourceId', ''))
+    if not source_id:
+        return []
+    
+    # Load the appropriate mapping file based on source ID
+    mapping_data = load_mapping_file(source_id)
+    
+    if not mapping_data or 'confirmedMappings' not in mapping_data:
+        return []
+    
+    # Build raw platform data structure from affected entry for alias matching
+    raw_platform_data = {
+        'vendor': affected_entry.get('vendor'),
+        'product': affected_entry.get('product'),
+        'platforms': affected_entry.get('platforms', [])
+    }
+    
+    # Copy other potential alias fields
+    for field in ['modules', 'packageName', 'repo', 'programRoutines', 'programFiles', 'collectionURL']:
+        if field in affected_entry:
+            raw_platform_data[field] = affected_entry[field]
+    
+    confirmed_cpe_bases = []
+    
+    # Check each confirmed mapping using existing logic
+    for mapping in mapping_data['confirmedMappings']:
+        cpe_base_string = mapping.get('cpebasestring') or mapping.get('cpeBaseString')
+        aliases = mapping.get('aliases', [])
+        
+        if not cpe_base_string or not aliases:
+            continue
+            
+        # Check if any alias matches the affected entry data
+        for alias in aliases:
+            if check_alias_match(alias, raw_platform_data):
+                confirmed_cpe_bases.append(cpe_base_string)
+                break  # Found a match for this CPE base string, move to next mapping
+    
+    # Filter to keep only the most specific CPE base strings (no culled mappings returned)
+    filtered_cpe_bases = filter_most_specific_cpes(confirmed_cpe_bases)
+    
+    return filtered_cpe_bases
 
 def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
     """Process confirmed mappings for all rows in the dataset"""
@@ -428,6 +491,9 @@ def reduceToTop10(workingDataset: pd.DataFrame) -> pd.DataFrame:
 
         # Store the top_10_base_strings in the dictionary
         top_10_base_strings_dict[index] = top_10_base_strings
+
+        # Register top 10 CPE suggestions in PENR for nvd-ish collector
+        create_top10_cpe_suggestions_registry_entry(index, top_10_base_strings)
 
         # Ensure that only the current row is updated
         trimmedDataset.at[index, 'trimmedCPEsQueryData'] = top_10_base_strings
@@ -1134,23 +1200,40 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                             else:
                                 # Track NVD API incompatible CPE for non-CPE strings
                                 if cpe:  # Only log if there's actually a value
-                                    issues['nvd_api_incompatible_cpe'].append((index, source_role, f"Non-CPE string format: '{cpe}'"))                # Validate CPE base strings for specificity before storing
+                                    issues['nvd_api_incompatible_cpe'].append((index, source_role, f"Non-CPE string format: '{cpe}'"))                # Validate CPE base strings for specificity and NVD API compatibility before storing
                 validated_cpe_strings = []
                 culled_cpe_strings = []
                 for cpe_string in cpeBaseStrings:
-                    is_valid, reason = validate_cpe_specificity(cpe_string)
-                    if is_valid:
-                        validated_cpe_strings.append(cpe_string)
-                    else:
+                    # First check specificity
+                    is_specific, specificity_reason = validate_cpe_specificity(cpe_string)
+                    if not is_specific:
                         # Track overly broad CPE issue (console reporting only)
-                        issues['overly_broad_cpe'].append((index, source_role, cpe_string, reason))
+                        issues['overly_broad_cpe'].append((index, source_role, cpe_string, specificity_reason))
                         # Also log the validation failure for log analyzer to capture
-                        logger.warning(f"Overly broad CPE detected, skipping: {cpe_string} - {reason}", group="cpe_validation")
+                        logger.warning(f"Overly broad CPE detected, skipping: {cpe_string} - {specificity_reason}", group="cpe_validation")
                         # Store culled CPE strings for badge display
                         culled_cpe_strings.append({
                             'cpe_string': cpe_string,
-                            'reason': reason
+                            'reason': specificity_reason
                         })
+                        continue
+                    
+                    # Then check NVD API compatibility
+                    is_compatible, compatibility_reason = is_nvd_api_compatible(cpe_string)
+                    if not is_compatible:
+                        # Track NVD API incompatible CPE issue
+                        issues['nvd_api_incompatible_cpe'].append((index, source_role, f"Validation failed: {compatibility_reason} for '{cpe_string}'"))
+                        # Also log the validation failure for log analyzer to capture
+                        logger.warning(f"NVD API incompatible CPE detected, skipping: {cpe_string} - {compatibility_reason}", group="cpe_validation")
+                        # Store culled CPE strings for badge display
+                        culled_cpe_strings.append({
+                            'cpe_string': cpe_string,
+                            'reason': compatibility_reason
+                        })
+                        continue
+                    
+                    # CPE passed both validations
+                    validated_cpe_strings.append(cpe_string)
 
                 # Update the cpeBaseStrings in platformEntryMetadata with validated strings
                 rawDataset.at[index, 'platformEntryMetadata']['cpeBaseStrings'] = validated_cpe_strings
@@ -1162,7 +1245,13 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                 # Store curation tracking in metadata if any changes were found
                 has_curations = any(curation_tracking.values())
                 if has_curations:
-                    rawDataset.at[index, 'platformEntryMetadata']['cpeCurationTracking'] = curation_tracking            # Generate unique string list for API queries using the updated deriveCPEMatchStringList
+                    rawDataset.at[index, 'platformEntryMetadata']['cpeCurationTracking'] = curation_tracking
+                
+                # Register CPE base string searches for nvd-ish collector (separate from supportingInformation modal)
+                cpe_base_strings = rawDataset.at[index, 'platformEntryMetadata'].get('cpeBaseStrings', [])
+                create_cpe_processing_registry_entry(index, cpe_base_strings, culled_cpe_strings)            
+            
+            # Generate unique string list for API queries using the updated deriveCPEMatchStringList
             uniqueStringList = deriveCPEMatchStringList(rawDataset)
             
             # Track the total number of unique queries generated

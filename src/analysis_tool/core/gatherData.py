@@ -219,6 +219,49 @@ def _load_cve_from_local_file(cve_file_path):
         logger.warning(f"Cannot read local CVE file {cve_file_path}: {e}", group="cve_queries")
         return None
 
+def _extract_cache_metadata_value(cache_metadata_path):
+    """
+    Extract field value from cache_metadata.json file using dot notation.
+    
+    Args:
+        cache_metadata_path: Path like 'cache_metadata.datasets.cve_list_v5.lastManualUpdate'
+    
+    Returns:
+        List of matching values (for consistency with _extract_field_value)
+    """
+    try:
+        import json
+        from pathlib import Path
+        
+        # Get project root and load cache metadata
+        project_root = Path(__file__).parent.parent.parent.parent
+        metadata_file = project_root / "cache" / "cache_metadata.json"
+        
+        if not metadata_file.exists():
+            logger.debug(f"Cache metadata file not found: {metadata_file}", group="cache_management")
+            return []
+        
+        with open(metadata_file, 'r') as f:
+            metadata = json.load(f)
+        
+        # Remove 'cache_metadata.' prefix and traverse the path
+        path = cache_metadata_path.replace('cache_metadata.', '')
+        parts = path.split('.')
+        
+        current = metadata
+        for part in parts:
+            if isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                logger.debug(f"Cache metadata path not found: {cache_metadata_path}", group="cache_management")
+                return []
+        
+        return [current] if current is not None else []
+        
+    except Exception as e:
+        logger.debug(f"Failed to extract cache metadata value for {cache_metadata_path}: {e}", group="cache_management")
+        return []
+
 def _extract_field_value(data, simple_path):
     """
     Extract field value from JSON data using simple dot notation.
@@ -325,10 +368,14 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
         # Extract CVE List V5 dateUpdated using config field path
         cvelist_field_path = cve_config.get('refresh_strategy', {}).get('field_path', '$.cveMetadata.dateUpdated')
         
-        cvelist_dates = _extract_field_value(local_data, cvelist_field_path)
+        # Check if this is a cache metadata path vs CVE record path
+        if cvelist_field_path.startswith('cache_metadata.'):
+            cvelist_dates = _extract_cache_metadata_value(cvelist_field_path)
+        else:
+            cvelist_dates = _extract_field_value(local_data, cvelist_field_path)
         
         if not cvelist_dates:
-            logger.debug(f"No CVE List V5 dateUpdated found for {targetCve}", group="cache_management")
+            logger.debug(f"No CVE List V5 date found for {targetCve} using path {cvelist_field_path}", group="cache_management")
             return
             
         cvelist_date_updated = cvelist_dates[0]  # Should be single match
@@ -508,6 +555,27 @@ def gatherCVEListRecord(targetCve):
         processData.integrityCheckCVE("cveStatusCheck", "REJECTED", cveRecordDict)
         
         logger.api_response("MITRE CVE API", "Success", group="cve_queries")
+        
+        # Save to cache if CVE List V5 cache is enabled
+        cve_config = get_cache_config('cve_list_v5')
+        if cve_config.get('enabled', False):
+            try:
+                local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
+                cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
+                if cve_file_path:
+                    # Ensure directory exists
+                    import os
+                    os.makedirs(os.path.dirname(cve_file_path), exist_ok=True)
+                    
+                    # Save to cache
+                    import json
+                    with open(cve_file_path, 'w') as f:
+                        json.dump(cveRecordDict, f, indent=2)
+                    
+                    logger.debug(f"Saved API response to CVE List V5 cache: {cve_file_path}", group="cve_queries")
+                    
+            except Exception as e:
+                logger.warning(f"Failed to save CVE {targetCve} to cache: {e}", group="cve_queries")
         
         return cveRecordDict
     except requests.exceptions.RequestException as e:
