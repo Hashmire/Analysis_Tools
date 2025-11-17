@@ -59,8 +59,8 @@ class NVDishCollectorTestSuite:
     
     def __init__(self):
         self.passed = 0
-        # Update total test count to include placeholder filtering unit test
-        self.total = 21
+        # Update total test count to include placeholder filtering integration test
+        self.total = 22
         self.test_cves = [
             # Core functionality tests (use test 1337 files)
             "CVE-1337-0001",  # Dual-source success
@@ -165,7 +165,7 @@ class NVDishCollectorTestSuite:
                 test_mapping_target.unlink()  # Remove if already exists
             shutil.copy2(test_mapping_source, test_mapping_target)
             copied_files.append(str(test_mapping_target))
-            print(f"  ✓ Copied test mapping file for confirmed mappings test")
+            print(f"  * Copied test mapping file for confirmed mappings test")
         else:
             print(f"  ⚠️  Test mapping file not found: {test_mapping_source}")
         
@@ -2427,6 +2427,198 @@ class NVDishCollectorTestSuite:
             traceback.print_exc()
             return False
 
+    def test_confirmed_mappings_placeholder_filtering_integration(self) -> bool:
+        """Test confirmed mappings placeholder filtering with full tool execution integration."""
+        print(f"\n=== Test 22: Confirmed Mappings Placeholder Filtering Integration ===")
+        
+        # This test validates that placeholder filtering works correctly:
+        # - Entries with placeholder vendor/product should NOT get confirmed mappings
+        # - Entries with valid vendor/product should get confirmed mappings when available
+        
+        # SETUP: Copy test files to INPUT cache (following established pattern)
+        test_files = []
+        try:
+            # Create cache directory structure for CVE-1337-3002 (year 1337, subdir 3xxx)
+            cve_list_cache_dir = CACHE_DIR / "cve_list_v5" / "1337" / "3xxx"
+            nvd_cache_dir = CACHE_DIR / "nvd_2.0_cves" / "1337" / "3xxx"
+            
+            cve_list_cache_dir.mkdir(parents=True, exist_ok=True)
+            nvd_cache_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Copy CVE List V5 test file with placeholder data to INPUT cache
+            cve_list_source = TEST_FILES_DIR / "CVE-1337-3002-cve-list-v5.json"
+            cve_list_target = cve_list_cache_dir / "CVE-1337-3002.json"
+            if cve_list_target.exists():
+                cve_list_target.unlink()
+            shutil.copy2(cve_list_source, cve_list_target)
+            test_files.append(str(cve_list_target))
+            
+            # Create minimal NVD 2.0 data for dual-source requirement
+            nvd_data = {
+                "resultsPerPage": 1,
+                "startIndex": 0,
+                "totalResults": 1,
+                "format": "NVD_CVE", 
+                "version": "2.0",
+                "timestamp": "2025-11-14T00:00:00.000Z",
+                "vulnerabilities": [{
+                    "cve": {
+                        "id": "CVE-1337-3002",
+                        "sourceIdentifier": "testorg@example.com",
+                        "published": "2001-01-01T00:00:00.000",
+                        "lastModified": "2001-01-01T00:00:00.000", 
+                        "vulnStatus": "Analyzed",
+                        "descriptions": [{
+                            "lang": "en",
+                            "value": "Test CVE for confirmed mappings placeholder filtering validation."
+                        }],
+                        "configurations": []
+                    }
+                }]
+            }
+            
+            nvd_target = nvd_cache_dir / "CVE-1337-3002.json"
+            if nvd_target.exists():
+                nvd_target.unlink()
+            with open(nvd_target, 'w', encoding='utf-8') as f:
+                json.dump(nvd_data, f, indent=2)
+            test_files.append(str(nvd_target))
+            
+            # Copy confirmed mappings file to mappings directory with correct naming
+            mappings_dir = PROJECT_ROOT / "src" / "analysis_tool" / "mappings"
+            mappings_dir.mkdir(parents=True, exist_ok=True)
+            
+            mappings_source = TEST_FILES_DIR / "CVE-1337-3002-confirmed-mappings.json"
+            # Use testorg.json to match the shortName in providerMetadata
+            mappings_target = mappings_dir / "testorg.json"
+            if mappings_target.exists():
+                mappings_target.unlink()
+            shutil.copy2(mappings_source, mappings_target)
+            test_files.append(str(mappings_target))
+            
+            print(f"  * Setup complete: Copied test files with placeholder data to INPUT cache")
+            
+        except Exception as e:
+            print(f"FAIL: Setup failed: {e}")
+            return False
+        
+        # EXECUTE: Run normal tool execution with confirmed mappings parameters
+        # Note: Confirmed mappings work based on orgId in CVE providerMetadata
+        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-3002", 
+                                                                     additional_args=["--sdc-report", "--cpe-suggestions", "--alias-report", "--cpe-as-generator"])
+        
+        # TEARDOWN: Clean up INPUT cache files 
+        try:
+            for test_file in test_files:
+                if os.path.exists(test_file):
+                    os.unlink(test_file)
+            print(f"  * Cleanup complete: Removed {len(test_files)} INPUT cache files")
+        except Exception as e:
+            print(f"  WARNING: Cleanup failed: {e}")
+        
+        # VALIDATE: Check both tool execution and placeholder filtering behavior
+        if not success:
+            print(f"FAIL: Tool execution failed")
+            print(f"STDERR: {stderr}")
+            return False
+        
+        # Validation 1: Tool execution completed successfully
+        print(f"  * Tool execution completed successfully")
+        
+        # Validation 2: Confirmed mappings processing occurred 
+        if "confirmed mappings" not in stdout.lower():
+            print(f"FAIL: No confirmed mappings processing detected in tool output")
+            return False
+        print(f"  * Confirmed mappings processing executed")
+        
+        # Validation 3: Parameter matrix compliance
+        parameter_checks = [
+            ("--cpe-suggestions", "cpe suggestions"),
+            ("--sdc-report", "source data concerns"),
+            ("--alias-report", "alias report"),
+            ("--cpe-as-generator", "cpe automatic solutions")
+        ]
+        
+        for param, indicator in parameter_checks:
+            if indicator not in stdout.lower() and param.replace("--", "") not in stdout.lower():
+                print(f"FAIL: Parameter {param} may not have executed (missing indicator: {indicator})")
+                return False
+        print(f"  * All tool parameters executed correctly")
+        
+        # Validation 4: Check NVD-ish record for proper placeholder filtering behavior
+        if not output_path or not os.path.exists(output_path):
+            print(f"FAIL: No NVD-ish output file found")
+            return False
+        
+        try:
+            with open(output_path, 'r', encoding='utf-8') as f:
+                nvd_ish_data = json.load(f)
+            
+            # Check enhanced record structure
+            if "enrichedCVEv5Affected" not in nvd_ish_data:
+                print(f"FAIL: Missing enrichedCVEv5Affected in enhanced record")
+                return False
+            
+            cve_list_entries = nvd_ish_data["enrichedCVEv5Affected"].get("cveListV5AffectedEntries", [])
+            if len(cve_list_entries) != 4:
+                print(f"FAIL: Expected 4 affected entries, found {len(cve_list_entries)}")
+                return False
+            
+            # Expected behavior based on CVE-1337-3002 data and placeholder filtering:
+            # Entry 0: n/a/testproduct - vendor is placeholder → NO confirmed mapping
+            # Entry 1: testvendor/unknown - product is placeholder → NO confirmed mapping  
+            # Entry 2: validvendor/validproduct - both valid → should have confirmed mapping
+            # Entry 3: placeholdervendor/placeholderproduct - no mapping available → NO confirmed mapping
+            
+            valid_mappings_found = 0
+            placeholder_mappings_found = 0
+            
+            for i, entry in enumerate(cve_list_entries):
+                origin_entry = entry.get("originAffectedEntry", {})
+                vendor = origin_entry.get("vendor", "")
+                product = origin_entry.get("product", "")
+                
+                cpe_suggestions = entry.get("cpeSuggestions", {})
+                confirmed_mappings = cpe_suggestions.get("confirmedMappings", [])
+                
+                if i == 0:  # n/a/testproduct - placeholder vendor
+                    if len(confirmed_mappings) > 0:
+                        print(f"FAIL: Entry 0 (n/a/testproduct) should have no mappings due to placeholder vendor, found {len(confirmed_mappings)}")
+                        return False
+                elif i == 1:  # testvendor/unknown - placeholder product  
+                    if len(confirmed_mappings) > 0:
+                        print(f"FAIL: Entry 1 (testvendor/unknown) should have no mappings due to placeholder product, found {len(confirmed_mappings)}")
+                        return False
+                elif i == 2:  # validvendor/validproduct - both valid, should match mapping
+                    if len(confirmed_mappings) == 1:
+                        expected_mapping = "cpe:2.3:a:validvendor:validproduct:*:*:*:*:*:*:*:*"
+                        if confirmed_mappings[0] == expected_mapping:
+                            valid_mappings_found += 1
+                            print(f"  * Entry 2 correctly has confirmed mapping: {confirmed_mappings[0]}")
+                        else:
+                            print(f"FAIL: Entry 2 mapping mismatch. Expected: {expected_mapping}, Found: {confirmed_mappings[0]}")
+                            return False
+                    else:
+                        print(f"FAIL: Entry 2 (validvendor/validproduct) expected 1 confirmed mapping, found {len(confirmed_mappings)}")
+                        return False
+                elif i == 3:  # placeholdervendor/placeholderproduct - no mapping available
+                    if len(confirmed_mappings) > 0:
+                        print(f"FAIL: Entry 3 (placeholdervendor/placeholderproduct) should have no mappings (no mapping file entry), found {len(confirmed_mappings)}")
+                        return False
+            
+            # Final validation
+            if valid_mappings_found == 1 and placeholder_mappings_found == 0:
+                print(f"PASS: Confirmed mappings placeholder filtering integration test passed")
+                print(f"  * Placeholder filtering working: valid entries got mappings, placeholder entries filtered out")
+                return True
+            else:
+                print(f"FAIL: Expected 1 valid mapping and 0 placeholder mappings, found {valid_mappings_found} valid and {placeholder_mappings_found} placeholder")
+                return False
+                
+        except Exception as e:
+            print(f"FAIL: NVD-ish output validation failed: {e}")
+            return False
+
 
     def run_all_tests(self) -> bool:
         """Run all comprehensive tests and return overall success."""
@@ -2473,6 +2665,7 @@ class NVDishCollectorTestSuite:
                 # Alias Extraction Integration Tests
                 ("Alias Extraction Integration", self.test_alias_extraction_integration),
                 ("Alias Extraction Placeholder Filtering", self.test_alias_extraction_placeholder_filtering),
+                ("Confirmed Mappings Placeholder Filtering Integration", self.test_confirmed_mappings_placeholder_filtering_integration),
             ]
             
             for test_name, test_func in tests:

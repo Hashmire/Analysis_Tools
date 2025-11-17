@@ -4806,14 +4806,13 @@ def create_alias_extraction_badge(table_index: int, raw_platform_data: Dict, row
     else:
         # Create separate entries for each platform (curator pattern)
         for i, platform in enumerate(platforms):
-            # Skip placeholder platforms (curator filtering)
-            if not _is_placeholder_value(platform):
-                alias_data = _create_alias_data(raw_platform_data, vendor, product, platform, cve_id)
-                if alias_data:  # Only store if meaningful data exists
-                    # Use unique table index for each platform entry (collector compatibility)
-                    platform_index = f"{table_index}_platform_{i}"
-                    PLATFORM_ENTRY_NOTIFICATION_REGISTRY['aliasExtraction'][platform_index] = alias_data
-                    entry_count += 1
+            # Always create alias entry - let _create_alias_data handle platform filtering
+            alias_data = _create_alias_data(raw_platform_data, vendor, product, platform, cve_id)
+            if alias_data:  # Only store if meaningful data exists
+                # Use unique table index for each platform entry (collector compatibility)
+                platform_index = f"{table_index}_platform_{i}"
+                PLATFORM_ENTRY_NOTIFICATION_REGISTRY['aliasExtraction'][platform_index] = alias_data
+                entry_count += 1
     
     # Return None if no valid entries created (curator pattern)
     if entry_count == 0:

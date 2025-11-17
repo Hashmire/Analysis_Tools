@@ -1,0 +1,55 @@
+{
+  "cveMetadata": {
+    "cveId": "CVE-1337-3001"
+  },
+  "containers": {
+    "cna": {
+      "affected": [
+        {
+          "vendor": "n/a",
+          "product": "testproduct",
+          "platforms": ["Linux"],
+          "versions": [
+            {
+              "version": "1.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "testvendor",
+          "product": "unknown",
+          "platforms": ["Windows"],
+          "versions": [
+            {
+              "version": "2.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "validvendor",
+          "product": "validproduct",
+          "platforms": ["n/a", "unspecified"],
+          "versions": [
+            {
+              "version": "3.0.0",
+              "status": "affected"
+            }
+          ]
+        },
+        {
+          "vendor": "placeholdervendor",
+          "product": "placeholderproduct",
+          "platforms": ["various"],
+          "versions": [
+            {
+              "version": "4.0.0",
+              "status": "affected"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

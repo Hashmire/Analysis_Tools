@@ -73,8 +73,11 @@ def normalize_string_for_comparison(s: str) -> str:
     return s.lower().strip()
 
 def check_alias_match(alias: dict, raw_platform_data: dict) -> bool:
-    """Check if an alias matches raw platform data"""
+    """Check if an alias matches raw platform data, filtering out placeholder values from CVE data before comparison"""
+    from .badge_modal_system import GENERAL_PLACEHOLDER_VALUES
+    
     # Required fields that must match if present in both alias and platform data
+    # CVE data in these fields will be filtered for placeholders before comparison
     required_fields = ['vendor', 'product']
     
     for field in required_fields:
@@ -93,10 +96,16 @@ def check_alias_match(alias: dict, raw_platform_data: dict) -> bool:
                 # It's a regular value
                 platform_value = normalize_string_for_comparison(platform_field_value)
             
+            # PLACEHOLDER CHECK: Remove placeholder values from matching - CVE data with placeholders excluded
+            # Placeholder data in CVE fields should never match against confirmed mapping aliases
+            if platform_value in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]:
+                return False
+            
             if alias_value != platform_value:
                 return False
     
     # Special handling for platform field (can be an array in raw_platform_data)
+    # Platform data will be filtered to remove placeholders before comparison
     if 'platform' in alias:
         alias_platform = normalize_string_for_comparison(alias['platform'])
         raw_platforms = raw_platform_data.get('platforms', [])
@@ -107,12 +116,23 @@ def check_alias_match(alias: dict, raw_platform_data: dict) -> bool:
         
         # Handle both string and array cases
         if isinstance(raw_platforms, list):
+            # PLACEHOLDER CHECK: Remove placeholder platforms from CVE data before matching
+            # Any remaining platforms after filtering will be compared against alias platform field
+            valid_platforms = [
+                p for p in raw_platforms 
+                if normalize_string_for_comparison(p) not in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]
+            ]
+            
             platform_matches = any(
                 normalize_string_for_comparison(p) == alias_platform 
-                for p in raw_platforms
+                for p in valid_platforms
             )
         else:
-            platform_matches = normalize_string_for_comparison(raw_platforms) == alias_platform
+            platform_value = normalize_string_for_comparison(raw_platforms)
+            # PLACEHOLDER CHECK: Remove placeholder values from matching - exclude placeholder CVE platform data
+            if platform_value in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]:
+                return False
+            platform_matches = platform_value == alias_platform
         
         if not platform_matches:
             return False
@@ -213,8 +233,14 @@ def extract_confirmed_mappings_for_affected_entry(affected_entry: dict) -> List[
                 confirmed_cpe_bases.append(cpe_base_string)
                 break  # Found a match for this CPE base string, move to next mapping
     
-    # Filter to keep only the most specific CPE base strings (no culled mappings returned)
+    # Filter to keep only the most specific CPE base strings
     filtered_cpe_bases = filter_most_specific_cpes(confirmed_cpe_bases)
+    
+    # Log any culled mappings for NVD-ish collector auditing
+    culled_mappings = [cpe for cpe in confirmed_cpe_bases if cpe not in filtered_cpe_bases]
+    if culled_mappings:
+        source_id = affected_entry.get('source', affected_entry.get('sourceId', 'unknown'))
+        logger.debug(f"NVD-ish record generation: Filtered out {len(culled_mappings)} less specific CPE base string(s) for source '{source_id}': {culled_mappings}", group="nvd_ish_integration")
     
     return filtered_cpe_bases
 

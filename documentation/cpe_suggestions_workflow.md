@@ -35,8 +35,15 @@
       - [4.1.3 Statistical Aggregation](#413-statistical-aggregation)
       - [4.1.4 Output Structure per Affected Entry](#414-output-structure-per-affected-entry)
     - [4.2 Ranking Algorithm](#42-ranking-algorithm)
-    - [4.2 Ranking Algorithm](#42-ranking-algorithm-1)
       - [4.2.1 Sorting Process](#421-sorting-process)
+  - [Stage 5: Confirmed Mappings Detection](#stage-5-confirmed-mappings-detection)
+    - [5.1 Confirmed Mappings Processing Pipeline](#51-confirmed-mappings-processing-pipeline)
+      - [5.1.1 Mapping File Detection and Loading](#511-mapping-file-detection-and-loading)
+      - [5.1.2 Alias Set Extraction from Affected Entry](#512-alias-set-extraction-from-affected-entry)
+      - [5.1.3 Alias Matching and Comparison Logic](#513-alias-matching-and-comparison-logic)
+      - [5.1.4 CPE Base String Specificity Filtering](#514-cpe-base-string-specificity-filtering)
+  - [Stage 6: NVD-ish Record Integration](#stage-6-nvd-ish-record-integration)
+    - [6.1 Data Collection and Assembly](#61-data-collection-and-assembly)
   - [Final Output: Complete cpeSuggestions Structure](#final-output-complete-cpesuggestions-structure)
 
 ## Overview
@@ -56,7 +63,9 @@ CVE List V5 Affected Entry
     ↓
 4. Top 10 CPE Suggestions Generation
     ↓
-5. NVD-ish Record Integration
+5. Confirmed Mappings Detection
+    ↓
+6. NVD-ish Record Integration
     ↓
 Final cpeSuggestions Structure
 ```
@@ -178,26 +187,28 @@ if 'platforms' in platform_data and isinstance(platform_data['platforms'], list)
             targetHW = "x64" 
             rawMatchString = f"cpe:2.3:*:{vendor}:{product}:*:*:*:*:*:*:{targetHW}:*"
             cpeBaseStrings.append(constructSearchString(breakoutCPEAttributes(rawMatchString), "baseQuery"))
-            
-        # ARM architectures (arm, arm64) also supported via curateCPEAttributes mapping
         
         # Platform validation and mapping:
         # ONLY architecture platforms generate CPE strings (mapped to targetHW field):
         #   'x86', 'x86_64', 'x64', 'arm', 'arm64', '32-bit', '64-bit' → targetHW values
-        # 
-        # NOTE: The code includes OS platforms in known_platforms list for warning suppression:
-        #   'windows', 'linux', 'macos', 'android', 'ios' 
-        # However, these cannot be mapped by curateCPEAttributes and don't generate CPE strings.
-        # This appears to be a legacy pattern that may need review.
-        # Issues tracked in issues['unexpected_platforms'] for truly unsupported platforms
+        # Other values throw warnings for proper support mapping review
 ```
 
 **Step 4: Placeholder Detection & Validation**
 
 ```python
-SKIP_PATTERNS = ["n/a", "unknown", "unspecified", "none", "*"]
-if vendor_value.lower() in SKIP_PATTERNS:
-    return []  # Skip CPE generation
+# Uses GENERAL_PLACEHOLDER_VALUES from badge_modal_system.py
+GENERAL_PLACEHOLDER_VALUES = [
+    'unspecified', 'unknown', 'none', 'undefined', 'various',
+    'n/a', 'not available', 'not applicable', 'unavailable',
+    'na', 'nil', 'tbd', 'to be determined', 'pending',
+    'not specified', 'not determined', 'not known', 'not listed',
+    'not provided', 'missing', 'empty', 'null', '-',
+    'see references', 'see advisory', 'check', 'noted', 'all'
+]
+
+if vendor_value.lower() in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]:
+    return []  # Skip CPE generation for placeholder values
 ```
 
 ### 2.2 CPE Base String Generation and Validation Pipeline
@@ -698,12 +709,6 @@ unique_base_strings = {
 
 **Purpose**: Sort consolidated CPE base strings to identify the Top 10 most relevant suggestions for each affected entry.
 
-### 4.2 Ranking Algorithm
-
-**Function**: `sort_base_strings()`
-
-**Purpose**: Sort consolidated CPE base strings to identify the Top 10 most relevant suggestions.
-
 #### 4.2.1 Sorting Process
 
 **Sort Key Calculation**: Each CPE base string gets a 7-tuple score. **Lower values rank higher**.
@@ -733,17 +738,81 @@ deprecation_ratio = dep_true_count / total_results if total_results > 0 else 1.0
 
 # Step 3: Create final sort key
 sort_key = (
-    composite_priority,                    # 1. Source priority (0=CVE cpes+vendor+product, 13=Generated+other)
-    all_deprecated,                        # 2. Has active CPEs? (False=good, True=bad)
-    deprecation_ratio,                     # 3. Deprecated ratio (0.0=all active, 1.0=all deprecated)
-    -dep_false_count,                      # 4. Active CPE count (more is better)
-    -attributes.get('searchCount', 0),     # 5. Search source diversity (more is better)
-    -attributes.get('versionsFound', 0),   # 6. Version matches (more is better)
-    -total_results                         # 7. Total CPE volume (more is better)
+  composite_priority,                    # 1. Source priority (0=CVE cpes+vendor+product, 13=Generated+other)
+  all_deprecated,                        # 2. Has active CPEs? (False=good, True=bad)
+  deprecation_ratio,                     # 3. Deprecated ratio (0.0=all active, 1.0=all deprecated)
+  -dep_false_count,                      # 4. Active CPE count (more is better)
+  -attributes.get('searchCount', 0),     # 5. Search source diversity (more is better)
+  -attributes.get('versionsFound', 0),   # 6. Version matches (more is better)
+  -total_results                         # 7. Total CPE volume (more is better)
 )
 ```
 
 **Output**: Top 10 entries from sorted results become the final CPE suggestions.
+
+---
+
+## Stage 5: Confirmed Mappings Detection
+
+**Location**: `src/analysis_tool/core/processData.py`
+
+**Purpose**: Detect and validate authoritative, human-verified CPE mappings for affected entries using external mapping files and alias matching logic.
+
+This stage operates as an independent feature within the `--cpe-suggestions` processing pipeline, providing confirmed CPE base strings that represent verified mappings for specific vendor/product combinations.
+
+### 5.1 Confirmed Mappings Processing Pipeline
+
+**Functions**: `find_confirmed_mappings()`, `extract_confirmed_mappings_for_affected_entry()`, `process_confirmed_mappings()`
+
+#### 5.1.1 Mapping File Detection and Loading
+
+**Function**: `load_mapping_file(source_id)`
+
+1. **Configuration Check**: Verify `confirmed_mappings.enabled` is true in config
+2. **File Discovery**: Search the configured mappings directory for JSON files
+3. **CNA ID Matching**: Load and check each file for matching `cnaId` field
+4. **Structure Validation**: Ensure the mapping file contains a `confirmedMappings` array
+
+#### 5.1.2 Alias Set Extraction from Affected Entry
+
+**Function**: `extract_confirmed_mappings_for_affected_entry()` in `src/analysis_tool/core/processData.py`
+
+Extract alias data from CVE List V5 affected entry fields into `raw_platform_data` structure for matching:
+- **Primary Fields**: `vendor`, `product`, `platforms` (used in alias matching)
+- **Additional Fields**: `modules`, `packageName`, `repo`, `programRoutines`, `programFiles`, `collectionURL` (extracted but not used in current matching logic)
+
+#### 5.1.3 Alias Matching and Comparison Logic
+
+**Function**: `check_alias_match(alias, raw_platform_data)` in `src/analysis_tool/core/processData.py`
+
+**Matching Logic**: The confirmed mappings system uses an exact-match approach with comprehensive placeholder filtering:
+
+1. **Required Field Validation**: Check `vendor` and `product` for exact matches (case-insensitive, normalized)
+2. **Placeholder Filtering**: CVE data containing `GENERAL_PLACEHOLDER_VALUES` is excluded from matching before comparison
+3. **Optional Platform Validation**: Check `platform` (singular) field against `platforms` array, filtering out placeholder platforms
+4. **Exact Matching Only**: No partial or fuzzy matching - "office" ≠ "microsoft office"
+5. **Case-Insensitive**: "Microsoft" matches "microsoft"
+
+#### 5.1.4 CPE Base String Specificity Filtering
+
+**Function**: `filter_most_specific_cpes(confirmed_cpe_bases)`
+
+1. **Collect Matches**: Gather all `cpeBaseString` values where aliases matched
+2. **Specificity Comparison**: Use `is_more_specific_than()` to compare CPE components
+3. **Culling Process**: Remove less specific CPE base strings to avoid redundancy
+4. **Result Separation**: Return filtered confirmed mappings and track culled mappings
+
+---
+
+## Stage 6: NVD-ish Record Integration
+
+**Location**: `src/analysis_tool/logging/nvd_ish_collector.py`
+
+**Purpose**: Convert all CPE suggestion processing results (Top 10, confirmed mappings, searched/culled strings) into the final NVD-ish record structure.
+
+### 6.1 Data Collection and Assembly
+
+The collector integrates multiple data sources into the final `cpeSuggestions` structure:
 
 ---
 
@@ -786,4 +855,3 @@ sort_key = (
     ]
   }
 }
-```

@@ -1264,7 +1264,12 @@ class NVDishCollector:
         Args:
             registry_instance: Registry instance (used for compatibility but not primary source)
         """
+        if logger:
+            logger.debug(f"DEBUG: Starting collect_alias_extraction_from_registry for {self.current_cve_id}", group="data_processing")
+            
         if not self.current_cve_id or not self.config.get('enabled', True):
+            if logger:
+                logger.debug(f"DEBUG: Skipping alias extraction - current_cve_id: {self.current_cve_id}, enabled: {self.config.get('enabled', True)}", group="data_processing")
             return
 
         try:
@@ -1282,10 +1287,20 @@ class NVDishCollector:
             
             if logger:
                 logger.debug(f"Badge contents collector has {len(alias_extractions)} alias extraction entries", group="data_processing")
+                # Debug: Log full badge collector data structure for entry 3
+                if alias_extractions and len(alias_extractions) > 3:
+                    entry_3_data = alias_extractions[3]
+                    logger.debug(f"DEBUG: Entry 3 alias data - table_index: {entry_3_data.get('table_index')}, entry_count: {entry_3_data.get('entry_count')}, alias_data_keys: {list(entry_3_data.get('alias_data', {}).keys())}", group="data_processing")
             
             if not alias_extractions:
                 if logger:
                     logger.debug(f"No alias extraction data in badge contents collector for {self.current_cve_id}", group="data_processing")
+                    # Debug: Log what IS available in the badge collector
+                    if badge_collector.current_cve_data:
+                        available_keys = list(badge_collector.current_cve_data.keys())
+                        logger.debug(f"DEBUG: Available keys in badge collector current_cve_data: {available_keys}", group="data_processing")
+                    else:
+                        logger.debug(f"DEBUG: Badge collector current_cve_data is None", group="data_processing")
                 return
             
             # Process each affected entry to match with badge collector alias data

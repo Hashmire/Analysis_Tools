@@ -557,6 +557,49 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
                 logger.error(f"Confirmed mappings processing failed for {cve_id}: {str(confirmed_error)}", group="data_processing")
                 logger.info("Continuing without confirmed mappings...", group="data_processing")
         
+        # Complete NVD-ish enhanced record collection for this CVE BEFORE HTML generation decision
+        logger.info(f"Starting NVD-ish enhanced record collection for {cve_id}", group="data_processing")
+        try:
+            # Import Platform Entry Notification Registry for nvd-ish integration
+            from .badge_modal_system import PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+            
+            nvd_ish_collector.start_cve_processing(cve_id)
+            
+            # Always collect NVD base record and CVE List V5 data
+            nvd_ish_collector.collect_nvd_base_record()  # Auto-loads from NVD 2.0 cache
+            nvd_ish_collector.collect_cve_list_v5_data(cveRecordData)  # Pass CVE List V5 data from API/cache
+            
+            if alias_report:
+                from ..logging.badge_contents_collector import get_badge_contents_collector
+                badge_collector = get_badge_contents_collector()
+                badge_collector.complete_cve_processing()
+                logger.debug(f"Badge contents collector completed for CVE {cve_id}", group="data_processing")
+            
+            # Integrate source data concerns from Platform Entry Notification Registry
+            nvd_ish_collector.collect_source_data_concerns_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
+            
+            # Integrate CPE suggestions data from Platform Entry Notification Registry 
+            if cpe_suggestions:
+                nvd_ish_collector.collect_cpe_suggestions_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
+            
+            # Integrate alias extraction data from Platform Entry Notification Registry
+            if alias_report:
+                nvd_ish_collector.collect_alias_extraction_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
+            
+            # Integrate confirmed mappings data from Platform Entry Notification Registry
+            if cpe_suggestions or alias_report or cpe_as_generator:
+                nvd_ish_collector.collect_confirmed_mappings_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
+            
+            # Collect tool execution metadata with timestamps
+            if tool_execution_timestamps:
+                nvd_ish_collector.collect_tool_execution_metadata(tool_execution_timestamps)
+       
+            nvd_ish_collector.complete_cve_processing()
+            
+            logger.info(f"NVD-ish enhanced record collection completed for {cve_id}", group="data_processing")
+        except Exception as collection_error:
+            logger.error(f"Failed to complete NVD-ish collection for {cve_id}: {collection_error}", group="data_processing")
+
         # HTML generation decision based on feature flags
         # Only generate HTML when cpe_as_generator is enabled (the only feature that needs interactive HTML pages)
         should_generate_html = cpe_as_generator
@@ -566,9 +609,6 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
             
             # Complete badge contents collection for this CVE
             complete_cve_collection()
-            
-            # Note: NVD-ish collector will run after all processing (including when HTML generation is skipped)
-            # This ensures it always accesses the complete registry data regardless of HTML generation
             
             return {
                 'success': True,
@@ -700,56 +740,6 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
             'error': str(e),
             'cve_id': cve_id
         }
-    
-    # Complete NVD-ish enhanced record collection for this CVE 
-    # This runs AFTER all processing (HTML generation, badge creation) to ensure full registry data
-    logger.info(f"Starting NVD-ish enhanced record collection for {cve_id}", group="data_processing")
-    try:
-        # Import Platform Entry Notification Registry for nvd-ish integration
-        from .badge_modal_system import PLATFORM_ENTRY_NOTIFICATION_REGISTRY
-        
-        nvd_ish_collector.start_cve_processing(cve_id)
-        
-        # Integrate available data sources - only if main processing succeeded
-        if success_result.get('success', False):
-            nvd_ish_collector.collect_nvd_base_record()  # Auto-loads from NVD 2.0 cache
-            nvd_ish_collector.collect_cve_list_v5_data(cveRecordData)  # Pass CVE List V5 data from API/cache
-            
-            # Integrate source data concerns from Platform Entry Notification Registry
-            nvd_ish_collector.collect_source_data_concerns_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
-            
-            # Integrate CPE suggestions data from Platform Entry Notification Registry 
-            if cpe_suggestions:
-                nvd_ish_collector.collect_cpe_suggestions_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
-            
-            # Integrate alias extraction data from Platform Entry Notification Registry
-            if alias_report:
-                nvd_ish_collector.collect_alias_extraction_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
-            
-            # Integrate confirmed mappings data from Platform Entry Notification Registry
-            if cpe_suggestions or alias_report or cpe_as_generator:
-                nvd_ish_collector.collect_confirmed_mappings_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
-            
-            # Collect tool execution metadata with timestamps
-            if tool_execution_timestamps:
-                nvd_ish_collector.collect_tool_execution_metadata(tool_execution_timestamps)
-        else:
-            # Only collect basic data if main processing failed
-            nvd_ish_collector.collect_nvd_base_record()
-            nvd_ish_collector.collect_cve_list_v5_data()
-       
-        nvd_ish_collector.complete_cve_processing()
-        
-        # Complete badge contents collector processing if alias extraction is enabled
-        if alias_report:
-            from ..logging.badge_contents_collector import get_badge_contents_collector
-            badge_collector = get_badge_contents_collector()
-            badge_collector.complete_cve_processing()
-            logger.debug(f"Badge contents collector completed for CVE {cve_id}", group="data_processing")
-        
-        logger.info(f"NVD-ish enhanced record collection completed for {cve_id}", group="data_processing")
-    except Exception as collection_error:
-        logger.error(f"Failed to complete NVD-ish collection for {cve_id}: {collection_error}", group="data_processing")
     
     return success_result
 

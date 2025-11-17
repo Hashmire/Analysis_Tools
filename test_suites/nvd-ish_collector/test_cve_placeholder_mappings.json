@@ -1,0 +1,41 @@
+{
+  "cnaId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "confirmedMappings": [
+    {
+      "cpeBaseString": "cpe:2.3:a:testvendor:testproduct:*:*:*:*:*:*:*:*",
+      "aliases": [
+        {
+          "vendor": "testvendor",
+          "product": "testproduct"
+        }
+      ]
+    },
+    {
+      "cpeBaseString": "cpe:2.3:a:acme:database:*:*:*:*:*:*:*:*", 
+      "aliases": [
+        {
+          "vendor": "acme",
+          "product": "database"
+        }
+      ]
+    },
+    {
+      "cpeBaseString": "cpe:2.3:a:validvendor:validproduct:*:*:*:*:*:*:*:*",
+      "aliases": [
+        {
+          "vendor": "validvendor",
+          "product": "validproduct"
+        }
+      ]
+    },
+    {
+      "cpeBaseString": "cpe:2.3:a:microsoft:windows:*:*:*:*:*:*:*:*",
+      "aliases": [
+        {
+          "vendor": "microsoft", 
+          "product": "windows"
+        }
+      ]
+    }
+  ]
+}
