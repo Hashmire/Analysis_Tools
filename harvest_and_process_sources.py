@@ -262,6 +262,8 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_fil
         cmd.extend(["--alias-report"])
     if kwargs['cpe_as_generator']:
         cmd.extend(["--cpe-as-generator"])
+    if kwargs['nvd_ish_only']:
+        cmd.extend(["--nvd-ish-only"])
     
     # Add optional parameters only if they exist
     if kwargs.get('external_assets'):
@@ -358,6 +360,13 @@ def main():
         choices=['true', 'false'],
         help="Generate CPE Applicability Statements as interactive HTML pages (default: false, true if flag provided without value)"
     )
+    output_group.add_argument(
+        "--nvd-ish-only",
+        nargs='?',
+        const='true',
+        choices=['true', 'false'],
+        help="Generate complete NVD-ish enriched records without report files or HTML (ignores other output flags)"
+    )
     
     # Dataset Generation - Parameters intelligently handled before passing to generate_dataset
     dataset_group = parser.add_argument_group('Dataset Generation', 'Control CVE data selection and dataset creation')
@@ -411,8 +420,8 @@ def main():
     args = parser.parse_args()
     
     # === FEATURE FLAG VALIDATION ===
-    # Ensure at least one tool output feature is enabled
-    feature_flags = ['sdc_report', 'cpe_suggestions', 'alias_report', 'cpe_as_generator']
+    # Ensure at least one tool output feature is enabled (or nvd-ish-only mode)
+    feature_flags = ['sdc_report', 'cpe_suggestions', 'alias_report', 'cpe_as_generator', 'nvd_ish_only']
     enabled_features = []
     
     for flag in feature_flags:
@@ -427,10 +436,12 @@ def main():
         print("  --cpe-suggestions          : Generate CPE suggestions via NVD CPE API calls")
         print("  --alias-report             : Generate alias report via curator features")
         print("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages")
+        print("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files or HTML")
         print()
         print("Example usage:")
         print("  python harvest_and_process_sources.py --sdc-report")
         print("  python harvest_and_process_sources.py --cpe-suggestions --cpe-as-generator")
+        print("  python harvest_and_process_sources.py --nvd-ish-only")
         sys.exit(1)
     
     # === INTELLIGENT PARAMETER HANDLING ===
@@ -439,7 +450,7 @@ def main():
     processed_params = {}
     
     # Handle boolean flags - convert to explicit true/false
-    for flag in ['sdc_report', 'cpe_suggestions', 'alias_report', 'cpe_as_generator']:
+    for flag in ['sdc_report', 'cpe_suggestions', 'alias_report', 'cpe_as_generator', 'nvd_ish_only']:
         flag_value = getattr(args, flag, None)
         if flag_value is not None:
             # Parameter provided - convert to boolean and pass with explicit value
@@ -448,8 +459,8 @@ def main():
             # No parameter provided - pass as false
             processed_params[flag] = False
     
-    # Validate that at least one feature is enabled
-    feature_enabled = any(processed_params[flag] for flag in ['sdc_report', 'cpe_suggestions', 'alias_report', 'cpe_as_generator'])
+    # Validate that at least one feature is enabled (including nvd-ish-only)
+    feature_enabled = any(processed_params[flag] for flag in ['sdc_report', 'cpe_suggestions', 'alias_report', 'cpe_as_generator', 'nvd_ish_only'])
     if not feature_enabled:
         print("ERROR: At least one feature must be enabled for harvest processing!")
         print("Available features:")
@@ -457,10 +468,12 @@ def main():
         print("  --cpe-suggestions          : Generate CPE suggestions via NVD CPE API calls")
         print("  --alias-report             : Generate alias report via curator features")
         print("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages")
+        print("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files or HTML")
         print("")
         print("Example usage:")
         print("  python harvest_and_process_sources.py --sdc-report")
         print("  python harvest_and_process_sources.py --cpe-suggestions --cpe-as-generator")
+        print("  python harvest_and_process_sources.py --nvd-ish-only")
         sys.exit(1)
     
     # Handle API key with intelligent config resolution

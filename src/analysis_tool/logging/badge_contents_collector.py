@@ -99,6 +99,9 @@ class BadgeContentsCollector:
         self.alias_report_source_uuid: Optional[str] = None
         self.alias_report_logs_directory: Optional[str] = None
         
+        # NVD-ish only mode configuration for memory optimization
+        self.nvd_ish_only_mode: bool = False
+        
         # Frequency control for intelligent save operations (aligned with dataset collector)
         self._save_counter = 0
         self._last_save_time = datetime.now()
@@ -119,6 +122,25 @@ class BadgeContentsCollector:
         
         if logger:
             logger.info("Badge contents collector configured for alias report incremental saves", group="initialization")
+    
+    def configure_nvd_ish_only_mode(self, enabled: bool = True) -> None:
+        """
+        Configure NVD-ish only mode for memory optimization.
+        
+        When enabled, skips cross-CVE data accumulation for reports while preserving
+        per-CVE data collection for NVD-ish enrichment.
+        
+        Args:
+            enabled: Whether to enable NVD-ish only mode
+        """
+        self.nvd_ish_only_mode = enabled
+        
+        if logger:
+            if enabled:
+                logger.info("Badge contents collector configured for NVD-ish only mode (memory optimized)", group="initialization")
+            else:
+                logger.info("Badge contents collector configured for standard mode (full reporting)", group="initialization")
+    
     
     def initialize_output_file(self, logs_directory: str) -> bool:
         """
@@ -562,6 +584,12 @@ class BadgeContentsCollector:
         Returns:
             Path to generated aliasReport.json file, or None if generation failed
         """
+        # Skip report generation in NVD-ish only mode for memory optimization
+        if self.nvd_ish_only_mode:
+            if logger:
+                logger.debug("Skipping alias report generation (NVD-ish only mode)", group="completion")
+            return None
+            
         try:
             # Collect all alias data from CVE processing
             all_alias_data = {}
@@ -866,6 +894,19 @@ def configure_alias_reporting(logs_directory: str, source_uuid: str) -> None:
     """
     collector = get_badge_contents_collector()
     collector.configure_alias_reporting(logs_directory, source_uuid)
+
+def configure_nvd_ish_only_mode(enabled: bool = True) -> None:
+    """
+    Configure NVD-ish only mode for memory optimization.
+    
+    When enabled, skips cross-CVE data accumulation for reports while preserving
+    per-CVE data collection for NVD-ish enrichment.
+    
+    Args:
+        enabled: Whether to enable NVD-ish only mode
+    """
+    collector = get_badge_contents_collector()
+    collector.configure_nvd_ish_only_mode(enabled)
 
 def finalize_badge_contents_report() -> Optional[str]:
     """Finalize the badge contents report at the end of a run."""

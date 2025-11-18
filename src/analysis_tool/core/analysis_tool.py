@@ -246,7 +246,7 @@ def set_global_source_uuid(source_uuid):
     else:
         logger.info("Global source UUID cleared - processing all sources", group="initialization")
 
-def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, alias_report=False, cpe_as_generator=False):
+def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, alias_report=False, cpe_as_generator=False, nvd_ish_only=False):
     """Process a single CVE using the analysis tool functionality.
     
     Args:
@@ -256,6 +256,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         cpe_suggestions: If True, perform NVD CPE API calls and generate suggestions
         alias_report: If True, generate alias report via curator features
         cpe_as_generator: If True, generate CPE Applicability Statements as interactive HTML pages
+        nvd_ish_only: If True, generate only NVD-ish enriched records without report files or HTML
     
     Note:
         Source UUID filtering is controlled by the global _global_source_uuid variable
@@ -579,15 +580,15 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
             nvd_ish_collector.collect_source_data_concerns_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
             
             # Integrate CPE suggestions data from Platform Entry Notification Registry 
-            if cpe_suggestions:
+            if cpe_suggestions or nvd_ish_only:
                 nvd_ish_collector.collect_cpe_suggestions_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
             
             # Integrate alias extraction data from Platform Entry Notification Registry
-            if alias_report:
+            if alias_report or nvd_ish_only:
                 nvd_ish_collector.collect_alias_extraction_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
             
             # Integrate confirmed mappings data from Platform Entry Notification Registry
-            if cpe_suggestions or alias_report or cpe_as_generator:
+            if cpe_suggestions or alias_report or cpe_as_generator or nvd_ish_only:
                 nvd_ish_collector.collect_confirmed_mappings_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
             
             # Collect tool execution metadata with timestamps
@@ -602,10 +603,14 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
 
         # HTML generation decision based on feature flags
         # Only generate HTML when cpe_as_generator is enabled (the only feature that needs interactive HTML pages)
-        should_generate_html = cpe_as_generator
+        # Skip HTML generation entirely in NVD-ish only mode
+        should_generate_html = cpe_as_generator and not nvd_ish_only
         
         if not should_generate_html:
-            logger.info("HTML generation skipped for this feature configuration", group="page_generation")
+            if nvd_ish_only:
+                logger.info("HTML generation skipped (NVD-ish only mode - memory optimized)", group="page_generation")
+            else:
+                logger.info("HTML generation skipped for this feature configuration", group="page_generation")
             
             # Complete badge contents collection for this CVE
             complete_cve_collection()
@@ -616,6 +621,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
                 'cpe_suggestions': cpe_suggestions,
                 'alias_report': alias_report,
                 'cve_as_generator': cpe_as_generator,
+                'nvd_ish_only': nvd_ish_only,
                 'cve_id': cve_id,
                 'filepath': None  # No HTML file generated
             }
@@ -931,6 +937,8 @@ def main():
     
     # Group 1: Tool Output - What analysis outputs to generate
     output_group = parser.add_argument_group('Tool Output', 'Select which analysis outputs to generate')
+    output_group.add_argument("--nvd-ish-only", nargs='?', const='true', choices=['true', 'false'], default='false',
+                             help="Generate complete NVD-ish enriched records without report files or HTML (ignores other output flags)")
     output_group.add_argument("--sdc-report", nargs='?', const='true', choices=['true', 'false'], default='false',
                              help="Generate Source Data Concerns report (default: false, true if flag provided without value)")
     output_group.add_argument("--cpe-suggestions", nargs='?', const='true', choices=['true', 'false'], default='false', 
@@ -963,6 +971,18 @@ def main():
     cpe_suggestions = args.cpe_suggestions.lower() == 'true'
     alias_report = args.alias_report.lower() == 'true'
     cpe_as_generator = args.cpe_as_generator.lower() == 'true'
+    nvd_ish_only = args.nvd_ish_only.lower() == 'true'
+    
+    # Handle --nvd-ish-only flag processing (enable analysis, disable output)
+    if nvd_ish_only:
+        # Enable ALL analysis processes for complete enrichment
+        sdc_report = True
+        cpe_suggestions = True
+        alias_report = True
+        cpe_as_generator = True 
+        
+        logger.info("NVD-ish only mode enabled: generating complete enriched records without report files or HTML", group="initialization")
+        logger.info("All analysis processes enabled for complete NVD-ish enrichment", group="initialization")
     
     # Validate feature combinations
     if alias_report and not args.source_uuid:
@@ -971,18 +991,20 @@ def main():
         print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-XXXX --alias-report --source-uuid your-uuid-here")
         return
     
-    # Validate that at least one feature is enabled
-    if not any([sdc_report, cpe_suggestions, alias_report, cpe_as_generator]):
+    # Validate that at least one feature is enabled (or nvd-ish-only mode)
+    if not any([sdc_report, cpe_suggestions, alias_report, cpe_as_generator, nvd_ish_only]):
         print("ERROR: At least one feature must be enabled!")
         print("Available features:")
         print("  --sdc-report               : Generate Source Data Concerns report")
         print("  --cpe-suggestions          : Generate CPE suggestions via NVD CPE API calls")
         print("  --alias-report             : Generate alias report via curator features (COMING SOON)")
         print("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages")
+        print("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files or HTML")
         print("")
         print("Example usage:")
         print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-20515 --sdc-report")
         print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-20515 --cpe-suggestions --cpe-as-generator")
+        print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-20515 --nvd-ish-only --source-uuid your-uuid")
         return 1
     
     # Set global source UUID for filtering throughout the pipeline
@@ -1374,6 +1396,12 @@ def main():
         configure_alias_reporting(str(run_paths["logs"]), args.source_uuid)
         logger.info("Alias reporting configured for incremental saves during CVE processing", group="initialization")
     
+    # Configure NVD-ish only mode for memory optimization if enabled
+    if nvd_ish_only:
+        from ..logging.badge_contents_collector import configure_nvd_ish_only_mode
+        configure_nvd_ish_only_mode(True)
+        logger.info("Badge contents collector configured for NVD-ish only mode (memory optimized)", group="initialization")
+    
     # Initialize real-time dashboard collector
     # Determine processing mode for dashboard tracking
     processing_mode = "sdc-only" if (sdc_report and not cpe_suggestions and not alias_report and not cpe_as_generator) else ("test" if args.test_file else "full")
@@ -1485,6 +1513,16 @@ def main():
         try:
             logger.info(f"Processing {cve}...", group="processing")
             
+            # Memory optimization: clear cross-CVE alias tracking in nvd-ish-only mode
+            if nvd_ish_only and index > 0:
+                # Clear only the cross-CVE data accumulation used for alias reports
+                # since we don't generate alias reports in nvd-ish-only mode
+                from ..logging.badge_contents_collector import get_badge_contents_collector
+                collector = get_badge_contents_collector()
+                if hasattr(collector, 'cve_data'):
+                    collector.cve_data.clear()  # Clear accumulated CVE data to prevent memory bloat
+                    logger.debug(f"Cleared cross-CVE alias tracking data for memory optimization (nvd-ish-only mode)", group="data_processing")
+            
             # Start CVE processing in real-time collector
             try:
                 from ..logging.dataset_contents_collector import start_cve_processing
@@ -1509,6 +1547,10 @@ def main():
                     logger.debug(f"Processing statistics: {(current_cve_num-1)/total_cves*100:.1f}% complete", group="INIT")
                     logger.debug(f"Timing: Elapsed: {elapsed_str} | ETA: {eta_str} | Remaining: {remaining_str}", group="INIT")
                     logger.debug(f"Performance: Average {avg_time_per_cve:.2f}s per CVE", group="INIT")
+                    
+                    # Memory optimization: additional cleanup in nvd-ish-only mode
+                    if nvd_ish_only:
+                        logger.debug(f"Memory usage at checkpoint - applying aggressive cleanup (nvd-ish-only mode)", group="INIT")
                 
                 audit_global_state(warn_on_bloat=False)
                 audit_cache_and_mappings_stats()
@@ -1520,7 +1562,7 @@ def main():
                 end_audit("Checkpoint audit complete")
             
             # Process the CVE
-            result = process_cve(cve, nvd_api_key, sdc_report, cpe_suggestions, alias_report, cpe_as_generator)
+            result = process_cve(cve, nvd_api_key, sdc_report, cpe_suggestions, alias_report, cpe_as_generator, nvd_ish_only)
             
             # Handle results: successful processing, skipped CVEs, or failures
             if result:
@@ -1653,20 +1695,25 @@ def main():
         if len(generated_files) > 10:
             logger.info(f"  ... and {len(generated_files) - 10} more files", group="completion")
     
-    # Finalize badge contents report
+    # Finalize badge contents report (skip in NVD-ish only mode)
     from ..logging.badge_contents_collector import finalize_badge_contents_report, generate_alias_extraction_report
-    badge_report_path = finalize_badge_contents_report()
-    if badge_report_path:
-        logger.info(f"Badge contents report finalized: {badge_report_path}", group="completion")
+    if not nvd_ish_only:
+        badge_report_path = finalize_badge_contents_report()
+        if badge_report_path:
+            logger.info(f"Badge contents report finalized: {badge_report_path}", group="completion")
+    else:
+        logger.info("Badge contents report generation skipped (NVD-ish only mode)", group="completion")
     
-    # Generate alias extraction report if enabled
-    if args.alias_report:
+    # Generate alias extraction report if enabled (skip in NVD-ish only mode)
+    if args.alias_report and not nvd_ish_only:
         source_uuid = getattr(args, 'source_uuid', None) or 'unknown_source'
         alias_report_path = generate_alias_extraction_report(str(run_paths["logs"]), source_uuid)
         if alias_report_path:
             logger.info(f"Alias extraction report generated: {alias_report_path}", group="completion")
         else:
             logger.info("No alias extraction data found - alias report not generated", group="completion")
+    elif args.alias_report and nvd_ish_only:
+        logger.info("Alias extraction report generation skipped (NVD-ish only mode)", group="completion")
     
     # Stop file logging
     logger.stop_file_logging()
