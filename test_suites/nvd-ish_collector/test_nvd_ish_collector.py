@@ -249,10 +249,6 @@ class NVDishCollectorTestSuite:
             if "--source-uuid" not in cmd:
                 cmd.extend(["--source-uuid", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"])
             
-            # Always add --no-browser to prevent browser windows during testing
-            if "--no-browser" not in cmd:
-                cmd.append("--no-browser")
-            
             # Run the command with clean environment to avoid interference from test runner
             # The NVD-ish collector should work independently of test runner environment
             env = os.environ.copy()

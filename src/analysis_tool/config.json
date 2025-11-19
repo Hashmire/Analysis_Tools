@@ -33,6 +33,7 @@
             "path": "cache/cve_list_v5",
             "fallback_to_api": true,
             "manual_sync_only": false,
+            "cache_missing_only": true,
             "description": "CVE List V5 repository with per-file tracking",
             "refresh_strategy": {
                 "field_path": "cache_metadata.datasets.cve_list_v5.lastManualUpdate",

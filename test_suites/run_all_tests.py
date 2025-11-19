@@ -27,9 +27,9 @@ Environment Variables:
         - Helper functions in run_organization.py handle path detection
 
 Browser Behavior:
-    - Browser auto-opening disabled to prevent multiple tabs during test execution
-    - Individual test suites add --no-browser flag when UNIFIED_TEST_RUNNER is set
-    - To enable browser opening, run individual test suites directly
+    - Browser opening disabled by default (new architectural default)
+    - No browser-specific parameters needed for test execution
+    - To enable browser opening for individual debugging, run test suites directly with --browser flag
 
 Usage:
     python run_all_tests.py                    # Run all tests with consolidated organization

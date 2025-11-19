@@ -56,10 +56,6 @@ class ModularRulesTestSuite:
                 "--sdc-report", "true"  # Required for Source Data Concerns analysis
             ]
             
-            # Add --no-browser when running under unified test runner
-            if os.environ.get('UNIFIED_TEST_RUNNER') == '1':
-                cmd.append("--no-browser")
-            
             result = subprocess.run(
                 cmd,
                 cwd=project_root,

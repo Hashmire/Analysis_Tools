@@ -142,7 +142,7 @@ def _flush_nvd_cache_batch():
                 "totalResults": 1,
                 "format": "NVD_CVE", 
                 "version": "2.0",
-                "timestamp": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
                 "vulnerabilities": [item['vulnerability_record']]
             }
             
@@ -832,6 +832,7 @@ def main():
     alias_report = args.alias_report.lower() == 'true'
     cpe_as_generator = args.cpe_as_generator.lower() == 'true'
     nvd_ish_only = args.nvd_ish_only.lower() == 'true'
+    external_assets = args.external_assets
     
     # Handle --nvd-ish-only flag processing (override behavior)
     if nvd_ish_only:
@@ -1019,7 +1020,7 @@ def main():
         dataset_path = run_directory / "logs" / output_file
         
         # Run analysis tool with existing run context
-        success = run_analysis_tool(output_file, resolved_api_key, run_directory, run_id, args.external_assets, sdc_report, cpe_suggestions, alias_report, cpe_as_generator, nvd_ish_only, args.source_uuid)
+        success = run_analysis_tool(output_file, resolved_api_key, run_directory, run_id, external_assets, sdc_report, cpe_suggestions, alias_report, cpe_as_generator, nvd_ish_only, args.source_uuid)
         if not success:
             logger.error("Analysis tool execution failed", group="data_processing")
             return 1

@@ -34,6 +34,7 @@ def _get_cache_defaults(cache_type):
             'enabled': False,
             'path': 'cache/cve_list_v5',
             'fallback_to_api': True,
+            'cache_missing_only': True,
             'description': 'CVE List V5 repository with per-file tracking',
             'refresh_strategy': {
                 'field_path': '$.cveMetadata.dateUpdated',
@@ -135,7 +136,7 @@ def _update_cache_metadata(cache_type, repo_path):
 
 def get_cache_config(cache_type):
     """
-    Unified cache configuration getter.
+    Unified cache configuration getter with explicit fallback logging.
     
     Args:
         cache_type: Type of cache ('cve_list_v5', 'nvd_2_0_cve')
@@ -145,9 +146,23 @@ def get_cache_config(cache_type):
     """
     try:
         config = load_config()
-        return config.get('cache_settings', {}).get(cache_type, _get_cache_defaults(cache_type))
+        
+        # Check if cache_settings section exists
+        if 'cache_settings' not in config:
+            logger.warning(f"Config file missing 'cache_settings' section for {cache_type}, using defaults", group="cache_management")
+            return _get_cache_defaults(cache_type)
+        
+        # Check if specific cache type exists
+        if cache_type not in config['cache_settings']:
+            logger.warning(f"Config file missing '{cache_type}' cache settings, using defaults", group="cache_management")
+            return _get_cache_defaults(cache_type)
+        
+        # Successfully loaded from config
+        logger.debug(f"Loaded {cache_type} config from file", group="cache_management")
+        return config['cache_settings'][cache_type]
+        
     except Exception as e:
-        logger.warning(f"Could not load {cache_type} config, using defaults: {e}", group="cache_management")
+        logger.warning(f"Could not load config file for {cache_type}, using defaults: {e}", group="cache_management")
         return _get_cache_defaults(cache_type)
 
 
@@ -525,13 +540,26 @@ def gatherCVEListRecord(targetCve):
         
         cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
         if cve_file_path:
-            # Attempt sync with NVD dataset before loading
-            _sync_cvelist_with_nvd_dataset(targetCve)
+            # Check cache_missing_only setting
+            cache_missing_only = cve_config.get('cache_missing_only', False)
             
-            local_data = _load_cve_from_local_file(cve_file_path)
-            if local_data:
-                logger.info(f"Successfully loaded CVE from local repository: {targetCve}", group="cve_queries")
-                return local_data
+            if cache_missing_only:
+                # Only check if file exists, don't sync with NVD for staleness
+                if cve_file_path.exists():
+                    local_data = _load_cve_from_local_file(cve_file_path)
+                    if local_data:
+                        logger.info(f"Successfully loaded CVE from local repository (cache-missing-only mode): {targetCve}", group="cve_queries")
+                        return local_data
+                # File doesn't exist - will fall through to API call
+                logger.debug(f"CVE file missing in cache-missing-only mode: {targetCve}", group="cve_queries")
+            else:
+                # Normal sync behavior - check for staleness and refresh if needed
+                _sync_cvelist_with_nvd_dataset(targetCve)
+                
+                local_data = _load_cve_from_local_file(cve_file_path)
+                if local_data:
+                    logger.info(f"Successfully loaded CVE from local repository: {targetCve}", group="cve_queries")
+                    return local_data
         
         # Local loading failed - check fallback policy
         if not cve_config.get('fallback_to_api', True):

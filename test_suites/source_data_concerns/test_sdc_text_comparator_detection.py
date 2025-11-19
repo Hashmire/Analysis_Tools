@@ -26,11 +26,6 @@ def run_test_and_get_report():
         # Run the tool using the standard command line interface
         cmd = [sys.executable, "-m", "src.analysis_tool.core.analysis_tool", "--test-file", TEST_FILE, "--no-cache", "--sdc-report", "true"]
         
-        # Check if running under unified test runner to control browser behavior
-        if os.environ.get('UNIFIED_TEST_RUNNER'):
-            # Add --no-browser when running under unified test runner
-            cmd.append("--no-browser")
-        
         # Set environment variable to suppress terminal output during testing
         env = os.environ.copy()
         if os.environ.get('UNIFIED_TEST_RUNNER') != '1':

@@ -348,19 +348,40 @@ class UnifiedDashboardCollector:
             if logger:
                 logger.error(f"Failed to start CVE processing for {cve_id}: {e}", group="data_processing")
 
-    def finish_cve_processing(self, cve_id: str):
+    def finish_cve_processing(self, cve_id: str, skipped: bool = False):
         """Complete processing for a specific CVE"""
         try:
             if hasattr(self, 'current_cve_start_time') and self.current_cve_start_time:
                 processing_time = (datetime.now() - self.current_cve_start_time).total_seconds()
                 
-                # Update performance stats
-                self.data["performance"]["count"] += 1
-                self.data["performance"]["total_time"] += processing_time
-                self.data["performance"]["active_processing_time"] = self.data["performance"]["total_time"]
-                self.data["performance"]["average_time"] = self.data["performance"]["total_time"] / self.data["performance"]["count"]
+                # Only update performance stats for actually processed CVEs (not rejected/skipped)
+                # Rejected CVEs would skew timing statistics since they exit immediately
+                if not skipped:
+                    self.data["performance"]["count"] += 1
+                    self.data["performance"]["total_time"] += processing_time
+                    self.data["performance"]["active_processing_time"] = self.data["performance"]["total_time"]
+                    self.data["performance"]["average_time"] = self.data["performance"]["total_time"] / self.data["performance"]["count"]
+                    
+                    # Track min/max
+                    if self.data["performance"]["min_time"] is None or processing_time < self.data["performance"]["min_time"]:
+                        self.data["performance"]["min_time"] = processing_time
+                    if processing_time > self.data["performance"]["max_time"]:
+                        self.data["performance"]["max_time"] = processing_time
+                    
+                    # Update speed stats
+                    if (self.data["speed_stats"]["fastest_cve_time"] is None or 
+                        processing_time < self.data["speed_stats"]["fastest_cve_time"]):
+                        self.data["speed_stats"]["fastest_cve_time"] = processing_time
+                        self.data["speed_stats"]["fastest_cve_id"] = cve_id
+                    
+                    if processing_time > self.data["speed_stats"]["slowest_cve_time"]:
+                        self.data["speed_stats"]["slowest_cve_time"] = processing_time
+                        self.data["speed_stats"]["slowest_cve_id"] = cve_id
+                    
+                    self.data["speed_stats"]["total_processing_time"] += processing_time
+                    self.data["speed_stats"]["cves_with_timing"] += 1
                 
-                # Calculate wall clock time (total elapsed time from start)
+                # Always calculate wall clock time regardless of skipped status
                 if self.processing_start_time:
                     wall_clock_elapsed = (datetime.now() - self.processing_start_time).total_seconds()
                     self.data["performance"]["wall_clock_time"] = wall_clock_elapsed
@@ -369,27 +390,8 @@ class UnifiedDashboardCollector:
                     # Calculate overhead (wall clock - active processing)
                     active_time = self.data["performance"]["active_processing_time"]
                     self.data["performance"]["overhead_time"] = max(0, wall_clock_elapsed - active_time)
-                
-                # Track min/max
-                if self.data["performance"]["min_time"] is None or processing_time < self.data["performance"]["min_time"]:
-                    self.data["performance"]["min_time"] = processing_time
-                if processing_time > self.data["performance"]["max_time"]:
-                    self.data["performance"]["max_time"] = processing_time
-                
-                # Update speed stats
-                if (self.data["speed_stats"]["fastest_cve_time"] is None or 
-                    processing_time < self.data["speed_stats"]["fastest_cve_time"]):
-                    self.data["speed_stats"]["fastest_cve_time"] = processing_time
-                    self.data["speed_stats"]["fastest_cve_id"] = cve_id
-                
-                if processing_time > self.data["speed_stats"]["slowest_cve_time"]:
-                    self.data["speed_stats"]["slowest_cve_time"] = processing_time
-                    self.data["speed_stats"]["slowest_cve_id"] = cve_id
-                
-                self.data["speed_stats"]["total_processing_time"] += processing_time
-                self.data["speed_stats"]["cves_with_timing"] += 1
             
-            # Update processed count
+            # Always update processed count - rejected CVEs were still "processed" from workflow perspective
             self.data["processing"]["processed_cves"] += 1
             processed = self.data["processing"]["processed_cves"]
             total = self.data["processing"]["total_cves"]
@@ -622,40 +624,47 @@ class UnifiedDashboardCollector:
         Update cache file size by checking the actual cache file on disk.
         
         Args:
-            cache_file_path: Optional path to cache file. If not provided, will try to find it.
+            cache_file_path: Optional path to cache file. If not provided, will get it from cache manager.
+            
+        Raises:
+            RuntimeError: If cache manager is not initialized when expected to be working
         """
         try:
             if cache_file_path is None:
-                # Use the standard cache location
-                from ..storage.run_organization import get_analysis_tools_root
-                project_root = get_analysis_tools_root()
-                cache_file_path = os.path.join(project_root, "cache", "cpe_cache.json")
+                # Get the cache file path from the global cache manager
+                from ..storage.cpe_cache import get_global_cache_manager
+                cache_manager = get_global_cache_manager()
+                
+                if not cache_manager.is_initialized():
+                    raise RuntimeError("CPE cache manager not initialized when cache file size update was requested")
+                    
+                cache = cache_manager.get_cache()
+                cache_file_path = str(cache.cache_file)
             
-            if cache_file_path and os.path.exists(cache_file_path):
-                file_size_bytes = os.path.getsize(cache_file_path)
+            if not cache_file_path:
+                raise RuntimeError("No CPE cache file path available - cache system not properly configured")
                 
-                self.data["cache"]["cache_file_size"] = file_size_bytes
-                
-                # Format file size for display
-                if file_size_bytes < 1024:
-                    self.data["cache"]["cache_file_size_formatted"] = f"{file_size_bytes} B"
-                elif file_size_bytes < 1024 * 1024:
-                    self.data["cache"]["cache_file_size_formatted"] = f"{file_size_bytes / 1024:.1f} KB"
-                elif file_size_bytes < 1024 * 1024 * 1024:
-                    self.data["cache"]["cache_file_size_formatted"] = f"{file_size_bytes / (1024 * 1024):.1f} MB"
-                else:
-                    self.data["cache"]["cache_file_size_formatted"] = f"{file_size_bytes / (1024 * 1024 * 1024):.1f} GB"
-                
-                if logger:
-                    logger.debug(f"Updated cache file size: {self.data['cache']['cache_file_size_formatted']}", group="data_processing")
-                
+            if not os.path.exists(cache_file_path):
+                raise RuntimeError(f"CPE cache file does not exist: {cache_file_path} - cache system integrity compromised")
+            
+            file_size_bytes = os.path.getsize(cache_file_path)
+            
+            self.data["cache"]["cache_file_size"] = file_size_bytes
+            
+            # Format file size for display
+            if file_size_bytes < 1024:
+                self.data["cache"]["cache_file_size_formatted"] = f"{file_size_bytes} B"
+            elif file_size_bytes < 1024 * 1024:
+                self.data["cache"]["cache_file_size_formatted"] = f"{file_size_bytes / 1024:.1f} KB"
+            elif file_size_bytes < 1024 * 1024 * 1024:
+                self.data["cache"]["cache_file_size_formatted"] = f"{file_size_bytes / (1024 * 1024):.1f} MB"
             else:
-                if logger:
-                    logger.warning(f"Cache file not found at expected locations", group="data_processing")
+                self.data["cache"]["cache_file_size_formatted"] = f"{file_size_bytes / (1024 * 1024 * 1024):.1f} GB"
                 
         except Exception as e:
             if logger:
-                logger.error(f"Failed to update cache file size: {e}", group="data_processing")
+                logger.error(f"Failed to update CPE cache file size: {e}", group="data_processing")
+            raise  # Re-raise to fail fast
 
     def record_mapping_activity(self, mappings_found: int, platform_entries: int):
         """Record platform mapping statistics"""
@@ -1655,10 +1664,10 @@ def update_cve_affected_entries_count(cve_id: str, affected_entries_count: int):
     collector = get_dataset_contents_collector()
     collector.update_cve_affected_entries_count(cve_id, affected_entries_count)
 
-def finish_cve_processing(cve_id: str):
+def finish_cve_processing(cve_id: str, skipped: bool = False):
     """Complete processing for a CVE"""
     collector = get_dataset_contents_collector()
-    collector.finish_cve_processing(cve_id)
+    collector.finish_cve_processing(cve_id, skipped)
 
 def record_api_call_unified(api_type: str, success: bool = True, response_time: float = 0.0):
     """Record API call statistics"""

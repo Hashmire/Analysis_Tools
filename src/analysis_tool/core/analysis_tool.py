@@ -307,7 +307,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
                 
                 # Ensure progress tracking is properly updated for skipped CVEs
                 from ..logging.dataset_contents_collector import finish_cve_processing
-                finish_cve_processing(cve_id)
+                finish_cve_processing(cve_id, skipped=True)
                 
                 # Return a result indicating the CVE was skipped due to REJECTED status
                 return {
@@ -961,7 +961,7 @@ def main():
     control_group = parser.add_argument_group('Processing Control', 'Control processing behavior and output presentation')
     control_group.add_argument("--no-cache", action="store_true", help="Disable CPE cache for faster testing")
     control_group.add_argument("--run-id", help="Continue within existing run directory (used by generate_dataset.py integration)")
-    control_group.add_argument("--no-browser", action="store_true", help="Don't open results in browser")
+    control_group.add_argument("--browser", action="store_true", help="Open results in browser (default: no browser)")
     control_group.add_argument("--external-assets", action="store_true", help="Use external asset references instead of inline CSS/JS (reduces file size)")
     
     args = parser.parse_args()
@@ -1032,8 +1032,7 @@ def main():
     # Automatically enable appropriate flags when CPE features are disabled
     if not cpe_suggestions and not cpe_as_generator:
         args.no_cache = True
-        args.no_browser = True
-        logger.info("CPE features disabled - enabling optimizations (--no-cache, --no-browser)", group="initialization")
+        logger.info("CPE features disabled - enabling optimizations (--no-cache)", group="initialization")
     
     logger.info("=== END FEATURE FLAG AUDIT ===", group="initialization")
     
@@ -1230,7 +1229,7 @@ def main():
         if filepath:
             logger.info(f"Test file processed successfully: {filepath}", group="page_generation")
             # Open in browser if requested
-            if not args.no_browser:
+            if args.browser:
                 import webbrowser
                 webbrowser.open_new_tab(f"file:///{filepath}")
         else:
@@ -1588,7 +1587,7 @@ def main():
                             logger.info(f"Successfully processed {cve}", group="processing")
                         
                         # Open in browser if single CVE and HTML was generated
-                        if len(cves_to_process) == 1 and not args.no_browser:
+                        if len(cves_to_process) == 1 and args.browser:
                             import webbrowser
                             webbrowser.open_new_tab(f"file:///{result['filepath']}")
                     else:

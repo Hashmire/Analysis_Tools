@@ -201,8 +201,7 @@ class AliasExtractionDashboardCompatibilityTestSuite:
             "--cve", "CVE-2024-20515",
             "--alias-report",
             "--source-uuid", "d1c1063e-7a18-46af-9102-31f8928bc633",  # Cisco UUID from test data
-            "--no-cache",
-            "--no-browser"
+            "--no-cache"
         ])
         
         success = self.add_result(
@@ -656,8 +655,7 @@ class AliasExtractionDashboardCompatibilityTestSuite:
             "--cve", "CVE-1999-0001",  # Very old CVE, unlikely to have modern platform data
             "--alias-report",
             "--source-uuid", "d1c1063e-7a18-46af-9102-31f8928bc633",  # Cisco UUID from test data
-            "--no-cache",
-            "--no-browser"
+            "--no-cache"
         ])
         
         success = True
