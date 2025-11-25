@@ -35,7 +35,7 @@ import re
 import os
 import time
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from ..logging.workflow_logger import get_logger
@@ -264,7 +264,7 @@ class GlobalNVDSourceManager:
         cache_file_path = cache_path / cache_filename
         
         try:
-            current_time = datetime.now()
+            current_time = datetime.now(timezone.utc)
             
             # Save source data to JSON cache file - handle NaN values properly
             source_data_records = []
@@ -357,7 +357,10 @@ class GlobalNVDSourceManager:
             # Calculate age from either new or old format
             if 'created_at' in cache_data:
                 created_at = datetime.fromisoformat(cache_data['created_at'])
-                cache_age_hours = (datetime.now() - created_at).total_seconds() / 3600
+                # Ensure timezone-aware comparison by adding UTC timezone if missing
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=timezone.utc)
+                cache_age_hours = (datetime.now(timezone.utc) - created_at).total_seconds() / 3600
             elif 'timestamp' in cache_data:
                 cache_age_hours = (time.time() - cache_data['timestamp']) / 3600
             else:

@@ -21,7 +21,7 @@ ARCHITECTURE:
 import json
 import os
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import tempfile
 import shutil
@@ -251,7 +251,7 @@ class NVDishCollector:
         self.current_record = None
         self.processing_metadata = {
             'cveId': cve_id,
-            'processingStarted': datetime.now().isoformat(),
+            'processingStarted': datetime.now(timezone.utc).isoformat(),
             'processingCompleted': None,
             'dataSources': [],
             'extensionsApplied': []
@@ -308,7 +308,7 @@ class NVDishCollector:
                 cve_data['enhanced_data'] = {
                     'format_version': self.config.get('version', '2.0'),
                     'attribution_source': self.config.get('attribution_source', 'hashmire/analysis_tools'),
-                    'processing_timestamp': datetime.now().isoformat() + 'Z',
+                    'processing_timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
                     'data_sources': {
                         'nvd_2_0': {
                             'source': 'nvd@nist.gov',
@@ -322,7 +322,7 @@ class NVDishCollector:
             self.processing_metadata['dataSources'].append({
                 'type': 'nvdBase',
                 'source': 'nvd@nist.gov',
-                'timestamp': datetime.now().isoformat(),
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'description': 'Base NVD 2.0 CVE record structure'
             })
             
@@ -371,7 +371,7 @@ class NVDishCollector:
             "totalResults": 1,
             "format": "NVD_CVE",
             "version": "2.0",
-            "timestamp": datetime.utcnow().isoformat() + 'Z',
+            "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
             "vulnerabilities": [
                 {
                     "cve": {
@@ -488,7 +488,7 @@ class NVDishCollector:
                     # Store legacy data temporarily for transition
                     cve_node['enhanced_data']['cve_list_v5_affected'] = {
                         'attribution': 'containers.*.affected (CNA + ADP)',
-                        'timestamp': datetime.now().isoformat(),
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
                         'data': affected_data  # Each entry already has its container's orgId as 'source'
                     }
                     
@@ -501,7 +501,7 @@ class NVDishCollector:
                         self.processing_metadata['dataSources'].append({
                             'type': 'cveListV5',
                             'source': source_id,
-                            'timestamp': datetime.now().isoformat(),
+                            'timestamp': datetime.now(timezone.utc).isoformat(),
                             'description': 'CVE List V5 affected arrays'
                         })
                     
@@ -607,7 +607,7 @@ class NVDishCollector:
                 self.processing_metadata['dataSources'].append({
                     'type': 'sourceDataConcerns',
                     'source': 'badge_system_registry',
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'description': 'Source data concerns from Platform Entry Notification Registry'
                 })
                 
@@ -648,7 +648,7 @@ class NVDishCollector:
                 cve_node['enhanced_data']['source_data_concerns'] = {
                     'source': self.attribution_source,
                     'attribution': 'analysis_tools.sdc_report',
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'data': sdc_concerns_data,
                     'affected_entry_mapping': affected_entry_mapping
                 }
@@ -658,7 +658,7 @@ class NVDishCollector:
                 self.processing_metadata['dataSources'].append({
                     'type': 'sdc_report',
                     'source': self.attribution_source,
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'description': 'Source Data Concerns analysis'
                 })
                 
@@ -710,7 +710,7 @@ class NVDishCollector:
                 cve_node['enhanced_data']['cpe_enhancements'] = {
                     'source': self.attribution_source,
                     'attribution': 'analysis_tools.cpe_suggestions',
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'data': cpe_suggestions_data
                 }
                 
@@ -719,7 +719,7 @@ class NVDishCollector:
                 self.processing_metadata['dataSources'].append({
                     'type': 'cpe_suggestions',
                     'source': self.attribution_source,
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'description': 'CPE suggestions and NVD API results'
                 })
                 
@@ -895,7 +895,7 @@ class NVDishCollector:
                 self.processing_metadata['dataSources'].append({
                     'type': 'cpe_suggestions_registry',
                     'source': self.attribution_source,
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'description': f'CPE suggestions from Platform Entry Notification Registry ({affected_entries_updated} entries)'
                 })
                 
@@ -1138,7 +1138,7 @@ class NVDishCollector:
                 self.processing_metadata['dataSources'].append({
                     'type': 'confirmed_mappings_registry',
                     'source': self.attribution_source,
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'description': f'Confirmed mappings from Platform Entry Notification Registry ({affected_entries_updated} entries)'
                 })
                 
@@ -1230,7 +1230,7 @@ class NVDishCollector:
                 cve_node['enhanced_data']['cpe_applicability_statements'] = {
                     'source': self.attribution_source,
                     'attribution': 'analysis_tools.cpe_as_generation',
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'data': cpe_as_data
                 }
                 
@@ -1239,7 +1239,7 @@ class NVDishCollector:
                 self.processing_metadata['dataSources'].append({
                     'type': 'cpe_as_generation',
                     'source': self.attribution_source,
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'description': 'CPE Applicability Statements'
                 })
                 
@@ -1368,7 +1368,7 @@ class NVDishCollector:
                 self.processing_metadata['dataSources'].append({
                     'type': 'alias_extraction_badge_collector',
                     'source': self.attribution_source,
-                    'timestamp': datetime.now().isoformat(),
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'description': f'Alias extraction from Badge Contents Collector ({affected_entries_updated} entries)'
                 })
                 

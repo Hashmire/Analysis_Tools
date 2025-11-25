@@ -249,14 +249,21 @@ class NVDishCollectorTestSuite:
             if "--source-uuid" not in cmd:
                 cmd.extend(["--source-uuid", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"])
             
-            # Run the command with clean environment to avoid interference from test runner
-            # The NVD-ish collector should work independently of test runner environment
+            # Run the command with custom environment for NVD-ish test organization
+            # Keep consolidated test environment but create a dedicated subdirectory for NVD-ish tests
             env = os.environ.copy()
             
-            # Remove test runner environment variables that might interfere
-            env.pop('CONSOLIDATED_TEST_RUN', None)
-            env.pop('CONSOLIDATED_TEST_RUN_PATH', None)
-            env.pop('CONSOLIDATED_TEST_RUN_ID', None)
+            # If running under unified test runner, organize NVD-ish test runs in a dedicated subdirectory
+            if env.get('CONSOLIDATED_TEST_RUN') == '1' and env.get('CONSOLIDATED_TEST_RUN_PATH'):
+                consolidated_path = Path(env.get('CONSOLIDATED_TEST_RUN_PATH'))
+                nvdish_test_dir = consolidated_path / "logs" / "nvd-ish_collector_tests"
+                nvdish_test_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Update the consolidated path to point to NVD-ish subdirectory
+                env['CONSOLIDATED_TEST_RUN_PATH'] = str(nvdish_test_dir)
+                # Keep CONSOLIDATED_TEST_RUN enabled so runs go to the right place
+            
+            # Keep UNIFIED_TEST_RUNNER off to get detailed output in individual test logs
             env.pop('UNIFIED_TEST_RUNNER', None)
             env.pop('CURRENT_TEST_SUITE', None)
             

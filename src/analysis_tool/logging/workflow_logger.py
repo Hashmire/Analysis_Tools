@@ -10,7 +10,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone, timezone
 from enum import Enum
 from typing import Optional, Dict, Any
 from pathlib import Path
@@ -80,11 +80,13 @@ class WorkflowLogger:
             return {}
     
     def _get_logs_directory(self):
-        """Get the absolute path to the logs directory in the Analysis_Tools project root"""
-        current_file = Path(__file__).resolve()
-        # Navigate up from src/analysis_tool/logging/workflow_logger.py to Analysis_Tools/
-        project_root = current_file.parent.parent.parent.parent
-        return str(project_root / "logs")
+        """Get the logs directory path. Returns None if not set.
+        
+        Note: This should be set explicitly using set_run_logs_directory() before
+        starting file logging. The logger no longer defaults to a global logs directory
+        to ensure logs are organized within run-specific directories.
+        """
+        return None
     
     def set_run_logs_directory(self, run_logs_path: str):
         """Update the logs directory to use run-specific path"""
@@ -122,7 +124,7 @@ class WorkflowLogger:
     
     def _get_timestamp(self) -> str:
         """Get formatted timestamp"""
-        return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        return datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
     
     def _format_message(self, level: LogLevel, group: LogGroup, message: str) -> str:
         """Format the log message"""
@@ -413,8 +415,16 @@ class WorkflowLogger:
         return ansi_escape.sub('', text)
     
     def start_file_logging(self, run_parameters: str):
-        """Start logging to a file with date and parameter-based filename"""
+        """Start logging to a file with date and parameter-based filename
+        
+        Note: You must call set_run_logs_directory() before calling this method
+        to specify where logs should be written.
+        """
         if not self.enabled:
+            return
+        
+        if not self.log_directory:
+            print("Warning: Cannot start file logging - no log directory set. Call set_run_logs_directory() first.")
             return
             
         try:
@@ -422,7 +432,7 @@ class WorkflowLogger:
             os.makedirs(self.log_directory, exist_ok=True)
             
             # Generate filename with date and parameters
-            date_str = datetime.now().strftime("%Y.%m.%d")
+            date_str = datetime.now(timezone.utc).strftime("%Y.%m.%d")
             
             # Clean parameter string for filename (remove invalid characters)
             import re
@@ -440,7 +450,7 @@ class WorkflowLogger:
             
             # Write header to log file
             self.log_file.write(f"# Hashmire/Analysis_Tools Log\n")
-            self.log_file.write(f"# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            self.log_file.write(f"# Started: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\n")
             self.log_file.write(f"# Parameters: {run_parameters}\n")
             self.log_file.write(f"# Log file: {log_path}\n")
             self.log_file.write("# " + "="*50 + "\n\n")
@@ -458,7 +468,7 @@ class WorkflowLogger:
             try:
                 # Write footer to log file
                 self.log_file.write(f"\n# " + "="*50 + "\n")
-                self.log_file.write(f"# Completed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                self.log_file.write(f"# Completed: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\\n")
                 self.log_file.write(f"# End of log\n")
                 self.log_file.close()
                 self.log_file = None

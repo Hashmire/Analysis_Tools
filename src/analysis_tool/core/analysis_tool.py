@@ -14,7 +14,7 @@ import json
 import time
 import subprocess
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Import for potential scoping issues 
 import datetime as dt
@@ -342,8 +342,8 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         # Platform Data Processing and CPE Generation
         if cpe_suggestions:
             # Full CPE processing: platform data + CPE generation + API calls
-            tool_execution_timestamps['cpeSuggestions'] = datetime.now().isoformat() + 'Z'
-            tool_execution_timestamps['cpeSuggestionMetadata'] = datetime.now().isoformat() + 'Z'
+            tool_execution_timestamps['cpeSuggestions'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+            tool_execution_timestamps['cpeSuggestionMetadata'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
             try:
                 primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1, 
                                                             alias_report=alias_report, cpe_as_generator=cpe_as_generator)
@@ -353,7 +353,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         elif sdc_report or alias_report or cpe_as_generator:
             # Platform data processing only (no CPE generation or API calls)
             if cpe_as_generator:
-                tool_execution_timestamps['cpeAsGenerationRules'] = datetime.now().isoformat() + 'Z'
+                tool_execution_timestamps['cpeAsGenerationRules'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
             try:
                 primaryDataframe = processData.processPlatformDataOnly(primaryDataframe, 
                                                                      alias_report=alias_report, cpe_as_generator=cpe_as_generator)
@@ -370,7 +370,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         # Source Data Concerns Processing
         if sdc_report:
             logger.info("Generating Source Data Concerns report", group="data_processing")
-            tool_execution_timestamps['sourceDataConcerns'] = datetime.now().isoformat() + 'Z'
+            tool_execution_timestamps['sourceDataConcerns'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
             
             # Process each row in the dataframe to collect source data concerns
             from .badge_modal_system import create_source_data_concerns_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
@@ -424,7 +424,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         if alias_report:
             try:
                 logger.info("Starting alias extraction processing (all sources)", group="data_processing")
-                tool_execution_timestamps['aliasExtraction'] = datetime.now().isoformat() + 'Z'
+                tool_execution_timestamps['aliasExtraction'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
                 
                 # Import alias extraction functions
                 from .badge_modal_system import create_alias_extraction_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
@@ -978,7 +978,8 @@ def main():
         # Enable ALL analysis processes for complete enrichment
         sdc_report = True
         cpe_suggestions = True
-        alias_report = True
+        # Only enable alias_report if source_uuid is provided (it requires UUID)
+        alias_report = True if args.source_uuid else False
         cpe_as_generator = True 
         
         logger.info("NVD-ish only mode enabled: generating complete enriched records without report files or HTML", group="initialization")
@@ -1128,7 +1129,10 @@ def main():
                     
                     if 'datasets' in metadata and 'nvd_source_data' in metadata['datasets']:
                         last_updated = datetime.fromisoformat(metadata['datasets']['nvd_source_data']['last_updated'])
-                        age_hours = (datetime.now() - last_updated).total_seconds() / 3600
+                        # Ensure timezone-aware comparison
+                        if last_updated.tzinfo is None:
+                            last_updated = last_updated.replace(tzinfo=timezone.utc)
+                        age_hours = (datetime.now(timezone.utc) - last_updated).total_seconds() / 3600
                         
                         from ..storage.nvd_source_manager import is_cache_stale, get_cache_age_threshold
                         if is_cache_stale(age_hours):
@@ -1261,9 +1265,25 @@ def main():
     if args.run_id:
         # Use existing run directory (called from generate_dataset.py)
         logger.info(f"Continuing analysis within existing run: {args.run_id}", group="initialization")
-        run_id = args.run_id
-        run_paths = get_current_run_paths(run_id)
-        run_path = run_paths["run_root"]
+        
+        # Check if run_id is a full path or just an ID
+        from pathlib import Path
+        run_id_path = Path(args.run_id)
+        if run_id_path.is_absolute() and run_id_path.exists():
+            # Full path provided - use it directly
+            run_path = run_id_path
+            run_id = run_path.name
+            # Build run_paths dictionary manually for full path case
+            run_paths = {
+                "run_root": run_path,
+                "logs": run_path / "logs",
+                "generated_pages": run_path / "generated_pages"
+            }
+        else:
+            # Just an ID provided - resolve it
+            run_id = args.run_id
+            run_paths = get_current_run_paths(run_id)
+            run_path = run_paths["run_root"]
         
         # Verify run directory exists
         if not run_path.exists():
@@ -1339,11 +1359,15 @@ def main():
                 source_shortname = None
         
         # Create run directory using enhanced naming
+        # Check if we're in a test environment to enable consolidated test run handling
+        is_test = os.environ.get('CONSOLIDATED_TEST_RUN') == '1'
+        
         run_path, run_id = create_run_directory(
             execution_type=execution_type,
             source_shortname=source_shortname,
             range_spec=range_spec,
-            tool_flags=tool_flags if tool_flags else None
+            tool_flags=tool_flags if tool_flags else None,
+            is_test=is_test
         )
         logger.info(f"Created analysis run directory: {run_id}", group="initialization")
         
@@ -1496,7 +1520,7 @@ def main():
                 avg_time_per_cve = elapsed_time / index
                 remaining_cves = total_cves - index
                 estimated_remaining_time = avg_time_per_cve * remaining_cves
-                eta = datetime.now() + dt.timedelta(seconds=estimated_remaining_time)
+                eta = datetime.now(timezone.utc) + dt.timedelta(seconds=estimated_remaining_time)
 
                 # Format time estimates
                 elapsed_str = str(dt.timedelta(seconds=int(elapsed_time)))
@@ -1540,7 +1564,7 @@ def main():
                     estimated_remaining_time = avg_time_per_cve * (total_cves - current_cve_num + 1)
                     elapsed_str = str(dt.timedelta(seconds=int(elapsed_time)))
                     remaining_str = str(dt.timedelta(seconds=int(estimated_remaining_time)))
-                    eta = datetime.now() + dt.timedelta(seconds=estimated_remaining_time)
+                    eta = datetime.now(timezone.utc) + dt.timedelta(seconds=estimated_remaining_time)
                     eta_str = eta.strftime("%H:%M:%S")
                     
                     logger.debug(f"Processing statistics: {(current_cve_num-1)/total_cves*100:.1f}% complete", group="INIT")
@@ -1716,7 +1740,10 @@ def main():
     
     # Stop file logging
     logger.stop_file_logging()
+    
+    # Return success exit code
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

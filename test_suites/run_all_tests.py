@@ -40,7 +40,7 @@ import subprocess
 import sys
 import time
 import os
-import datetime
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import List, Dict, Tuple
@@ -65,7 +65,7 @@ def create_consolidated_test_run() -> Tuple[Path, str, Dict]:
     project_root = get_analysis_tools_root()
     
     # Generate timestamp-based consolidated run ID following standard format
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
     consolidated_run_id = f"{timestamp}_run_all_tests"
     
     # Create consolidated run directory directly in runs/ following standard pattern
@@ -82,7 +82,7 @@ def create_consolidated_test_run() -> Tuple[Path, str, Dict]:
     test_env_info = {
         "consolidated_run_id": consolidated_run_id,
         "consolidated_run_path": str(consolidated_run_path),
-        "test_start_time": datetime.datetime.now().isoformat(),
+        "test_start_time": datetime.now(timezone.utc).isoformat(),
         "test_suite_count": 0,
         "individual_test_runs": [],
         "environment": {
@@ -123,7 +123,7 @@ def finalize_consolidated_test_run(consolidated_run_path: Path, test_env_info: D
         test_results: List of test suite results
     """
     # Update test environment info with results
-    test_env_info["test_end_time"] = datetime.datetime.now().isoformat()
+    test_env_info["test_end_time"] = datetime.now(timezone.utc).isoformat()
     test_env_info["test_suite_count"] = len(test_results)
     test_env_info["total_individual_tests"] = sum(r.get('tests_total', 0) for r in test_results)
     test_env_info["total_passed_tests"] = sum(r.get('tests_passed', 0) for r in test_results)
@@ -131,8 +131,8 @@ def finalize_consolidated_test_run(consolidated_run_path: Path, test_env_info: D
     test_env_info["test_results_summary"] = test_results
     
     # Calculate test execution time
-    start_time = datetime.datetime.fromisoformat(test_env_info["test_start_time"])
-    end_time = datetime.datetime.fromisoformat(test_env_info["test_end_time"])
+    start_time = datetime.fromisoformat(test_env_info["test_start_time"])
+    end_time = datetime.fromisoformat(test_env_info["test_end_time"])
     test_env_info["total_execution_time_seconds"] = (end_time - start_time).total_seconds()
     
     # Save consolidated test summary

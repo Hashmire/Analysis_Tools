@@ -3,7 +3,7 @@ import pandas as pd
 import json
 import html
 import os
-import datetime
+from datetime import datetime, timezone
 import re 
 
 # Import the new logging system
@@ -1366,7 +1366,7 @@ def update_cpeQueryHTML_column(dataframe):
 def buildHTMLPage(affectedHtml, targetCve, globalCVEMetadata=None, external_assets_config=None):
     
     # Generate UTC timestamp for the page creation
-    utc_timestamp = datetime.datetime.utcnow().isoformat() + "Z"
+    utc_timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
     
     # Get CSS content (external reference or inline content based on config)
     css_content = get_css_content(external_assets_config)

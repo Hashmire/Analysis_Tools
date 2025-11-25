@@ -14,7 +14,7 @@ Key optimizations:
 import os
 import gzip
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 import orjson
@@ -40,10 +40,10 @@ class CPECache:
         self.cache_data = {}
         # Initialize minimal metadata for CPE cache section
         self.cpe_metadata = {
-            'created': datetime.now().isoformat(),
+            'created': datetime.now(timezone.utc).isoformat(),
             'description': 'NVD CPE API responses with per-entry expiration',
             'filename': filename,
-            'last_updated': datetime.now().isoformat(),
+            'last_updated': datetime.now(timezone.utc).isoformat(),
             'total_entries': 0
         }
         self.session_stats = {
@@ -106,7 +106,7 @@ class CPECache:
         start_time = time.time()
         try:
             # Update CPE cache metadata
-            self.cpe_metadata['last_updated'] = datetime.now().isoformat()
+            self.cpe_metadata['last_updated'] = datetime.now(timezone.utc).isoformat()
             self.cpe_metadata['total_entries'] = len(self.cache_data)
             
             # Save main cache using orjson for performance
@@ -133,7 +133,7 @@ class CPECache:
             if 'datasets' not in unified_metadata:
                 unified_metadata['datasets'] = {}
             unified_metadata['datasets']['cpe_cache'] = self.cpe_metadata
-            unified_metadata['last_updated'] = datetime.now().isoformat()
+            unified_metadata['last_updated'] = datetime.now(timezone.utc).isoformat()
             
             # Save updated unified metadata
             with open(self.metadata_file, 'wb') as f:
@@ -229,7 +229,7 @@ class CPECache:
             
         entry = {
             'query_response': api_response,
-            'last_queried': datetime.now().isoformat(),
+            'last_queried': datetime.now(timezone.utc).isoformat(),
             'query_count': 1,
             'total_results': api_response.get('totalResults', 0)
         }
@@ -248,7 +248,13 @@ class CPECache:
         # For "$.*.last_queried" or "$.last_queried" - extract 'last_queried'
         field_name = 'last_queried'  # Simple implementation
         timestamp_str = entry.get(field_name)
-        return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        parsed_timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        
+        # Ensure timezone-aware comparison by adding UTC timezone if missing
+        if parsed_timestamp.tzinfo is None:
+            parsed_timestamp = parsed_timestamp.replace(tzinfo=timezone.utc)
+            
+        return parsed_timestamp
         
     def _is_expired(self, entry: Dict[str, Any]) -> bool:
         """Check if a cache entry has expired (older than configured notify_age_hours)"""
@@ -259,7 +265,7 @@ class CPECache:
             
         last_queried = self._get_entry_timestamp(entry)
         expiry_date = last_queried + timedelta(hours=max_age_hours)
-        return datetime.now() > expiry_date
+        return datetime.now(timezone.utc) > expiry_date
         
     def cleanup_expired(self):
         """Remove expired entries from cache (older than 12 hours)"""

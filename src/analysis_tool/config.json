@@ -1,7 +1,7 @@
 {
     "application": {
         "toolname": "Hashmire/Analysis_Tools",
-        "version": "0.2.0"
+        "version": "0.3.0"
     },
     "defaults": {
         "default_cve_id": "CVE-2024-20515",
@@ -111,29 +111,29 @@
                 "description": "Data transformation, validation, cleanup operations",
                 "enabled": true,
                 "color": "red"
+            },
+            "HARVEST": {
+                "name": "Source Harvesting",
+                "description": "Multi-source harvesting, UUID collection, batch processing orchestration",
+                "enabled": true,
+                "color": "bright_cyan"
+            },
+            "DATASET": {
+                "name": "Dataset Generation",
+                "description": "CVE dataset collection, filtering, NVD API queries, dataset file creation",
+                "enabled": true,
+                "color": "bright_green"
             }
         }
     },
     "confirmed_mappings": {
         "enabled": true,
-        "skip_api_calls_when_found": false,
         "mappings_directory": "mappings"
     },
 
     "harvest_and_process_sources": {
-        "max_cves_per_source": 5000,
-        "sdc_report": true,
-        "full_analysis": false,
-        "alias_report": false,
-        "cpe_suggestions": false,
-        "external_assets": false,
-        "quiet_individual": false,
-        "source_filter": null,
-        "limit": null,
-        "statuses": [],
-        "last_days": null,
-        "start_date": null,
-        "end_date": null
+        "max_cves_per_source": 30000,
+        "quiet_individual": false
     },
     "api": {
         "timeouts": {

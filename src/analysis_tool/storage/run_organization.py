@@ -4,7 +4,7 @@ Manages the creation and organization of analysis runs with timestamp-based nami
 """
 
 import os
-import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Tuple, Optional, List
 
@@ -73,7 +73,8 @@ def get_analysis_tools_root() -> Path:
 def create_run_directory(run_context: str = None, is_test: bool = False, 
                         subdirs: List[str] = None, execution_type: str = None,
                         source_shortname: str = None, range_spec: str = None,
-                        status_list: List[str] = None, tool_flags: dict = None) -> Tuple[Path, str]:
+                        status_list: List[str] = None, tool_flags: dict = None,
+                        parent_run_dir: Path = None) -> Tuple[Path, str]:
     """
     Create a new run directory with timestamp-based naming.
     
@@ -82,15 +83,19 @@ def create_run_directory(run_context: str = None, is_test: bool = False,
     When running under CONSOLIDATED_TEST_RUN environment, test runs are created
     within the consolidated test directory structure.
     
+    Supports parent-child relationships for harvest runs: when parent_run_dir is provided,
+    the new run directory will be created as a subdirectory of the parent.
+    
     Args:
         run_context: Optional legacy context string (e.g., CVE ID, batch name) to append to timestamp
         is_test: Whether this is a test run (adds 'TEST_' prefix to context)
         subdirs: Optional list of subdirectories to create (defaults to ["generated_pages", "logs"])
-        execution_type: Type of execution (e.g., 'dataset', 'analysis') for enhanced naming
+        execution_type: Type of execution (e.g., 'dataset', 'analysis', 'harvest') for enhanced naming
         source_shortname: NVD source shortname (e.g., 'adobe', 'microsoft') for enhanced naming
         range_spec: Range specification (e.g., 'last_7_days', 'range_2024-01-01_to_2024-01-31') for enhanced naming
         status_list: List of CVE statuses (e.g., ['modified', 'published']) for enhanced naming
         tool_flags: Dictionary of tool flags with boolean values (e.g., {'sdc': True, 'cpe-sug': False}) for enhanced naming
+        parent_run_dir: Optional parent directory for nested runs (used by harvest to group child dataset runs)
         
     Returns:
         Tuple of (run_directory_path, run_id)
@@ -102,7 +107,7 @@ def create_run_directory(run_context: str = None, is_test: bool = False,
         # Create test run within consolidated directory
         consolidated_path = Path(os.environ.get('CONSOLIDATED_TEST_RUN_PATH', ''))
         if consolidated_path.exists():
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
             
             # Get current test suite name for better labeling
             current_suite = os.environ.get('CURRENT_TEST_SUITE', '')
@@ -130,10 +135,16 @@ def create_run_directory(run_context: str = None, is_test: bool = False,
             return run_path, run_id
     
     # Standard run directory creation (existing behavior)
-    project_root = get_analysis_tools_root()
+    if parent_run_dir:
+        # If parent directory is provided, create run as subdirectory of parent
+        base_path = Path(parent_run_dir)
+    else:
+        # Otherwise use standard runs directory
+        project_root = get_analysis_tools_root()
+        base_path = project_root / "runs"
     
     # Generate timestamp-based run ID
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
     
     # Use enhanced context generation if parameters are provided
     if any([execution_type, source_shortname, range_spec, status_list, tool_flags]):
@@ -172,7 +183,14 @@ def create_run_directory(run_context: str = None, is_test: bool = False,
             run_id = timestamp
     
     # Create run directory structure
-    run_path = project_root / "runs" / run_id
+    # Use parent_run_dir if provided, otherwise use standard runs directory
+    if parent_run_dir:
+        base_path = Path(parent_run_dir)
+    else:
+        project_root = get_analysis_tools_root()
+        base_path = project_root / "runs"
+    
+    run_path = base_path / run_id
     
     # Create subdirectories (cache is global, not run-specific)
     if subdirs is None:
@@ -183,17 +201,20 @@ def create_run_directory(run_context: str = None, is_test: bool = False,
     
     return run_path, run_id
 
-def get_current_run_paths(run_id: str) -> dict:
+def get_current_run_paths(run_id: str, parent_run_dir: Path = None) -> dict:
     """
     Get standardized paths for a specific run.
     
     Supports consolidated test runs to match the create_run_directory behavior.
+    Supports parent-child relationships: if parent_run_dir is provided or run_id contains
+    path separators, resolves relative to parent.
     
     Args:
-        run_id: The run identifier
+        run_id: The run identifier (may contain path separators for nested runs)
+        parent_run_dir: Optional parent directory for nested runs
         
     Returns:
-        Dictionary with keys: generated_pages, logs, cache (global)
+        Dictionary with keys: generated_pages, logs, cache (global), run_root
     """
     import os
     
@@ -208,6 +229,13 @@ def get_current_run_paths(run_id: str) -> dict:
             # Fallback to standard behavior
             project_root = get_analysis_tools_root()
             run_path = project_root / "runs" / run_id
+    elif parent_run_dir:
+        # If parent directory provided, resolve relative to it
+        run_path = Path(parent_run_dir) / run_id
+    elif os.sep in run_id or '/' in run_id:
+        # If run_id contains path separators, it's already a relative or absolute path
+        project_root = get_analysis_tools_root()
+        run_path = project_root / "runs" / run_id
     else:
         # Standard run directory resolution
         project_root = get_analysis_tools_root()
@@ -340,31 +368,31 @@ def get_latest_test_run_directory() -> Optional[Path]:
                     test_run_dirs = [d for d in logs_dir.glob("*TEST_*") if d.is_dir()]
                     if test_run_dirs:
                         latest_run = max(test_run_dirs, key=lambda x: x.stat().st_mtime)
-                        print(f"✅ Latest consolidated test run: {latest_run}")
+                        print(f"[OK] Latest consolidated test run: {latest_run}")
                         return latest_run
                     else:
-                        print(f"❌ No test run directories found in consolidated logs: {logs_dir}")
+                        print(f"[ERROR] No test run directories found in consolidated logs: {logs_dir}")
                         return None
                 else:
-                    print(f"❌ Consolidated logs directory not found: {logs_dir}")
+                    print(f"[ERROR] Consolidated logs directory not found: {logs_dir}")
                     return None
             else:
-                print(f"❌ Consolidated test path not found: {consolidated_path}")
+                print(f"[ERROR] Consolidated test path not found: {consolidated_path}")
                 return None
         
         # Standard mode - look in main runs directory
         runs_dir = Path(__file__).parent.parent.parent.parent / "runs"
         run_dirs = [d for d in runs_dir.glob("*") if d.is_dir() and not d.name.startswith("run_all_tests")]
         if not run_dirs:
-            print("❌ No run directories found")
+            print("[ERROR] No run directories found")
             return None
             
         latest_run = max(run_dirs, key=lambda x: x.stat().st_mtime)
-        print(f"✅ Latest standard test run: {latest_run}")
+        print(f"[OK] Latest standard test run: {latest_run}")
         return latest_run
             
     except Exception as e:
-        print(f"❌ Error finding latest run directory: {e}")
+        print(f"[ERROR] Error finding latest run directory: {e}")
         return None
 
 
@@ -392,13 +420,13 @@ def find_curator_output_files(file_pattern: str = "source_mapping_extraction_*.j
                         curator_files.append(pattern_file)
                     
                     if curator_files:
-                        print(f"✅ Found {len(curator_files)} curator files matching '{file_pattern}' in consolidated logs")
+                        print(f"[OK] Found {len(curator_files)} curator files matching '{file_pattern}' in consolidated logs")
                         return curator_files
                     else:
-                        print(f"❌ No curator files matching '{file_pattern}' found in consolidated logs: {logs_dir}")
+                        print(f"[ERROR] No curator files matching '{file_pattern}' found in consolidated logs: {logs_dir}")
                         return []
                 else:
-                    print(f"❌ Consolidated logs directory not found: {logs_dir}")
+                    print(f"[ERROR] Consolidated logs directory not found: {logs_dir}")
                     return []
             else:
                 print(f"❌ Consolidated test path not found: {consolidated_path}")

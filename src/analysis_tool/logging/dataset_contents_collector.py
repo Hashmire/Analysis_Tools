@@ -13,7 +13,7 @@ DASHBOARD INTEGRATION: All data structured for generateDatasetDashboard.html con
 import json
 import os
 from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # Import the structured logging system
@@ -47,12 +47,12 @@ class UnifiedDashboardCollector:
         
         self.consolidated_metadata = {
             'generated_by': 'unified_dashboard_collector',
-            'generation_time': datetime.now().isoformat(),
+            'generation_time': datetime.now(timezone.utc).isoformat(),
             'data_source': 'nvd_api',
             'total_api_calls': 0,
             'total_cves_collected': 0,
             'unique_cves_count': 0,
-            'run_started_at': datetime.now().isoformat()
+            'run_started_at': datetime.now(timezone.utc).isoformat()
         }
         self.dataset_statistics = {
             'cve_distribution': {
@@ -64,7 +64,7 @@ class UnifiedDashboardCollector:
         
         # Performance optimization: Reduce auto-save frequency to minimize file locking
         self._save_counter = 0
-        self._last_save_time = datetime.now()
+        self._last_save_time = datetime.now(timezone.utc)
         self._save_interval_seconds = 5  # Save every 5 seconds at most
         self._save_every_n_operations = 100  # Or every 100 operations (increased from 50)
         
@@ -162,11 +162,11 @@ class UnifiedDashboardCollector:
         return {
             "metadata": {
                 "generated_by": "unified_dashboard_collector",
-                "generation_time": datetime.now().isoformat(),
+                "generation_time": datetime.now(timezone.utc).isoformat(),
                 "log_file": "unified_collection",
-                "last_updated": datetime.now().isoformat(),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
                 "file_size": 0,
-                "run_started_at": datetime.now().isoformat(),
+                "run_started_at": datetime.now(timezone.utc).isoformat(),
                 "data_source": "nvd_api",
                 "workflow_phase": "dataset_generation"
             },
@@ -296,7 +296,7 @@ class UnifiedDashboardCollector:
     def start_processing_run(self, total_cves: int):
         """Initialize processing run with CVE count"""
         try:
-            self.processing_start_time = datetime.now()
+            self.processing_start_time = datetime.now(timezone.utc)
             self.data["processing"]["total_cves"] = total_cves
             self.data["processing"]["remaining_cves"] = total_cves
             self.data["processing"]["start_time"] = self.processing_start_time.isoformat()
@@ -315,7 +315,7 @@ class UnifiedDashboardCollector:
         try:
             self.data["processing"]["current_cve"] = cve_id
             self.current_processing_cve = cve_id  # Set the current processing CVE for log entry attribution
-            self.current_cve_start_time = datetime.now()
+            self.current_cve_start_time = datetime.now(timezone.utc)
             
             # Track CVE processing timeline for log analysis
             if not hasattr(self, 'cve_processing_timeline'):
@@ -352,7 +352,7 @@ class UnifiedDashboardCollector:
         """Complete processing for a specific CVE"""
         try:
             if hasattr(self, 'current_cve_start_time') and self.current_cve_start_time:
-                processing_time = (datetime.now() - self.current_cve_start_time).total_seconds()
+                processing_time = (datetime.now(timezone.utc) - self.current_cve_start_time).total_seconds()
                 
                 # Only update performance stats for actually processed CVEs (not rejected/skipped)
                 # Rejected CVEs would skew timing statistics since they exit immediately
@@ -383,7 +383,7 @@ class UnifiedDashboardCollector:
                 
                 # Always calculate wall clock time regardless of skipped status
                 if self.processing_start_time:
-                    wall_clock_elapsed = (datetime.now() - self.processing_start_time).total_seconds()
+                    wall_clock_elapsed = (datetime.now(timezone.utc) - self.processing_start_time).total_seconds()
                     self.data["performance"]["wall_clock_time"] = wall_clock_elapsed
                     self.data["performance"]["total_runtime"] = wall_clock_elapsed
                     
@@ -422,7 +422,7 @@ class UnifiedDashboardCollector:
             if hasattr(self, 'cve_processing_timeline'):
                 for timeline_entry in reversed(self.cve_processing_timeline):
                     if timeline_entry['cve_id'] == cve_id and timeline_entry['end_time'] is None:
-                        timeline_entry['end_time'] = datetime.now().isoformat()
+                        timeline_entry['end_time'] = datetime.now(timezone.utc).isoformat()
                         break
             
             # Force auto-save for critical CVE completion milestone
@@ -438,7 +438,7 @@ class UnifiedDashboardCollector:
     def get_current_cve_processing_time(self) -> Optional[float]:
         """Get the current processing time for the active CVE, if any."""
         if hasattr(self, 'current_cve_start_time') and self.current_cve_start_time:
-            return (datetime.now() - self.current_cve_start_time).total_seconds()
+            return (datetime.now(timezone.utc) - self.current_cve_start_time).total_seconds()
         return None
 
     def update_cve_affected_entries_count(self, cve_id: str, affected_entries_count: int):
@@ -465,7 +465,7 @@ class UnifiedDashboardCollector:
     def record_cve_warning(self, message: str, category: str = "data_processing_warnings"):
         """Record a warning directly associated with the current CVE (STREAMLINED)"""
         warning_entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "message": message.strip(),
             "cve_id": self.current_processing_cve or "system",
             "level": "warning"
@@ -481,7 +481,7 @@ class UnifiedDashboardCollector:
     def record_cve_error(self, message: str, category: str = "processing_errors"):
         """Record an error directly associated with the current CVE (STREAMLINED)"""
         error_entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "message": message.strip(), 
             "cve_id": self.current_processing_cve or "system",
             "level": "error"
@@ -504,7 +504,7 @@ class UnifiedDashboardCollector:
             self.data["info_events"][category] = []
             
         info_entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "message": message.strip(),
             "cve_id": self.current_processing_cve or "system",
             "level": "info"
@@ -923,7 +923,7 @@ class UnifiedDashboardCollector:
                     "duration": 0.0
                 }
             
-            self.data["stages"][stage_name]["started"] = datetime.now().isoformat()
+            self.data["stages"][stage_name]["started"] = datetime.now(timezone.utc).isoformat()
             self.data["stages"][stage_name]["status"] = "in_progress"
             
         except Exception as e:
@@ -932,7 +932,7 @@ class UnifiedDashboardCollector:
     def record_stage_end(self, stage_name: str):
         """Record the end of a processing stage"""
         try:
-            end_time = datetime.now()
+            end_time = datetime.now(timezone.utc)
             
             # Initialize if not present
             if "stages" not in self.data:
@@ -1037,7 +1037,7 @@ class UnifiedDashboardCollector:
         try:
             phase = {
                 'name': phase_name,
-                'start_time': datetime.now().isoformat(),
+                'start_time': datetime.now(timezone.utc).isoformat(),
                 'cves_processed': 0,
                 'progress': 0.0
             }
@@ -1128,7 +1128,7 @@ class UnifiedDashboardCollector:
             remaining_time_str = str(timedelta(seconds=int(estimated_seconds)))
             
             # Calculate ETA timestamp
-            eta_timestamp = datetime.now() + timedelta(seconds=estimated_seconds)
+            eta_timestamp = datetime.now(timezone.utc) + timedelta(seconds=estimated_seconds)
             eta_time_str = eta_timestamp.strftime("%H:%M:%S")
             
             # Store both formats
@@ -1157,7 +1157,7 @@ class UnifiedDashboardCollector:
             self._save_counter += 1
             
             # Check if we should save based on frequency controls
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
             time_since_last_save = (now - self._last_save_time).total_seconds()
             
             # Enforce 5-second minimum to prevent I/O waste - primary check
@@ -1245,13 +1245,13 @@ class UnifiedDashboardCollector:
             # Update metadata with phase information
             self.data["metadata"]["workflow_phase"] = phase_name
             self.data["metadata"]["data_source"] = data_source
-            self.data["metadata"]["last_updated"] = datetime.now().isoformat()
+            self.data["metadata"]["last_updated"] = datetime.now(timezone.utc).isoformat()
             
             # Create current phase tracking
             self.current_phase = {
                 "name": phase_name,
                 "data_source": data_source,
-                "start_time": datetime.now(),
+                "start_time": datetime.now(timezone.utc),
                 "api_calls": 0,
                 "files_generated": 0,
                 "cves_processed": 0
@@ -1350,7 +1350,7 @@ class UnifiedDashboardCollector:
             return False
         
         # Mark phase as completed
-        self.current_phase['completed_at'] = datetime.now().isoformat()
+        self.current_phase['completed_at'] = datetime.now(timezone.utc).isoformat()
         
         # Add to phases list
         self.collection_phases.append(self.current_phase)
@@ -1383,7 +1383,7 @@ class UnifiedDashboardCollector:
                 'path': file_path,
                 'cve_count': cve_count,
                 'file_size': file_size,
-                'created_at': datetime.now().isoformat()
+                'created_at': datetime.now(timezone.utc).isoformat()
             }
             
             # Add enhanced fields for individual CVE files
@@ -1445,7 +1445,7 @@ class UnifiedDashboardCollector:
         """Save the unified dashboard data to file using atomic write to prevent file locking"""
         try:
             # Update metadata before saving
-            self.data["metadata"]["last_updated"] = datetime.now().isoformat()
+            self.data["metadata"]["last_updated"] = datetime.now(timezone.utc).isoformat()
             self.data["metadata"]["file_size"] = len(json.dumps(self.data, indent=2))
             
             # Add log file info if available
@@ -1540,7 +1540,7 @@ class UnifiedDashboardCollector:
             export_data = {
                 'metadata': {
                     **self.consolidated_metadata,
-                    'run_completed_at': datetime.now().isoformat(),
+                    'run_completed_at': datetime.now(timezone.utc).isoformat(),
                     'report_scope': 'Dataset Generation Metrics and Statistics',
                     'status': 'completed'
                 },

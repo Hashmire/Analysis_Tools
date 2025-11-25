@@ -33,8 +33,10 @@
     {
       "vendor": "Adobe",
       "product": "Commerce"
-    },
-	{
+    }
+  ]
+},
+{
   "cpeBaseString": "cpe:2.3:a:adobe:dimension:*:*:*:*:*:*:*:*",
   "aliases": [
     {
@@ -190,6 +192,4 @@
   ]
 }
   ]
-}
-    ]
 }

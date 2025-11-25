@@ -53,7 +53,7 @@ import json
 import os
 import re
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Import the structured logging system
@@ -85,7 +85,7 @@ class BadgeContentsCollector:
     def __init__(self):
         self.cve_data: List[Dict] = []  # Array of CVE data objects
         self.consolidated_metadata: Dict[str, Any] = {
-            'run_started_at': datetime.now().isoformat(),
+            'run_started_at': datetime.now(timezone.utc).isoformat(),
             'total_cves_processed': 0,
             'total_platform_entries': 0,
             'entries_with_concerns': 0,
@@ -104,7 +104,7 @@ class BadgeContentsCollector:
         
         # Frequency control for intelligent save operations (aligned with dataset collector)
         self._save_counter = 0
-        self._last_save_time = datetime.now()
+        self._last_save_time = datetime.now(timezone.utc)
         self._save_interval_seconds = 5  # Save every 5 seconds at most
         self._save_every_n_operations = 100  # Or every 100 operations
     
@@ -163,7 +163,7 @@ class BadgeContentsCollector:
             initial_data = {
                 'metadata': {
                     **self.consolidated_metadata,
-                    'last_updated': datetime.now().isoformat(),
+                    'last_updated': datetime.now(timezone.utc).isoformat(),
                     'report_scope': 'Platform Entry Notifications - Source Data Concerns Only',
                     'status': 'in_progress'
                 },
@@ -199,7 +199,7 @@ class BadgeContentsCollector:
                 'total_platform_entries': 0,
                 'entries_with_concerns': 0,
                 'concern_type_counts': [],
-                'processing_timestamp': datetime.now().isoformat()
+                'processing_timestamp': datetime.now(timezone.utc).isoformat()
             }
         }
         self.cve_data.append(self.current_cve_data)
@@ -245,7 +245,7 @@ class BadgeContentsCollector:
             export_data = {
                 'metadata': {
                     **self.consolidated_metadata,
-                    'last_updated': datetime.now().isoformat(),
+                    'last_updated': datetime.now(timezone.utc).isoformat(),
                     'report_scope': 'Platform Entry Notifications - Source Data Concerns Only',
                     'status': 'in_progress'
                 },
@@ -293,7 +293,7 @@ class BadgeContentsCollector:
             self._save_counter += 1
             
             # Check if we should save based on frequency controls
-            now = datetime.now()
+            now = datetime.now(timezone.utc)
             time_since_last_save = (now - self._last_save_time).total_seconds()
             
             # Enforce 5-second minimum to prevent I/O waste - primary check
@@ -558,7 +558,7 @@ class BadgeContentsCollector:
                 'cve_id': cve_id or 'Unknown',
                 'entry_count': entry_count,  # Number of aliases extracted (platform expansion count)
                 'alias_data': alias_data,    # The actual alias extraction data
-                'extraction_timestamp': datetime.now().isoformat()
+                'extraction_timestamp': datetime.now(timezone.utc).isoformat()
             }
             
             # Add to alias extractions array
@@ -670,7 +670,7 @@ class BadgeContentsCollector:
             # Create curator-compatible output structure with status tracking for incremental saves
             output_data = {
                 'metadata': {
-                    'extraction_timestamp': datetime.now().isoformat(),
+                    'extraction_timestamp': datetime.now(timezone.utc).isoformat(),
                     'target_uuid': source_uuid,
                     'total_cves_processed': self.consolidated_metadata['total_cves_processed'],
                     'unique_aliases_extracted': len(all_alias_data),
@@ -678,7 +678,7 @@ class BadgeContentsCollector:
                     'extraction_source': 'Analysis_Tools_Badge_System',
                     'curator_compatibility': True,
                     'status': 'completed' if is_final else 'in_progress',
-                    'run_started_at': self.consolidated_metadata.get('run_started_at', datetime.now().isoformat())
+                    'run_started_at': self.consolidated_metadata.get('run_started_at', datetime.now(timezone.utc).isoformat())
                 },
                 'aliasGroups': alias_groups,
                 'confirmedMappings': confirmed_mappings  # Now loaded from existing mapping files
@@ -783,7 +783,7 @@ class BadgeContentsCollector:
         if total_entries_with_concerns == 0:
             # Still save the file for completeness, but mark it
             self.consolidated_metadata.update({
-                'run_completed_at': datetime.now().isoformat(),
+                'run_completed_at': datetime.now(timezone.utc).isoformat(),
                 'report_scope': 'Platform Entry Notifications - Source Data Concerns Only',
                 'status': 'completed_no_concerns'
             })
@@ -797,7 +797,7 @@ class BadgeContentsCollector:
         
         # Update final metadata and mark as complete
         self.consolidated_metadata.update({
-            'run_completed_at': datetime.now().isoformat(),
+            'run_completed_at': datetime.now(timezone.utc).isoformat(),
             'report_scope': 'Platform Entry Notifications - Source Data Concerns Only',
             'status': 'completed'
         })

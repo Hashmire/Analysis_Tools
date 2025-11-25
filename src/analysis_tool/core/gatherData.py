@@ -26,6 +26,15 @@ config = load_config()
 VERSION = config['application']['version']
 TOOLNAME = config['application']['toolname']
 
+# Session-level cache for config lookups
+_config_cache = {}
+
+def _get_cached_config(cache_type):
+    """Get cache config with session-level caching to avoid repeated file reads"""
+    if cache_type not in _config_cache:
+        _config_cache[cache_type] = get_cache_config(cache_type)
+    return _config_cache[cache_type]
+
 # CONSOLIDATED CACHE CONFIGURATION FUNCTIONS
 def _get_cache_defaults(cache_type):
     """Get default configuration for cache type"""
@@ -70,7 +79,7 @@ def _update_cache_metadata(cache_type, repo_path):
         repo_path: Path to the cache directory
     """
     try:
-        from datetime import datetime
+        from datetime import datetime, timezone
         from pathlib import Path
         
         # Get project root for cache metadata file
@@ -89,7 +98,7 @@ def _update_cache_metadata(cache_type, repo_path):
             cache_path = project_root / cache_path
             
         total_files = len(list(cache_path.rglob("*.json"))) if cache_path.exists() else 0
-        current_time = datetime.now()
+        current_time = datetime.now(timezone.utc)
         
         # Load existing metadata
         metadata = {}
@@ -157,8 +166,7 @@ def get_cache_config(cache_type):
             logger.warning(f"Config file missing '{cache_type}' cache settings, using defaults", group="cache_management")
             return _get_cache_defaults(cache_type)
         
-        # Successfully loaded from config
-        logger.debug(f"Loaded {cache_type} config from file", group="cache_management")
+        # Return config
         return config['cache_settings'][cache_type]
         
     except Exception as e:
@@ -231,7 +239,7 @@ def _load_cve_from_local_file(cve_file_path):
             return None
             
     except (json.JSONDecodeError, IOError, UnicodeDecodeError) as e:
-        logger.warning(f"Cannot read local CVE file {cve_file_path}: {e}", group="cve_queries")
+        logger.warning(f"Cache file read failed: {cve_file_path} - {e}", group="cache_management")
         return None
 
 def _extract_cache_metadata_value(cache_metadata_path):
@@ -340,6 +348,8 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
     try:
         from datetime import datetime
         
+        logger.debug(f"Performing staleness check for {targetCve}: comparing NVD vs cache timestamps", group="cache_management")
+        
         # Get NVD data for date comparison
         nvd_data = gatherNVDCVERecord(config.get('api', {}).get('keys', {}).get('nvd_api'), targetCve)
         if not nvd_data:
@@ -347,7 +357,7 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
             return
         
         # Extract NVD lastModified date using config field path
-        nvd_config = get_cache_config('nvd_2_0_cve')
+        nvd_config = _get_cached_config('nvd_2_0_cve')
         nvd_field_path = nvd_config.get('refresh_strategy', {}).get('field_path', '$.vulnerabilities.*.cve.lastModified')
         
         nvd_dates = _extract_field_value(nvd_data, nvd_field_path)
@@ -367,7 +377,7 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
         nvd_datetime = datetime.fromisoformat(nvd_datetime_str)
         
         # Get CVE List V5 local data for comparison
-        cve_config = get_cache_config('cve_list_v5')
+        cve_config = _get_cached_config('cve_list_v5')
         local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
         
         cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
@@ -406,20 +416,21 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
         # Compare dates and refresh if NVD is newer
         if nvd_datetime > cvelist_datetime:
             logger.info(f"NVD 2.0 API record newer than CVE List V5 cached record - refreshing CVE List V5 cached record for {targetCve} (NVD 2.0 API Record: {nvd_last_modified}, CVE List V5 Cached Record: {cvelist_date_updated})", group="cache_management")
-            _refresh_cvelist_from_mitre_api(targetCve, cve_file_path)
+            _refresh_cvelist_from_mitre_api(targetCve, cve_file_path, "NVD newer than cache")
         else:
             logger.debug(f"CVE List V5 cached record current for {targetCve} (NVD 2.0 API Record: {nvd_last_modified}, CVE List V5 Cached Record: {cvelist_date_updated})", group="cache_management")
     
     except Exception as e:
         logger.warning(f"CVE List V5 sync check failed for {targetCve}: {e}", group="cache_management")
 
-def _refresh_cvelist_from_mitre_api(targetCve, local_file_path):
+def _refresh_cvelist_from_mitre_api(targetCve, local_file_path, refresh_reason="staleness detected"):
     """
     Refresh CVE List V5 local file by fetching fresh data from MITRE CVE API.
     
     Args:
         targetCve: CVE ID to refresh (e.g., "CVE-2024-12345")
         local_file_path: Path object pointing to the local CVE file to update
+        refresh_reason: Reason for refresh (default: "staleness detected")
     """
     try:
         import os
@@ -428,7 +439,10 @@ def _refresh_cvelist_from_mitre_api(targetCve, local_file_path):
         cveOrgJSON = config['api']['endpoints']['cve_list']
         simpleCveRequestUrl = cveOrgJSON + targetCve
         
-        logger.info(f"Refreshing CVE List V5 cached record from MITRE API: {targetCve}", group="cache_management")
+        if local_file_path.exists():
+            logger.info(f"Refreshing stale cache file from MITRE API: {targetCve} at {local_file_path} (reason: {refresh_reason})", group="cache_management")
+        else:
+            logger.info(f"Creating missing cache file from MITRE API: {targetCve} at {local_file_path} (reason: file not found)", group="cache_management")
         
         # Make direct API call (bypass local loading)
         r = requests.get(simpleCveRequestUrl, timeout=config['api']['timeouts']['cve_org'])
@@ -446,7 +460,7 @@ def _refresh_cvelist_from_mitre_api(targetCve, local_file_path):
         with open(local_file_path, 'w', encoding='utf-8') as f:
             json.dump(fresh_cve_data, f, indent=2)
         
-        logger.info(f"Updated CVE List V5 cached record: {targetCve}", group="cache_management")
+        logger.info(f"Cache file updated successfully: {targetCve} at {local_file_path}", group="cache_management")
         
         # Update cache metadata
         cve_config = get_cache_config('cve_list_v5')
@@ -494,7 +508,7 @@ def _save_nvd_cve_to_local_file(targetCve, nvd_data):
         nvd_data: NVD API response data to save
     """
     try:
-        nvd_config = get_cache_config('nvd_2_0_cve')
+        nvd_config = _get_cached_config('nvd_2_0_cve')
         if not nvd_config.get('enabled', False):
             return
             
@@ -531,34 +545,43 @@ def gatherCVEListRecord(targetCve):
     Main CVE record gathering with config-driven local repository integration.
     Checks local CVE List V5 first (if enabled), with sync detection and API fallback.
     """
-    cve_config = get_cache_config('cve_list_v5')
+    cve_config = _get_cached_config('cve_list_v5')
+    
+    # Log cache strategy selection for audit trail
+    enabled = cve_config.get('enabled', False)
+    cache_missing_only = cve_config.get('cache_missing_only', False)
+    fallback_to_api = cve_config.get('fallback_to_api', True)
+    cache_path = cve_config.get('path', 'cache/cve_list_v5')
+    
+    logger.info(f"CVE cache strategy for {targetCve}: enabled={enabled}, cache_missing_only={cache_missing_only}, fallback_to_api={fallback_to_api}, path={cache_path}", group="cache_management")
     
     # If local repository is enabled, attempt local loading with sync detection
-    if cve_config.get('enabled', False):
-        local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
-        logger.debug(f"CVE List V5 enabled - attempting local load: {targetCve}", group="cve_queries")
+    if enabled:
+        local_repo_path = cache_path
+        logger.info(f"CVE List V5 cache enabled - attempting local load: {targetCve}", group="cache_management")
         
         cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
         if cve_file_path:
+            logger.debug(f"Cache file path resolved: {cve_file_path}", group="cache_management")
             # Check cache_missing_only setting
-            cache_missing_only = cve_config.get('cache_missing_only', False)
-            
             if cache_missing_only:
+                logger.debug(f"Using cache-missing-only strategy (no staleness check): {targetCve}", group="cache_management")
                 # Only check if file exists, don't sync with NVD for staleness
                 if cve_file_path.exists():
                     local_data = _load_cve_from_local_file(cve_file_path)
                     if local_data:
-                        logger.info(f"Successfully loaded CVE from local repository (cache-missing-only mode): {targetCve}", group="cve_queries")
+                        logger.info(f"Cache hit (cache-missing-only mode): {targetCve} loaded from {cve_file_path}", group="cache_management")
                         return local_data
                 # File doesn't exist - will fall through to API call
-                logger.debug(f"CVE file missing in cache-missing-only mode: {targetCve}", group="cve_queries")
+                logger.info(f"Cache miss (file missing): {targetCve} not found at {cve_file_path}", group="cache_management")
             else:
                 # Normal sync behavior - check for staleness and refresh if needed
+                logger.debug(f"Using full sync strategy (with staleness check): {targetCve}", group="cache_management")
                 _sync_cvelist_with_nvd_dataset(targetCve)
                 
                 local_data = _load_cve_from_local_file(cve_file_path)
                 if local_data:
-                    logger.info(f"Successfully loaded CVE from local repository: {targetCve}", group="cve_queries")
+                    logger.info(f"Cache hit (full sync mode): {targetCve} loaded from {cve_file_path} after staleness check", group="cache_management")
                     return local_data
         
         # Local loading failed - check fallback policy
@@ -567,6 +590,9 @@ def gatherCVEListRecord(targetCve):
             return None
         
         logger.warning(f"Local CVE load failed for {targetCve} - falling back to MITRE API", group="cve_queries")
+    else:
+        # Cache is disabled - log the bypass
+        logger.info(f"CVE List V5 cache disabled - using direct API call: {targetCve}", group="cache_management")
     
     # Direct API call (either config disabled or fallback triggered)
     cveOrgJSON = config['api']['endpoints']['cve_list']
@@ -585,7 +611,7 @@ def gatherCVEListRecord(targetCve):
         logger.api_response("MITRE CVE API", "Success", group="cve_queries")
         
         # Save to cache if CVE List V5 cache is enabled
-        cve_config = get_cache_config('cve_list_v5')
+        cve_config = _get_cached_config('cve_list_v5')
         if cve_config.get('enabled', False):
             try:
                 local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
@@ -600,7 +626,7 @@ def gatherCVEListRecord(targetCve):
                     with open(cve_file_path, 'w') as f:
                         json.dump(cveRecordDict, f, indent=2)
                     
-                    logger.debug(f"Saved API response to CVE List V5 cache: {cve_file_path}", group="cve_queries")
+                    logger.debug(f"API response saved to cache: {targetCve} at {cve_file_path} (source: MITRE API fallback)", group="cache_management")
                     
             except Exception as e:
                 logger.warning(f"Failed to save CVE {targetCve} to cache: {e}", group="cve_queries")
@@ -632,7 +658,7 @@ def gatherCVEListRecordLocal(targetCve):
         CVE record dict or None if loading fails
     """
     # Get configured cache path
-    cve_config = get_cache_config('cve_list_v5')
+    cve_config = _get_cached_config('cve_list_v5')
     if cve_config.get('enabled', False):
         local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
         logger.debug(f"Using configured CVE List V5 cache: {local_repo_path}", group="cve_queries")
@@ -644,7 +670,7 @@ def gatherCVEListRecordLocal(targetCve):
         if cve_file_path:
             local_data = _load_cve_from_local_file(cve_file_path)
             if local_data:
-                logger.info(f"Successfully loaded CVE from local repository: {targetCve}", group="cve_queries")
+                logger.info(f"Cache hit (local repository): {targetCve} loaded from {cve_file_path}", group="cache_management")
                 return local_data
         
         # Local loading failed - fall back to API
@@ -660,7 +686,7 @@ def gatherNVDCVERecord(apiKey, targetCve):
     Get CVE data from NVD API with local caching support.
     Checks local NVD cache first (if enabled), then fetches from API and saves to cache.
     """
-    nvd_config = get_cache_config('nvd_2_0_cve')
+    nvd_config = _get_cached_config('nvd_2_0_cve')
     
     # If NVD cache is enabled, attempt local loading first
     if nvd_config.get('enabled', False):
@@ -1100,3 +1126,137 @@ def load_confirmed_mappings_for_uuid(target_uuid):
     except Exception as e:
         logger.error(f"Error loading confirmed mappings for UUID {target_uuid}: {e}", group="data_proc")
         return []
+
+
+def harvestSourceUUIDs():
+    """
+    Fetch all source UUIDs from the NVD sources API.
+    This is used by harvest scripts to get the list of all available sources.
+    
+    Returns:
+        tuple: (source_info_list, api_totals_dict)
+        where source_info_list is [(source_name, source_uuid, last_modified), ...]
+        and api_totals_dict contains counts for reporting
+    """
+    logger.stage_start("Source UUID Harvesting", "Querying NVD Sources API", group="cve_queries")
+    
+    try:
+        url = config['api']['endpoints']['nvd_sources']
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        
+        data = response.json()
+        sources = data.get('sources', [])
+        
+        source_info = []
+        seen_uuids = set()
+        duplicates_found = 0
+        no_uuid_sources = []
+        
+        for source in sources:
+            source_name = source.get('name', 'Unknown')
+            last_modified = source.get('lastModified', '1970-01-01T00:00:00.000')
+            source_identifiers = source.get('sourceIdentifiers', [])
+            
+            # Find UUID-format identifier (36 characters with dashes)
+            uuid_identifier = None
+            for identifier in source_identifiers:
+                if len(identifier) == 36 and identifier.count('-') == 4:
+                    uuid_identifier = identifier
+                    break
+            
+            if uuid_identifier:
+                if uuid_identifier in seen_uuids:
+                    logger.debug(f"- {source_name}: {uuid_identifier} (DUPLICATE - skipping)", group="cve_queries")
+                    duplicates_found += 1
+                else:
+                    seen_uuids.add(uuid_identifier)
+                    source_info.append((source_name, uuid_identifier, last_modified))
+                    logger.debug(f"- {source_name}: {uuid_identifier} (modified: {last_modified})", group="cve_queries")
+            else:
+                no_uuid_sources.append(source_name)
+                logger.debug(f"- {source_name}: No UUID identifier found", group="cve_queries")
+        
+        # Report filtering results
+        logger.info(f"Source Filtering Summary:", group="cve_queries")
+        logger.info(f"Total sources from API: {len(sources)}", group="cve_queries")
+        logger.info(f"Sources without UUID: {len(no_uuid_sources)} (filtered out)", group="cve_queries")
+        if no_uuid_sources:
+            logger.debug(f"   Sources without UUID: {', '.join(no_uuid_sources)}", group="cve_queries")
+        logger.info(f"Sources with UUID: {len(sources) - len(no_uuid_sources)}", group="cve_queries")
+        if duplicates_found > 0:
+            logger.warning(f"Duplicate UUIDs found: {duplicates_found} (filtered out)", group="cve_queries")
+        logger.info(f"Unique sources available for processing: {len(source_info)}", group="cve_queries")
+        
+        # Sort by lastModified descending (newest first)
+        source_info.sort(key=lambda x: x[2], reverse=True)
+        
+        logger.stage_end("Source UUID Harvesting", f"Harvested {len(source_info)} unique source UUIDs (sorted by lastModified, newest first)", group="cve_queries")
+        
+        # Return both the source info and the totals for reporting
+        api_totals = {
+            'total_from_api': len(sources),
+            'sources_without_uuid': len(no_uuid_sources),
+            'sources_with_uuid': len(sources) - len(no_uuid_sources),
+            'duplicates_found': duplicates_found,
+            'unique_sources_available': len(source_info)
+        }
+        
+        return source_info, api_totals
+        
+    except requests.RequestException as e:
+        logger.error(f"Error fetching source data: {e}", group="cve_queries")
+        return None, None
+    except json.JSONDecodeError as e:
+        logger.error(f"Error parsing JSON response: {e}", group="cve_queries")
+        return None, None
+
+
+def checkSourceCVECount(source_uuid, api_key, max_count):
+    """
+    Check how many CVEs a source has before processing.
+    This is used by harvest scripts to filter out sources with too many CVEs.
+    
+    Args:
+        source_uuid (str): The source UUID to check
+        api_key (str): NVD API key for authenticated requests
+        max_count (int): Maximum CVE count threshold
+        
+    Returns:
+        tuple: (count: int, should_skip: bool) - Total CVE count and whether it exceeds threshold
+    """
+    logger.info(f"Checking CVE count for source {source_uuid}...", group="cve_queries")
+    
+    try:
+        url = config['api']['endpoints']['nvd_cves']
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": f"{TOOLNAME}/{VERSION}"
+        }
+        
+        if api_key:
+            headers["apiKey"] = api_key
+        
+        params = {
+            "sourceIdentifier": source_uuid,
+            "resultsPerPage": 1  # We only need the total count
+        }
+        
+        response = requests.get(url, headers=headers, params=params, timeout=30)
+        response.raise_for_status()
+        
+        data = response.json()
+        total_results = data.get('totalResults', 0)
+        
+        logger.info(f"Source has {total_results:,} CVE records", group="cve_queries")
+        
+        should_skip = total_results > max_count
+        if should_skip:
+            logger.warning(f"SKIPPING: Source exceeds maximum threshold of {max_count:,} CVEs ({total_results:,} found)", group="cve_queries")
+        
+        return total_results, should_skip
+        
+    except Exception as e:
+        logger.warning(f"Could not check CVE count for source {source_uuid}: {e}", group="cve_queries")
+        logger.info(f"Proceeding with processing (assuming under threshold)", group="cve_queries")
+        return 0, False
