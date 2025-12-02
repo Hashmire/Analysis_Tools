@@ -16,7 +16,7 @@ from time import sleep
 import argparse
 from pathlib import Path
 import uuid
-from src.analysis_tool.logging.workflow_logger import WorkflowLogger
+from src.analysis_tool.logging.workflow_logger import get_logger
 
 def get_analysis_tools_root():
     """Get the absolute path to the Analysis_Tools project root"""
@@ -56,8 +56,8 @@ config = load_config()
 VERSION = config['application']['version']
 TOOLNAME = config['application']['toolname']
 
-# Initialize logger
-logger = WorkflowLogger()
+# Get global logger instance (shared with analysis_tool)
+logger = get_logger()
 
 # Global batch processing for cache updates
 _cache_batch = {
@@ -112,20 +112,20 @@ def _flush_cve_list_cache_batch():
                 json.dump(cve_record_data, f, indent=2)
             
             repo_paths.add(item['repo_path'])
-            logger.debug(f"Batch updated CVE List V5: {item['cve_id']}", group="cache_management")
+            logger.debug(f"CVE List v5 local cache updated for {item['cve_id']}", group="CACHE_MANAGEMENT")
             
         except Exception as e:
-            logger.debug(f"Failed to update CVE List V5 cache for {item['cve_id']}: {e}", group="cache_management")
+            logger.debug(f"CVE List v5 local cache update failed for {item['cve_id']}: {e}", group="CACHE_MANAGEMENT")
     
     # Update metadata once per batch
     for repo_path in repo_paths:
         try:
             _update_cache_metadata('cve_list_v5', repo_path)
         except Exception as e:
-            logger.debug(f"Failed to update CVE List V5 cache metadata: {e}", group="cache_management")
+            logger.debug(f"Cache metadata update failed (CVE List v5): {e}", group="CACHE_MANAGEMENT")
     
     if batch:
-        logger.info(f"Batch processed {len(batch)} CVE List V5 cache updates", group="cache_management")
+        logger.info(f"Batch processed {len(batch)} CVE List v5 local cache updates", group="CACHE_MANAGEMENT")
 
 def _flush_nvd_cache_batch():
     """Process queued NVD cache updates in batch"""
@@ -161,20 +161,20 @@ def _flush_nvd_cache_batch():
                 json.dump(nvd_response_data, f, indent=2)
             
             repo_paths.add(item['repo_path'])
-            logger.debug(f"Batch updated NVD 2.0 CVE: {item['cve_id']}", group="cache_management")
+            logger.debug(f"NVD 2.0 local cache updated for {item['cve_id']}", group="CACHE_MANAGEMENT")
             
         except Exception as e:
-            logger.debug(f"Failed to write NVD cache file for {item['cve_id']}: {e}", group="cache_management")
+            logger.debug(f"NVD 2.0 local cache update failed for {item['cve_id']}: {e}", group="CACHE_MANAGEMENT")
     
     # Update metadata once per batch
     for repo_path in repo_paths:
         try:
             _update_cache_metadata('nvd_2_0_cve', repo_path)
         except Exception as e:
-            logger.debug(f"Failed to update NVD cache metadata: {e}", group="cache_management")
+            logger.debug(f"Cache metadata update failed (NVD 2.0): {e}", group="CACHE_MANAGEMENT")
     
     if batch:
-        logger.info(f"Batch processed {len(batch)} NVD 2.0 cache updates", group="cache_management")
+        logger.info(f"Batch processed {len(batch)} NVD 2.0 local cache updates", group="CACHE_MANAGEMENT")
 
 def _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vulnerability_record):
     """
@@ -200,7 +200,7 @@ def _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vulnerability_record):
         # Extract API lastModified timestamp
         api_last_modified = vulnerability_record.get('cve', {}).get('lastModified')
         if not api_last_modified:
-            logger.debug(f"No lastModified in API data for {cve_id} - skipping cache update", group="cache_management")
+            logger.warning(f"NVD 2.0 local cache missing lastModified for {cve_id} - No Action", group="CACHE_MANAGEMENT")
             return False
         
         # Parse API timestamp
@@ -213,7 +213,7 @@ def _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vulnerability_record):
                 api_datetime_str = api_last_modified
             api_datetime = datetime.fromisoformat(api_datetime_str)
         except ValueError:
-            logger.debug(f"Could not parse API lastModified for {cve_id}: {api_last_modified}", group="cache_management")
+            logger.warning(f"NVD 2.0 local cache timestamp parse failed for {cve_id}: {api_last_modified} - No Action", group="CACHE_MANAGEMENT")
             return False
             
         # Check if file exists and compare timestamps
@@ -238,13 +238,13 @@ def _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vulnerability_record):
                         
                         # Compare timestamps - only update if API data is newer
                         if api_datetime <= cached_datetime:
-                            logger.debug(f"NVD 2.0 cached record current for {cve_id} - skipping cache update", group="cache_management")
+                            logger.debug(f"NVD 2.0 local cache file up-to-date for {cve_id} - No Action", group="CACHE_MANAGEMENT")
                             return False
                         
-                        logger.debug(f"NVD 2.0 cached record outdated for {cve_id} - queuing for batch update", group="cache_management")
+                        logger.debug(f"NVD 2.0 local cache file stale for {cve_id} - Queued for Update", group="CACHE_MANAGEMENT")
                         
             except (json.JSONDecodeError, IOError) as e:
-                logger.debug(f"Could not read existing NVD 2.0 cached record for {cve_id}: {e} - queuing for batch update", group="cache_management")
+                logger.warning(f"NVD 2.0 local cache file corrupted for {cve_id}: {e} - Queued for Update", group="CACHE_MANAGEMENT")
         
         # Queue for batch processing instead of immediate write
         _cache_batch['nvd_updates'].append({
@@ -261,7 +261,7 @@ def _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vulnerability_record):
         return True
         
     except Exception as e:
-        logger.debug(f"Failed to queue NVD 2.0 CVE for batch processing {cve_id}: {e}", group="cache_management")
+        logger.warning(f"NVD 2.0 local cache update queue failed for {cve_id}: {e}", group="CACHE_MANAGEMENT")
         return False
 
 def _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified):
@@ -283,7 +283,7 @@ def _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified)
         
         # Check if automatic sync is disabled
         if cve_config.get('manual_sync_only', False):
-            logger.debug(f"CVE List V5 automatic sync disabled for {cve_id} - manual_sync_only=true", group="cache_management")
+            logger.debug(f"CVE List v5 local cache automatic sync disabled for {cve_id}  - No Action (Refer to  configuration file `manual_sync_only=true`)", group="CACHE_MANAGEMENT")
             return False
             
         # Use 'cache/cve_list_v5' as default path
@@ -304,14 +304,14 @@ def _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified)
             
             if file_age_hours < cache_ttl_hours:
                 # File is within TTL - no update needed
-                logger.debug(f"CVE List V5 cache current for {cve_id} (age: {file_age_hours:.1f}h < {cache_ttl_hours}h TTL)", group="cache_management")
+                logger.debug(f"CVE List v5 local cache file up-to-date for {cve_id} (age: {file_age_hours:.1f}h < {cache_ttl_hours}h TTL) - No Action", group="CACHE_MANAGEMENT")
                 return False
             
             # File is older than TTL - queue for update
-            logger.debug(f"CVE List V5 cache stale for {cve_id} (age: {file_age_hours:.1f}h > {cache_ttl_hours}h TTL) - queuing for batch update", group="cache_management")
+            logger.debug(f"CVE List v5 local cache file stale (age: {file_age_hours:.1f}h > {cache_ttl_hours}h TTL) for {cve_id} - Queued for Update", group="CACHE_MANAGEMENT")
         else:
             # File doesn't exist - queue for creation
-            logger.debug(f"CVE List V5 cache missing for {cve_id} - queuing for batch creation", group="cache_management")
+            logger.debug(f"CVE List v5 local cache file not found for {cve_id} - Queued for Update", group="CACHE_MANAGEMENT")
         
         # Queue for batch processing instead of immediate API call
         _cache_batch['cve_list_updates'].append({
@@ -327,7 +327,7 @@ def _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified)
         return True
         
     except Exception as e:
-        logger.debug(f"Failed to queue CVE List V5 for batch processing {cve_id}: {e}", group="cache_management")
+        logger.debug(f"CVE List v5 local cache update queue failed for {cve_id}: {e}", group="CACHE_MANAGEMENT")
         return False
 
 def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cve_dataset.txt", run_directory=None, source_uuid=None, statuses_explicitly_provided=False):
@@ -367,7 +367,8 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         logs_dir = run_directory / "logs"
         logs_dir.mkdir(exist_ok=True)
         initialize_dataset_contents_report(str(logs_dir))
-        start_collection_phase("cve_list_generation", "nvd_api")
+        logger.info("=== CVE Record Cache Preparation ===", group="DATASET")
+        start_collection_phase("cache_preparation", "nvd_api")
     
     base_url = config['api']['endpoints']['nvd_cves']
     headers = {
@@ -487,7 +488,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                 if nvd_last_modified:
                     _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified)
                 else:
-                    logger.warning(f"NVD 2.0 API response missing required lastModified field for {cve_id} - skipping CVE List V5 cache (malformed API response)", group="cache_management")
+                    logger.warning(f"NVD 2.0 API response missing required lastModified field for {cve_id} - skipping CVE List V5 cache (malformed API response)", group="CACHE_MANAGEMENT")
         
         # Check if we have more pages
         total_results = page_data.get('totalResults', 0)
@@ -520,6 +521,8 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     # Flush any remaining cache updates
     _flush_cache_batches()
     
+    logger.info("=== END CVE Record Cache Preparation ===", group="DATASET")
+    
     # Write results to file
     output_file_resolved = resolve_output_path(output_file, run_directory)
     
@@ -543,13 +546,6 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     except Exception as e:
         logger.error(f"Dataset file creation failed: Unable to write dataset output to '{output_file_resolved}' - {e}", group="data_processing")
         return False
-    
-    # Finalize dataset contents report
-    if run_directory:
-        from src.analysis_tool.logging.dataset_contents_collector import finalize_dataset_contents_report
-        report_path = finalize_dataset_contents_report()
-        if report_path:
-            logger.info(f"Dataset generation report finalized: {report_path}", group="completion")
     
     return True
 
@@ -615,7 +611,12 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
         logs_dir = run_directory / "logs"
         logs_dir.mkdir(exist_ok=True)
         initialize_dataset_contents_report(str(logs_dir))
-        start_collection_phase("cve_list_generation", "nvd_api")
+        
+    logger.info("=== END Generate Dataset Initialization Phase ===", group="DATASET")
+    logger.info("=== CVE Record Cache Preparation ===", group="DATASET")
+    
+    if run_directory:
+        start_collection_phase("cache_preparation", "nvd_api")
     
     base_url = config['api']['endpoints']['nvd_cves']
     headers = {
@@ -689,10 +690,6 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
             cve_id = cve_data.get('id', '')
             if cve_id:
                 matching_cves.append(cve_id)
-                if source_uuid:
-                    logger.info(f"FOUND: {cve_id} - UUID: {source_uuid}", group="CVE_QUERY")
-                else:
-                    logger.info(f"FOUND: {cve_id}", group="CVE_QUERY")
                 
                 # OPTIMIZATION: Cache both NVD and CVE List V5 records now to avoid re-fetching later
                 # Extract NVD 2.0 API lastModified for timestamp comparisons
@@ -705,7 +702,7 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
                 if nvd_last_modified:
                     _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified)
                 else:
-                    logger.warning(f"NVD 2.0 API response missing required lastModified field for {cve_id} - skipping CVE List V5 cached record creation (malformed API response)", group="cache_management")
+                    logger.warning(f"NVD 2.0 API response missing required lastModified field for {cve_id} - skipping CVE List V5 cached record creation (malformed API response)", group="CACHE_MANAGEMENT")
         
         total_results = page_data.get('totalResults', 0)
         current_end = start_index + len(vulnerabilities)
@@ -729,6 +726,8 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
     # Flush any remaining cache updates
     _flush_cache_batches()
     
+    logger.info("=== END CVE Record Cache Preparation ===", group="DATASET")
+    
     # Write results
     output_file_resolved = resolve_output_path(output_file, run_directory)
     try:
@@ -736,19 +735,9 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
             for cve_id in matching_cves:
                 f.write(f"{cve_id}\n")
         
-        logger.info(f"Dataset generated successfully: {len(matching_cves)} CVEs", group="DATASET")
-        logger.info(f"File saved: {output_file_resolved}", group="DATASET")
-        
-        # Record output file in dataset contents collector
+        # Record output file in dataset contents collector (logs silently)
         if run_directory:
             record_output_file(output_file, str(output_file_resolved), len(matching_cves))
-        
-        # Finalize dataset contents report
-        if run_directory:
-            from src.analysis_tool.logging.dataset_contents_collector import finalize_dataset_contents_report
-            report_path = finalize_dataset_contents_report()
-            if report_path:
-                logger.info(f"Dataset generation report finalized: {report_path}", group="completion")
         
         return True
     except Exception as e:
@@ -818,14 +807,21 @@ def main():
     statuses_explicitly_provided = '--statuses' in sys.argv
     
     # Resolve API key from command line, config, or default to None
+    api_key_source = None
     if args.api_key == 'CONFIG_DEFAULT':
         resolved_api_key = config['defaults']['default_api_key']
-        logger.info("Using default NVD API key from config for faster processing", group="DATASET")
+        api_key_source = "Configuration"
+        logger.info("NVD API key detected | Source: Configuration", group="DATASET")
     elif args.api_key:
         resolved_api_key = args.api_key
-        logger.info("Using provided NVD API key for faster processing", group="DATASET")
+        api_key_source = "Direct Input"
+        logger.info("NVD API key detected | Source: Direct Input", group="DATASET")
     else:
+        # No --api-key flag provided, fall back to config
         resolved_api_key = config['defaults']['default_api_key'] or None
+        if resolved_api_key:
+            api_key_source = "Configuration"
+            logger.info("NVD API key detected | Source: Configuration", group="DATASET")
     
     if not resolved_api_key:
         logger.error("API key is required for dataset generation", group="DATASET")
@@ -1020,6 +1016,17 @@ def main():
     logger.info(f"Created dataset generation run: {run_id}", group="DATASET")
     logger.info(f"Run directory: {run_directory}", group="DATASET")
     
+    # Configure file logging to write to run-specific logs directory
+    logs_dir = run_directory / "logs"
+    logger.set_run_logs_directory(str(logs_dir))
+    logger.start_file_logging("cve_dataset")
+    
+    logger.info("=== Generate Dataset Initialization Phase ===", group="DATASET")
+    if api_key_source:
+        logger.info(f"NVD API key detected | Source: {api_key_source}", group="DATASET")
+    if args.source_uuid:
+        logger.info(f"Source UUID filter active: {args.source_uuid}", group="DATASET")
+    
     # Generate dataset directly in run directory
     success = False
     output_file = "cve_dataset.txt"  # Fixed filename for dataset generation
@@ -1041,13 +1048,18 @@ def main():
         )
     
     if success:
-        logger.info("Dataset generation completed successfully!", group="DATASET")
-        
-        # Always run analysis tool after dataset generation
-        logger.info("Starting integrated analysis run...", group="DATASET")
-        
-
+        # Handoff phase between dataset generation and integrated analysis
         dataset_path = run_directory / "logs" / output_file
+        
+        logger.info("=== Generate Dataset Handoff Phase ===", group="DATASET")
+        
+        # Count CVEs for reporting
+        try:
+            cve_count = sum(1 for line in open(dataset_path) if line.strip())
+            logger.info(f"CVE Record List Generated: {cve_count} CVEs | /logs/{output_file}", group="DATASET")
+        except Exception as e:
+            logger.error(f"Failed to read dataset file: {e}", group="data_processing")
+            cve_count = 0
         
         # Run analysis tool with existing run context
         success = run_analysis_tool(output_file, resolved_api_key, run_directory, run_id, external_assets, sdc_report, cpe_suggestions, alias_report, cpe_as_generator, nvd_ish_only, args.source_uuid)
@@ -1073,48 +1085,38 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
         if not dataset_path.exists():
             raise FileNotFoundError(f"Dataset file not found in run directory: {dataset_path}")
         
-        # Check dataset size for smart batch handling
-        try:
-            cve_count = sum(1 for line in open(dataset_path) if line.strip())
-            logger.info(f"Dataset contains {cve_count:,} CVE entries", group="DATASET")
-        except Exception as e:
-            logger.error(f"Failed to count CVEs in dataset: {e}", group="data_processing")
-            cve_count = 0
+        # Report handoff parameters - only show what's enabled
+        if run_directory:
+            logger.info(f"Run directory: {run_directory}", group="DATASET")
         
-        # Comprehensive feature flag auditing for integrated analysis
-        logger.info("=== INTEGRATED ANALYSIS FEATURE FLAG AUDIT ===", group="initialization")
-        logger.info(f"SDC Report: {'ENABLED' if sdc_report else 'DISABLED'}", group="initialization")
-        logger.info(f"CPE Suggestions: {'ENABLED' if cpe_suggestions else 'DISABLED'}", group="initialization")
-        logger.info(f"Alias Report: {'ENABLED' if alias_report else 'DISABLED'}", group="initialization")
-        logger.info(f"CPE-AS Generator: {'ENABLED' if cpe_as_generator else 'DISABLED'}", group="initialization")
-        
-        # Log enabled features summary
+        # Report enabled analysis features for handoff
         enabled_features = []
-        if sdc_report:
-            enabled_features.append("Source Data Concerns")
-        if cpe_suggestions:
-            enabled_features.append("CPE Suggestions")
-        if alias_report:
-            enabled_features.append("Alias Report")
-        if cpe_as_generator:
-            enabled_features.append("CPE as Generator")
-        logger.info(f"Enabled features: {', '.join(enabled_features) if enabled_features else 'None'}", group="initialization")
-        logger.info("=== END INTEGRATED ANALYSIS AUDIT ===", group="initialization")
         
-        if run_id:
-            logger.info(f"Continuing analysis within existing run: {run_id}", group="initialization")
+        if nvd_ish_only:
+            enabled_features.append("NVD-ish Enriched Records")
+            # NVD-ish mode enables these sub-features automatically
+            enabled_features.append("Source Data Concerns")
+            enabled_features.append("CPE Suggestions")
+            enabled_features.append("CPE-AS Generator")
+        else:
+            if sdc_report:
+                enabled_features.append("Source Data Concerns")
+            if cpe_suggestions:
+                enabled_features.append("CPE Suggestions")
+            if alias_report:
+                enabled_features.append("Alias Report")
+            if cpe_as_generator:
+                enabled_features.append("CPE-AS Generator")
+        
+        if enabled_features:
+            logger.info(f"Enabled features: {', '.join(enabled_features)}", group="DATASET")
+        else:
+            logger.info("No optional features enabled", group="DATASET")
         
         if source_uuid:
-            logger.info(f"Source UUID filter will be applied during analysis: {source_uuid}", group="initialization")
+            logger.info(f"Source UUID filter: {source_uuid}", group="DATASET")
         
-        if run_directory:
-            logger.info(f"Analysis will continue in run directory: {run_directory}", group="initialization")
-        else:
-            logger.info(f"Analysis will create new run directory", group="initialization")
-        
-        # Import and run analysis tool directly (eliminates subprocess overhead)
-        logger.info("Executing analysis tool via direct integration:", group="initialization")
-        logger.info("-" * 60, group="initialization")
+        logger.info("=== END Generate Dataset Handoff Phase ===", group="DATASET")
         
         # Direct import from analysis_tool
         from src.analysis_tool.core.analysis_tool import main
@@ -1150,13 +1152,18 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
             
             # Analysis tool returns 0 for success, non-zero for failure
             if exit_code == 0:
-                logger.info("-" * 60, group="initialization")
-                logger.info("Analysis tool completed successfully", group="initialization")
+                logger.info("-" * 60, group="DATASET")
+                logger.info("Analysis tool completed successfully", group="INIT")
                 if run_directory:
-                    logger.info(f"Results available in: {run_directory}", group="initialization")
+                    logger.info(f"Results available in: {run_directory}", group="INIT")
+                    
+                    # Finalize dataset contents report after integrated analysis completes
+                    from src.analysis_tool.logging.dataset_contents_collector import finalize_dataset_contents_report
+                    finalize_dataset_contents_report()
+                    
                 return True
             else:
-                logger.error(f"Analysis tool failed with exit code {exit_code}", group="data_processing")
+                logger.error(f"Analysis tool failed with exit code {exit_code}", group="INIT")
                 return False
             
         finally:
@@ -1164,7 +1171,7 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
             sys.argv = original_argv
             
     except Exception as e:
-        logger.error(f"Failed to run analysis tool: {e}", group="data_processing")
+        logger.error(f"Failed to run analysis tool: {e}", group="INIT")
         return False
 
 if __name__ == "__main__":

@@ -85,10 +85,6 @@ class NVDishCollector:
         
         # Ensure output directory exists
         self.output_path.mkdir(parents=True, exist_ok=True)
-        
-        if logger:
-            logger.info("NVD-ish collector initialized", group="initialization")
-    
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from config.json"""
         try:
@@ -115,7 +111,7 @@ class NVDishCollector:
             
         except Exception as e:
             if logger:
-                logger.warning(f"Failed to load nvd_ish_output config, using defaults: {e}", group="initialization")
+                logger.warning(f"Failed to load nvd_ish_output config, using defaults: {e}", group="INIT")
             return {
                 'enabled': True,
                 'path': 'cache/nvd-ish_2.0_cves',

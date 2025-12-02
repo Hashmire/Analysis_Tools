@@ -57,7 +57,7 @@ Real-time logging during analysis runs:
 ```text
 [INFO] Cache session performance: 1,847 hits, 423 misses, 81.4% hit rate, 423 new entries
 [INFO] Cache session saved 1,847 API calls this run
-[INFO] /cpes/ cache loaded: 2,270 entries in 0.15s
+[INFO] CPE Base String Cache loaded: 2,270 entries in 0.15s
 ```
 
 ### Lifetime Statistics

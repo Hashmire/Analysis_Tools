@@ -2539,7 +2539,7 @@ class NVDishCollectorTestSuite:
             ("--cpe-suggestions", "cpe suggestions"),
             ("--sdc-report", "source data concerns"),
             ("--alias-report", "alias report"),
-            ("--cpe-as-generator", "cpe automatic solutions")
+            ("--cpe-as-generator", "cpe-as generator")
         ]
         
         for param, indicator in parameter_checks:

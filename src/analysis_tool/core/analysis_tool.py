@@ -38,13 +38,12 @@ from . import generateHTML
 # Import the new logging system
 from ..logging.workflow_logger import (
     get_logger, LogGroup, LogLevel,
-    start_initialization, end_initialization,
     start_cve_queries, end_cve_queries,
     start_unique_cpe_generation, end_unique_cpe_generation,
     start_cpe_queries, end_cpe_queries,
     start_page_generation, end_page_generation,
     start_audit, end_audit,
-    log_init, log_cve_query, log_data_proc, log_page_gen
+    log_cve_query, log_data_proc, log_page_gen
 )
 
 # Import run organization utilities
@@ -89,21 +88,19 @@ config = load_config()
 
 def process_test_file(test_file_path):
     """Process a test file containing CVE data for testing modular rules."""
-    log_init(f"Processing test file: {test_file_path}")
+    logger.info(f"Processing test file: {test_file_path}", group="DATA_PROC")
     
     # Clear global HTML state to prevent accumulation from previous processing
     generateHTML.clear_global_html_state()
     
     try:
-        start_initialization("Test file processing")
-        
         # Load test data from JSON file
         with open(test_file_path, 'r', encoding='utf-8') as f:
             test_data = json.load(f)
         
         # Extract CVE ID from test data
         cve_id = test_data.get('cveMetadata', {}).get('cveId', 'TEST-CVE-0000-0000')
-        log_init(f"Test CVE ID: {cve_id}")
+        logger.info(f"Test CVE ID: {cve_id}", group="DATA_PROC")
         
         # Make sure the string is formatted well
         cve_id = cve_id.strip().upper()
@@ -128,8 +125,6 @@ def process_test_file(test_file_path):
                 }
             }]
         }        
-        
-        end_initialization("Test file loaded")
         
         # Record stage in real-time collector
         try:
@@ -243,8 +238,6 @@ def set_global_source_uuid(source_uuid):
     
     if source_uuid:
         logger.info(f"Global source UUID set for filtering: {source_uuid}", group="initialization")
-    else:
-        logger.info("Global source UUID cleared - processing all sources", group="initialization")
 
 def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, alias_report=False, cpe_as_generator=False, nvd_ish_only=False):
     """Process a single CVE using the analysis tool functionality.
@@ -286,9 +279,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         # Create Primary Datasets from external sources
         primaryDataframe = gatherData.gatherPrimaryDataframe()
         
-        start_cve_queries(f"Gathering data for {cve_id}")
-        
-        log_init(f"Processing {cve_id}")
+        start_cve_queries()
         
         # Initialize tool execution metadata collection
         tool_execution_timestamps = {}
@@ -305,9 +296,6 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
                 # Complete badge contents collection for this record
                 complete_cve_collection()
                 
-                # Ensure progress tracking is properly updated for skipped CVEs
-                from ..logging.dataset_contents_collector import finish_cve_processing
-                finish_cve_processing(cve_id, skipped=True)
                 
                 # Return a result indicating the CVE was skipped due to REJECTED status
                 return {
@@ -331,9 +319,9 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
             }]
         }
         
-        end_cve_queries("CVE data retrieved")
+        end_cve_queries()
         
-        start_unique_cpe_generation("Processing CVE and NVD data")
+        start_unique_cpe_generation()
         
         # Process the vulnerability record data
         primaryDataframe, globalCVEMetadata = processData.processCVEData(primaryDataframe, cveRecordData)
@@ -608,7 +596,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         
         if not should_generate_html:
             if nvd_ish_only:
-                logger.info("HTML generation skipped (NVD-ish only mode - memory optimized)", group="page_generation")
+                logger.info("HTML generation skipped (NVD-ish only)", group="page_generation")
             else:
                 logger.info("HTML generation skipped for this feature configuration", group="page_generation")
             
@@ -871,7 +859,7 @@ def audit_global_state_cleared():
     if issues:            
         logger.warning(f"Global state not properly cleared: {', '.join(issues)}", group="data_processing")
     else:
-        logger.debug("Global state properly cleared before CVE processing", group="data_processing")
+        logger.debug("Environment prepared for new CVE processing", group="data_processing")
 
 def update_dashboard_async(current_cve_num, total_cves):
     """Update dashboard in parallel without blocking main CVE processing"""
@@ -973,6 +961,8 @@ def main():
     cpe_as_generator = args.cpe_as_generator.lower() == 'true'
     nvd_ish_only = args.nvd_ish_only.lower() == 'true'
     
+    logger.info("=== Analysis Tool Initialization Phase ===", group="INIT")
+    
     # Handle --nvd-ish-only flag processing (enable analysis, disable output)
     if nvd_ish_only:
         # Enable ALL analysis processes for complete enrichment
@@ -980,10 +970,7 @@ def main():
         cpe_suggestions = True
         # Only enable alias_report if source_uuid is provided (it requires UUID)
         alias_report = True if args.source_uuid else False
-        cpe_as_generator = True 
-        
-        logger.info("NVD-ish only mode enabled: generating complete enriched records without report files or HTML", group="initialization")
-        logger.info("All analysis processes enabled for complete NVD-ish enrichment", group="initialization")
+        cpe_as_generator = True
     
     # Validate feature combinations
     if alias_report and not args.source_uuid:
@@ -1011,15 +998,10 @@ def main():
     # Set global source UUID for filtering throughout the pipeline
     set_global_source_uuid(args.source_uuid)
     
-    # Comprehensive feature flag auditing
-    logger.info("=== FEATURE FLAG AUDIT ===", group="initialization")
-    logger.info(f"SDC Report: {'ENABLED' if sdc_report else 'DISABLED'} ({'--sdc-report' if sdc_report else 'default'})", group="initialization")
-    logger.info(f"CPE Suggestions: {'ENABLED' if cpe_suggestions else 'DISABLED'} ({'--cpe-suggestions' if cpe_suggestions else 'default'})", group="initialization")
-    logger.info(f"Alias Report: {'ENABLED' if alias_report else 'DISABLED'} ({'--alias-report' if alias_report else 'default'})", group="initialization")
-    logger.info(f"CPE-AS Generator: {'ENABLED' if cpe_as_generator else 'DISABLED'} ({'--cpe-as-generator' if cpe_as_generator else 'default'})", group="initialization")
-    
-    # Log enabled features summary
+    # Report enabled features
     enabled_features = []
+    if nvd_ish_only:
+        enabled_features.append("NVD-ish Enriched Records")
     if sdc_report:
         enabled_features.append("Source Data Concerns")
     if cpe_suggestions:
@@ -1027,15 +1009,17 @@ def main():
     if alias_report:
         enabled_features.append("Alias Report")
     if cpe_as_generator:
-        enabled_features.append("CPE as Generator")
-    logger.info(f"Enabled features: {', '.join(enabled_features) if enabled_features else 'None'}", group="initialization")
+        enabled_features.append("CPE-AS Generator")
+    
+    if enabled_features:
+        logger.info(f"Enabled features: {', '.join(enabled_features)}", group="initialization")
+    else:
+        logger.info("No optional features enabled", group="initialization")
     
     # Automatically enable appropriate flags when CPE features are disabled
     if not cpe_suggestions and not cpe_as_generator:
         args.no_cache = True
         logger.info("CPE features disabled - enabling optimizations (--no-cache)", group="initialization")
-    
-    logger.info("=== END FEATURE FLAG AUDIT ===", group="initialization")
     
     # Generate parameter string for log filename
     if args.cve:
@@ -1088,14 +1072,14 @@ def main():
         # Use config default when --api-key is used without value or not provided
         nvd_api_key = config['defaults']['default_api_key'] or ""
         if nvd_api_key and args.api_key == 'CONFIG_DEFAULT':
-            logger.info(f"Using default NVD API key from config for faster processing", group="initialization")
+            logger.info(f"NVD API key detected | Source: Configuration", group="initialization")
         elif not nvd_api_key and args.api_key == 'CONFIG_DEFAULT':
             logger.warning("--api-key used without value but no default_api_key set in config.json", group="initialization")
-            logger.info("Set default_api_key in config.json or provide explicit key with --api-key YOUR_KEY", group="initialization")
+            logger.info("Set default_api_key in config.json or provide key directly with --api-key YOUR_KEY", group="initialization")
     else:
         # Use explicitly provided API key
         nvd_api_key = args.api_key
-        logger.info(f"Using provided NVD API key for faster processing", group="initialization")
+        logger.info(f"NVD API key detected | Source: Direct Input", group="initialization")
     
     # Warn if no API key is available (for non-test files)
     if not nvd_api_key and not args.test_file:
@@ -1173,7 +1157,6 @@ def main():
     from .unified_source_manager import get_unified_source_manager
     unified_manager = get_unified_source_manager()
     unified_manager.initialize()
-    logger.info("Unified source manager initialized with synchronized data", group="initialization")
     
     # Initialize global CPE cache (done once per session, shared by both paths)
     from ..storage.cpe_cache import get_global_cache_manager
@@ -1264,7 +1247,7 @@ def main():
     
     if args.run_id:
         # Use existing run directory (called from generate_dataset.py)
-        logger.info(f"Continuing analysis within existing run: {args.run_id}", group="initialization")
+        logger.info(f"Continuing use of existing run directory: {args.run_id}", group="initialization")
         
         # Check if run_id is a full path or just an ID
         from pathlib import Path
@@ -1289,8 +1272,6 @@ def main():
         if not run_path.exists():
             logger.error(f"Specified run directory does not exist: {run_path}", group="initialization")
             return 1
-            
-        logger.info(f"Using existing run directory: {run_path}", group="initialization")
     else:
         # Create new run directory using enhanced naming
         execution_type = "analysis"
@@ -1393,28 +1374,25 @@ def main():
     )
     from ..logging.nvd_ish_collector import get_nvd_ish_collector
     
-    # Clear any existing state
+    # Clear any existing state - but preserve dashboard data if continuing from generate_dataset
     clear_badge_contents_collector()
-    clear_dataset_contents_collector()
+    if not args.run_id:
+        # Only clear dashboard collector for new runs, not when continuing from generate_dataset
+        clear_dataset_contents_collector()
     
     # Initialize NVD-ish collector for enhanced record generation
     nvd_ish_collector = get_nvd_ish_collector()
-    logger.info("NVD-ish collector initialized for enhanced record generation", group="initialization")
     
-    # Initialize badge contents collector - only create SDC report file if SDC reporting is enabled
-    if sdc_report:
-        if initialize_badge_contents_report(str(run_paths["logs"])):
-            logger.info("Badge contents collector initialized for source data concerns reporting", group="initialization")
-        else:
-            logger.warning("Failed to initialize badge contents collector", group="initialization")
+    # Initialize badge contents collector - only create SDC report file if SDC reporting is enabled AND not in nvd-ish-only mode
+    if sdc_report and not nvd_ish_only:
+        initialize_badge_contents_report(str(run_paths["logs"]))
     else:
-        # For alias extraction, we still need the collector instance but don't create SDC report file
+        # For alias extraction or nvd-ish-only mode, we still need the collector instance but don't create SDC report file
         from ..logging.badge_contents_collector import get_badge_contents_collector
         get_badge_contents_collector()  # This just creates the instance
-        logger.info("Badge contents collector initialized", group="initialization")
     
-    # Configure alias reporting for incremental saves if enabled
-    if alias_report and args.source_uuid:
+    # Configure alias reporting for incremental saves if enabled (and not in nvd-ish-only mode)
+    if alias_report and args.source_uuid and not nvd_ish_only:
         from ..logging.badge_contents_collector import configure_alias_reporting
         configure_alias_reporting(str(run_paths["logs"]), args.source_uuid)
         logger.info("Alias reporting configured for incremental saves during CVE processing", group="initialization")
@@ -1422,8 +1400,7 @@ def main():
     # Configure NVD-ish only mode for memory optimization if enabled
     if nvd_ish_only:
         from ..logging.badge_contents_collector import configure_nvd_ish_only_mode
-        configure_nvd_ish_only_mode(True)
-        logger.info("Badge contents collector configured for NVD-ish only mode (memory optimized)", group="initialization")
+        configure_nvd_ish_only_mode(True)  # Logs at DEBUG level internally
     
     # Initialize real-time dashboard collector
     # Determine processing mode for dashboard tracking
@@ -1440,22 +1417,10 @@ def main():
         else:
             cache_disable_reason = "manual"
     
-    if initialize_dashboard_collector(str(run_paths["logs"]), processing_mode, cache_disabled, cache_disable_reason):
-        logger.info("Real-time dashboard collector initialized for live progress tracking", group="initialization")
-    else:
-        logger.warning("Failed to initialize real-time dashboard collector", group="initialization")
+    if not initialize_dashboard_collector(str(run_paths["logs"]), processing_mode, cache_disabled, cache_disable_reason):
+        logger.warning("Failed to initialize real-time dashboard collector", group="DATA_PROC")
     
-    # Start main initialization stage
-    start_initialization("Setting up analysis environment")
-      # Initial memory and state audit
-    audit_global_state(warn_on_bloat=False)
-    audit_cache_and_mappings_stats()
-    
-    # Initial system audit
-    start_audit("Baseline system state verification")
-    audit_global_state(warn_on_bloat=False)
-    audit_cache_and_mappings_stats()
-    end_audit("System state verified - ready for CVE processing")
+    logger.info("=== END Analysis Tool Initialization Phase ===", group="INIT")
 
     
     cves_to_process = []
@@ -1473,7 +1438,6 @@ def main():
     cves_to_process.sort(reverse=True)
     
     total_cves = len(cves_to_process)
-    logger.info(f"Processing {total_cves} CVE records (newest first)...", group="initialization")
     
     # Start real-time dashboard processing run
     try:
@@ -1481,20 +1445,8 @@ def main():
         start_processing_run(total_cves)
         # Synchronize collector's total with the actual CVE count after loading
         update_total_cves(total_cves)
-        logger.info("Real-time dashboard collector configured for processing run", group="initialization")
     except Exception as e:
         logger.warning(f"Failed to start real-time dashboard processing run: {e}", group="initialization")
-    
-    # Generate initial dashboard for real-time monitoring
-    logger.info("Generating initial dashboard for real-time monitoring...", group="initialization")
-    # The dataset contents collector automatically handles initial dashboard setup
-    # No legacy log_analyzer.py needed - all data flows through the collector
-    if current_run_paths:
-        logger.info(f"Dashboard ready: Monitor progress at runs/{run_id}/logs/generateDatasetReport.json", group="initialization")
-    else:
-        logger.info("Dashboard ready: Monitor progress in logs/generateDatasetReport.json", group="initialization")
-    
-    end_initialization("Analysis environment ready, CVE list prepared")
     
     # Process all CVEs with progress tracking
     generated_files = []
@@ -1507,7 +1459,7 @@ def main():
     show_timing = progress_config.get('show_individual_timing', True)
     
     if show_progress:
-        logger.info(f"Starting processing of {total_cves} CVE records", group="initialization")
+        logger.info("=== Starting CVE Record Processing Loop ===", group="INIT")
     
     for index, cve in enumerate(cves_to_process):
         cve_start_time = time.time()
@@ -1628,6 +1580,13 @@ def main():
                             logger.info(f"Successfully processed {cve}{feature_suffix} in {cve_elapsed:.2f}s", group="processing")
                         else:
                             logger.info(f"Successfully processed {cve}{feature_suffix}", group="processing")
+                    
+                    # Mark as successfully completed in progress tracker
+                    try:
+                        from ..logging.dataset_contents_collector import finish_cve_processing
+                        finish_cve_processing(cve, skipped=False)
+                    except Exception as e:
+                        logger.debug(f"Real-time collector unavailable for CVE completion tracking: {e}", group="data_processing")
                         
                 elif result.get('skipped'):
                     # CVE was skipped (e.g., REJECTED status)
@@ -1636,6 +1595,13 @@ def main():
                         logger.info(f"Skipped {cve} ({result.get('reason', 'unknown reason')}) in {cve_elapsed:.2f}s", group="processing")
                     else:
                         logger.info(f"Skipped {cve} ({result.get('reason', 'unknown reason')})", group="processing")
+                    
+                    # Mark as skipped in progress tracker
+                    try:
+                        from ..logging.dataset_contents_collector import finish_cve_processing
+                        finish_cve_processing(cve, skipped=True)
+                    except Exception as e:
+                        logger.debug(f"Real-time collector unavailable for CVE completion tracking: {e}", group="data_processing")
                 else:
                     # CVE processing failed with error
                     error_msg = result.get('error', 'Unknown error')
@@ -1643,12 +1609,12 @@ def main():
                     skipped_cves.append(cve)
                     skipped_reasons[cve] = error_msg
                 
-                # Complete CVE processing in real-time collector for all result types
-                try:
-                    from ..logging.dataset_contents_collector import finish_cve_processing
-                    finish_cve_processing(cve)
-                except Exception as e:
-                    logger.debug(f"Real-time collector unavailable for CVE completion tracking: {e}", group="data_processing")
+                    # Mark as completed (failed) in progress tracker
+                    try:
+                        from ..logging.dataset_contents_collector import finish_cve_processing
+                        finish_cve_processing(cve, skipped=False)
+                    except Exception as e:
+                        logger.debug(f"Real-time collector unavailable for CVE completion tracking: {e}", group="data_processing")
             else:
                 # CVE processing failed entirely - no result returned
                 logger.error(f"Failed to process {cve}: No result returned", group="data_processing")

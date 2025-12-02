@@ -26,6 +26,9 @@ class LogLevel(Enum):
 
 class LogGroup(Enum):
     """Log group enumeration for workflow stages"""
+    HARVEST = "HARVEST"
+    DATASET = "DATASET"
+    CACHE_MANAGEMENT = "CACHE_MANAGEMENT"
     INIT = "INIT"
     CVE_QUERY = "CVE_QUERY"
     UNIQUE_CPE = "UNIQUE_CPE"
@@ -176,6 +179,9 @@ class WorkflowLogger:
         # Convert string group to LogGroup enum if needed
         if isinstance(group, str):
             group_mapping = {
+                "harvest": LogGroup.HARVEST,
+                "dataset": LogGroup.DATASET,
+                "cache_managemnet": LogGroup.CACHE_MANAGEMENT,
                 "initialization": LogGroup.INIT,
                 "init": LogGroup.INIT,
                 "cve_query": LogGroup.CVE_QUERY,
@@ -372,30 +378,13 @@ class WorkflowLogger:
                 pass
     
     def _print_message(self, message: str):
-        """Print a message, using tqdm.write if available to avoid progress bar interference"""
+        """Print a message with proper encoding handling"""
         try:
-            # Check if tqdm is currently active by trying to import and use tqdm.write
-            from tqdm import tqdm
-            # Use tqdm.write which automatically handles progress bar interference
-            tqdm.write(message)
+            print(message, flush=True)
         except UnicodeEncodeError:
             # Handle Unicode encoding errors by replacing problematic characters
-            try:
-                from tqdm import tqdm
-                safe_message = message.encode('utf-8', errors='replace').decode('utf-8')
-                tqdm.write(safe_message)
-            except:
-                # GRACEFUL DEGRADATION: ASCII encoding for logging output compatibility
-                safe_message = message.encode('ascii', errors='replace').decode('ascii')
-                print(safe_message)
-        except (ImportError, AttributeError):
-            # GRACEFUL DEGRADATION: Standard print when tqdm is unavailable  
-            try:
-                print(message)
-            except UnicodeEncodeError:
-                # Handle Unicode encoding errors in regular print as well
-                safe_message = message.encode('ascii', errors='replace').decode('ascii')
-                print(safe_message)
+            safe_message = message.encode('ascii', errors='replace').decode('ascii')
+            print(safe_message, flush=True)
         
         # Also write to log file if file logging is enabled
         if self.log_file:
@@ -418,7 +407,7 @@ class WorkflowLogger:
         """Start logging to a file with date and parameter-based filename
         
         Note: You must call set_run_logs_directory() before calling this method
-        to specify where logs should be written.
+        to specify where logs should be written. If file logging is already active for the same file, this is a no-op.
         """
         if not self.enabled:
             return
@@ -442,18 +431,30 @@ class WorkflowLogger:
             filename = f"{date_str}_{clean_params}.log"
             log_path = os.path.join(self.log_directory, filename)
             
+            # If file logging is already active for this same file, don't reinitialize
+            if self.log_file and self.current_log_path == log_path:
+                print(f"[{self._get_timestamp()}] [DEBUG] File logging already active for: {log_path}")
+                return
+            
+            # Close existing log file if switching to a different file
+            if self.log_file and self.current_log_path != log_path:
+                self.stop_file_logging()
+            
             # Store current log path for access by other components
             self.current_log_path = log_path
             
-            # Open log file for writing
-            self.log_file = open(log_path, 'w', encoding='utf-8')
+            # Check if file already exists (append mode) or create new (write mode with header)
+            file_exists = os.path.exists(log_path)
             
-            # Write header to log file
-            self.log_file.write(f"# Hashmire/Analysis_Tools Log\n")
-            self.log_file.write(f"# Started: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\n")
-            self.log_file.write(f"# Parameters: {run_parameters}\n")
-            self.log_file.write(f"# Log file: {log_path}\n")
-            self.log_file.write("# " + "="*50 + "\n\n")
+            if file_exists:
+                # Append to existing file
+                self.log_file = open(log_path, 'a', encoding='utf-8')
+                self.log_file.write(f"\n# Logging resumed: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\n")
+                self.log_file.write(f"# Parameters: {run_parameters}\n\n")
+            else:
+                # Create new file with header
+                self.log_file = open(log_path, 'w', encoding='utf-8')
+                
             self.log_file.flush()
             
             print(f"[{self._get_timestamp()}] [INFO] Logging to file: {log_path}")
@@ -496,11 +497,6 @@ def reinitialize_logger(config_path: Optional[str] = None):
 
 
 # Convenience functions for direct access to common logging operations
-def log_init(message: str):
-    """Log initialization message"""
-    get_logger().info(message, group="initialization")
-
-
 def log_cve_query(message: str):
     """Log CVE query message"""
     get_logger().info(message, group="cve_query")
@@ -531,30 +527,15 @@ def log_data_proc(message: str):
     get_logger().info(message, group="data_proc")
 
 
-def log_system_error(message: str):
-    """Log system error message to initialization group"""
-    get_logger().warning(message, group="initialization")
-
-
 # Stage management convenience functions
-def start_initialization(details: str = ""):
-    """Mark the start of initialization stage"""
-    get_logger().stage_start("Initialization", details, group="initialization")
-
-
-def end_initialization(details: str = ""):
-    """Mark the end of initialization stage"""
-    get_logger().stage_end("Initialization", details, group="initialization")
-
-
 def start_cve_queries(details: str = ""):
     """Mark the start of CVE queries stage"""
-    get_logger().stage_start("CVE Queries", details, group="cve_query")
+    get_logger().stage_start("Gathering CVE Record", details, group="cve_query")
 
 
 def end_cve_queries(details: str = ""):
     """Mark the end of CVE queries stage"""
-    get_logger().stage_end("CVE Queries", details, group="cve_query")
+    get_logger().stage_end("Gathering CVE Record", details, group="cve_query")
 
 
 def start_unique_cpe_generation(details: str = ""):
@@ -623,12 +604,8 @@ if __name__ == "__main__":
     
     print()
     print("Testing stage management:")
-    start_initialization("System startup")
-    logger.info("Loading configuration files", group="initialization")
-    logger.info("Creating primary dataframe", group="initialization")
-    end_initialization("System ready")
-    
     start_cve_queries("CVE-2024-20515")
     logger.info("Querying MITRE CVE database", group="cve_queries")
     logger.info("Querying NVD CVE API", group="cve_queries")
     end_cve_queries("Retrieved CVE data")
+

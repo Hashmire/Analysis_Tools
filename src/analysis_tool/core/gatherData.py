@@ -138,10 +138,10 @@ def _update_cache_metadata(cache_type, repo_path):
         with open(metadata_file, 'w') as f:
             json.dump(metadata, f, indent=2, sort_keys=True)
             
-        logger.debug(f"Updated {cache_type} cache metadata: {total_files} files", group="cache_management")
+        logger.debug(f"Updated {cache_type} cache metadata: {total_files} files", group="CACHE_MANAGEMENT")
         
     except Exception as e:
-        logger.warning(f"Could not update {cache_type} cache metadata: {e}", group="cache_management")
+        logger.warning(f"Could not update {cache_type} cache metadata: {e}", group="CACHE_MANAGEMENT")
 
 def get_cache_config(cache_type):
     """
@@ -158,19 +158,19 @@ def get_cache_config(cache_type):
         
         # Check if cache_settings section exists
         if 'cache_settings' not in config:
-            logger.warning(f"Config file missing 'cache_settings' section for {cache_type}, using defaults", group="cache_management")
+            logger.warning(f"Config file missing 'cache_settings' section for {cache_type}, using defaults", group="CACHE_MANAGEMENT")
             return _get_cache_defaults(cache_type)
         
         # Check if specific cache type exists
         if cache_type not in config['cache_settings']:
-            logger.warning(f"Config file missing '{cache_type}' cache settings, using defaults", group="cache_management")
+            logger.warning(f"Config file missing '{cache_type}' cache settings, using defaults", group="CACHE_MANAGEMENT")
             return _get_cache_defaults(cache_type)
         
         # Return config
         return config['cache_settings'][cache_type]
         
     except Exception as e:
-        logger.warning(f"Could not load config file for {cache_type}, using defaults: {e}", group="cache_management")
+        logger.warning(f"Could not load config file for {cache_type}, using defaults: {e}", group="CACHE_MANAGEMENT")
         return _get_cache_defaults(cache_type)
 
 
@@ -239,7 +239,7 @@ def _load_cve_from_local_file(cve_file_path):
             return None
             
     except (json.JSONDecodeError, IOError, UnicodeDecodeError) as e:
-        logger.warning(f"Cache file read failed: {cve_file_path} - {e}", group="cache_management")
+        logger.warning(f"Cache file read failed: {cve_file_path} - {e}", group="CACHE_MANAGEMENT")
         return None
 
 def _extract_cache_metadata_value(cache_metadata_path):
@@ -261,7 +261,7 @@ def _extract_cache_metadata_value(cache_metadata_path):
         metadata_file = project_root / "cache" / "cache_metadata.json"
         
         if not metadata_file.exists():
-            logger.debug(f"Cache metadata file not found: {metadata_file}", group="cache_management")
+            logger.debug(f"Cache metadata file not found: {metadata_file}", group="CACHE_MANAGEMENT")
             return []
         
         with open(metadata_file, 'r') as f:
@@ -276,13 +276,13 @@ def _extract_cache_metadata_value(cache_metadata_path):
             if isinstance(current, dict) and part in current:
                 current = current[part]
             else:
-                logger.debug(f"Cache metadata path not found: {cache_metadata_path}", group="cache_management")
+                logger.debug(f"Cache metadata path not found: {cache_metadata_path}", group="CACHE_MANAGEMENT")
                 return []
         
         return [current] if current is not None else []
         
     except Exception as e:
-        logger.debug(f"Failed to extract cache metadata value for {cache_metadata_path}: {e}", group="cache_management")
+        logger.debug(f"Failed to extract cache metadata value for {cache_metadata_path}: {e}", group="CACHE_MANAGEMENT")
         return []
 
 def _extract_field_value(data, simple_path):
@@ -348,12 +348,12 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
     try:
         from datetime import datetime
         
-        logger.debug(f"Performing staleness check for {targetCve}: comparing NVD vs cache timestamps", group="cache_management")
+        logger.debug(f"Performing staleness check for {targetCve}: comparing NVD vs cache timestamps", group="CACHE_MANAGEMENT")
         
         # Get NVD data for date comparison
         nvd_data = gatherNVDCVERecord(config.get('api', {}).get('keys', {}).get('nvd_api'), targetCve)
         if not nvd_data:
-            logger.debug(f"No NVD data available for sync check: {targetCve}", group="cache_management")
+            logger.debug(f"No NVD data available for sync check: {targetCve}", group="CACHE_MANAGEMENT")
             return
         
         # Extract NVD lastModified date using config field path
@@ -363,7 +363,7 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
         nvd_dates = _extract_field_value(nvd_data, nvd_field_path)
         
         if not nvd_dates:
-            logger.warning(f"NVD 2.0 API response missing required lastModified field for {targetCve} (malformed API response)", group="cache_management")
+            logger.warning(f"NVD 2.0 API response missing required lastModified field for {targetCve} (malformed API response)", group="CACHE_MANAGEMENT")
             return
             
         nvd_last_modified = max(nvd_dates)  # Take most recent if multiple matches
@@ -382,12 +382,12 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
         
         cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
         if not cve_file_path or not cve_file_path.exists():
-            logger.debug(f"No local CVE file exists for sync check: {targetCve}", group="cache_management")
+            logger.debug(f"No local CVE file exists for sync check: {targetCve}", group="CACHE_MANAGEMENT")
             return
             
         local_data = _load_cve_from_local_file(cve_file_path)
         if not local_data:
-            logger.debug(f"Could not load local CVE data for sync check: {targetCve}", group="cache_management")
+            logger.debug(f"Could not load local CVE data for sync check: {targetCve}", group="CACHE_MANAGEMENT")
             return
         
         # Extract CVE List V5 dateUpdated using config field path
@@ -400,7 +400,7 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
             cvelist_dates = _extract_field_value(local_data, cvelist_field_path)
         
         if not cvelist_dates:
-            logger.debug(f"No CVE List V5 date found for {targetCve} using path {cvelist_field_path}", group="cache_management")
+            logger.debug(f"No CVE List V5 date found for {targetCve} using path {cvelist_field_path}", group="DATASET")
             return
             
         cvelist_date_updated = cvelist_dates[0]  # Should be single match
@@ -415,13 +415,13 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
         
         # Compare dates and refresh if NVD is newer
         if nvd_datetime > cvelist_datetime:
-            logger.info(f"NVD 2.0 API record newer than CVE List V5 cached record - refreshing CVE List V5 cached record for {targetCve} (NVD 2.0 API Record: {nvd_last_modified}, CVE List V5 Cached Record: {cvelist_date_updated})", group="cache_management")
+            logger.info(f"NVD 2.0 API record newer than CVE List V5 cached record - refreshing CVE List V5 cached record for {targetCve} (NVD 2.0 API Record: {nvd_last_modified}, CVE List V5 Cached Record: {cvelist_date_updated})", group="CACHE_MANAGEMENT")
             _refresh_cvelist_from_mitre_api(targetCve, cve_file_path, "NVD newer than cache")
         else:
-            logger.debug(f"CVE List V5 cached record current for {targetCve} (NVD 2.0 API Record: {nvd_last_modified}, CVE List V5 Cached Record: {cvelist_date_updated})", group="cache_management")
+            logger.debug(f"CVE List V5 cached record current for {targetCve} (NVD 2.0 API Record: {nvd_last_modified}, CVE List V5 Cached Record: {cvelist_date_updated})", group="CACHE_MANAGEMENT")
     
     except Exception as e:
-        logger.warning(f"CVE List V5 sync check failed for {targetCve}: {e}", group="cache_management")
+        logger.warning(f"CVE List V5 sync check failed for {targetCve}: {e}", group="CACHE_MANAGEMENT")
 
 def _refresh_cvelist_from_mitre_api(targetCve, local_file_path, refresh_reason="staleness detected"):
     """
@@ -440,9 +440,9 @@ def _refresh_cvelist_from_mitre_api(targetCve, local_file_path, refresh_reason="
         simpleCveRequestUrl = cveOrgJSON + targetCve
         
         if local_file_path.exists():
-            logger.info(f"Refreshing stale cache file from MITRE API: {targetCve} at {local_file_path} (reason: {refresh_reason})", group="cache_management")
+            logger.info(f"Refreshing stale cache file from MITRE API: {targetCve} at {local_file_path} (reason: {refresh_reason})", group="CACHE_MANAGEMENT")
         else:
-            logger.info(f"Creating missing cache file from MITRE API: {targetCve} at {local_file_path} (reason: file not found)", group="cache_management")
+            logger.info(f"Creating missing cache file from MITRE API: {targetCve} at {local_file_path} (reason: file not found)", group="CACHE_MANAGEMENT")
         
         # Make direct API call (bypass local loading)
         r = requests.get(simpleCveRequestUrl, timeout=config['api']['timeouts']['cve_org'])
@@ -460,7 +460,7 @@ def _refresh_cvelist_from_mitre_api(targetCve, local_file_path, refresh_reason="
         with open(local_file_path, 'w', encoding='utf-8') as f:
             json.dump(fresh_cve_data, f, indent=2)
         
-        logger.info(f"Cache file updated successfully: {targetCve} at {local_file_path}", group="cache_management")
+        logger.info(f"Cache file updated successfully: {targetCve} at {local_file_path}", group="CACHE_MANAGEMENT")
         
         # Update cache metadata
         cve_config = get_cache_config('cve_list_v5')
@@ -468,11 +468,11 @@ def _refresh_cvelist_from_mitre_api(targetCve, local_file_path, refresh_reason="
         _update_cache_metadata('cve_list_v5', cve_repo_path)
         
     except requests.exceptions.RequestException as e:
-        logger.error(f"MITRE API refresh failed for {targetCve}: {e}", group="cache_management")
+        logger.error(f"MITRE API refresh failed for {targetCve}: {e}", group="CACHE_MANAGEMENT")
     except (IOError, OSError) as e:
-        logger.error(f"File write failed during CVE refresh for {targetCve}: {e}", group="cache_management")
+        logger.error(f"File write failed during CVE refresh for {targetCve}: {e}", group="CACHE_MANAGEMENT")
     except Exception as e:
-        logger.error(f"Unexpected error during CVE refresh for {targetCve}: {e}", group="cache_management")
+        logger.error(f"Unexpected error during CVE refresh for {targetCve}: {e}", group="CACHE_MANAGEMENT")
 
 
 
@@ -517,7 +517,7 @@ def _save_nvd_cve_to_local_file(targetCve, nvd_data):
         
         nvd_file_path = _resolve_cve_cache_file_path(targetCve, nvd_repo_path)
         if not nvd_file_path:
-            logger.warning(f"Could not resolve NVD file path for {targetCve}", group="cache_management")
+            logger.warning(f"Could not resolve NVD file path for {targetCve}", group="CACHE_MANAGEMENT")
             return
             
         # Ensure directory structure exists
@@ -527,15 +527,15 @@ def _save_nvd_cve_to_local_file(targetCve, nvd_data):
         with open(nvd_file_path, 'w', encoding='utf-8') as f:
             json.dump(nvd_data, f, indent=2)
         
-        logger.debug(f"Updated NVD 2.0 CVE cached record: {targetCve}", group="cache_management")
+        logger.debug(f"Updated NVD 2.0 CVE cached record: {targetCve}", group="CACHE_MANAGEMENT")
         
         # Update cache metadata
         _update_cache_metadata('nvd_2_0_cve', nvd_repo_path)
         
     except (IOError, OSError) as e:
-        logger.warning(f"Failed to save NVD CVE data for {targetCve}: {e}", group="cache_management")
+        logger.warning(f"Failed to save NVD CVE data for {targetCve}: {e}", group="CACHE_MANAGEMENT")
     except Exception as e:
-        logger.warning(f"Unexpected error saving NVD CVE data for {targetCve}: {e}", group="cache_management")
+        logger.warning(f"Unexpected error saving NVD CVE data for {targetCve}: {e}", group="CACHE_MANAGEMENT")
 
 
 
@@ -553,35 +553,35 @@ def gatherCVEListRecord(targetCve):
     fallback_to_api = cve_config.get('fallback_to_api', True)
     cache_path = cve_config.get('path', 'cache/cve_list_v5')
     
-    logger.info(f"CVE cache strategy for {targetCve}: enabled={enabled}, cache_missing_only={cache_missing_only}, fallback_to_api={fallback_to_api}, path={cache_path}", group="cache_management")
+    logger.info(f"CVE cache strategy for {targetCve}: enabled={enabled}, cache_missing_only={cache_missing_only}, fallback_to_api={fallback_to_api}, path={cache_path}", group="CACHE_MANAGEMENT")
     
     # If local repository is enabled, attempt local loading with sync detection
     if enabled:
         local_repo_path = cache_path
-        logger.info(f"CVE List V5 cache enabled - attempting local load: {targetCve}", group="cache_management")
+        logger.info(f"CVE List V5 cache enabled - attempting local load: {targetCve}", group="CACHE_MANAGEMENT")
         
         cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
         if cve_file_path:
-            logger.debug(f"Cache file path resolved: {cve_file_path}", group="cache_management")
+            logger.debug(f"Cache file path resolved: {cve_file_path}", group="CACHE_MANAGEMENT")
             # Check cache_missing_only setting
             if cache_missing_only:
-                logger.debug(f"Using cache-missing-only strategy (no staleness check): {targetCve}", group="cache_management")
+                logger.debug(f"Using cache-missing-only strategy (no staleness check): {targetCve}", group="CACHE_MANAGEMENT")
                 # Only check if file exists, don't sync with NVD for staleness
                 if cve_file_path.exists():
                     local_data = _load_cve_from_local_file(cve_file_path)
                     if local_data:
-                        logger.info(f"Cache hit (cache-missing-only mode): {targetCve} loaded from {cve_file_path}", group="cache_management")
+                        logger.info(f"Cache hit (cache-missing-only mode): {targetCve} loaded from {cve_file_path}", group="CACHE_MANAGEMENT")
                         return local_data
                 # File doesn't exist - will fall through to API call
-                logger.info(f"Cache miss (file missing): {targetCve} not found at {cve_file_path}", group="cache_management")
+                logger.info(f"Cache miss (file missing): {targetCve} not found at {cve_file_path}", group="CACHE_MANAGEMENT")
             else:
                 # Normal sync behavior - check for staleness and refresh if needed
-                logger.debug(f"Using full sync strategy (with staleness check): {targetCve}", group="cache_management")
+                logger.debug(f"Using full sync strategy (with staleness check): {targetCve}", group="CACHE_MANAGEMENT")
                 _sync_cvelist_with_nvd_dataset(targetCve)
                 
                 local_data = _load_cve_from_local_file(cve_file_path)
                 if local_data:
-                    logger.info(f"Cache hit (full sync mode): {targetCve} loaded from {cve_file_path} after staleness check", group="cache_management")
+                    logger.info(f"Cache hit (full sync mode): {targetCve} loaded from {cve_file_path} after staleness check", group="CACHE_MANAGEMENT")
                     return local_data
         
         # Local loading failed - check fallback policy
@@ -592,7 +592,7 @@ def gatherCVEListRecord(targetCve):
         logger.warning(f"Local CVE load failed for {targetCve} - falling back to MITRE API", group="cve_queries")
     else:
         # Cache is disabled - log the bypass
-        logger.info(f"CVE List V5 cache disabled - using direct API call: {targetCve}", group="cache_management")
+        logger.info(f"CVE List V5 cache disabled - using direct API call: {targetCve}", group="CACHE_MANAGEMENT")
     
     # Direct API call (either config disabled or fallback triggered)
     cveOrgJSON = config['api']['endpoints']['cve_list']
@@ -626,7 +626,7 @@ def gatherCVEListRecord(targetCve):
                     with open(cve_file_path, 'w') as f:
                         json.dump(cveRecordDict, f, indent=2)
                     
-                    logger.debug(f"API response saved to cache: {targetCve} at {cve_file_path} (source: MITRE API fallback)", group="cache_management")
+                    logger.debug(f"API response saved to cache: {targetCve} at {cve_file_path} (source: MITRE API fallback)", group="CACHE_MANAGEMENT")
                     
             except Exception as e:
                 logger.warning(f"Failed to save CVE {targetCve} to cache: {e}", group="cve_queries")
@@ -661,16 +661,12 @@ def gatherCVEListRecordLocal(targetCve):
     cve_config = _get_cached_config('cve_list_v5')
     if cve_config.get('enabled', False):
         local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
-        logger.debug(f"Using configured CVE List V5 cache: {local_repo_path}", group="cve_queries")
-        
-        # Attempt local loading first
-        logger.debug(f"Attempting local CVE load: {targetCve} from {local_repo_path}", group="cve_queries")
         
         cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
         if cve_file_path:
             local_data = _load_cve_from_local_file(cve_file_path)
             if local_data:
-                logger.info(f"Cache hit (local repository): {targetCve} loaded from {cve_file_path}", group="cache_management")
+                logger.info(f"CVE record loaded from local cache: {targetCve}", group="DATASET")
                 return local_data
         
         # Local loading failed - fall back to API

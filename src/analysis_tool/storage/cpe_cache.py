@@ -77,9 +77,9 @@ class CPECache:
                         self.cache_data = orjson.loads(f.read())
                 
                 load_time = time.time() - start_time
-                logger.info(f"/cpes/ cache loaded: {len(self.cache_data)} entries in {load_time:.2f}s", group="cpe_queries")
+                logger.info(f"CPE Base String Cache loaded: {len(self.cache_data)} entries in {load_time:.2f}s", group="cpe_queries")
             else:
-                logger.info("No existing /cpes/ cache found - starting fresh cache", group="cpe_queries")
+                logger.info("No CPE Base String Cache found - Creating new cache file", group="cpe_queries")
                 
             # Load CPE cache metadata from unified metadata file
             if self.metadata_file.exists():
@@ -141,7 +141,7 @@ class CPECache:
             
             save_time = time.time() - start_time
             
-            logger.debug(f"/cpes/ cache saved: {len(self.cache_data)} entries in {save_time:.2f}s", group="cpe_queries")
+            logger.debug(f"CPE Base String Cache saved: {len(self.cache_data)} entries in {save_time:.2f}s", group="cpe_queries")
             
             # Update dashboard collector with current cache file size
             try:
@@ -155,7 +155,7 @@ class CPECache:
                 pass
             
         except Exception as e:
-            logger.error(f"/cpes/ cache save error: {e}", group="cpe_queries")
+            logger.error(f"CPE Base String Cache save error: {e}", group="cpe_queries")
             
     def get(self, cpe_string: str) -> Tuple[Optional[Dict[str, Any]], str]:
         """
@@ -358,12 +358,11 @@ class GlobalCPECacheManager:
     def initialize(self, config: Dict[str, Any]):
         """Initialize the global cache with configuration"""
         if self._cache_instance is None:
-            logger.info("Initializing global CPE cache - this will happen once per session", group="cpe_queries")
+            logger.info("Initializing CPE Base String cache (once per session, large files may load slowly)", group="cpe_queries")
             self._config = config
             self._cache_instance = CPECache(config)
             # Force load the cache data
             self._cache_instance.__enter__()  # Initialize the cache
-            logger.info("Global CPE cache initialized and ready for use", group="cpe_queries")
         return self._cache_instance
     
     def get_cache(self):

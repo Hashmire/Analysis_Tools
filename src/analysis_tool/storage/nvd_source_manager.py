@@ -58,7 +58,7 @@ def get_nvd_source_data_config() -> Dict[str, Any]:
             }
         })
     except Exception as e:
-        logger.warning(f"Could not load nvd_source_data config, using defaults: {e}", group="cache_management")
+        logger.warning(f"Could not load nvd_source_data config, using defaults: {e}", group="CACHE_MANAGEMENT")
         return {
             'enabled': True,
             'filename': 'nvd_source_data.json',
@@ -244,7 +244,7 @@ class GlobalNVDSourceManager:
             raise RuntimeError("Cannot create cache: NVD Source Manager not initialized")
         
         if not is_caching_enabled():
-            logger.warning("NVD source data caching disabled in config - skipping cache creation", group="cache_management")
+            logger.warning("NVD source data caching disabled in config - skipping cache creation", group="CACHE_MANAGEMENT")
             raise RuntimeError("Cannot create cache: NVD source data caching disabled in config")
         
         # Determine cache directory - use project cache directory like CPE cache
@@ -309,13 +309,13 @@ class GlobalNVDSourceManager:
             self._cache_file_path = str(cache_file_path)
             
             logger.info(f"Created NVD source data cache: {cache_file_path} ({self.get_source_count()} unique sources)", 
-                       group="cache_management")
-            logger.info(f"Updated unified cache metadata: {cache_path / 'cache_metadata.json'}", group="cache_management")
+                       group="DATASET")
+            logger.info(f"Updated unified cache metadata: {cache_path / 'cache_metadata.json'}", group="CACHE_MANAGEMENT")
             
             return str(cache_file_path)
             
         except Exception as e:
-            logger.error(f"Failed to create source data cache: {e}", group="cache_management")
+            logger.error(f"Failed to create source data cache: {e}", group="CACHE_MANAGEMENT")
             raise RuntimeError(f"Cache creation failed: {e}")
     
     def load_from_cache(self, cache_file_path: str) -> bool:
@@ -329,7 +329,7 @@ class GlobalNVDSourceManager:
             bool: True if successfully loaded, False otherwise
         """
         if not os.path.exists(cache_file_path):
-            logger.warning(f"Cache file not found: {cache_file_path}", group="cache_management")
+            logger.warning(f"Cache file not found: {cache_file_path}", group="CACHE_MANAGEMENT")
             return False
         
         try:
@@ -340,7 +340,7 @@ class GlobalNVDSourceManager:
             # Validate cache data structure
             required_keys = ['source_data', 'source_lookup']
             if not all(key in cache_data for key in required_keys):
-                logger.warning(f"Invalid JSON cache file structure: {cache_file_path}", group="cache_management")
+                logger.warning(f"Invalid JSON cache file structure: {cache_file_path}", group="CACHE_MANAGEMENT")
                 return False
             
             # Convert source_data back to DataFrame
@@ -366,13 +366,11 @@ class GlobalNVDSourceManager:
             else:
                 cache_age_hours = 0.0
             
-            logger.info(f"Loaded NVD source data from cache: {cache_file_path}", group="cache_management")
-            logger.info(f"Cache contains {self.get_source_count()} unique sources (age: {cache_age_hours:.1f}h)", group="cache_management")
             
             return True
             
         except Exception as e:
-            logger.error(f"Failed to load from cache {cache_file_path}: {e}", group="cache_management")
+            logger.error(f"Failed to load from cache {cache_file_path}: {e}", group="CACHE_MANAGEMENT")
             return False
     
     def _update_cache_metadata(self, cache_path: Path, update_time: datetime) -> None:
@@ -419,7 +417,7 @@ class GlobalNVDSourceManager:
                 json.dump(metadata, f, indent=2, sort_keys=True)
                 
         except Exception as e:
-            logger.warning(f"Could not update cache metadata: {e}", group="cache_management")
+            logger.warning(f"Could not update cache metadata: {e}", group="CACHE_MANAGEMENT")
 
     def cleanup_cache(self, cache_file_path: Optional[str] = None) -> None:
         """
@@ -433,13 +431,13 @@ class GlobalNVDSourceManager:
         if target_path and os.path.exists(target_path):
             try:
                 os.unlink(target_path)
-                logger.info(f"Cleaned up cache file: {target_path}", group="cache_management")
+                logger.info(f"Cleaned up cache file: {target_path}", group="CACHE_MANAGEMENT")
                 
                 if target_path == self._cache_file_path:
                     self._cache_file_path = None
                     
             except Exception as e:
-                logger.warning(f"Could not clean up cache file {target_path}: {e}", group="cache_management")
+                logger.warning(f"Could not clean up cache file {target_path}: {e}", group="CACHE_MANAGEMENT")
     
     def get_cache_file_path(self) -> Optional[str]:
         """Get the path to the current cache file, if any"""
@@ -504,13 +502,13 @@ def try_load_from_environment_cache() -> bool:
     """
     # Check if caching is enabled in config
     if not is_caching_enabled():
-        logger.info("NVD source data caching disabled in config - skipping cache load", group="cache_management")
+        logger.info("NVD source data caching disabled in config - skipping cache load", group="CACHE_MANAGEMENT")
         return False
     
     # First, try environment variable (harvest script coordination)
     env_cache_path = os.environ.get('NVD_SOURCE_CACHE_PATH')
     if env_cache_path:
-        logger.info(f"Found NVD source cache path in environment: {env_cache_path}", group="cache_management")
+        logger.info(f"Found NVD source cache path in environment: {env_cache_path}", group="CACHE_MANAGEMENT")
         if load_from_cache(env_cache_path):
             return True
     
@@ -523,9 +521,8 @@ def try_load_from_environment_cache() -> bool:
         standard_cache_path = project_root / "cache" / cache_filename
         
         if standard_cache_path.exists():
-            logger.info(f"Found NVD source cache at standard location: {standard_cache_path}", group="cache_management")
             return load_from_cache(str(standard_cache_path))
     except Exception as e:
-        logger.warning(f"Could not check standard cache location: {e}", group="cache_management")
+        logger.warning(f"Could not check standard cache location: {e}", group="CACHE_MANAGEMENT")
     
     return False

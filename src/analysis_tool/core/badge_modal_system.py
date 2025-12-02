@@ -176,8 +176,6 @@ def clear_all_registries():
         'cpeBaseStringSearches': {},
         'cpeMatchStringsCulled': {}
     }
-    
-    logger.debug("Cleared all badge and modal registries", group="badge_modal")
 
 def register_cpe_data(cpe_base_string: str, data_type: str, data: Dict) -> bool:
     """

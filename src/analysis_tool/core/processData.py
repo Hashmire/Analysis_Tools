@@ -1,7 +1,7 @@
 # Import Python dependencies
 import re
 import pandas as pd
-from tqdm import tqdm
+
 import sys
 from sys import exit
 from typing import List, Dict, Any, Union
@@ -1331,7 +1331,7 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                 return rawDataset
             
             # Start the CPE queries stage for the actual API calls
-            start_cpe_queries("Querying NVD CPE API")
+            start_cpe_queries()
             
             rawCPEsQueryData = bulkQueryandProcessNVDCPEs(apiKey, rawDataset, uniqueStringList)
            
@@ -1341,7 +1341,7 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
             trimmedDataset = reduceToTop10(sortedDataset)
 
             # End the CPE queries stage now that all API calls are complete
-            end_cpe_queries("CPE queries completed")
+            end_cpe_queries()
 
             return trimmedDataset
         # Case 2 covers the CPE Search mode
@@ -1391,7 +1391,8 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                         row_query_mapping[cpe_string] = []
                     row_query_mapping[cpe_string].append(index)
     
-    for query_string in tqdm(query_list, desc="Querying /cpes/ API (+ local cache)", unit="query"):
+    # Process all CPE queries
+    for query_string in query_list:
             # Skip empty queries
             if not query_string:
                 continue

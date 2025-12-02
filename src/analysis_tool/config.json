@@ -70,59 +70,55 @@
         "level": "DEBUG",
         "format": "[{timestamp}] [{level}] {message}",
         "groups": {
+            "HARVEST": {
+                "name": "Source Harvesting",
+                "description": "Multi-source harvesting, UUID collection, batch processing orchestration",
+                "enabled": true
+            },
             "INIT": {
                 "name": "Initialization",
-                "description": "System startup, configuration loading, primary dataframe creation",
-                "enabled": true,
-                "color": "blue"
+                "description": "System startup, configuration loading",
+                "enabled": true
+            },
+            "CACHE_MANAGEMENT": {
+                "name": "Cache Management",
+                "description": "Cache loading, validation, refreshing, and cleanup",
+                "enabled": true
+            },
+            "DATASET": {
+                "name": "Dataset Generation",
+                "description": "Cache Preparation, Source Identification, Environment Setup",
+                "enabled": true
             },
             "CVE_QUERY": {
                 "name": "CVE Queries",
                 "description": "CVE record retrieval from MITRE, NVD CVE API, source data gathering",
-                "enabled": true,
-                "color": "green"
+                "enabled": true
             },
             "UNIQUE_CPE": {
                 "name": "Unique CPE Generation",
                 "description": "CPE base string extraction, deduplication, validation",
-                "enabled": true,
-                "color": "yellow"
+                "enabled": true
             },
             "CPE_QUERY": {
                 "name": "CPE Queries",
                 "description": "NVD CPE API queries, product matching, result processing",
-                "enabled": true,
-                "color": "cyan"
+                "enabled": true
             },
             "BADGE_GEN": {
-                "name": "Confirmed Mappings",
+                "name": "Badge Generation",
                 "description": "Confirmed mappings processing, data validation, badge preparation",
-                "enabled": true,
-                "color": "magenta"
+                "enabled": true
             },
             "PAGE_GEN": {
                 "name": "Page Generation",
                 "description": "HTML generation, template processing, file output",
-                "enabled": true,
-                "color": "white"
+                "enabled": true
             },
             "DATA_PROC": {
                 "name": "Data Processing",
                 "description": "Data transformation, validation, cleanup operations",
-                "enabled": true,
-                "color": "red"
-            },
-            "HARVEST": {
-                "name": "Source Harvesting",
-                "description": "Multi-source harvesting, UUID collection, batch processing orchestration",
-                "enabled": true,
-                "color": "bright_cyan"
-            },
-            "DATASET": {
-                "name": "Dataset Generation",
-                "description": "CVE dataset collection, filtering, NVD API queries, dataset file creation",
-                "enabled": true,
-                "color": "bright_green"
+                "enabled": true
             }
         }
     },

@@ -33,7 +33,7 @@ def load_config():
         # GRACEFUL DEGRADATION: Presentation layer defaults for HTML generation
         # Provides safe display values when config.json is unavailable (non-critical functionality)
         if logger:
-            logger.warning(f"Could not load config for HTML generation: {e}", group="initialization")
+            logger.warning(f"Could not load config for HTML generation: {e}", group="INIT")
         return {
             'application': {
                 'toolname': 'Hashmire/Analysis_Tools',
@@ -1813,8 +1813,6 @@ def clear_global_html_state():
     # Reinitialize local HTML state
     JSON_SETTINGS_HTML = {}
     INTELLIGENT_SETTINGS = {}
-    
-    logger.debug("Cleared global HTML state and badge/modal registries", group="page_generation")
 
 def analyze_data_for_smart_defaults(raw_platform_data):
     """Analyze platform data to determine intelligent defaults for JSON generation settings"""

@@ -134,7 +134,7 @@ class UnifiedDashboardCollector:
             
             # Only log config injection once per session to avoid log spam
             if logger and not hasattr(self.__class__, '_config_logged'):
-                logger.info(f"Config injected: {toolname} v{version}", group="initialization")
+                logger.info(f"Configuration File Loaded:  {toolname} v{version}", group="INIT")
                 self.__class__._config_logged = True
                 
         except Exception as e:
@@ -146,7 +146,7 @@ class UnifiedDashboardCollector:
             self.data["metadata"]["config_error"] = str(e)
             
             if logger:
-                logger.warning(f"Could not load config for injection: {e}", group="initialization")
+                logger.warning(f"Could not load config for injection: {e}", group="INIT")
     
     def _json_datetime_handler(self, obj):
         """
@@ -341,9 +341,6 @@ class UnifiedDashboardCollector:
             # Force auto-save for critical CVE milestone
             self._auto_save(force=True)
             
-            if logger:
-                logger.debug(f"Started CVE processing: {cve_id} (Progress: {self.data['processing']['progress_percentage']}%)", group="data_processing")
-            
         except Exception as e:
             if logger:
                 logger.error(f"Failed to start CVE processing for {cve_id}: {e}", group="data_processing")
@@ -400,12 +397,12 @@ class UnifiedDashboardCollector:
                 # Calculate progress percentage - should match main analysis tool calculation
                 progress_pct = round((processed / total) * 100, 2)
                 
-                # Debug sync issue: log when progress exceeds 100%
+                # Warn if progress exceeds 100% (indicates a bug in progress tracking)
                 if progress_pct > 100.0:
-                    logger.warning(f"Progress sync issue in finish_cve_processing: processed={processed}, total={total}, progress={progress_pct}%", group="data_processing")
+                    logger.warning(f"Progress tracking bug detected: processed={processed}, total={total}, progress={progress_pct}% - this indicates finish_cve_processing is being called more than once per CVE", group="data_processing")
                 
                 self.data["processing"]["progress_percentage"] = progress_pct
-                self.data["processing"]["remaining_cves"] = total - processed
+                self.data["processing"]["remaining_cves"] = max(0, total - processed)  # Ensure remaining doesn't go negative
                 
                 # Update ETA using unified calculation
                 self._update_eta()
@@ -626,8 +623,6 @@ class UnifiedDashboardCollector:
         Args:
             cache_file_path: Optional path to cache file. If not provided, will get it from cache manager.
             
-        Raises:
-            RuntimeError: If cache manager is not initialized when expected to be working
         """
         try:
             if cache_file_path is None:
@@ -636,16 +631,24 @@ class UnifiedDashboardCollector:
                 cache_manager = get_global_cache_manager()
                 
                 if not cache_manager.is_initialized():
-                    raise RuntimeError("CPE cache manager not initialized when cache file size update was requested")
+                    # Cache not initialized - this is expected when called from generate_dataset
+                    # after analysis_tool has completed. Skip the update silently.
+                    if logger:
+                        logger.debug("CPE cache not initialized - skipping cache file size update (expected in dataset generation context)", group="completion")
+                    return
                     
                 cache = cache_manager.get_cache()
                 cache_file_path = str(cache.cache_file)
             
             if not cache_file_path:
-                raise RuntimeError("No CPE cache file path available - cache system not properly configured")
+                if logger:
+                    logger.debug("No CPE cache file path available - skipping cache file size update", group="completion")
+                return
                 
             if not os.path.exists(cache_file_path):
-                raise RuntimeError(f"CPE cache file does not exist: {cache_file_path} - cache system integrity compromised")
+                if logger:
+                    logger.debug(f"CPE cache file does not exist at {cache_file_path} - skipping cache file size update", group="completion")
+                return
             
             file_size_bytes = os.path.getsize(cache_file_path)
             
@@ -1226,13 +1229,13 @@ class UnifiedDashboardCollector:
             os.replace(temp_file_path, self.output_file_path)
             
             if logger:
-                logger.info(f"Dataset contents report initialized: {self.output_file_path}", group="initialization")
+                logger.info("Generate Dataset Report initialized: /logs/generateDatasetReport.json", group="INIT")
             
             return True
             
         except Exception as e:
             if logger:
-                logger.error(f"Failed to initialize dataset contents report: {e}", group="initialization")
+                logger.error(f"Generate Dataset report file initialization failed: {e}", group="INIT")
             return False
     
     # =============================================================================
@@ -1257,10 +1260,10 @@ class UnifiedDashboardCollector:
                 "cves_processed": 0
             }
             
-            logger.info(f"Starting collection phase: {phase_name}", group="collection")
+            logger.info(f"Starting NVD 2.0 and CVE List v5 record cache preparation phase", group="CACHE_MANAGEMENT")
             
         except Exception as e:
-            logger.error(f"Failed to start collection phase {phase_name}: {e}", group="collection")
+            logger.error(f"Failed to start collection phase {phase_name}: {e}", group="INIT")
     
     def update_cve_discovery_progress(self, current_count: int, total_count: int, matched_cves: int = 0):
         """Update progress during CVE list generation phase"""
@@ -1429,8 +1432,6 @@ class UnifiedDashboardCollector:
             # Update consolidated metadata
             self.consolidated_metadata['unique_cves_count'] = cve_count
             
-            if logger:
-                logger.info(f"Recorded output file: {filename} with {cve_count} CVEs", group="collection")
             
             # Update current phase if active
             if self.current_phase:
@@ -1451,13 +1452,6 @@ class UnifiedDashboardCollector:
             # Add log file info if available
             if logger and hasattr(logger, 'current_log_path'):
                 self.data["metadata"]["log_file"] = logger.current_log_path
-                
-                try:
-                    if logger:
-                        logger.debug("Enhanced log analysis skipped - using real-time warning/error data", group="completion")
-                except Exception as log_error:
-                    if logger:
-                        logger.error(f"Enhanced log analysis failed: {log_error}", group="completion")
             
             # Atomic write: Write to temporary file first, then rename
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -1478,8 +1472,11 @@ class UnifiedDashboardCollector:
             if logger:
                 current_cve = self.data["processing"].get("current_cve", "None")
                 progress = self.data["processing"].get("progress_percentage", 0.0)
-                # Reduce logging frequency - only log dashboard saves at progress milestones
-                if progress % 10.0 < 0.1 or progress >= 100.0:  # Log every 10% and at completion
+                status = self.data["metadata"].get("status", "")
+                
+                # Skip logging for final "completed" saves to avoid duplicate messages
+                # Reduce logging frequency - only log dashboard saves at progress milestones (skip initialization at 0%)
+                if status != "completed" and progress > 0 and (progress % 10.0 < 0.1 or progress >= 100.0):  # Log every 10% and at completion
                     logger.debug(f"Dashboard data saved: {file_path} (CVE: {current_cve}, Progress: {progress}%)", group="data_processing")
             
             return file_path
@@ -1531,44 +1528,18 @@ class UnifiedDashboardCollector:
             self.complete_collection_phase()
         
         try:
-            # Get log file path from workflow logger if available
-            log_file_path = None
-            if logger and hasattr(logger, 'current_log_path'):
-                log_file_path = logger.current_log_path
-            
-            # Update final metadata and mark as complete
-            export_data = {
-                'metadata': {
-                    **self.consolidated_metadata,
-                    'run_completed_at': datetime.now(timezone.utc).isoformat(),
-                    'report_scope': 'Dataset Generation Metrics and Statistics',
-                    'status': 'completed'
-                },
-                'collection_phases': self.collection_phases,
-                'dataset_statistics': self.dataset_statistics,
-                'output_files': self.output_files
-            }
+            # Update final metadata
+            self.data["metadata"]["run_completed_at"] = datetime.now(timezone.utc).isoformat()
+            self.data["metadata"]["report_scope"] = "Dataset Generation Metrics and Statistics"
+            self.data["metadata"]["status"] = "completed"
+            self.data["metadata"]["last_updated"] = datetime.now(timezone.utc).isoformat()
             
             # Add log file path if available
-            if log_file_path:
-                export_data['metadata']['log_file'] = log_file_path
+            if logger and hasattr(logger, 'current_log_path'):
+                self.data["metadata"]["log_file"] = logger.current_log_path
             
-            # Write final version to JSON file using atomic write with datetime handling
-            temp_file_path = self.output_file_path + '.tmp'
-            with open(temp_file_path, 'w', encoding='utf-8') as f:
-                json.dump(export_data, f, indent=2, ensure_ascii=False, default=self._json_datetime_handler)
-            os.replace(temp_file_path, self.output_file_path)
-            
-            # Print final summary
-            total_cves = self.consolidated_metadata['total_cves_collected']
-            total_calls = self.consolidated_metadata['total_api_calls']
-            phases_count = len(self.collection_phases)
-            
-            if logger:
-                logger.info(f"Dataset generation report complete: {total_cves} CVEs collected, "
-                          f"{total_calls} API calls, {phases_count} phases", group="completion")
-            
-            return self.output_file_path
+            # Use the standard save_to_file method to save the complete data structure
+            return self.save_to_file(self.output_file_path)
             
         except Exception as e:
             if logger:
@@ -1813,7 +1784,8 @@ def initialize_dashboard_collector(logs_directory: str, processing_mode: str = "
         collector.output_file_path = output_file
         
         # Check if existing data exists from dataset generation phase
-        if os.path.exists(output_file):
+        file_existed = os.path.exists(output_file)
+        if file_existed:
             try:
                 with open(output_file, 'r', encoding='utf-8') as f:
                     existing_data = json.load(f)
@@ -1831,7 +1803,7 @@ def initialize_dashboard_collector(logs_directory: str, processing_mode: str = "
                         collector.data["api"]["call_breakdown"].update(existing_data["api"]["call_breakdown"])
                     
                     if logger:
-                        logger.info(f"Preserved dataset generation metrics: {collector.data['api']['nvd_cve_calls']} NVD CVE calls", group="initialization")
+                        logger.info(f"Preserved dataset generation metrics: {collector.data['api']['nvd_cve_calls']} NVD CVE calls", group="INIT")
                 
                 # Preserve collection phases from dataset generation
                 if "collection_phases" in existing_data:
@@ -1843,7 +1815,7 @@ def initialize_dashboard_collector(logs_directory: str, processing_mode: str = "
                 
             except (json.JSONDecodeError, KeyError) as e:
                 if logger:
-                    logger.warning(f"Could not parse existing dashboard data, starting fresh: {e}", group="initialization")
+                    logger.warning(f"Could not parse existing dashboard data, starting fresh: {e}", group="INIT")
         
         # Add processing mode metadata
         collector.data["metadata"]["processing_mode"] = processing_mode
@@ -1860,11 +1832,14 @@ def initialize_dashboard_collector(logs_directory: str, processing_mode: str = "
         result = collector.save_to_file(output_file)
         
         if logger:
-            logger.info(f"Dashboard collector initialized: {output_file}", group="initialization")
+            if file_existed:
+                logger.info("Generate Dataset Report: Already initialized", group="INIT")
+            else:
+                logger.info("Generate Dataset Report initialized: /logs/generateDatasetReport.json", group="INIT")
         
         return result is not None
         
     except Exception as e:
         if logger:
-            logger.error(f"Failed to initialize dashboard collector: {e}", group="initialization")
+            logger.error(f"Failed to initialize dashboard collector: {e}", group="INIT")
         return False

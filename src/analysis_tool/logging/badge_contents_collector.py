@@ -121,7 +121,7 @@ class BadgeContentsCollector:
         self.alias_report_source_uuid = source_uuid
         
         if logger:
-            logger.info("Badge contents collector configured for alias report incremental saves", group="initialization")
+            logger.info("Badge contents collector configured for alias report incremental saves", group="INIT")
     
     def configure_nvd_ish_only_mode(self, enabled: bool = True) -> None:
         """
@@ -134,12 +134,6 @@ class BadgeContentsCollector:
             enabled: Whether to enable NVD-ish only mode
         """
         self.nvd_ish_only_mode = enabled
-        
-        if logger:
-            if enabled:
-                logger.info("Badge contents collector configured for NVD-ish only mode (memory optimized)", group="initialization")
-            else:
-                logger.info("Badge contents collector configured for standard mode (full reporting)", group="initialization")
     
     
     def initialize_output_file(self, logs_directory: str) -> bool:
@@ -173,13 +167,11 @@ class BadgeContentsCollector:
             with open(self.output_file_path, 'w', encoding='utf-8') as f:
                 json.dump(initial_data, f, indent=2, ensure_ascii=False)
             
-            if logger:
-                logger.info("Badge contents collector initialized", group="initialization")
             return True
             
         except Exception as e:
             if logger:
-                logger.error(f"Failed to initialize badge contents collector: {e}", group="initialization")
+                logger.error(f"Failed to initialize badge contents collector: {e}", group="INIT")
             return False
     
     def start_cve_processing(self, cve_id: str) -> None:

@@ -74,11 +74,12 @@ class UnifiedSourceManager:
                 # Store with UUID as key for JavaScript UUID lookups
                 self._source_registry[source_id] = source_data
                 
-                # Build org to sources mapping using the source_id (UUID) as the org identifier
-                if source_id not in self._org_to_sources:
-                    self._org_to_sources[source_id] = []
-                if source_id not in self._org_to_sources[source_id]:
-                    self._org_to_sources[source_id].append(source_id)
+                # Build org to sources mapping using organization name as key
+                org_name = source_info.get('name', 'Unknown')
+                if org_name not in self._org_to_sources:
+                    self._org_to_sources[org_name] = []
+                if source_id not in self._org_to_sources[org_name]:
+                    self._org_to_sources[org_name].append(source_id)
         
         self._initialized = True
     

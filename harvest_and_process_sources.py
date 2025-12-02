@@ -42,7 +42,7 @@ def create_source_data_cache(api_key):
     Create a localized cache of NVD source data for the harvest session.
     This prevents each subprocess from having to reload the same source data.
     """
-    logger.info("Initializing NVD source data cache for harvest session...", group="HARVEST")
+    logger.info("Initializing NVD source data cache for harvest session...", group="CACHE_MANAGEMENT")
     
     try:
         # Import the source manager
@@ -58,7 +58,7 @@ def create_source_data_cache(api_key):
         if not source_manager.is_initialized():
             # Try to load existing cache first
             if try_load_from_environment_cache():
-                logger.info("Found existing cache, checking age...", group="HARVEST")
+                logger.info("Found existing cache, checking age...", group="CACHE_MANAGEMENT")
                 
                 # Check cache age
                 from datetime import datetime, timezone
@@ -81,19 +81,19 @@ def create_source_data_cache(api_key):
                             from analysis_tool.storage.nvd_source_manager import is_cache_stale, get_cache_age_threshold
                             threshold = get_cache_age_threshold()
                             if not is_cache_stale(age_hours):
-                                logger.info(f"Using existing cache (age: {age_hours:.1f} hours, threshold: {threshold}h)", group="HARVEST")
+                                logger.info(f"Using existing cache (age: {age_hours:.1f} hours, threshold: {threshold}h)", group="CACHE_MANAGEMENT")
                                 should_refresh = False
                             else:
-                                logger.warning(f"Cache is {age_hours:.1f} hours old (threshold: {threshold}h) - refreshing", group="HARVEST")
+                                logger.warning(f"Cache is {age_hours:.1f} hours old (threshold: {threshold}h) - refreshing", group="CACHE_MANAGEMENT")
                 except Exception as e:
-                    logger.warning(f"Could not check cache age: {e} - refreshing anyway", group="HARVEST")
+                    logger.warning(f"Could not check cache age: {e} - refreshing anyway", group="CACHE_MANAGEMENT")
         
         if should_refresh:
-            logger.info("Fetching fresh NVD source data...", group="HARVEST")
+            logger.info("Fetching fresh NVD source data...", group="CACHE_MANAGEMENT")
             source_data = gatherNVDSourceData(api_key)
             source_manager.initialize(source_data)
         else:
-            logger.info("Using cached NVD source data", group="HARVEST")
+            logger.info("Using cached NVD source data", group="CACHE_MANAGEMENT")
         
         # Create cache file for cross-process sharing
         cache_file_path = source_manager.create_localized_cache()
@@ -101,8 +101,8 @@ def create_source_data_cache(api_key):
         return str(cache_file_path)
         
     except Exception as e:
-        logger.warning(f"Could not create source data cache: {e}", group="HARVEST")
-        logger.info("Each subprocess will load source data independently", group="HARVEST")
+        logger.warning(f"Could not create source data cache: {e}", group="CACHE_MANAGEMENT")
+        logger.info("Each subprocess will load source data independently", group="CACHE_MANAGEMENT")
         return None
 
 
@@ -115,9 +115,9 @@ def cleanup_source_data_cache(cache_file_path):
             from analysis_tool.storage.nvd_source_manager import cleanup_cache
             
             cleanup_cache(cache_file_path)
-            logger.info(f"Cleaned up source data cache", group="HARVEST")
+            logger.info(f"Cleaned up source data cache", group="CACHE_MANAGEMENT")
         except Exception as e:
-            logger.warning(f"Could not clean up cache file: {e}", group="HARVEST")
+            logger.warning(f"Could not clean up cache file: {e}", group="CACHE_MANAGEMENT")
 
 
 def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_file_path=None, 
@@ -191,25 +191,34 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_fil
         env = os.environ.copy()
         if cache_file_path:
             env['NVD_SOURCE_CACHE_PATH'] = cache_file_path
-            logger.debug(f"Using cached source data: {cache_file_path}", group="HARVEST")
+            logger.debug(f"Using cached source data: {cache_file_path}", group="CACHE_MANAGEMENT")
         
-        # Capture output to extract run directory information
-        result = subprocess.run(cmd, check=True, cwd=project_root, env=env,
-                              capture_output=True, text=True)
-        
-        # Extract dataset run directory from output for audit logging
+        # Stream output in real-time while capturing needed information
         dataset_run_dir = None
-        for line in result.stdout.splitlines():
-            if 'Run directory:' in line:
-                # Extract path after "Run directory: "
-                dataset_run_dir = line.split('Run directory:', 1)[1].strip()
-                break
+        process = subprocess.Popen(cmd, cwd=project_root, env=env,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  text=True, bufsize=1)
         
-        # Show output if logging is enabled
-        if allow_logging and result.stdout:
-            print(result.stdout, end='')
-        if allow_logging and result.stderr:
-            print(result.stderr, end='', file=sys.stderr)
+        # Process stdout line by line in real-time
+        for line in process.stdout:
+            # Extract run directory if present
+            if 'Run directory:' in line:
+                dataset_run_dir = line.split('Run directory:', 1)[1].strip()
+            
+            # Display output in real-time if logging enabled
+            if allow_logging:
+                print(line, end='')
+        
+        # Wait for process to complete and check return code
+        return_code = process.wait()
+        
+        # Handle any stderr output
+        stderr_output = process.stderr.read()
+        if allow_logging and stderr_output:
+            print(stderr_output, end='', file=sys.stderr)
+        
+        if return_code != 0:
+            raise subprocess.CalledProcessError(return_code, cmd, '', stderr_output)
         
         logger.info(f"[SUCCESS] Successfully processed {source_name}", group="HARVEST")
         return True, dataset_run_dir, None, None
@@ -217,24 +226,7 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_fil
     except subprocess.CalledProcessError as e:
         logger.error(f"Error processing {source_name}: {e}", group="HARVEST")
         error_type = f"Exit code {e.returncode}"
-        # Try to extract run directory and progress even on failure
-        dataset_run_dir = None
-        cve_progress = None  # Will be (processed, total) tuple if found
-        if e.stdout:
-            for line in e.stdout.splitlines():
-                if 'Run directory:' in line:
-                    dataset_run_dir = line.split('Run directory:', 1)[1].strip()
-                # Look for progress like "Processing CVE 123/456"
-                if 'Processing CVE' in line and '/' in line:
-                    try:
-                        # Extract the X/Y pattern
-                        import re
-                        match = re.search(r'Processing CVE (\d+)/(\d+)', line)
-                        if match:
-                            cve_progress = (int(match.group(1)), int(match.group(2)))
-                    except:
-                        pass
-        return False, dataset_run_dir, error_type, cve_progress
+        return False, dataset_run_dir, error_type, None
     except Exception as e:
         logger.error(f"Unexpected error processing {source_name}: {e}", group="HARVEST")
         error_type = f"Unexpected: {type(e).__name__}"
@@ -253,7 +245,7 @@ def main():
         defaults_config = config.get('defaults', {})
         local_cve_config = config.get('cache_settings', {}).get('cve_list_v5', {})
     except Exception as e:
-        logger.warning(f"Could not load config file: {e}", group="HARVEST")
+        logger.warning(f"Could not load config file: {e}", group="INIT")
         harvest_config = {}
         defaults_config = {}
         local_cve_config = {}
@@ -516,7 +508,7 @@ def main():
         sys.exit(1)
     
     # Create localized source data cache for efficient subprocess sharing
-    logger.info(f"Preparing NVD source data cache for efficient processing...", group="HARVEST")
+    logger.info(f"Preparing NVD source data cache for efficient processing...", group="CACHE_MANAGEMENT")
     cache_file_path = create_source_data_cache(processed_params['api_key'])
     
     # Process each source
@@ -621,15 +613,12 @@ def main():
     
     # Summary
     logger.stage_end("Multi-Source Processing", f"{successful}/{len(source_info)} sources processed successfully", group="HARVEST")
-    logger.info(f"{'='*60}", group="HARVEST")
     
     # If terminated early, show clear status
     if termination_reason:
         logger.warning(f"STATUS: {termination_reason.upper()}", group="HARVEST")
-        logger.info(f"{'='*60}", group="HARVEST")
     else:
         logger.info(f"STATUS: PROCESSING COMPLETE", group="HARVEST")
-        logger.info(f"{'='*60}", group="HARVEST")
     
     logger.info(f"Total sources from NVD API: {api_totals['total_from_api']}", group="HARVEST")
     logger.info(f"Sources filtered out (no UUID): {api_totals['sources_without_uuid']}", group="HARVEST")
@@ -656,22 +645,17 @@ def main():
     
     # Report skipped sources details
     if skipped_sources:
-        logger.info(f"", group="HARVEST")
         logger.info(f"SKIPPED SOURCES REPORT:", group="HARVEST")
         logger.info(f"The following {len(skipped_sources)} sources were skipped due to exceeding the CVE threshold of {args.max_cves:,}:", group="HARVEST")
-        logger.info(f"{'-'*80}", group="HARVEST")
         for source_name, source_uuid, cve_count in skipped_sources:
             logger.warning(f"{source_name}", group="HARVEST")
             logger.info(f"  UUID: {source_uuid}", group="HARVEST")
             logger.info(f"  CVE Count: {cve_count:,}", group="HARVEST")
-            logger.info(f"", group="HARVEST")
     
     # Report failed sources details
     if failed_sources:
-        logger.info(f"", group="HARVEST")
         logger.error(f"FAILED SOURCES REPORT:", group="HARVEST")
         logger.info(f"The following {len(failed_sources)} sources failed to process:", group="HARVEST")
-        logger.info(f"{'-'*80}", group="HARVEST")
         for source_name, source_uuid, cve_info, error_type, dataset_run_dir in failed_sources:
             logger.error(f"{source_name}", group="HARVEST")
             logger.info(f"  UUID: {source_uuid}", group="HARVEST")
@@ -689,34 +673,26 @@ def main():
                 logger.info(f"  Run Location: {dataset_run_dir}", group="HARVEST")
             else:
                 logger.info(f"  Run Location: Not created (early failure)", group="HARVEST")
-            logger.info(f"", group="HARVEST")
     
     # Report interrupted source (was being processed when script was interrupted)
     if interrupted_source_info:
-        logger.info(f"", group="HARVEST")
         logger.warning(f"INTERRUPTED SOURCE REPORT:", group="HARVEST")
         logger.info(f"The following source was interrupted mid-processing:", group="HARVEST")
-        logger.info(f"{'-'*80}", group="HARVEST")
         source_name, source_uuid = interrupted_source_info
         logger.warning(f"{source_name}", group="HARVEST")
         logger.info(f"  UUID: {source_uuid}", group="HARVEST")
-        logger.info(f"", group="HARVEST")
     
     # Report not-processed sources (never attempted due to early termination)
     if not_processed_sources:
-        logger.info(f"", group="HARVEST")
         logger.warning(f"NOT PROCESSED SOURCES REPORT:", group="HARVEST")
         logger.info(f"The following {len(not_processed_sources)} sources were NEVER ATTEMPTED due to early termination:", group="HARVEST")
-        logger.info(f"{'-'*80}", group="HARVEST")
         for source_name, source_uuid in not_processed_sources:
             logger.warning(f"{source_name}", group="HARVEST")
             logger.info(f"  UUID: {source_uuid}", group="HARVEST")
-            logger.info(f"", group="HARVEST")
     
     # Clean up cache file
     if cache_file_path:
-        logger.info(f"", group="HARVEST")
-        logger.info(f"Cleaning up cache...", group="HARVEST")
+        logger.info(f"Cleaning up cache...", group="CACHE_MANAGEMENT")
         cleanup_source_data_cache(cache_file_path)
     
     # Determine exit status based on what happened
