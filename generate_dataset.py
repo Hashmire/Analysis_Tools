@@ -357,7 +357,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     logger.info(f"Using API key: {'Yes' if api_key else 'No'}", group="DATASET")
     
     # Initialize dataset contents collector
-    from src.analysis_tool.logging.dataset_contents_collector import (
+    from src.analysis_tool.reporting.dataset_contents_collector import (
         initialize_dataset_contents_report, start_collection_phase, 
         record_api_call, record_output_file, update_cve_discovery_progress
     )
@@ -430,7 +430,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                         record_api_call(0, rate_limited)
                         # Also record in unified dashboard tracking
                         try:
-                            from src.analysis_tool.logging.dataset_contents_collector import record_api_call_unified
+                            from src.analysis_tool.reporting.dataset_contents_collector import record_api_call_unified
                             record_api_call_unified("NVD CVE API", success=False)
                         except ImportError:
                             pass
@@ -446,7 +446,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
             record_api_call(len(vulnerabilities), rate_limited)
             # Also record in unified dashboard tracking
             try:
-                from src.analysis_tool.logging.dataset_contents_collector import record_api_call_unified
+                from src.analysis_tool.reporting.dataset_contents_collector import record_api_call_unified
                 record_api_call_unified("NVD CVE API", success=True)
             except ImportError:
                 pass
@@ -601,7 +601,7 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
         logger.info(f"Source UUID filter (server-side): {source_uuid}", group="DATASET")
     
     # Initialize dataset contents collector for date range queries
-    from src.analysis_tool.logging.dataset_contents_collector import (
+    from src.analysis_tool.reporting.dataset_contents_collector import (
         initialize_dataset_contents_report, start_collection_phase, 
         record_api_call, record_output_file, update_cve_discovery_progress
     )
@@ -1158,7 +1158,7 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
                     logger.info(f"Results available in: {run_directory}", group="INIT")
                     
                     # Finalize dataset contents report after integrated analysis completes
-                    from src.analysis_tool.logging.dataset_contents_collector import finalize_dataset_contents_report
+                    from src.analysis_tool.reporting.dataset_contents_collector import finalize_dataset_contents_report
                     finalize_dataset_contents_report()
                     
                 return True

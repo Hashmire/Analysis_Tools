@@ -806,7 +806,7 @@ Extract alias data from CVE List V5 affected entry fields into `raw_platform_dat
 
 ## Stage 6: NVD-ish Record Integration
 
-**Location**: `src/analysis_tool/logging/nvd_ish_collector.py`
+**Location**: `src/analysis_tool/storage/nvd_ish_collector.py`
 
 **Purpose**: Convert all CPE suggestion processing results (Top 10, confirmed mappings, searched/culled strings) into the final NVD-ish record structure.
 

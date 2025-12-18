@@ -209,7 +209,7 @@ class WorkflowLogger:
         
         # Track cache activity and CPE query statistics
         try:
-            from .dataset_contents_collector import get_dataset_contents_collector
+            from ..reporting.dataset_contents_collector import get_dataset_contents_collector
             collector = get_dataset_contents_collector()
             
             # Track cache hits with result count
@@ -286,7 +286,7 @@ class WorkflowLogger:
         
         # Also record in dashboard collector for real-time statistics
         try:
-            from .dataset_contents_collector import record_api_call_unified
+            from ..reporting.dataset_contents_collector import record_api_call_unified
             record_api_call_unified(endpoint, success=True)
         except Exception as e:
             # Don't break logging if dashboard collector fails
@@ -299,7 +299,7 @@ class WorkflowLogger:
         
         # Update dashboard collector with response details
         try:
-            from .dataset_contents_collector import get_dataset_contents_collector
+            from ..reporting.dataset_contents_collector import get_dataset_contents_collector
             collector = get_dataset_contents_collector()
             
             # Record CPE query statistics if this is a CPE API response
@@ -338,7 +338,7 @@ class WorkflowLogger:
         # Update dashboard collector if this is a file generation
         if operation.lower() in ['generated', 'created', 'saved'] and filepath.endswith('.html'):
             try:
-                from .dataset_contents_collector import get_dataset_contents_collector
+                from ..reporting.dataset_contents_collector import get_dataset_contents_collector
                 collector = get_dataset_contents_collector()
                 
                 # Update file generation count

@@ -508,7 +508,7 @@ Enhanced CVE Record Architecture
 **II.C.3. Alias Extraction:**
 
 - `aliases`: Alias enumeration groupings based on affected entry data
-- Processing function: `_filter_badge_collector_alias_data()` in `nvd_ish_collector.py`
+- Processing function: `_filter_badge_collector_alias_data()` in `storage/nvd_ish_collector.py`
 
 **II.C.4. CPE Suggestions:**
 

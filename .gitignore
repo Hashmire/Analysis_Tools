@@ -11,5 +11,6 @@ src/analysis_tool/storage/__pycache__/*
 src/analysis_tool/core/__pycache__/*
 src/analysis_tool/local_dashboard/__pycache__/*
 src/analysis_tool/logging/__pycache__/*
+src/analysis_tool/reporting/__pycache__/*
 src/analysis_tool/mappings/__pycache__/*
 test_suites/__pycache__/*

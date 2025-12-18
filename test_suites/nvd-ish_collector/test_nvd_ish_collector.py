@@ -2318,7 +2318,7 @@ class NVDishCollectorTestSuite:
             # Import NVDishCollector for direct method testing
             import sys
             sys.path.insert(0, str(PROJECT_ROOT / "src"))
-            from src.analysis_tool.logging.nvd_ish_collector import NVDishCollector
+            from src.analysis_tool.storage.nvd_ish_collector import NVDishCollector
             
             collector = NVDishCollector()
             

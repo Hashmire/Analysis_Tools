@@ -639,7 +639,7 @@ def gatherCVEListRecord(targetCve):
         
         # Record failed API call in unified dashboard tracking
         try:
-            from ..logging.dataset_contents_collector import record_api_call_unified
+            from ..reporting.dataset_contents_collector import record_api_call_unified
             record_api_call_unified("MITRE CVE API", success=False)
         except ImportError:
             pass  # Fallback for testing environments
@@ -733,7 +733,7 @@ def gatherNVDCVERecord(apiKey, targetCve):
             # Record failed API call in unified dashboard tracking (only once per final failure)
             if attempt == max_retries - 1:  # Only on final attempt
                 try:
-                    from ..logging.dataset_contents_collector import record_api_call_unified
+                    from ..reporting.dataset_contents_collector import record_api_call_unified
                     record_api_call_unified("NVD CVE API", success=False)
                 except ImportError:
                     pass  # Fallback for testing environments
@@ -889,7 +889,7 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                 
                                 # Record failed paginated API call in unified dashboard tracking
                                 try:
-                                    from ..logging.dataset_contents_collector import record_api_call_unified
+                                    from ..reporting.dataset_contents_collector import record_api_call_unified
                                     record_api_call_unified("NVD CPE API", success=False)
                                 except ImportError:
                                     pass  # Fallback for testing environments
@@ -938,7 +938,7 @@ def gatherNVDCPEData(apiKey, case, query_string):
                     
                     # Record failed API call in unified dashboard tracking
                     try:
-                        from ..logging.dataset_contents_collector import record_api_call_unified
+                        from ..reporting.dataset_contents_collector import record_api_call_unified
                         record_api_call_unified("NVD CPE API", success=False)
                     except ImportError:
                         pass  # Fallback for testing environments

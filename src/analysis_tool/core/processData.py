@@ -22,7 +22,7 @@ from ..logging.workflow_logger import (
     get_logger, LogGroup,
     end_unique_cpe_generation, start_cpe_queries, end_cpe_queries
 )
-from ..logging.dataset_contents_collector import record_cpe_query, get_dataset_contents_collector, record_mapping_activity
+from ..reporting.dataset_contents_collector import record_cpe_query, get_dataset_contents_collector, record_mapping_activity
 
 # Get logger instance
 logger = get_logger()

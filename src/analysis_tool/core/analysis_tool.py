@@ -128,7 +128,7 @@ def process_test_file(test_file_path):
         
         # Record stage in real-time collector
         try:
-            from ..logging.dataset_contents_collector import record_stage_start, record_stage_end
+            from ..reporting.dataset_contents_collector import record_stage_start, record_stage_end
             record_stage_start("cve_queries")
         except Exception as e:
             logger.debug(f"Real-time collector unavailable for stage tracking: {e}", group="data_processing")
@@ -142,7 +142,7 @@ def process_test_file(test_file_path):
         
         # Record stage completion in real-time collector
         try:
-            from ..logging.dataset_contents_collector import record_stage_end
+            from ..reporting.dataset_contents_collector import record_stage_end
             record_stage_end("cve_queries")
         except Exception as e:
             logger.debug(f"Real-time collector unavailable for stage tracking: {e}", group="data_processing")
@@ -265,7 +265,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
     
     # Initialize badge contents collection for this CVE
     from ..logging.badge_contents_collector import start_cve_collection, complete_cve_collection
-    from ..logging.nvd_ish_collector import get_nvd_ish_collector
+    from ..storage.nvd_ish_collector import get_nvd_ish_collector
     start_cve_collection(cve_id)
     
     # Get NVD-ish collector for this processing session
@@ -678,7 +678,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         
         # Record file generation in dashboard collector
         try:
-            from ..logging.dataset_contents_collector import record_output_file, get_current_cve_processing_time, update_cve_affected_entries_count
+            from ..reporting.dataset_contents_collector import record_output_file, get_current_cve_processing_time, update_cve_affected_entries_count
             
             # Get processing time for this CVE
             processing_time = get_current_cve_processing_time()
@@ -866,7 +866,7 @@ def update_dashboard_async(current_cve_num, total_cves):
     def _update_dashboard():
         # Use the dataset contents collector for real-time updates
         try:
-            from ..logging.dataset_contents_collector import get_dataset_contents_collector
+            from ..reporting.dataset_contents_collector import get_dataset_contents_collector
             collector = get_dataset_contents_collector()
             if collector.output_file_path:
                 collector.save_to_file(collector.output_file_path)
@@ -895,7 +895,7 @@ def wait_for_dashboard_updates():
 def finalize_dashboard_data():
     """Finalize dashboard data using the dataset contents collector"""
     try:
-        from ..logging.dataset_contents_collector import get_dataset_contents_collector, update_cache_statistics
+        from ..reporting.dataset_contents_collector import get_dataset_contents_collector, update_cache_statistics
         
         # Update cache statistics with actual data from CPE cache
         update_cache_statistics()
@@ -1200,7 +1200,7 @@ def main():
             logger.info("Alias reporting configured for incremental saves during test file processing", group="initialization")
         
         # Initialize dashboard collector for test file mode
-        from ..logging.dataset_contents_collector import initialize_dashboard_collector
+        from ..reporting.dataset_contents_collector import initialize_dashboard_collector
         processing_mode = "test"
         cache_disabled = True  # Cache is always disabled for test files
         cache_disable_reason = "test-file"
@@ -1366,13 +1366,13 @@ def main():
     
     # Initialize badge contents collector with run-specific logs directory
     from ..logging.badge_contents_collector import clear_badge_contents_collector, initialize_badge_contents_report
-    from ..logging.dataset_contents_collector import (
+    from ..reporting.dataset_contents_collector import (
         clear_dataset_contents_collector, 
         save_dashboard_data,
         start_processing_run,
         initialize_dashboard_collector
     )
-    from ..logging.nvd_ish_collector import get_nvd_ish_collector
+    from ..storage.nvd_ish_collector import get_nvd_ish_collector
     
     # Clear any existing state - but preserve dashboard data if continuing from generate_dataset
     clear_badge_contents_collector()
@@ -1441,7 +1441,7 @@ def main():
     
     # Start real-time dashboard processing run
     try:
-        from ..logging.dataset_contents_collector import start_processing_run, update_total_cves
+        from ..reporting.dataset_contents_collector import start_processing_run, update_total_cves
         start_processing_run(total_cves)
         # Synchronize collector's total with the actual CVE count after loading
         update_total_cves(total_cves)
@@ -1500,7 +1500,7 @@ def main():
             
             # Start CVE processing in real-time collector
             try:
-                from ..logging.dataset_contents_collector import start_cve_processing
+                from ..reporting.dataset_contents_collector import start_cve_processing
                 start_cve_processing(cve)
             except Exception as e:
                 logger.debug(f"Real-time collector unavailable for CVE tracking: {e}", group="data_processing")
@@ -1583,7 +1583,7 @@ def main():
                     
                     # Mark as successfully completed in progress tracker
                     try:
-                        from ..logging.dataset_contents_collector import finish_cve_processing
+                        from ..reporting.dataset_contents_collector import finish_cve_processing
                         finish_cve_processing(cve, skipped=False)
                     except Exception as e:
                         logger.debug(f"Real-time collector unavailable for CVE completion tracking: {e}", group="data_processing")
@@ -1598,7 +1598,7 @@ def main():
                     
                     # Mark as skipped in progress tracker
                     try:
-                        from ..logging.dataset_contents_collector import finish_cve_processing
+                        from ..reporting.dataset_contents_collector import finish_cve_processing
                         finish_cve_processing(cve, skipped=True)
                     except Exception as e:
                         logger.debug(f"Real-time collector unavailable for CVE completion tracking: {e}", group="data_processing")
@@ -1611,7 +1611,7 @@ def main():
                 
                     # Mark as completed (failed) in progress tracker
                     try:
-                        from ..logging.dataset_contents_collector import finish_cve_processing
+                        from ..reporting.dataset_contents_collector import finish_cve_processing
                         finish_cve_processing(cve, skipped=False)
                     except Exception as e:
                         logger.debug(f"Real-time collector unavailable for CVE completion tracking: {e}", group="data_processing")
@@ -1623,7 +1623,7 @@ def main():
                 
                 # Still complete CVE processing in real-time collector to maintain accurate counts
                 try:
-                    from ..logging.dataset_contents_collector import finish_cve_processing
+                    from ..reporting.dataset_contents_collector import finish_cve_processing
                     finish_cve_processing(cve)
                 except Exception as e:
                     logger.debug(f"Real-time collector unavailable for CVE completion tracking: {e}", group="data_processing")

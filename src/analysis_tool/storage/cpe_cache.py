@@ -145,7 +145,7 @@ class CPECache:
             
             # Update dashboard collector with current cache file size
             try:
-                from ..logging.dataset_contents_collector import update_cache_file_size
+                from ..reporting.dataset_contents_collector import update_cache_file_size
                 update_cache_file_size(str(self.cache_file))
                 
                 # Also update cache statistics in dashboard collector
@@ -176,7 +176,7 @@ class CPECache:
             
             # Record cache miss for dashboard tracking
             try:
-                from ..logging.dataset_contents_collector import record_cache_activity
+                from ..reporting.dataset_contents_collector import record_cache_activity
                 record_cache_activity('miss', cache_size=len(self.cache_data))
             except ImportError:
                 pass
@@ -192,7 +192,7 @@ class CPECache:
             
             # Record cache expiration for dashboard tracking
             try:
-                from ..logging.dataset_contents_collector import record_cache_activity
+                from ..reporting.dataset_contents_collector import record_cache_activity
                 record_cache_activity('expired', cache_size=len(self.cache_data))
             except ImportError:
                 pass
@@ -205,7 +205,7 @@ class CPECache:
         
         # Record cache hit for dashboard tracking
         try:
-            from ..logging.dataset_contents_collector import record_cache_activity
+            from ..reporting.dataset_contents_collector import record_cache_activity
             record_cache_activity('hit', cache_size=len(self.cache_data), api_calls_saved=1)
         except ImportError:
             pass
@@ -296,7 +296,7 @@ class CPECache:
     def _sync_dashboard_statistics(self):
         """Sync current cache statistics with dashboard collector"""
         try:
-            from ..logging.dataset_contents_collector import get_dataset_contents_collector
+            from ..reporting.dataset_contents_collector import get_dataset_contents_collector
             collector = get_dataset_contents_collector()
             if collector:
                 collector.update_cache_statistics()
