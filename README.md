@@ -69,3 +69,21 @@ python generate_dataset.py --start-date 2024-01-01 --end-date 2024-01-31
 
 All dataset outputs are isolated in run-specific directories under `runs/[timestamp]_[context]/logs/`.
 
+### Source Data Concern Report Generation
+
+```bash
+# Generate SDC report from default NVD-ish cache (standalone)
+python -m src.analysis_tool.reporting.generate_sdc_report
+
+# Generate report using existing run directory from dataset generation
+python -m src.analysis_tool.reporting.generate_sdc_report \
+    --run-id 2025-12-01_10-30-00_dataset_last_7_days_nvd-ish
+
+# Use custom cache directory (name only, must exist in cache/ folder)
+python -m src.analysis_tool.reporting.generate_sdc_report \
+    --custom-cache nvd-ish_test_data
+```
+
+Reports are generated as per-source files in `runs/[timestamp]_sdc_report/logs/`:
+- `sourceDataConcernReport_index.json` - Source listing with statistics
+- `sourceDataConcernReport_[source]_[id].json` - Individual source reports

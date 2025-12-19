@@ -18,7 +18,7 @@ from pathlib import Path
 
 # Import the structured logging system
 try:
-    from .workflow_logger import get_logger, LogGroup
+    from ..logging.workflow_logger import get_logger, LogGroup
     logger = get_logger()
 except ImportError:
     # GRACEFUL DEGRADATION: Testing environment compatibility

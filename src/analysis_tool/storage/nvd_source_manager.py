@@ -224,6 +224,40 @@ class GlobalNVDSourceManager:
         # Each row represents one organization, regardless of how many lookup keys it has
         return len(self._source_data) if self._source_data is not None else 0
     
+    def get_unique_organizations(self) -> Dict[str, str]:
+        """
+        Get unique organizations (one entry per organization, not per identifier).
+        
+        Returns a mapping of canonical identifier -> organization name.
+        Uses the first sourceIdentifier as the canonical ID for each unique organization.
+        
+        Returns:
+            dict: Mapping of canonical source identifier to organization name
+        """
+        if not self._initialized:
+            return {}
+        
+        # Track unique organizations by name to avoid duplicates
+        unique_orgs = {}
+        seen_names = set()
+        
+        for _, source_row in self._source_data.iterrows():
+            org_name = source_row.get('name', 'Unknown')
+            source_identifiers = source_row.get('sourceIdentifiers', [])
+            
+            # Skip if we've already seen this organization
+            if org_name in seen_names:
+                continue
+            
+            seen_names.add(org_name)
+            
+            # Use first identifier as canonical ID for this organization
+            if isinstance(source_identifiers, list) and source_identifiers:
+                canonical_id = source_identifiers[0]
+                unique_orgs[canonical_id] = org_name
+        
+        return unique_orgs
+    
     def create_localized_cache(self, cache_dir: Optional[str] = None) -> str:
         """
         Create a localized cache file for cross-process source data sharing.

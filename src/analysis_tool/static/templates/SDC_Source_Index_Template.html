@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Tools - Source Data Concerns Index</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- SDC Dashboard Styles -->
+    <link rel="stylesheet" href="css/sdc_dashboard.css">
+    
+</head>
+<body>
+    <div id="main_container_01" class="container-fluid">
+        <!-- Page Header Section -->
+        <div id="ph_section_01" class="header">
+            <h1 class="dashboard-title">Analysis Tools - Source Data Concerns Index</h1>
+            <p id="ph_subtitle_01">
+                Per-Source Report Directory<br />
+                Hashmire/Analysis_Tools {{TOOL_VERSION}}
+            </p>
+        </div>
+
+        <!-- Report Status and Documentation Section -->
+        <div id="rl_section_01" class="file-selector">            
+            <!-- Status Bar -->
+            <div id="rl_content_01" class="file-input-container">
+                <div class="status-bar-wrapper">
+                    <div class="status-bar" id="status-bar" style="display: block;">
+                        <div class="status-filename" id="status-filename">--</div>
+                        <div class="status-details">
+                            <div class="status-item">
+                                <span>Generated: <span id="generation-time">--</span></span>
+                            </div>
+                            <div class="status-item">
+                                <span id="file-size">-- KB</span> • <span>Loaded <span id="load-time">--</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Documentation Toggle - Right Aligned -->
+                <div class="doc-toggle" onclick="toggleDocumentation()">
+                    <div class="doc-header">
+                        <div class="doc-header-content">
+                            <div class="doc-icon">ℹ️</div>
+                            <div>
+                                <h3 class="doc-title">What am I looking at?</h3>
+                                <p class="doc-subtitle">Click to learn how to use this dashboard</p>
+                            </div>
+                        </div>
+                        <div class="doc-chevron" id="doc-chevron">▼</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Documentation Content Section -->
+        <div class="documentation-content" id="documentation-content">
+            <div class="doc-intro">
+                <strong>Overview:</strong>
+                <p>
+                    The Source Data Concern Dashboard is designed to help CVE Program stakeholders systematically review and refine the data they have contributed to CVE records for improved platform identification automation. 
+                    Targeting <a href="https://github.com/Hashmire/Analysis_Tools/blob/main/documentation/cpe_automation_challenges.md#problem-domain-3-source-data-contribution-usefulness" target="_blank">Problem Domain #3 Source Data Contribution Usefulness</a>, this dashboard guides organizations on how they may improve the usefulness of platform identification data they provide.
+                    The dashboard displays and organizes analysis of source data contributions within CVE 5.X formatted records and identifies specific data quality concerns that may exascerbate platform automation challenges related to <a href="https://github.com/Hashmire/Analysis_Tools/blob/main/documentation/cpe_automation_challenges.md#problem-domain-1---cpe-base-string-determination" target="_blank">CPE Base String Determination</a> and <a href="https://github.com/Hashmire/Analysis_Tools/blob/main/documentation/cpe_automation_challenges.md#problem-domain-2-CPE-Applicability-Statement-Generation" target="_blank">CPE Applicability Statement Generation</a>.
+                </p>
+                <strong>Goals:</strong>
+                <p>
+                    Dramatically improve the usefulness of platform identification data within the CVE List. This goal is limited based on the active involvement and response of external data contributors. <br />
+                    Dramatically reduce the amount of customized parsing and post-processing required by downstream consumers of CVE data for all use cases.
+                </p>
+                <strong>Feedback:</strong>
+                <p>
+                    For technical issues, feature requests, or questions; please visit the <a href="https://github.com/Hashmire/Analysis_Tools/issues" target="_blank">Repository Issues page</a>. <br />
+                    Community feedback and contributions to improve the dashboard's functionality and user experience are always encouraged!
+                </p>
+            </div>
+
+            <div class="doc-sections">
+                <div class="doc-section">
+                    <h4>🎯 How to Use</h4>
+                    <ul>
+                        <li><strong>Review Summary</strong> - Examine aggregate statistics across all sources</li>
+                        <li><strong>Browse Sources</strong> - Scan the table for source-specific metrics</li>
+                        <li><strong>Open Individual Report</strong> - Review detailed source data concern information about a specific source</li>
+                    </ul>
+                </div>
+
+                <div class="doc-section">
+                    <h4>📊 Understanding Metrics</h4>
+                    <ul>
+                        <li><strong>Total CVEs</strong> - Number of CVE records processed for this source</li>
+                        <li><strong>Total Entries</strong> - Platform entries contributed by this source</li>
+                        <li><strong>With Concerns</strong> - Entries that triggered one or more data quality concerns</li>
+                        <li><strong>Without Concerns</strong> - Clean entries with no detected issues</li>
+                        <li><strong>Concern %</strong> - Percentage of entries with concerns</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-content">
+            <!-- Summary Statistics -->
+            <div class="section" style="margin-top: 0;">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">Summary Statistics</h2>
+                        <p class="section-subtitle">Aggregate metrics across all sources</p>
+                    </div>
+                </div>
+                <div class="section-content">
+                    <div class="summary-grid" id="summary-grid">
+                        <div class="loading">No data loaded</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Source Listing Table -->
+            <div class="section">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">Source Reports</h2>
+                        <p class="section-subtitle">Per-source data quality analysis</p>
+                    </div>
+                    <div style="flex: 1; display: flex; justify-content: flex-end; align-items: center;">
+                        <input 
+                            type="text" 
+                            id="source-filter" 
+                            placeholder="Filter sources..." 
+                            style="padding: 8px 12px; border: 1px solid #D1D5DB; border-radius: 6px; width: 300px; font-size: 14px;"
+                            oninput="filterSourceTable()"
+                        />
+                    </div>
+                </div>
+                <div class="section-content">
+                    <div id="sources-table-container">
+                        <div class="loading">No data loaded</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let dashboardData = null;
+        
+        // Documentation toggle functionality
+        function toggleDocumentation() {
+            const content = document.getElementById('documentation-content');
+            const chevron = document.getElementById('doc-chevron');
+            const fileSelector = document.getElementById('rl_section_01');
+            
+            if (!content || !chevron) {
+                console.error('Documentation elements not found:', { content, chevron });
+                return;
+            }
+            
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                chevron.textContent = '▼';
+                chevron.style.transform = 'rotate(0deg)';
+                if (fileSelector) {
+                    fileSelector.classList.remove('expanded');
+                }
+            } else {
+                content.classList.add('expanded');
+                chevron.textContent = '▲';
+                chevron.style.transform = 'rotate(180deg)';
+                if (fileSelector) {
+                    fileSelector.classList.add('expanded');
+                }
+            }
+        }
+
+        // Auto-load injected data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if data was pre-injected
+            if (dashboardData !== null) {
+                console.log('Pre-injected data detected, processing automatically...');
+                
+                // Process and render the injected data
+                processData(dashboardData);
+                renderDashboard();
+                
+                // Update status bar with proper metadata
+                const statusFilename = document.getElementById('status-filename');
+                const generationTime = document.getElementById('generation-time');
+                const fileSizeEl = document.getElementById('file-size');
+                const loadTimeEl = document.getElementById('load-time');
+                
+                // Set filename 
+                if (statusFilename) {
+                    statusFilename.textContent = 'Source Data Concern Index';
+                }
+                
+                // Format generation time
+                if (generationTime && dashboardData.metadata && dashboardData.metadata.run_started_at) {
+                    const genDate = new Date(dashboardData.metadata.run_started_at);
+                    generationTime.textContent = genDate.toLocaleString();
+                }
+                
+                // Calculate data size
+                if (fileSizeEl) {
+                    const dataSize = (JSON.stringify(dashboardData).length / 1024).toFixed(1);
+                    fileSizeEl.textContent = `${dataSize} KB`;
+                }
+                
+                // Show load time
+                if (loadTimeEl) {
+                    const now = new Date();
+                    loadTimeEl.textContent = now.toLocaleTimeString();
+                }
+            } else {
+                console.error('No pre-injected data found - index requires pre-loaded data');
+            }
+        });
+
+        function showProcessing(title, message) {
+            const overlay = document.getElementById('processingOverlay');
+            const titleEl = document.getElementById('processingTitle');
+            const messageEl = document.getElementById('processingMessage');
+            
+            if (overlay) {
+                if (titleEl) titleEl.textContent = title;
+                if (messageEl) messageEl.textContent = message;
+                overlay.style.display = 'flex';
+            }
+        }
+
+        function hideProcessing() {
+            const overlay = document.getElementById('processingOverlay');
+            if (overlay) {
+                overlay.style.display = 'none';
+            }
+        }
+
+        function updateProcessingProgress(percent, details) {
+            const progressBar = document.getElementById('processingProgressBar');
+            const detailsEl = document.getElementById('processingDetails');
+            
+            if (progressBar) {
+                progressBar.style.width = percent + '%';
+            }
+            if (detailsEl && details) {
+                detailsEl.textContent = details;
+            }
+        }
+
+        // File loading removed - reports now use pre-injected data only
+
+        function processData(data) {
+            if (!data || !data.sources) {
+                throw new Error('Invalid index data format - missing sources array');
+            }
+            
+            // Calculate aggregate statistics
+            dashboardData.stats = {
+                totalSources: data.sources.length,
+                totalCVEs: data.sources.reduce((sum, s) => sum + s.total_cves_processed, 0),
+                totalEntries: data.sources.reduce((sum, s) => sum + s.total_platform_entries, 0),
+                entriesWithConcerns: data.sources.reduce((sum, s) => sum + s.entries_with_concerns, 0),
+                entriesWithoutConcerns: data.sources.reduce((sum, s) => sum + s.entries_without_concerns, 0)
+            };
+            
+            dashboardData.stats.concernPercentage = dashboardData.stats.totalEntries > 0
+                ? ((dashboardData.stats.entriesWithConcerns / dashboardData.stats.totalEntries) * 100).toFixed(1)
+                : 0;
+        }
+
+        function renderDashboard() {
+            renderSummary();
+            renderSourcesTable();
+        }
+
+        function renderSummary() {
+            const summaryGrid = document.getElementById('summary-grid');
+            if (!summaryGrid) return;
+            
+            const stats = dashboardData.stats;
+            
+            summaryGrid.innerHTML = `
+                <div class="summary-card">
+                    <div class="summary-label">Total Sources</div>
+                    <div class="summary-value">${stats.totalSources.toLocaleString()}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Total CVEs</div>
+                    <div class="summary-value">${stats.totalCVEs.toLocaleString()}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Platform Entries</div>
+                    <div class="summary-value">${stats.totalEntries.toLocaleString()}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Entries with Concerns</div>
+                    <div class="summary-value">${stats.entriesWithConcerns.toLocaleString()}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Concern Rate</div>
+                    <div class="summary-value">${stats.concernPercentage}%</div>
+                </div>
+            `;
+        }
+
+        function renderSourcesTable() {
+            const container = document.getElementById('sources-table-container');
+            if (!container) return;
+            
+            const sources = dashboardData.sources.sort((a, b) => {
+                const percentA = a.total_platform_entries > 0 ? (a.entries_with_concerns / a.total_platform_entries) : 0;
+                const percentB = b.total_platform_entries > 0 ? (b.entries_with_concerns / b.total_platform_entries) : 0;
+                return percentB - percentA; // Sort by concern percentage descending
+            });
+            
+            container.innerHTML = `
+                <table class="source-table">
+                    <thead>
+                        <tr>
+                            <th>Source</th>
+                            <th style="text-align: right;">CVEs</th>
+                            <th style="text-align: right;">Total Entries</th>
+                            <th style="text-align: right;">With Concerns</th>
+                            <th style="text-align: right;">Without Concerns</th>
+                            <th style="text-align: center;">Concern %</th>
+                            <th>Report File</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${sources.map((source, index) => {
+                            const concernPercent = source.total_platform_entries > 0
+                                ? ((source.entries_with_concerns / source.total_platform_entries) * 100).toFixed(1)
+                                : 0;
+                            
+                            let badgeClass = 'concern-none';
+                            if (concernPercent > 50) badgeClass = 'concern-high';
+                            else if (concernPercent > 25) badgeClass = 'concern-medium';
+                            else if (concernPercent > 0) badgeClass = 'concern-low';
+                            
+                            // Get source identifiers from metadata if available
+                            const sourceIdentifiers = source.source_identifiers || [];
+                            const hasIdentifiers = sourceIdentifiers.length > 0;
+                            
+                            return `
+                                <tr>
+                                    <td>
+                                        <div class="source-name">${source.source_name}</div>
+                                        ${hasIdentifiers ? `
+                                            <div class="source-identifiers-toggle" onclick="toggleSourceIdentifiers(${index})" style="cursor: pointer; color: #7C3AED; font-size: 0.85em; margin-top: 4px;">
+                                                <span id="source-toggle-${index}">▶</span> View Source Identifiers (${sourceIdentifiers.length})
+                                            </div>
+                                            <div id="source-identifiers-${index}" class="source-identifiers" style="display: none; margin-top: 8px; padding: 8px; background: rgba(124, 58, 237, 0.05); border-radius: 4px; font-size: 0.85em;">
+                                                ${sourceIdentifiers.map(id => `<div style="padding: 2px 0; color: #6B7280;">• ${id}</div>`).join('')}
+                                            </div>
+                                        ` : `<div class="source-id" style="color: #9CA3AF; font-size: 0.85em;">${source.source_id}</div>`}
+                                    </td>
+                                    <td style="text-align: right;">
+                                        <span class="metric-value">${source.total_cves_processed.toLocaleString()}</span>
+                                    </td>
+                                    <td style="text-align: right;">
+                                        <span class="metric-value">${source.total_platform_entries.toLocaleString()}</span>
+                                    </td>
+                                    <td style="text-align: right;">
+                                        <span class="metric-value">${source.entries_with_concerns.toLocaleString()}</span>
+                                    </td>
+                                    <td style="text-align: right;">
+                                        <span class="metric-value">${source.entries_without_concerns.toLocaleString()}</span>
+                                    </td>
+                                    <td style="text-align: center;">
+                                        <span class="concern-badge ${badgeClass}">${concernPercent}%</span>
+                                    </td>
+                                    <td style="text-align: center;">
+                                        <button onclick="window.open('${source.report_file}', '_blank')" 
+                                                style="background: linear-gradient(135deg, #7C3AED 0%, #8B5CF6 100%); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9em; font-weight: 500; box-shadow: 0 2px 4px rgba(124, 58, 237, 0.3); transition: all 0.2s ease;"
+                                                onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(124, 58, 237, 0.4)'"
+                                                onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 4px rgba(124, 58, 237, 0.3)'"
+                                                title="Open detailed report for ${source.source_name}">
+                                            Open Individual Report
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+        
+        // Toggle source identifiers visibility
+        function toggleSourceIdentifiers(index) {
+            const identifiersDiv = document.getElementById(`source-identifiers-${index}`);
+            const toggleIcon = document.getElementById(`source-toggle-${index}`);
+            
+            if (identifiersDiv && toggleIcon) {
+                if (identifiersDiv.style.display === 'none') {
+                    identifiersDiv.style.display = 'block';
+                    toggleIcon.textContent = '▼';
+                } else {
+                    identifiersDiv.style.display = 'none';
+                    toggleIcon.textContent = '▶';
+                }
+            }
+        }
+
+        // Filter source table rows
+        function filterSourceTable() {
+            const filterInput = document.getElementById('source-filter');
+            if (!filterInput) return;
+            
+            const filterValue = filterInput.value.toLowerCase().trim();
+            const table = document.querySelector('.source-table tbody');
+            if (!table) return;
+            
+            const rows = table.getElementsByTagName('tr');
+            let visibleCount = 0;
+            
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const sourceNameCell = row.getElementsByTagName('td')[0];
+                
+                if (sourceNameCell) {
+                    const sourceName = sourceNameCell.textContent.toLowerCase();
+                    
+                    if (filterValue === '' || sourceName.includes(filterValue)) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                }
+            }
+            
+            // Optional: Add count display below filter
+            const filterCountId = 'filter-count';
+            let countDisplay = document.getElementById(filterCountId);
+            if (!countDisplay) {
+                countDisplay = document.createElement('div');
+                countDisplay.id = filterCountId;
+                countDisplay.style.cssText = 'color: #6B7280; font-size: 0.85em; margin-top: 4px; text-align: right;';
+                filterInput.parentElement.appendChild(countDisplay);
+            }
+            
+            if (filterValue !== '') {
+                countDisplay.textContent = `Showing ${visibleCount} of ${rows.length} sources`;
+                countDisplay.style.display = 'block';
+            } else {
+                countDisplay.style.display = 'none';
+            }
+        }
+    </script>
+
+    <!-- Processing Overlay -->
+    <div id="processingOverlay" class="processing-overlay">
+        <div class="processing-card">
+            <div class="processing-spinner"></div>
+            <div id="processingTitle" class="processing-title">Loading Data</div>
+            <div id="processingMessage" class="processing-message">Please wait while we load your data file...</div>
+            <div class="processing-progress">
+                <div id="processingProgressBar" class="processing-progress-bar" style="width: 0%;"></div>
+            </div>
+            <div id="processingDetails" class="processing-details"></div>
+        </div>
+    </div>
+
+</body>
+</html>
