@@ -2208,20 +2208,24 @@ def curateCPEAttributes(case, attributeString1, attributeString2):
                     'x86',
                     '32-bit',
                     '32 bit',
-                    'x32'
+                    'x32',
+                    'x86-based Systems',
+                    '32-bit Systems'
                 },
                 'x64': {
                     'x86_64',
                     'x64',
                     '64-bit',
-                    '64 bit'
+                    '64 bit',
+                    'x64-based Systems'
                 },
                 'arm': {
                     'arm'
                 },
                 'arm64': {
                     'arm64',
-                    'aarch64'
+                    'aarch64',
+                    'ARM64-based Systems'
                 }
             }
             

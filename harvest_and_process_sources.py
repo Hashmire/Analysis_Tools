@@ -20,8 +20,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from analysis_tool.logging.workflow_logger import get_logger
 from analysis_tool.storage.run_organization import create_run_directory, get_current_run_paths
 from analysis_tool.core.gatherData import checkSourceCVECount, harvestSourceUUIDs
+from analysis_tool.reporting.generate_harvest_index import generate_harvest_index
 
 logger = get_logger()
+
+# Global reference to active subprocess for interrupt handling
+_active_subprocess = None
 
 
 def get_analysis_tools_root():
@@ -199,6 +203,10 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_fil
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                   text=True, bufsize=1)
         
+        # Store global reference for interrupt handling
+        global _active_subprocess
+        _active_subprocess = process
+        
         # Process stdout line by line in real-time
         for line in process.stdout:
             # Extract run directory if present
@@ -209,7 +217,7 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_fil
             if allow_logging:
                 print(line, end='')
         
-        # Wait for process to complete and check return code
+        # Wait for process to complete
         return_code = process.wait()
         
         # Handle any stderr output
@@ -217,19 +225,42 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_fil
         if allow_logging and stderr_output:
             print(stderr_output, end='', file=sys.stderr)
         
+        # Clear global subprocess reference
+        _active_subprocess = None
+        
         if return_code != 0:
             raise subprocess.CalledProcessError(return_code, cmd, '', stderr_output)
         
         logger.info(f"[SUCCESS] Successfully processed {source_name}", group="HARVEST")
+        
+        # Update harvest index after successful processing
+        if parent_run_dir:
+            try:
+                generate_harvest_index(parent_run_dir, verbose=False)
+            except Exception:
+                pass  # Silently continue on index update failure
+        
         return True, dataset_run_dir, None, None
         
     except subprocess.CalledProcessError as e:
+        # Clear global subprocess reference on error
+        _active_subprocess = None
         logger.error(f"Error processing {source_name}: {e}", group="HARVEST")
         error_type = f"Exit code {e.returncode}"
         return False, dataset_run_dir, error_type, None
     except Exception as e:
+        # Clear global subprocess reference on error
+        _active_subprocess = None
         logger.error(f"Unexpected error processing {source_name}: {e}", group="HARVEST")
         error_type = f"Unexpected: {type(e).__name__}"
+        
+        # Update harvest index after error
+        if parent_run_dir:
+            try:
+                generate_harvest_index(parent_run_dir, verbose=False)
+            except Exception:
+                pass  # Silently continue on index update failure
+        
         return False, None, error_type, None
 
 
@@ -573,11 +604,17 @@ def main():
                 
     except KeyboardInterrupt:
         termination_reason = "Script interrupted"
-        logger.warning("", group="HARVEST")
-        logger.warning("="*60, group="HARVEST")
-        logger.warning("PROCESSING INTERRUPTED", group="HARVEST")
-        logger.warning("="*60, group="HARVEST")
-        logger.warning("Script was interrupted - generating state dump", group="HARVEST")
+        logger.warning("\nProcessing interrupted - terminating active subprocess...", group="HARVEST")
+        
+        # Terminate any active subprocess
+        global _active_subprocess
+        if _active_subprocess and _active_subprocess.poll() is None:
+            _active_subprocess.terminate()
+            try:
+                _active_subprocess.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                _active_subprocess.kill()
+                _active_subprocess.wait()
         
     except SystemExit as e:
         termination_reason = "Script terminated"
@@ -694,6 +731,17 @@ def main():
     if cache_file_path:
         logger.info(f"Cleaning up cache...", group="CACHE_MANAGEMENT")
         cleanup_source_data_cache(cache_file_path)
+    
+    # Final harvest index generation
+    logger.info("Finalizing harvest session index page...", group="HARVEST")
+    try:
+        index_file = generate_harvest_index(run_directory, verbose=True)
+        if index_file:
+            logger.info(f"Harvest index available: {index_file.relative_to(run_directory)}", group="HARVEST")
+        else:
+            logger.warning("Failed to generate final harvest index page", group="HARVEST")
+    except Exception as e:
+        logger.warning(f"Error generating final harvest index: {e}", group="HARVEST")
     
     # Determine exit status based on what happened
     if termination_reason:

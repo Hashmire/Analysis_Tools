@@ -291,7 +291,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         if cveRecordData and 'cveMetadata' in cveRecordData:
             state = cveRecordData.get('cveMetadata', {}).get('state')
             if state == 'REJECTED':
-                logger.warning(f"{cve_id} is in REJECTED state - skipping processing", group="cve_queries")
+                logger.info(f"{cve_id} is in REJECTED state - skipping processing", group="cve_queries")
                 
                 # Complete badge contents collection for this record
                 complete_cve_collection()

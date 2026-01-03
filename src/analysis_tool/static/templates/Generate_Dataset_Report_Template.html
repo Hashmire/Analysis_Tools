@@ -1,0 +1,2229 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Dataset Report</title>
+    <link rel="stylesheet" href="css/generate_dataset_dashboard.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 id="dashboard-title">Generate Dataset Report</h1>
+            <div id="dashboard-subtitle" style="font-size: 1.2em; margin-top: 5px; opacity: 0.9;">
+                <p>
+                    Dataset generation analytics and monitoring
+                </p>
+            </div>
+        </div>
+
+<div class="dashboard-content">
+            <!-- Overall Progress -->
+            <div class="progress-section">
+                <div class="progress-header">
+                    <div class="progress-title">Overall Progress</div>
+                    <div class="progress-percentage" id="progress-percent">0%</div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                </div>
+                
+                <!-- Cache Refresh Stage (hidden by default) -->
+                <div id="cache-refresh-stats" style="margin-top: 15px; display: none; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center;">
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #3498db;" id="cache-target-cves">0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Target CVE Count</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #27ae60;" id="cache-batch-progress">0/0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Batch Processing</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #e67e22;" id="cache-nvd-refreshed">0/0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">NVD Cache Refreshed</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #8e44ad;" id="cache-cvelist-refreshed">0/0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">CVE List v5 Refreshed</div>
+                    </div>
+                </div>
+                
+                <!-- Dataset Generation Stage (default view) -->
+                <div id="dataset-generation-stats" style="margin-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center;">
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #27ae60;" id="processed-cves">0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Processed</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #3498db;" id="remaining-cves">0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Remaining</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #2c3e50;" id="total-cves">0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Total CVEs</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #8e44ad;" id="eta-simple">--</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">ETA</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Key Metrics -->
+            <div class="metrics-grid">
+                <div class="metric-card system clickable" onclick="scrollToSection('runtime-details')">
+                    <div class="metric-title">Runtime</div>
+                    <div class="metric-value" id="wall-clock-time">0s</div>
+                    <div class="metric-subtitle">Total runtime<br>
+                        Delays/overhead: <strong id="overhead-time">--</strong></div>
+                </div>
+
+                <div class="metric-card api clickable" onclick="scrollToSection('api-details')">
+                    <div class="metric-title">API Calls</div>
+                    <div class="metric-value" id="api-calls">0</div>
+                    <div class="metric-subtitle">Total API requests made<br>
+                        Success rate: <strong id="api-success-rate">--</strong></div>
+                </div>
+
+                <div class="metric-card mappings clickable" onclick="scrollToSection('mapping-details')">
+                    <div class="metric-title">Confirmed Mappings</div>
+                    <div class="metric-value" id="mapping-percentage">0%</div>
+                    <div class="metric-subtitle">CVEs with mappings<br>
+                        <strong id="total-mappings">0</strong> mappings found</div>
+                </div>
+
+                <div class="metric-card files clickable" onclick="scrollToSection('file-details')">
+                    <div class="metric-title">Generated Files</div>
+                    <div class="metric-value" id="files-generated">0</div>
+                    <div class="metric-subtitle">HTML pages created<br>
+                        Total size: <strong id="total-file-size">--</strong></div>
+                </div>
+
+                <div class="metric-card speed clickable" onclick="scrollToSection('speed-details')">
+                    <div class="metric-title">Processing Speed</div>
+                    <div class="metric-value" id="processing-rate">0</div>
+                    <div class="metric-subtitle">CVEs per hour<br>
+                        Avg time: <strong id="avg-time-per-cve">0</strong>s</div>
+                </div>
+
+                <div class="metric-card cache clickable" onclick="scrollToSection('cache-details')">
+                    <div class="metric-title">Cache Performance</div>
+                    <div class="metric-value" id="cache-hit-rate">0%</div>
+                    <div class="metric-subtitle">Hit rate<br>
+                        <strong id="cache-entries">0</strong> total entries</div>
+                </div>
+
+                <div class="metric-card cpe clickable" onclick="scrollToSection('cpe-details')">
+                    <div class="metric-title">CPE Base String Queries</div>
+                    <div class="metric-value" id="cpe-queries">0</div>
+                    <div class="metric-subtitle">Total CPE queries made<br>
+                        Results: <strong id="cpe-results">0</strong></div>
+                </div>
+                
+                <div class="metric-card warning clickable" onclick="scrollToSection('log-details')" style="border-left-color: #e67e22;">
+                    <div class="metric-title">Resource Warnings</div>
+                    <div class="metric-value" style="color: #e67e22;" id="warning-count">0</div>
+                    <div class="metric-subtitle">System warnings detected<br>
+                        Errors: <strong id="error-count">0</strong></div>
+                </div>
+            </div>
+
+            <!-- Detailed Sections -->
+            <div id="runtime-details" class="detail-section">
+                <h3>⏱️ Runtime Analysis</h3>
+                <div id="runtime-section"></div>
+            </div>
+
+            <div id="speed-details" class="detail-section">
+                <h3>🏃 Speed Statistics</h3>
+                <div id="speed-section"></div>
+            </div>
+
+            <div id="api-details" class="detail-section">
+                <h3>🌐 API Performance</h3>
+                <div id="api-section"></div>
+            </div>
+
+            <div id="cache-details" class="detail-section">
+                <h3>💾 Cache Analysis</h3>
+                <div id="cache-section"></div>
+            </div>
+
+            <div id="mapping-details" class="detail-section">
+                <h3>🔗 Mapping Statistics</h3>
+                <div id="mapping-section"></div>
+            </div>
+
+            <div id="cpe-details" class="detail-section">
+                <h3>🔍 CPE Query Analysis</h3>
+                <div id="cpe-section"></div>
+            </div>
+
+            <div id="file-details" class="detail-section">
+                <h3>📁 File Generation Analysis</h3>
+                <div id="file-section"></div>
+            </div>
+
+            <div id="log-details" class="detail-section">
+                <h3>📋 Log Analysis</h3>
+                <div id="log-section"></div>
+            </div>
+        </div>
+
+        
+
+<div class="footer">
+            <p>Analysis Tools Dashboard | Load a generateDatasetReport.json file to view analytics</p>
+        </div>
+    </div>
+
+    <script>
+        let dashboardData = null;
+        let configData = null;
+
+        // Load configuration from injected metadata and update page titles
+        function updatePageTitles(data) {
+            try {
+                const metadata = data.metadata || {};
+                const toolname = metadata.toolname || 'Hashmire/Analysis_Tools';
+                const version = metadata.version || '0.2.0';
+                
+                // Update page title
+                const pageTitle = version ? `${toolname} v${version} - Generate Dataset Dashboard` : `${toolname} - Generate Dataset Dashboard`;
+                document.title = pageTitle;
+                
+                // Update header title (toolname with v prefix for version)
+                const headerTitle = version ? `${toolname} v${version}` : toolname;
+                document.getElementById('dashboard-title').textContent = headerTitle;
+                
+                console.log('Config loaded from metadata:', { toolname, version, headerTitle });
+                
+            } catch (error) {
+                console.error('Could not load config from metadata:', error);
+                // Fallback values using proper config values
+                const toolname = 'Hashmire/Analysis_Tools';
+                const version = '0.2.0';
+                const headerTitle = `${toolname} v${version}`;
+                const pageTitle = `${headerTitle} - Generate Dataset Dashboard`;
+                
+                document.title = pageTitle;
+                document.getElementById('dashboard-title').textContent = headerTitle;
+                
+                console.warn('Using fallback values:', { headerTitle });
+            }
+        }
+
+        function handleFileSelect(event) {
+            const files = event.target.files || event.dataTransfer?.files;
+            const file = files?.[0];
+            
+            if (file) {
+                console.log('File selected:', file.name);
+                document.getElementById('file-name').textContent = file.name;
+                // Auto-load the file
+                loadFile();
+            } else {
+                document.getElementById('file-name').textContent = 'No file selected';
+            }
+        }
+
+        function updateStatusBar(file, data) {
+            const statusBar = document.getElementById('status-bar');
+            const statusFilename = document.getElementById('status-filename');
+            const generationTimeEl = document.getElementById('generation-time');
+            const fileSizeEl = document.getElementById('file-size');
+            const loadTimeEl = document.getElementById('load-time');
+            
+            if (!statusBar || !statusFilename || !generationTimeEl || !fileSizeEl || !loadTimeEl) {
+                return; // Elements not found, skip status update
+            }
+            
+            // Set filename
+            statusFilename.textContent = file.name;
+            
+            // Set generation time
+            let generationTime = 'Unknown';
+            let timeAgo = '';
+            
+            if (data.metadata && data.metadata.run_started_at) {
+                const genDate = new Date(data.metadata.run_started_at);
+                generationTime = genDate.toLocaleString();
+                const now = new Date();
+                const diffMs = now - genDate;
+                const diffMins = Math.floor(diffMs / (1000 * 60));
+                const diffHours = Math.floor(diffMins / 60);
+                const diffDays = Math.floor(diffHours / 24);
+                
+                if (diffMins < 60) timeAgo = ` (${diffMins} min ago)`;
+                else if (diffHours < 24) timeAgo = ` (${diffHours}h ago)`;
+                else timeAgo = ` (${diffDays}d ago)`;
+            }
+            
+            generationTimeEl.textContent = generationTime + timeAgo;
+            
+            // Set file size
+            const fileSizeKB = (file.size / 1024).toFixed(1);
+            fileSizeEl.textContent = `${fileSizeKB} KB`;
+            
+            // Set load time
+            const now = new Date();
+            loadTimeEl.textContent = now.toLocaleTimeString();
+            
+            // Show status bar
+            statusBar.style.display = 'block';
+        }
+
+        /**
+         * Creates a universal CVE-ID element with consistent styling and behavior
+         * @param {string} cveId - The CVE identifier (e.g., 'CVE-2024-12345' or 'unknown')
+         * @param {Object} options - Configuration options
+         * @param {boolean} options.compact - Use compact size styling (default: false)
+         * @param {boolean} options.disableLink - Disable linking for special cases (default: false)
+         * @returns {string} HTML string for the CVE-ID element
+         */
+        function createCveIdElement(cveId, options = {}) {
+            const { compact = false, disableLink = false } = options;
+            
+            // Handle special cases
+            const isSpecialCase = cveId === 'unknown' || cveId === 'system-wide';
+            const displayText = cveId === 'unknown' ? 'General System Issues' : 
+                               cveId === 'system-wide' ? 'System-Wide Issues' : cveId;
+            
+            // Determine classes
+            let classes = 'cve-id';
+            if (compact) classes += ' cve-id--compact';
+            if (isSpecialCase || disableLink) classes += ' cve-id--disabled';
+            
+            // Create element with visual styling (code element for shaded box appearance)
+            if (isSpecialCase || disableLink) {
+                return `<code class="${classes}">${displayText}</code>`;
+            } else {
+                return `<a href="https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/${cveId}.html" target="_blank" class="${classes}"><code class="cve-id-inner">${displayText}</code></a>`;
+            }
+        }
+
+        function clearBrowserCache() {
+            // Force cache invalidation by adding timestamp to any future requests
+            const timestamp = new Date().getTime();
+            
+            // Clear localStorage if used
+            try {
+                localStorage.removeItem('dashboardCache');
+                localStorage.removeItem('lastLoadedFile');
+            } catch (e) {
+                // Ignore localStorage errors
+            }
+            
+            // Clear sessionStorage if used
+            try {
+                sessionStorage.clear();
+            } catch (e) {
+                // Ignore sessionStorage errors
+            }
+            
+            return timestamp;
+        }
+
+        function loadFile() {
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showStatus('Please select a file first.', 'error');
+                return;
+            }
+
+            if (!file.name.endsWith('.json')) {
+                showStatus('Please select a JSON file.', 'error');
+                return;
+            }
+
+            // Clear browser cache before loading
+            clearBrowserCache();
+            
+            showStatus('Loading dashboard data...', 'info');
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    // Force fresh parse by clearing any existing data first
+                    dashboardData = null;
+                    
+                    dashboardData = JSON.parse(e.target.result);
+                    
+                    // Calculate file size from selected file for dashboard display
+                    if (dashboardData.metadata) {
+                        dashboardData.metadata.selected_file_size = file.size;
+                        dashboardData.metadata.selected_file_name = file.name;
+                        dashboardData.metadata.load_timestamp = new Date().toISOString();
+                    }
+                    
+                    // Update page titles from injected config data
+                    updatePageTitles(dashboardData);
+                    
+                    populateDashboard(dashboardData);
+                    updateStatusBar(file, dashboardData);
+                    showStatus('Dashboard loaded successfully!', 'success');
+                    
+                    // Show dashboard content
+                    document.querySelector('.dashboard-content').style.display = 'block';
+                    
+                    // Scroll to dashboard content
+                    setTimeout(() => {
+                        document.querySelector('.dashboard-content').scrollIntoView({ 
+                            behavior: 'smooth' 
+                        });
+                    }, 300); // Reduced timeout for better responsiveness
+                } catch (error) {
+                    showStatus('Error parsing JSON file: ' + error.message, 'error');
+                    console.error('JSON parsing error:', error);
+                }
+            };
+
+            reader.onerror = function() {
+                showStatus('Error reading file. Please try again.', 'error');
+            };
+
+            reader.readAsText(file);
+        }
+
+        function showStatus(message, type) {
+            const statusMessage = document.getElementById('status-message');
+            if (statusMessage) {
+                statusMessage.textContent = message;
+                statusMessage.className = 'status-message status-' + type;
+                statusMessage.style.display = 'block';
+            } else {
+                // Fallback to console for compact design
+                console.log(`Status (${type}): ${message}`);
+            }
+        }
+
+        function hideStatus() {
+            const statusMessage = document.getElementById('status-message');
+            if (statusMessage) {
+                statusMessage.style.display = 'none';
+            }
+        }
+
+        function scrollToSection(sectionId) {
+            const element = document.getElementById(sectionId);
+            if (element) {
+                element.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+                
+                // Add a brief highlight effect
+                element.style.transition = 'background-color 0.5s ease';
+                element.style.backgroundColor = 'rgba(52, 152, 219, 0.1)';
+                setTimeout(() => {
+                    element.style.backgroundColor = '';
+                }, 1000);
+            }
+        }
+
+        function formatNumber(value, decimals = 0) {
+            if (value === null || value === undefined) return 'N/A';
+            return typeof value === 'number' ? value.toFixed(decimals) : value;
+        }
+
+        function formatFileSize(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function formatTime(seconds) {
+            if (!seconds || seconds === 0) return '0s';
+            if (seconds < 60) return seconds.toFixed(1) + 's';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) {
+                const remainingSeconds = seconds % 60;
+                return `${minutes}m ${remainingSeconds.toFixed(0)}s`;
+            }
+            const hours = Math.floor(minutes / 60);
+            const remainingMinutes = minutes % 60;
+            return `${hours}h ${remainingMinutes}m`;
+        }
+
+        // Enhanced tooltip system for ⓘ symbols
+        function initializeTooltips() {
+            const tooltipDefinitions = {
+                // Runtime & Performance Section
+                'Full Runtime ⓘ': 'Total time from start to finish, including all delays, overhead, and active processing',
+                'Active Processing Time ⓘ': 'Time spent actively processing CVE data, excluding waiting for APIs, file I/O, and system overhead',
+                'Delays/Overhead Time ⓘ': 'Time spent on delays, waiting for API responses, file I/O operations, memory management, and system overhead',
+                
+                // Speed & Processing Section
+                'Processing Rate ⓘ': 'Rate of CVE processing measured in CVEs processed per hour',
+                'Average Time per CVE ⓘ': 'Average time spent processing each CVE record',
+                
+                // API Performance Section
+                'Total API Calls ⓘ': 'Total number of API calls made to all external services',
+                'Failed API Calls ⓘ': 'Number of API requests that failed due to errors or timeouts',
+                'API Success Rate ⓘ': 'Percentage of API requests that completed successfully without errors',
+                
+                // Cache Analysis Section
+                'Cache Hit Rate ⓘ': 'Percentage of API requests that were served from cache instead of making new external API calls',
+                'API Calls Saved ⓘ': 'Number of external API calls avoided by using cached data',
+                'Cache File Size ⓘ': 'Size of the local cache file on disk',
+                
+                // Confirmed Mapping Section
+                'Mapping Percentage ⓘ': 'Percentage of platform entries that have confirmed vulnerability mappings available',
+                'Total Mappings Found ⓘ': 'Total number of confirmed vulnerability mappings identified across all platform entries',
+                'Total Platform Entries ⓘ': 'Total number of platform entries processed for mapping analysis',
+                
+                // CPE Query Analysis Section
+                'Total CPE Queries ⓘ': 'Total number of CPE (Common Platform Enumeration) queries made to the NVD CPE API',
+                'Unique Base Strings ⓘ': 'Number of unique CPE base strings queried (same string may be queried multiple times)',
+                'Average Results per Query ⓘ': 'Average number of CPE entries returned per API query',
+
+                // File Generation Summary Section
+                'Total Files Generated ⓘ': 'Total number of HTML files generated during the dataset creation process',
+                'Total File Size ⓘ': 'Combined size of all generated HTML files',
+                'Median File Size ⓘ': 'Median size per generated HTML file (less affected by outliers)',
+                
+                // Log Analysis Section
+                'Total Log Lines ⓘ': 'Total number of lines written to the log file during processing',
+                'Info Messages ⓘ': 'Number of informational log messages recorded',
+                'Debug Messages ⓘ': 'Number of debug-level log messages for troubleshooting',
+                'Warning Messages ⓘ': 'Number of warning messages indicating potential issues',
+                'Error Messages ⓘ': 'Number of error messages indicating processing failures',
+                'Log File Size ⓘ': 'Size of the log file on disk',
+                
+                // Error Summary Section
+                'Total Errors ⓘ': 'Total number of errors encountered during the processing run',
+                
+            };
+
+            // Apply tooltips to elements
+            document.querySelectorAll('.detail-label, .service-name').forEach(label => {
+                const text = label.textContent.trim();
+                if (tooltipDefinitions[text]) {
+                    const detailItem = label.closest('.detail-item') || label.closest('.api-service-item');
+                    if (detailItem) {
+                        detailItem.setAttribute('data-tooltip', tooltipDefinitions[text]);
+                    }
+                } else if (text.includes('ⓘ')) {
+                    console.warn(`[Tooltip System] Missing tooltip definition for: "${text}"`);
+                }
+            });
+            
+            // Log tooltip initialization summary
+            const totalTooltipElements = document.querySelectorAll('[data-tooltip]').length;
+            console.log(`[Tooltip System] Initialized ${totalTooltipElements} tooltips successfully`);
+        }
+
+        function toggleSectionsForPhase(isListGeneration) {
+            // During CVE list generation, hide complex sections
+            const sectionsToHide = [
+                'cache-details',
+                'cpe-details', 
+                'mapping-details',
+                'file-details'
+            ];
+            
+            const cardsToHide = [
+                '.metric-card.cache',
+                '.metric-card.cpe',
+                '.metric-card.mappings',
+                '.metric-card.files'
+            ];
+            
+            sectionsToHide.forEach(sectionId => {
+                const section = document.getElementById(sectionId);
+                if (section) {
+                    section.style.display = isListGeneration ? 'none' : 'block';
+                }
+            });
+            
+            cardsToHide.forEach(cardSelector => {
+                const card = document.querySelector(cardSelector);
+                if (card) {
+                    card.style.display = isListGeneration ? 'none' : 'block';
+                }
+            });
+        }
+
+        function populateDashboard(data) {
+            const processing = data.processing || {};
+            const performance = data.performance || {};
+            const cache = data.cache || {};
+            const api = data.api || {};
+            const mapping_stats = data.mapping_stats || {};
+            const file_stats = data.file_stats || {};
+            const cpe_query_stats = data.cpe_query_stats || {};
+            const log_stats = data.log_stats || {};
+            const deduplication_stats = data.deduplication_stats || {};
+            const speed_stats = data.speed_stats || {};
+            const bloat_analysis = data.bloat_analysis || {};
+            const cache_refresh = data.cache_refresh || {};
+
+            // Detect workflow phase
+            const workflowPhase = data.metadata?.workflow_phase || 'dataset_generation';
+            const isListGeneration = workflowPhase === 'cve_list_generation' ||
+                                   (processing.total_cves === 0 && api.total_calls > 0);
+            const isCacheRefresh = workflowPhase === 'cache_refresh' || cache_refresh.in_progress === true;
+
+            // Show/hide sections based on phase
+            toggleSectionsForPhase(isListGeneration);
+
+            // Toggle Overall Progress stats based on workflow phase
+            const cacheRefreshStatsDiv = document.getElementById('cache-refresh-stats');
+            const datasetGenerationStatsDiv = document.getElementById('dataset-generation-stats');
+            
+            if (isCacheRefresh) {
+                // Show cache refresh stats, hide dataset generation stats
+                cacheRefreshStatsDiv.style.display = 'grid';
+                datasetGenerationStatsDiv.style.display = 'none';
+                
+                // Update cache refresh metrics
+                document.getElementById('cache-target-cves').textContent = formatNumber(cache_refresh.target_cve_count || 0);
+                document.getElementById('cache-batch-progress').textContent = 
+                    `${formatNumber(cache_refresh.batch_processing_current || 0)}/${formatNumber(cache_refresh.batch_processing_total || 0)}`;
+                document.getElementById('cache-nvd-refreshed').textContent = 
+                    `${formatNumber(cache_refresh.nvd_cache_refreshed_current || 0)}/${formatNumber(cache_refresh.nvd_cache_refreshed_total || 0)}`;
+                document.getElementById('cache-cvelist-refreshed').textContent = 
+                    `${formatNumber(cache_refresh.cve_list_v5_cache_refreshed_current || 0)}/${formatNumber(cache_refresh.cve_list_v5_cache_refreshed_total || 0)}`;
+                
+                // Calculate cache refresh progress percentage
+                const batchTotal = cache_refresh.batch_processing_total || 1;
+                const batchCurrent = cache_refresh.batch_processing_current || 0;
+                const cacheRefreshProgress = Math.min(100, (batchCurrent / batchTotal) * 100);
+                const progressPercent = formatNumber(cacheRefreshProgress, 1) + '%';
+                document.getElementById('progress-percent').textContent = progressPercent;
+                document.getElementById('progress-fill').style.width = progressPercent;
+            } else {
+                // Show dataset generation stats, hide cache refresh stats
+                cacheRefreshStatsDiv.style.display = 'none';
+                datasetGenerationStatsDiv.style.display = 'grid';
+                
+                // Update dataset generation metrics
+                document.getElementById('processed-cves').textContent = processing.processed_cves || processing.total_cves || data.summary?.total_cves || 0;
+                document.getElementById('remaining-cves').textContent = processing.remaining_cves || 0;
+                document.getElementById('total-cves').textContent = processing.total_cves || data.summary?.total_cves || 0;
+                
+                // Handle ETA - use same logic as detailed section
+                const etaValue = processing.eta_simple || (processing.remaining_cves > 0 ? 'Calculating...' : 'Completed');
+                document.getElementById('eta-simple').textContent = etaValue;
+                
+                // Overall progress percentage for dataset generation
+                const progressPercent = formatNumber(processing.progress_percentage || 100, 1) + '%';
+                document.getElementById('progress-percent').textContent = progressPercent;
+                document.getElementById('progress-fill').style.width = progressPercent;
+            }
+
+            // Metric cards - Updated to match legacy format
+            document.getElementById('wall-clock-time').textContent = formatTime(performance.wall_clock_time || performance.total_runtime || 0);
+            
+            // Calculate overhead time if we have both wall clock and active processing time
+            const wallClockTime = performance.wall_clock_time || performance.total_runtime || 0;
+            const activeTime = performance.active_processing_time || performance.total_time || 0;
+            const overheadTime = wallClockTime > activeTime ? wallClockTime - activeTime : 0;
+            document.getElementById('overhead-time').textContent = formatTime(overheadTime);
+            
+            document.getElementById('api-calls').textContent = formatNumber(api.total_calls || data.summary?.api_calls || 0);
+            const successRate = api.total_calls ? formatNumber((api.successful_calls || 0) / api.total_calls * 100, 1) + '%' : 'N/A';
+            document.getElementById('api-success-rate').textContent = successRate;
+            
+            document.getElementById('mapping-percentage').textContent = formatNumber(mapping_stats.mapping_percentage || 0, 1) + '%';
+            document.getElementById('total-mappings').textContent = formatNumber(mapping_stats.total_mappings_found || 0);
+            
+            document.getElementById('files-generated').textContent = formatNumber(processing.files_generated || file_stats.files_generated || data.summary?.files_generated || 0);
+            
+            // Calculate total file size from detailed_files to avoid double counting
+            let calculatedTotalSize = 0;
+            if (file_stats.detailed_files && Array.isArray(file_stats.detailed_files)) {
+                calculatedTotalSize = file_stats.detailed_files.reduce((sum, file) => sum + (file.file_size || 0), 0);
+            }
+            document.getElementById('total-file-size').textContent = formatFileSize(calculatedTotalSize || file_stats.total_file_size || 0);
+            
+            document.getElementById('processing-rate').textContent = formatNumber(performance.processing_rate || 0, 1);
+            document.getElementById('avg-time-per-cve').textContent = formatNumber(performance.average_time || 0, 2);
+            
+            document.getElementById('cache-hit-rate').textContent = formatNumber(cache.hit_rate || 0, 1) + '%';
+            document.getElementById('cache-entries').textContent = formatNumber(cache.total_entries || 0);
+            
+            document.getElementById('cpe-queries').textContent = formatNumber(cpe_query_stats.total_queries || data.summary?.cpe_queries || 0);
+            document.getElementById('cpe-results').textContent = formatNumber(cpe_query_stats.total_results || 0);
+            
+            // Calculate warning/error counts from structured data (not log parsing)
+            const warnings = data.warnings || {};
+            const errors = data.errors || {};
+            
+            const totalWarnings = Object.values(warnings).reduce((sum, category) => {
+                if (!category || !Array.isArray(category)) return sum;
+                return sum + category.reduce((catSum, cveGroup) => {
+                    return catSum + (cveGroup.total_count || cveGroup.count || 1);
+                }, 0);
+            }, 0);
+            
+            const totalErrors = Object.values(errors).reduce((sum, category) => {
+                if (!category || !Array.isArray(category)) return sum;
+                return sum + category.reduce((catSum, cveGroup) => {
+                    return catSum + (cveGroup.total_count || cveGroup.count || 1);
+                }, 0);
+            }, 0);
+            
+            document.getElementById('warning-count').textContent = formatNumber(totalWarnings);
+            document.getElementById('error-count').textContent = formatNumber(totalErrors);
+
+            // Populate all detailed sections
+            populateRuntimeSection(data);
+            populateSpeedSection(data);
+            populateApiSection(data);
+            populateCacheSection(data);
+            populateMappingSection(data);
+            populateCpeSection(data);
+            populateFileSection(data);
+            populateLogSection(data);
+            
+            // Initialize tooltips after all sections are populated
+            setTimeout(() => {
+                initializeTooltips();
+            }, 100);
+        }
+
+        function populateRuntimeSection(data) {
+            const performance = data.performance || {};
+            const processing = data.processing || {};
+            
+            // Main runtime stats in summary format
+            const wallClockTime = performance.wall_clock_time || performance.total_runtime || 0;
+            const activeTime = performance.active_processing_time || performance.total_time || 0;
+            const overheadTime = wallClockTime > activeTime ? wallClockTime - activeTime : 0;
+            const processedCves = performance.count || processing.processed_cves || 0;
+            const remainingCves = processing.remaining_cves || 0;
+            const etaValue = processing.eta_simple || (remainingCves > 0 ? 'Calculating...' : 'Completed');
+
+            let html = `
+                <div class="api-summary">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Full Runtime ⓘ</div>
+                            <div class="detail-value total-calls">${formatTime(wallClockTime)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Active Processing Time ⓘ</div>
+                            <div class="detail-value success-rate">${formatTime(activeTime)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Delays/Overhead Time ⓘ</div>
+                            <div class="detail-value failed-calls">${formatTime(overheadTime)}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">🌐</div>
+                                <div class="service-name">CVEs Processed</div>
+                                <div class="call-count">${formatNumber(processedCves)} CVEs</div>
+                                <div class="description">Successfully completed</div>
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">📊</div>
+                                <div class="service-name">CVEs Remaining</div>
+                                <div class="call-count">${formatNumber(remainingCves)} CVEs</div>
+                                <div class="description">Still to process</div>
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">⏱️</div>
+                                <div class="service-name">Estimated Time Remaining</div>
+                                <div class="call-count">${etaValue}</div>
+                                <div class="description">Time remaining</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('runtime-section').innerHTML = html;
+        }
+
+        function populateSpeedSection(data) {
+            const speed_stats = data.speed_stats || {};
+            const performance = data.performance || {};
+            
+            // Main speed stats in summary format
+            const processingRate = performance.processing_rate || 0;
+            const avgTime = performance.average_time || 0;
+            
+            let html = `
+                <div class="api-summary">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Processing Rate ⓘ</div>
+                            <div class="detail-value total-calls">${formatNumber(processingRate, 1)} CVEs/hr</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Average Time per CVE ⓘ</div>
+                            <div class="detail-value success-rate">${formatNumber(avgTime, 2)}s</div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">🏃</div>
+                                <div class="service-name">Fastest CVE Time</div>
+                                <div class="call-count">${formatNumber(speed_stats.fastest_cve_time || performance.min_time || 0, 2)}s</div>
+                                <div class="description">${speed_stats.fastest_cve_id ? createCveIdElement(speed_stats.fastest_cve_id, { compact: true }) : 'N/A'}</div>
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">🐌</div>
+                                <div class="service-name">Slowest CVE Time</div>
+                                <div class="call-count">${formatNumber(speed_stats.slowest_cve_time || performance.max_time || 0, 2)}s</div>
+                                <div class="description">${speed_stats.slowest_cve_id ? createCveIdElement(speed_stats.slowest_cve_id, { compact: true }) : 'N/A'}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('speed-section').innerHTML = html;
+        }
+
+        function populateCacheSection(data) {
+            const cache = data.cache || {};
+            const cache_stats = data.cache_stats || {};
+            
+            // Check if section is tracked
+            if (cache.tracked === false) {
+                const note = cache.note || "Cache functionality is disabled";
+                document.getElementById('cache-section').innerHTML = `
+                    <div style="padding: 15px; text-align: center; color: #6c757d; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #95a5a6;">
+                        <small>💾 <strong>Cache:</strong> ${note}</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Calculate key metrics with improved logic including expired entries
+            const totalEntries = cache.total_entries || cache_stats.total_entries || 0;
+            const cacheHits = cache.cache_hits || cache_stats.hits || 0;
+            const cacheMisses = cache.cache_misses || cache_stats.misses || 0;
+            const cacheExpired = cache.cache_expired || cache_stats.expired || 0;
+            const totalRequests = cache.total_requests || (cacheHits + cacheMisses + cacheExpired) || 0;
+            
+            // Fix hit rate calculation - avoid division by zero
+            const hitRate = totalRequests > 0 ? Math.round((cacheHits / totalRequests) * 100) : 0;
+            
+            // API calls saved should equal cache hits (since each hit saves an API call)
+            // Expired entries don't save API calls since they require refresh
+            const apiCallsSaved = cacheHits;
+            
+            const cacheFileSize = cache.cache_file_size_formatted || formatFileSize(cache.cache_file_size || 0);
+            
+            let html = `
+                <div class="api-summary">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Cache Hit Rate ⓘ</div>
+                            <div class="detail-value success-rate">${formatNumber(hitRate, 1)}%</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">API Calls Saved ⓘ</div>
+                            <div class="detail-value total-calls">${formatNumber(apiCallsSaved)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Cache File Size ⓘ</div>
+                            <div class="detail-value failed-calls">${cacheFileSize}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">✅</div>
+                                <div class="service-name">Cache Hits</div>
+                                <div class="call-count">${formatNumber(cacheHits)}</div>
+                                <div class="description">Served from cache</div>
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">❌</div>
+                                <div class="service-name">Cache Misses</div>
+                                <div class="call-count">${formatNumber(cacheMisses)}</div>
+                                <div class="description">No cached data</div>
+                            </div>
+                        </div>
+            `;
+            
+            // Only show expired section if there are expired entries
+            if (cacheExpired > 0) {
+                html += `
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">♻️</div>
+                                <div class="service-name">Cache Expired</div>
+                                <div class="call-count">${formatNumber(cacheExpired)}</div>
+                                <div class="description">Stale data refreshed</div>
+                            </div>
+                        </div>
+                `;
+            }
+            
+            html += `
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('cache-section').innerHTML = html;
+        }
+
+        function populateMappingSection(data) {
+            const mapping_stats = data.mapping_stats || {};
+            
+            // Check if section is tracked
+            if (mapping_stats.tracked === false) {
+                const note = mapping_stats.note || "Mapping analysis is disabled";
+                document.getElementById('mapping-section').innerHTML = `
+                    <div style="padding: 15px; text-align: center; color: #6c757d; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #95a5a6;">
+                        <small>🔗 <strong>Mapping Analysis:</strong> ${note}</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Calculate key metrics
+            const totalMappings = mapping_stats.total_mappings_found || 0;
+            const entriesWithMappings = mapping_stats.platform_entries_with_mappings || 0;
+            const totalPlatformEntries = mapping_stats.total_platform_entries_processed || 0;
+            
+            // Calculate mapping percentage based on platform entries (not CVEs)
+            const mappingPercentage = totalPlatformEntries > 0 
+                ? (entriesWithMappings / totalPlatformEntries) * 100 
+                : 0;
+            
+            const largestMappingCount = mapping_stats.largest_mapping_count || 0;
+            const largestMappingCve = mapping_stats.largest_mapping_cve || 'N/A';
+            
+            let html = `
+                <div class="api-summary">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Mapping Percentage ⓘ</div>
+                            <div class="detail-value success-rate">${formatNumber(mappingPercentage, 1)}%</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Total Mappings Found ⓘ</div>
+                            <div class="detail-value total-calls">${formatNumber(totalMappings)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Total Platform Entries ⓘ</div>
+                            <div class="detail-value failed-calls">${formatNumber(totalPlatformEntries)} entries</div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">✅</div>
+                                <div class="service-name">Platform Entries with Mappings</div>
+                                <div class="call-count">${formatNumber(entriesWithMappings)} entries</div>
+                                <div class="description">Entries with confirmed mappings</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('mapping-section').innerHTML = html;
+        }
+
+        function populateLogSection(data) {
+            const log_stats = data.log_stats || {};
+            const warnings = data.warnings || {};
+            const errors = data.errors || {};
+            
+            // Calculate total categorized warnings and errors with new CVE-grouped structure
+            const totalWarnings = Object.values(warnings).reduce((sum, category) => {
+                if (!category || !Array.isArray(category)) return sum;
+                return sum + category.reduce((catSum, cveGroup) => {
+                    return catSum + (cveGroup.total_count || cveGroup.count || 1);
+                }, 0);
+            }, 0);
+            
+            const totalErrors = Object.values(errors).reduce((sum, category) => {
+                if (!category || !Array.isArray(category)) return sum;
+                return sum + category.reduce((catSum, cveGroup) => {
+                    return catSum + (cveGroup.total_count || cveGroup.count || 1);
+                }, 0);
+            }, 0);
+            
+            let html = `
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <div class="detail-label">Total Log Lines ⓘ</div>
+                        <div class="detail-value">${formatNumber(log_stats.total_lines || 0)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Info Messages ⓘ</div>
+                        <div class="detail-value">${formatNumber(log_stats.info_count || 0)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Debug Messages ⓘ</div>
+                        <div class="detail-value">${formatNumber(log_stats.debug_count || 0)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Warning Messages ⓘ</div>
+                        <div class="detail-value">${formatNumber(totalWarnings)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Error Messages ⓘ</div>
+                        <div class="detail-value">${formatNumber(totalErrors)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Log File Size ⓘ</div>
+                        <div class="detail-value">${formatFileSize(data.metadata?.file_size || 0)}</div>
+                    </div>
+                </div>
+            `;
+            
+            // Combine warnings and errors into a single Log Analysis section
+            const totalLogIssues = totalWarnings + totalErrors;
+            
+            if (totalLogIssues > 0) {
+                html += `
+                    <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">📋 Log Analysis</h4>
+                    <div class="log-analysis-container">
+                        <div class="log-view-switcher">
+                            <button class="log-view-tab active" onclick="switchLogView('frequency-view')">
+                                📊 By Event Frequency
+                            </button>
+                            <button class="log-view-tab" onclick="switchLogView('cve-view')">
+                                👤 By CVE
+                            </button>
+                        </div>
+                        <div id="frequency-view" class="log-view-panel active">
+                            <div class="frequency-filter-controls">
+                                <span class="frequency-filter-label">Show:</span>
+                                <div class="frequency-filter-checkbox">
+                                    <input type="checkbox" id="filter-warnings" checked onchange="filterFrequencyEvents()">
+                                    <label for="filter-warnings">⚠️ Warnings</label>
+                                </div>
+                                <div class="frequency-filter-checkbox">
+                                    <input type="checkbox" id="filter-errors" checked onchange="filterFrequencyEvents()">
+                                    <label for="filter-errors">❌ Errors</label>
+                                </div>
+                            </div>
+                `;
+                
+                // Debug: Log the actual data structure
+                console.log('Warnings data structure:', warnings);
+                console.log('Errors data structure:', errors);
+                
+                // Collect all CVE groups from all categories (both warnings and errors)
+                const allCveGroups = new Map();
+                const eventFrequencyMap = new Map(); // Track event message frequencies
+                
+                // Process warnings - handle both old and new data structures
+                Object.keys(warnings).forEach(categoryKey => {
+                    const categoryData = warnings[categoryKey] || [];
+                    console.log(`Processing warning category ${categoryKey}:`, categoryData);
+                    
+                    // Skip non-array properties like 'tracked'
+                    if (!Array.isArray(categoryData)) {
+                        return;
+                    }
+                    
+                    categoryData.forEach(entry => {
+                        const cveId = entry.cve_id || 'unknown';
+                        
+                        // Check if this is the new CVE-grouped structure or old structure
+                        if (entry.cve_subcategories) {
+                            // New structure: CVE already grouped with subcategories
+                            if (!allCveGroups.has(cveId)) {
+                                allCveGroups.set(cveId, {
+                                    cve_id: cveId,
+                                    total_count: 0,
+                                    first_occurrence: entry.first_occurrence,
+                                    last_occurrence: entry.last_occurrence,
+                                    categories: new Map()
+                                });
+                            }
+                            
+                            const consolidatedCve = allCveGroups.get(cveId);
+                            consolidatedCve.total_count += entry.total_count || 0;
+                            
+                            // Add subcategories
+                            const subcategories = entry.cve_subcategories || {};
+                            Object.values(subcategories).forEach(subcat => {
+                                const catKey = `warnings-${subcat.category}`;
+                                consolidatedCve.categories.set(catKey, {
+                                    type: 'warnings',
+                                    name: subcat.category,
+                                    count: subcat.count,
+                                    messages: subcat.messages || []
+                                });
+                                
+                                // NEW: Track event frequency
+                                (subcat.messages || []).forEach(message => {
+                                    if (message) {
+                                        const freqKey = `${subcat.category}|||${message}`;
+                                        if (!eventFrequencyMap.has(freqKey)) {
+                                            eventFrequencyMap.set(freqKey, {
+                                                message: message,
+                                                category: subcat.category,
+                                                type: 'warnings',
+                                                count: 0,
+                                                cves: new Set()
+                                            });
+                                        }
+                                        const freqData = eventFrequencyMap.get(freqKey);
+                                        freqData.count += subcat.count;
+                                        freqData.cves.add(cveId);
+                                    }
+                                });
+                            });
+                        } else {
+                            // Old structure: Individual entries per CVE
+                            if (!allCveGroups.has(cveId)) {
+                                allCveGroups.set(cveId, {
+                                    cve_id: cveId,
+                                    total_count: 0,
+                                    first_occurrence: entry.first_occurrence || entry.timestamp,
+                                    last_occurrence: entry.last_occurrence || entry.timestamp,
+                                    categories: new Map()
+                                });
+                            }
+                            
+                            const consolidatedCve = allCveGroups.get(cveId);
+                            const entryCount = entry.count || 1;
+                            consolidatedCve.total_count += entryCount;
+                            
+                            // Update timestamps
+                            const entryTime = entry.last_occurrence || entry.first_occurrence || entry.timestamp;
+                            if (entryTime) {
+                                if (!consolidatedCve.first_occurrence || entryTime < consolidatedCve.first_occurrence) {
+                                    consolidatedCve.first_occurrence = entryTime;
+                                }
+                                if (!consolidatedCve.last_occurrence || entryTime > consolidatedCve.last_occurrence) {
+                                    consolidatedCve.last_occurrence = entryTime;
+                                }
+                            }
+                            
+                            // Determine category name from the warning category key
+                            const categoryName = categoryKey.replace('_warnings', '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) + ' Issues';
+                            const catKey = `warnings-${categoryName}`;
+                            
+                            if (consolidatedCve.categories.has(catKey)) {
+                                // Merge with existing category
+                                const existingCat = consolidatedCve.categories.get(catKey);
+                                existingCat.count += entryCount;
+                                const messages = entry.messages || [entry.message || entry.sample_message];
+                                if (messages) {
+                                    messages.forEach(msg => {
+                                        if (msg && !existingCat.messages.includes(msg)) {
+                                            existingCat.messages.push(msg);
+                                        }
+                                    });
+                                }
+                            } else {
+                                // Create new category
+                                consolidatedCve.categories.set(catKey, {
+                                    type: 'warnings',
+                                    name: categoryName,
+                                    count: entryCount,
+                                    messages: entry.messages || [entry.message || entry.sample_message].filter(Boolean)
+                                });
+                            }
+                            
+                            // NEW: Track event frequency for old structure
+                            const messages = entry.messages || [entry.message || entry.sample_message].filter(Boolean);
+                            messages.forEach(message => {
+                                if (message) {
+                                    const freqKey = `${categoryName}|||${message}`;
+                                    if (!eventFrequencyMap.has(freqKey)) {
+                                        eventFrequencyMap.set(freqKey, {
+                                            message: message,
+                                            category: categoryName,
+                                            type: 'warnings',
+                                            count: 0,
+                                            cves: new Set()
+                                        });
+                                    }
+                                    const freqData = eventFrequencyMap.get(freqKey);
+                                    freqData.count += entryCount;
+                                    freqData.cves.add(cveId);
+                                }
+                            });
+                        }
+                    });
+                });
+                
+                // Process errors - same logic as warnings
+                Object.keys(errors).forEach(categoryKey => {
+                    const categoryData = errors[categoryKey] || [];
+                    console.log(`Processing error category ${categoryKey}:`, categoryData);
+                    
+                    // Skip non-array properties like 'tracked'
+                    if (!Array.isArray(categoryData)) {
+                        return;
+                    }
+                    
+                    categoryData.forEach(entry => {
+                        const cveId = entry.cve_id || 'unknown';
+                        
+                        // Check if this is the new CVE-grouped structure or old structure
+                        if (entry.cve_subcategories) {
+                            // New structure: CVE already grouped with subcategories
+                            if (!allCveGroups.has(cveId)) {
+                                allCveGroups.set(cveId, {
+                                    cve_id: cveId,
+                                    total_count: 0,
+                                    first_occurrence: entry.first_occurrence,
+                                    last_occurrence: entry.last_occurrence,
+                                    categories: new Map()
+                                });
+                            }
+                            
+                            const consolidatedCve = allCveGroups.get(cveId);
+                            consolidatedCve.total_count += entry.total_count || 0;
+                            
+                            // Add subcategories
+                            const subcategories = entry.cve_subcategories || {};
+                            Object.values(subcategories).forEach(subcat => {
+                                const catKey = `errors-${subcat.category}`;
+                                consolidatedCve.categories.set(catKey, {
+                                    type: 'errors',
+                                    name: subcat.category,
+                                    count: subcat.count,
+                                    messages: subcat.messages || []
+                                });
+                                
+                                // NEW: Track event frequency
+                                (subcat.messages || []).forEach(message => {
+                                    if (message) {
+                                        const freqKey = `${subcat.category}|||${message}`;
+                                        if (!eventFrequencyMap.has(freqKey)) {
+                                            eventFrequencyMap.set(freqKey, {
+                                                message: message,
+                                                category: subcat.category,
+                                                type: 'errors',
+                                                count: 0,
+                                                cves: new Set()
+                                            });
+                                        }
+                                        const freqData = eventFrequencyMap.get(freqKey);
+                                        freqData.count += subcat.count;
+                                        freqData.cves.add(cveId);
+                                    }
+                                });
+                            });
+                        } else {
+                            // Old structure: Individual entries per CVE
+                            if (!allCveGroups.has(cveId)) {
+                                allCveGroups.set(cveId, {
+                                    cve_id: cveId,
+                                    total_count: 0,
+                                    first_occurrence: entry.first_occurrence || entry.timestamp,
+                                    last_occurrence: entry.last_occurrence || entry.timestamp,
+                                    categories: new Map()
+                                });
+                            }
+                            
+                            const consolidatedCve = allCveGroups.get(cveId);
+                            const entryCount = entry.count || 1;
+                            consolidatedCve.total_count += entryCount;
+                            
+                            // Update timestamps
+                            const entryTime = entry.last_occurrence || entry.first_occurrence || entry.timestamp;
+                            if (entryTime) {
+                                if (!consolidatedCve.first_occurrence || entryTime < consolidatedCve.first_occurrence) {
+                                    consolidatedCve.first_occurrence = entryTime;
+                                }
+                                if (!consolidatedCve.last_occurrence || entryTime > consolidatedCve.last_occurrence) {
+                                    consolidatedCve.last_occurrence = entryTime;
+                                }
+                            }
+                            
+                            // Determine category name from the error category key
+                            const categoryName = categoryKey.replace('_errors', '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) + ' Issues';
+                            const catKey = `errors-${categoryName}`;
+                            
+                            if (consolidatedCve.categories.has(catKey)) {
+                                // Merge with existing category
+                                const existingCat = consolidatedCve.categories.get(catKey);
+                                existingCat.count += entryCount;
+                                const messages = entry.messages || [entry.message || entry.sample_message];
+                                if (messages) {
+                                    messages.forEach(msg => {
+                                        if (msg && !existingCat.messages.includes(msg)) {
+                                            existingCat.messages.push(msg);
+                                        }
+                                    });
+                                }
+                            } else {
+                                // Create new category
+                                consolidatedCve.categories.set(catKey, {
+                                    type: 'errors',
+                                    name: categoryName,
+                                    count: entryCount,
+                                    messages: entry.messages || [entry.message || entry.sample_message].filter(Boolean)
+                                });
+                            }
+                            
+                            // NEW: Track event frequency for old structure
+                            const messages = entry.messages || [entry.message || entry.sample_message].filter(Boolean);
+                            messages.forEach(message => {
+                                if (message) {
+                                    const freqKey = `${categoryName}|||${message}`;
+                                    if (!eventFrequencyMap.has(freqKey)) {
+                                        eventFrequencyMap.set(freqKey, {
+                                            message: message,
+                                            category: categoryName,
+                                            type: 'errors',
+                                            count: 0,
+                                            cves: new Set()
+                                        });
+                                    }
+                                    const freqData = eventFrequencyMap.get(freqKey);
+                                    freqData.count += entryCount;
+                                    freqData.cves.add(cveId);
+                                }
+                            });
+                        }
+                    });
+                });
+                
+                // Generate Event Frequency View FIRST
+                // Group events by category and type
+                const categoryGroups = new Map();
+                
+                eventFrequencyMap.forEach(eventData => {
+                    const groupKey = `${eventData.type}:::${eventData.category}`;
+                    if (!categoryGroups.has(groupKey)) {
+                        categoryGroups.set(groupKey, {
+                            type: eventData.type,
+                            category: eventData.category,
+                            totalCount: 0,
+                            events: []
+                        });
+                    }
+                    const group = categoryGroups.get(groupKey);
+                    group.totalCount += eventData.count;
+                    group.events.push(eventData);
+                });
+                
+                // Sort category groups by total count
+                const sortedCategories = Array.from(categoryGroups.values()).sort((a, b) => {
+                    if (b.totalCount !== a.totalCount) {
+                        return b.totalCount - a.totalCount;
+                    }
+                    return a.category.localeCompare(b.category);
+                });
+                
+                console.log('Category groups:', sortedCategories);
+                
+                html += `<div class="frequency-event-list">`;
+                
+                sortedCategories.forEach(categoryGroup => {
+                    const iconClass = categoryGroup.type === 'warnings' ? '⚠️' : '❌';
+                    const categoryClass = categoryGroup.type === 'warnings' ? 'frequency-category-warning' : 'frequency-category-error';
+                    
+                    // Sort events within category by count
+                    const sortedEvents = categoryGroup.events.sort((a, b) => {
+                        if (b.count !== a.count) return b.count - a.count;
+                        return a.message.localeCompare(b.message);
+                    });
+                    
+                    html += `
+                        <div class="frequency-category-group ${categoryClass}" data-event-type="${categoryGroup.type}">
+                            <div class="frequency-category-header" onclick="toggleFrequencyCategoryDetails(this)">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span>${iconClass}</span>
+                                    <span>${categoryGroup.category}</span>
+                                    <span style="font-size: 0.85em; color: #6c757d; font-weight: 400;">(${sortedEvents.length} ${sortedEvents.length === 1 ? 'event' : 'events'})</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 0.85em; color: #6c757d;">${categoryGroup.totalCount} occurrences</span>
+                                    <span class="event-expand-indicator">▼</span>
+                                </div>
+                            </div>
+                            <div class="frequency-category-events">
+                    `;
+                    
+                    sortedEvents.forEach(eventData => {
+                        const cveCount = eventData.cves.size;
+                        
+                        html += `
+                            <div class="event-frequency-item">
+                                <div class="event-frequency-header" onclick="toggleEventFrequencyDetails(this)">
+                                    <div class="event-frequency-message">
+                                        ${eventData.message}
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <span style="font-size: 0.75em; color: #6c757d;">${cveCount} CVE${cveCount !== 1 ? 's' : ''}</span>
+                                        <div class="event-frequency-count">${eventData.count}</div>
+                                        <span class="event-expand-indicator">▼</span>
+                                    </div>
+                                </div>
+                                <div class="event-frequency-details">
+                                    <div class="event-cve-list">
+                        `;
+                        
+                        // Display all CVEs affected by this event
+                        Array.from(eventData.cves).sort().forEach(cveId => {
+                            const cveDisplay = createCveIdElement(cveId, { compact: true, className: 'event-cve-badge' });
+                            html += cveDisplay;
+                        });
+                        
+                        html += `
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`; // Close frequency-event-list
+                html += `</div>`; // Close frequency-view panel
+                
+                // Now generate CVE View
+                html += `<div id="cve-view" class="log-view-panel">`;
+                
+                console.log('Final consolidated CVE groups:', Array.from(allCveGroups.entries()));
+                
+                // Sort CVEs by total count (highest first), then by CVE ID
+                const sortedCves = Array.from(allCveGroups.values()).sort((a, b) => {
+                    if (b.total_count !== a.total_count) {
+                        return b.total_count - a.total_count;
+                    }
+                    return a.cve_id.localeCompare(b.cve_id);
+                });
+                
+                console.log('Sorted CVEs:', sortedCves);
+                
+                // Display CVE-first collapsible structure
+                html += `<div class="cve-log-entries">`;
+                
+                sortedCves.forEach((cveData, index) => {
+                    const cveId = cveData.cve_id;
+                    const totalCount = cveData.total_count;
+                    const latestTimestamp = cveData.last_occurrence || cveData.first_occurrence || 'Unknown';
+                    
+                    // Create CVE display using universal function
+                    const cveDisplay = createCveIdElement(cveId);
+                    
+                    html += `
+                        <div class="cve-log-entry" style="margin-bottom: 15px; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;">
+                            <div class="cve-log-header" onclick="toggleCveLogDetails(this)" style="background: #f8f9fa; padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #dee2e6; display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    ${cveDisplay}
+                                    <span style="color: #6c757d; font-size: 0.9em;">${totalCount} total event${totalCount !== 1 ? 's' : ''}</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <span style="color: #6c757d; font-size: 0.85em;">${latestTimestamp}</span>
+                                    <span class="cve-expand-indicator" style="transition: transform 0.2s ease;">▼</span>
+                                </div>
+                            </div>
+                            <div class="cve-log-details" style="display: none; padding: 15px; background: white;">
+                    `;
+                    
+                    // Display categories within this CVE
+                    const sortedCategories = Array.from(cveData.categories.values()).sort((a, b) => b.count - a.count);
+                    
+                    sortedCategories.forEach(category => {
+                        const iconClass = category.type === 'warnings' ? '⚠️' : '❌';
+                        const borderColor = category.type === 'warnings' ? '#ffc107' : '#dc3545';
+                        
+                        html += `
+                            <div style="margin: 10px 0; padding: 12px; background: #f8f9fa; border-left: 4px solid ${borderColor}; border-radius: 4px;">
+                                <div style="font-weight: bold; color: #495057; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                                    <span>${iconClass}</span>
+                                    <span>${category.name} (${category.count} occurrence${category.count !== 1 ? 's' : ''})</span>
+                                </div>
+                        `;
+                        
+                        // Display sample messages for this category
+                        category.messages.forEach((message, msgIndex) => {
+                            if (message) {
+                                html += `<div style="margin: 4px 0; padding: 8px; background: white; border-radius: 3px; font-size: 0.9em; color: #6c757d; border-left: 2px solid #e9ecef;">${message}</div>`;
+                            }
+                        });
+                        
+                        html += `</div>`;
+                    });
+                    
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`; // Close cve-log-entries
+                html += `</div>`; // Close cve-view panel
+                html += `</div>`; // Close log-analysis-container
+            } else if ((totalWarnings > 0) || (totalErrors > 0)) {
+                // No categorized structure - minimal display
+                html += `
+                    <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                        <div style="display: flex; align-items: center; color: #856404;">
+                            <div style="font-size: 1.2em; margin-right: 10px;">⚠️</div>
+                            <div>
+                                <strong>Log Data Available</strong><br>
+                                <small>Found ${totalWarnings} warnings and ${totalErrors} errors.</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // No warnings or errors found
+                html += `
+                    <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                        <div style="display: flex; align-items: center; color: #495057;">
+                            <div style="font-size: 1.2em; margin-right: 10px;">ℹ️</div>
+                            <div>
+                                <strong>No Issues Found</strong><br>
+                                <small>The processing run completed without any warning or error messages.</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            document.getElementById('log-section').innerHTML = html;
+        }
+
+        function populateApiSection(data) {
+            const api = data.api || {};
+            const api_calls = data.api_calls || {};
+            
+            // Check if section is tracked
+            if (api.tracked === false) {
+                const note = api.note || "API tracking is disabled";
+                document.getElementById('api-section').innerHTML = `
+                    <div style="padding: 15px; text-align: center; color: #6c757d; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #95a5a6;">
+                        <small>🌐 <strong>API:</strong> ${note}</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            const total_calls = api.total_calls || api_calls.total || 0;
+            const successful_calls = api.successful_calls || 0;
+            const failed_calls = api.failed_calls || 0;
+            const success_rate = total_calls > 0 ? ((successful_calls / total_calls) * 100) : 100;
+            
+            // Get breakdown data for individual API sections
+            const call_breakdown = api.call_breakdown || {};
+            const nvd_cve_breakdown = call_breakdown["NVD CVE API"] || {};
+            const mitre_cve_breakdown = call_breakdown["MITRE CVE API"] || {};
+            const nvd_cpe_breakdown = call_breakdown["NVD CPE API"] || {};
+
+            // Add tracking note if present (for limited modes like SDC-only)
+            let trackingNoteHtml = '';
+            if (api.tracking_note && api.tracking_note !== "All API calls tracked") {
+                trackingNoteHtml = `
+                    <div style="background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; padding: 8px 12px; margin-bottom: 12px; color: #856404; font-size: 0.9em;">
+                        <strong>ℹ️</strong> ${api.tracking_note}
+                    </div>
+                `;
+            }
+            
+            // Main API Performance section with integrated summary stats
+            let html = trackingNoteHtml + `
+                <div class="api-summary">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Total API Calls ⓘ</div>
+                            <div class="detail-value total-calls">${formatNumber(total_calls)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">API Success Rate ⓘ</div>
+                            <div class="detail-value success-rate">${formatNumber(success_rate, 1)}%</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Failed API Calls ⓘ</div>
+                            <div class="detail-value failed-calls">${formatNumber(failed_calls)}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">🔍</div>
+                                <div class="service-name">NVD CVE API Calls</div>
+                                <div class="call-count">${formatNumber(api.nvd_cve_calls || nvd_cve_breakdown.count || 0)} calls</div>
+                                <div class="description">CVE vulnerability data</div>
+            `;
+            
+            // Add breakdown details if available
+            if (nvd_cve_breakdown.count > 0) {
+                const nvd_success_rate = ((nvd_cve_breakdown.success || 0) / nvd_cve_breakdown.count * 100);
+                html += `
+                                <div class="breakdown-stats">
+                                    ${nvd_cve_breakdown.success || 0}✅ / ${nvd_cve_breakdown.failed || 0}❌ -
+                                    <span style="color: ${nvd_success_rate >= 95 ? '#27ae60' : nvd_success_rate >= 80 ? '#f39c12' : '#e74c3c'};">
+                                        ${formatNumber(nvd_success_rate, 1)}%
+                                    </span>
+                                </div>
+                `;
+            }
+            
+            html += `
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">🔍</div>
+                                <div class="service-name">MITRE CVE API Calls</div>
+                                <div class="call-count">${formatNumber(api.mitre_cve_calls || mitre_cve_breakdown.count || 0)} calls</div>
+                                <div class="description">CVE metadata and references</div>
+            `;
+            
+            // Add breakdown details if available
+            if (mitre_cve_breakdown.count > 0) {
+                const mitre_success_rate = ((mitre_cve_breakdown.success || 0) / mitre_cve_breakdown.count * 100);
+                html += `
+                                <div class="breakdown-stats">
+                                    ${mitre_cve_breakdown.success || 0}✅ / ${mitre_cve_breakdown.failed || 0}❌ -
+                                    <span style="color: ${mitre_success_rate >= 95 ? '#27ae60' : mitre_success_rate >= 80 ? '#f39c12' : '#e74c3c'};">
+                                        ${formatNumber(mitre_success_rate, 1)}%
+                                    </span>
+                                </div>
+                `;
+            }
+            
+            html += `
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">🔍</div>
+                                <div class="service-name">NVD CPE API Calls</div>
+                                <div class="call-count">${formatNumber(api.nvd_cpe_calls || nvd_cpe_breakdown.count || 0)} calls</div>
+                                <div class="description">Common Platform Enumeration</div>
+            `;
+            
+            // Add breakdown details if available
+            if (nvd_cpe_breakdown.count > 0) {
+                const nvd_cpe_success_rate = ((nvd_cpe_breakdown.success || 0) / nvd_cpe_breakdown.count * 100);
+                html += `
+                                <div class="breakdown-stats">
+                                    ${nvd_cpe_breakdown.success || 0}✅ / ${nvd_cpe_breakdown.failed || 0}❌ -
+                                    <span style="color: ${nvd_cpe_success_rate >= 95 ? '#27ae60' : nvd_cpe_success_rate >= 80 ? '#f39c12' : '#e74c3c'};">
+                                        ${formatNumber(nvd_cpe_success_rate, 1)}%
+                                    </span>
+                                </div>
+                `;
+            }
+            
+            html += `
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('api-section').innerHTML = html;
+        }
+
+        function populateCpeSection(data) {
+            const cpe_stats = data.cpe_query_stats || {};
+            
+            // Check if section is tracked
+            if (cpe_stats.tracked === false) {
+                const note = cpe_stats.note || "CPE query analysis is disabled";
+                document.getElementById('cpe-section').innerHTML = `
+                    <div style="padding: 15px; text-align: center; color: #6c757d; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #95a5a6;">
+                        <small>🔍 <strong>CPE Query:</strong> ${note}</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            const top_queries = cpe_stats.top_queries || [];
+            const top_cves = cpe_stats.top_cves_by_searches || [];
+            const top_result_queries = cpe_stats.top_queries_by_results || [];
+            const query_details = cpe_stats.query_details || {};
+            
+            // Calculate additional metrics for the service items
+            const avgResultsPerQuery = cpe_stats.total_queries > 0 ? 
+                (cpe_stats.total_results || 0) / cpe_stats.total_queries : 0;
+            const maxResultsInQuery = cpe_stats.max_results_in_single_query || 0;
+            
+            let html = `
+                <div class="api-summary">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Total CPE Queries ⓘ</div>
+                            <div class="detail-value total-calls">${formatNumber(cpe_stats.total_queries || 0)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Unique Base Strings ⓘ</div>
+                            <div class="detail-value success-rate">${formatNumber(cpe_stats.unique_base_strings || 0)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Average Results per Query ⓘ</div>
+                            <div class="detail-value failed-calls">${formatNumber(avgResultsPerQuery, 1)}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">🔍</div>
+                                <div class="service-name">Total CPE Results</div>
+                                <div class="call-count">${formatNumber(cpe_stats.total_results || 0)} results</div>
+                                <div class="description">Total CPE entries returned</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Top CVE Records by Number of Search Strings
+            if (top_cves.length > 0) {
+                html += `
+                    <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">📊 Top CVE Records by Number of Search Strings</h4>
+                    <div style="overflow-x: auto; margin-bottom: 30px;">
+                        <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <thead style="background: #34495e; color: white;">
+                                <tr>
+                                    <th style="padding: 12px; text-align: left; font-weight: 600;">Rank</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 600;">CVE ID</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 600;">Unique Strings</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 600;">Affected Entries</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 600;">Strings/Entry</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 600;">Processed</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                top_cves.slice(0, 10).forEach((cve, index) => {
+                    const rowClass = index % 2 === 0 ? 'background: #f8f9fa;' : 'background: white;';
+                    const cveId = cve.cve_id || 'Unknown';
+                    const uniqueStrings = cve.search_count || 0;
+                    const affectedEntries = cve.affected_entries || 1;
+                    
+                    // Log data quality concerns to console
+                    if (!cve.affected_entries) {
+                        console.warn(`[Data Quality] CVE ${cveId}: affected_entries missing, defaulting to 1. This may indicate incomplete data processing.`);
+                    }
+                    
+                    const stringsPerEntry = (uniqueStrings / affectedEntries).toFixed(1);
+                    const processedTimestamp = cve.processed_timestamp || new Date().toISOString();
+                    const processedDate = new Date(processedTimestamp).toLocaleString();
+                    
+                    html += `
+                        <tr style="${rowClass}">
+                            <td style="padding: 12px; font-weight: 600; color: #2c3e50;">#${index + 1}</td>
+                            <td style="padding: 12px;">
+                                ${createCveIdElement(cveId)}
+                            </td>
+                            <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">${formatNumber(uniqueStrings)}</td>
+                            <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">${formatNumber(affectedEntries)}</td>
+                            <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">${stringsPerEntry}</td>
+                            <td style="padding: 12px; text-align: center; font-family: monospace; font-size: 0.85em; color: #2c3e50;">${processedDate}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            // Top Queries by Result Count
+            if (top_result_queries.length > 0) {
+                html += `
+                    <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">📊 Top Queries by Result Count</h4>
+                    <div style="overflow-x: auto; margin-bottom: 20px;">
+                        <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            <thead style="background: #8e44ad; color: white;">
+                                <tr>
+                                    <th style="padding: 12px; text-align: left; font-weight: 600;">Rank</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 600;">CPE Base String</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 600;">Results</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 600;" >Query Count</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 600;">CVE IDs</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                top_result_queries.slice(0, 10).forEach((query, index) => {
+                    const rowClass = index % 2 === 0 ? 'background: #f8f9fa;' : 'background: white;';
+                    
+                    // Create CVE display using universal function
+                    let cveLinksHtml = '<span class="text-muted">No CVEs tracked</span>';
+                    if (query.cve_ids && query.cve_ids.length > 0) {
+                        const cveElements = query.cve_ids.slice(0, 5).map(cveId => createCveIdElement(cveId, { compact: true }));
+                        cveLinksHtml = cveElements.join(', ');
+                        if (query.total_cve_count > 5) {
+                            cveLinksHtml += ` <span style="color: #6c757d;">(+${query.total_cve_count - 5} more)</span>`;
+                        }
+                    }
+                    
+                    html += `
+                        <tr style="${rowClass}">
+                            <td style="padding: 12px; font-weight: 600; color: #2c3e50;">#${index + 1}</td>
+                            <td style="padding: 12px; font-family: monospace; font-size: 0.9em; color: #2c3e50; max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${query.base_string || 'Unknown'}</td>
+                            <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">${formatNumber(query.total_results || 0)}</td>
+                            <td style="padding: 12px; text-align: center; font-weight: 600; color: #2c3e50;">${formatNumber(query.query_count || 0)}</td>
+                            <td style="padding: 12px; font-size: 0.85em; max-width: 200px;">${cveLinksHtml}</td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            document.getElementById('cpe-section').innerHTML = html;
+        }
+
+        function populateFileSection(data) {
+            const file_stats = data.file_stats || {};
+            
+            // Check if section is tracked
+            if (file_stats.tracked === false) {
+                const note = file_stats.note || "File generation is disabled";
+                document.getElementById('file-section').innerHTML = `
+                    <div style="padding: 15px; text-align: center; color: #6c757d; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #95a5a6;">
+                        <small>📄 <strong>File Generation:</strong> ${note}</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            const detailed_files = file_stats.detailed_files || [];
+            
+            // Sort files by file size in descending order and limit to top 20
+            const sortedFiles = [...detailed_files]
+                .sort((a, b) => (b.file_size || 0) - (a.file_size || 0))
+                .slice(0, 20); // Ensure we never show more than 20 files
+            
+            let html = `
+                <div class="api-summary">
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Total Files Generated ⓘ</div>
+                            <div class="detail-value total-calls">${formatNumber(file_stats.files_generated || 0)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Total File Size ⓘ</div>
+                            <div class="detail-value success-rate">${formatFileSize(file_stats.total_file_size || 0)}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Median File Size ⓘ</div>
+                            <div class="detail-value failed-calls">${formatFileSize(file_stats.median_file_size || file_stats.average_file_size || 0)}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">📊</div>
+                                <div class="service-name">Smallest File Size</div>
+                                <div class="call-count">${formatFileSize(file_stats.smallest_file_size || 0)}</div>
+                                <div class="description">Minimum generated file</div>
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">📈</div>
+                                <div class="service-name">Largest File Size</div>
+                                <div class="call-count">${formatFileSize(file_stats.largest_file_size || 0)}</div>
+                                <div class="description">Maximum generated file</div>
+                            </div>
+                        </div>
+
+                        <div class="api-service-item">
+                            <div class="api-service-content">
+                                <div class="icon">📁</div>
+                                <div class="service-name">Files Generated</div>
+                                <div class="call-count">${formatNumber(file_stats.files_generated || 0)} files</div>
+                                <div class="description">Total output count</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">📁 Top 20 Generated Files by Size</h4>
+            `;
+
+            if (sortedFiles.length > 0) {
+                html += `
+                    <div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead style="background: #16a085; color: white;">
+                                <tr>
+                                    <th style="padding: 12px 15px; text-align: left; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">Rank</th>
+                                    <th style="padding: 12px 15px; text-align: left; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">CVE ID</th>
+                                    <th style="padding: 12px 15px; text-align: center; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">File Size</th>
+                                    <th style="padding: 12px 15px; text-align: center; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">Platform Entries</th>
+                                    <th style="padding: 12px 15px; text-align: center; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">Processing Time</th>
+                                    <th style="padding: 12px 15px; text-align: left; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">Bloat Analysis</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                sortedFiles.forEach((file, index) => {
+                    const rank = index + 1;
+                    const cveId = file.cve_id || 'Unknown';
+                    const fileSize = formatFileSize(file.file_size || 0);
+                    const platformEntries = file.dataframe_rows || 0;
+                    const processingTime = formatTime(file.processing_time || 0);
+                    const rowStyle = index % 2 === 0 ? 'background: #f8f9fa;' : 'background: #dfdfdf;';
+                    
+                    // Create CVE link using universal function
+                    const cveLink = createCveIdElement(cveId === 'Unknown' ? 'unknown' : cveId);
+                    
+                    // Use bloat analysis data if available
+                    const bloatAnalysis = file.bloat_analysis || {};
+                    const bloatSources = bloatAnalysis.top_5_sources || [];
+                    
+                    html += `
+                        <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;">
+                            <td style="padding: 12px; font-weight: bold; color: #2c3e50;">📋 #${rank}</td>
+                            <td style="padding: 12px;">
+                                ${cveLink}
+                            </td>
+                            <td style="padding: 12px; text-align: center; font-weight: bold; color: #16a085;">${fileSize}</td>
+                            <td style="padding: 12px; text-align: center;">${formatNumber(platformEntries)}</td>
+                            <td style="padding: 12px; text-align: center; color: #e67e22;">${processingTime}</td>
+                            <td style="padding: 12px;">
+                                <div style="width: 100%; max-width: 600px;">
+                                    ${bloatSources.length > 0 ? `
+                                        <details style="cursor: pointer;">
+                                            <summary style="font-weight: 600; font-size: 0.95em; color: #2c3e50; padding: 10px 12px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6; transition: all 0.2s ease; list-style: none; display: flex; align-items: center; justify-content: space-between;">
+                                                <span>🔍 Top ${bloatSources.length} Bloat Sources</span>
+                                                <span style="font-size: 0.8em; color: #6c757d;">${bloatSources.length} identified</span>
+                                            </summary>
+                                            <div style="background: #f8f9fa; border-radius: 6px; padding: 12px; border: 1px solid #dee2e6; margin-top: 6px;">
+                                                ${bloatSources.map((source, idx) => `
+                                                    <div style="display: flex; align-items: center; margin: 3px 0; padding: 8px; background: #fff; border-radius: 4px; border-left: 4px solid #6c757d; font-size: 0.9em;">
+                                                        <div style="min-width: 24px; font-weight: bold; color: #495057; margin-right: 12px;">${idx + 1}.</div>
+                                                        <div style="flex: 1; display: flex; justify-content: space-between; align-items: center;">
+                                                            <div style="display: flex; align-items: center; gap: 8px;">
+                                                                <span style="font-weight: 600; color: #2c3e50;">${source.size}</span>
+                                                                <span style="color: #6c757d;">(${source.percentage}%)</span>
+                                                            </div>
+                                                            <span style="background: #6c757d; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.8em; font-weight: 500;">
+                                                                ${source.description}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        </details>
+                                    ` : `
+                                        <div style="padding: 10px 12px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6; color: #6c757d; text-align: center;">
+                                            📊 No bloat analysis available
+                                        </div>
+                                    `}
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div style="background: white; border-radius: 8px; padding: 20px; text-align: center; color: #6c757d;">
+                        <div style="font-size: 1.2em; margin-bottom: 10px;">📂</div>
+                        <div>No detailed file information available</div>
+                    </div>
+                `;
+            }
+
+            document.getElementById('file-section').innerHTML = html;
+        }
+
+        function scrollToSection(sectionId) {
+            const element = document.getElementById(sectionId);
+            if (element) {
+                element.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+                
+                // Add a brief highlight effect
+                element.style.transition = 'background-color 0.5s ease';
+                element.style.backgroundColor = 'rgba(52, 152, 219, 0.1)';
+                setTimeout(() => {
+                    element.style.backgroundColor = '';
+                }, 1000);
+            }
+        }
+
+        // Log analysis tab and interaction functions
+        function switchLogTab(tabElement, categoryId) {
+            // Remove active class from all tabs in the same container
+            const container = tabElement.closest('.log-category-tabs');
+            container.querySelectorAll('.log-category-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Add active class to clicked tab
+            tabElement.classList.add('active');
+            
+            // Hide all panels in the same content container
+            const contentContainer = container.nextElementSibling;
+            contentContainer.querySelectorAll('.log-category-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            
+            // Show the target panel
+            const targetPanel = document.getElementById(categoryId);
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+            }
+        }
+
+        function toggleExpandedDetails(headerElement) {
+            const detailsElement = headerElement.nextElementSibling;
+            const indicator = headerElement.querySelector('.expand-indicator');
+            
+            if (detailsElement.style.display === 'block') {
+                detailsElement.style.display = 'none';
+                indicator.textContent = '▼';
+            } else {
+                detailsElement.style.display = 'block';
+                indicator.textContent = '▲';
+            }
+        }
+
+        function toggleCveLogDetails(headerElement) {
+            const detailsElement = headerElement.nextElementSibling;
+            const indicator = headerElement.querySelector('.cve-expand-indicator');
+            
+            if (detailsElement.style.display === 'block') {
+                detailsElement.style.display = 'none';
+                indicator.style.transform = 'rotate(0deg)';
+            } else {
+                detailsElement.style.display = 'block';
+                indicator.style.transform = 'rotate(180deg)';
+            }
+        }
+
+        // Initialize log analysis after page load
+        function initializeLogTabs() {
+            // Add click handlers to all log category tabs
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('log-category-tab')) {
+                    const categoryId = e.target.getAttribute('data-category');
+                    if (categoryId) {
+                        switchLogTab(e.target, categoryId);
+                    }
+                }
+            });
+        }
+
+        // Enhanced log category tab switching
+        function switchLogCategory(categoryId) {
+            // Hide all panels and deactivate all tabs
+            document.querySelectorAll('.log-category-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            document.querySelectorAll('.log-category-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected panel and activate tab
+            const targetPanel = document.getElementById(categoryId);
+            const targetTab = document.querySelector(`[data-category="${categoryId}"]`);
+            
+            if (targetPanel) targetPanel.classList.add('active');
+            if (targetTab) targetTab.classList.add('active');
+        }
+
+        // Enhanced expand/collapse functionality
+        function toggleExpandedDetails(headerElement) {
+            const logItem = headerElement.closest('.log-entry-item');
+            if (logItem) {
+                logItem.classList.toggle('expanded');
+                
+                // Update expand indicator
+                const indicator = headerElement.querySelector('.expand-indicator');
+                if (indicator) {
+                    indicator.textContent = logItem.classList.contains('expanded') ? '▲' : '▼';
+                }
+            }
+        }
+
+        // NEW: Switch between CVE view and Event Frequency view
+        function switchLogView(viewId) {
+            // Hide all view panels
+            document.querySelectorAll('.log-view-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            
+            // Deactivate all view tabs
+            document.querySelectorAll('.log-view-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected panel
+            const targetPanel = document.getElementById(viewId);
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+            }
+            
+            // Activate corresponding tab
+            const targetTab = event.target.closest('.log-view-tab');
+            if (targetTab) {
+                targetTab.classList.add('active');
+            }
+        }
+
+        // Toggle frequency category group (expand/collapse)
+        function toggleFrequencyCategoryDetails(headerElement) {
+            const categoryGroup = headerElement.closest('.frequency-category-group');
+            if (categoryGroup) {
+                categoryGroup.classList.toggle('expanded');
+            }
+        }
+
+        // Toggle event frequency details (expand/collapse)
+        function toggleEventFrequencyDetails(headerElement) {
+            const eventItem = headerElement.closest('.event-frequency-item');
+            if (eventItem) {
+                eventItem.classList.toggle('expanded');
+            }
+        }
+
+        // Filter frequency events by type (warnings/errors)
+        function filterFrequencyEvents() {
+            const showWarnings = document.getElementById('filter-warnings')?.checked ?? true;
+            const showErrors = document.getElementById('filter-errors')?.checked ?? true;
+            
+            document.querySelectorAll('.frequency-category-group').forEach(item => {
+                const eventType = item.getAttribute('data-event-type');
+                
+                let shouldShow = false;
+                if (eventType === 'warnings' && showWarnings) shouldShow = true;
+                if (eventType === 'errors' && showErrors) shouldShow = true;
+                
+                item.style.display = shouldShow ? 'block' : 'none';
+            });
+        }
+
+        // Initialize tab click handlers
+        function initializeLogTabs() {
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('log-category-tab')) {
+                    const categoryId = e.target.getAttribute('data-category');
+                    if (categoryId) {
+                        switchLogCategory(categoryId);
+                    }
+                }
+            });
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeLogTabs();
+            initializeCompactFileSelector();
+            
+            // If data is pre-loaded (injected during HTML generation), populate dashboard
+            if (dashboardData !== null) {
+                console.log('Pre-loaded data detected, populating dashboard...');
+                updatePageTitles(dashboardData);
+                populateDashboard(dashboardData);
+            }
+        });
+
+        function initializeCompactFileSelector() {
+            console.log('Initializing compact file selector...');
+            
+            const fileInput = document.getElementById('file-input');
+            const fileButton = document.getElementById('file-select-btn');
+            const fileSelector = document.getElementById('file-selector');
+            
+            if (!fileInput || !fileButton) {
+                // File selector elements not present - likely using pre-loaded data
+                console.log('File selector elements not found - using pre-loaded data mode');
+                return;
+            }
+            
+            // Button click handler - triggers file input
+            fileButton.addEventListener('click', function(e) {
+                console.log('File button clicked, opening file dialog...');
+                e.preventDefault();
+                e.stopPropagation();
+                fileInput.click();
+            });
+            
+            // File input change handler
+            fileInput.addEventListener('change', function(e) {
+                console.log('File input changed:', e.target.files);
+                handleFileSelect(e);
+            });
+            
+            // Drag and drop functionality
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                fileSelector.addEventListener(eventName, function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
+            });
+            
+            // Visual feedback for drag operations
+            ['dragenter', 'dragover'].forEach(eventName => {
+                fileSelector.addEventListener(eventName, function() {
+                    fileSelector.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                    fileSelector.style.transform = 'scale(1.02)';
+                }, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                fileSelector.addEventListener(eventName, function() {
+                    fileSelector.style.backgroundColor = '';
+                    fileSelector.style.transform = '';
+                }, false);
+            });
+            
+            // Handle file drop
+            fileSelector.addEventListener('drop', function(e) {
+                console.log('File dropped:', e.dataTransfer.files);
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    fileInput.files = files;
+                    handleFileSelect({ target: { files: files } });
+                }
+            }, false);
+            
+            console.log('Compact file selector initialization complete!');
+        }
+    </script>
+</body>
+</html>

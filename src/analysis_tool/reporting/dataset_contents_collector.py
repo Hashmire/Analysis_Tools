@@ -1664,7 +1664,25 @@ class UnifiedDashboardCollector:
                 self.data["metadata"]["log_file"] = logger.current_log_path
             
             # Use the standard save_to_file method to save the complete data structure
-            return self.save_to_file(self.output_file_path)
+            json_path = self.save_to_file(self.output_file_path)
+            
+            # Generate HTML dashboard from the JSON data
+            if json_path:
+                try:
+                    from .generate_dataset_report import generate_dataset_report
+                    
+                    # Get the dataset run directory (parent of logs directory)
+                    json_file = Path(json_path)
+                    dataset_run_dir = json_file.parent.parent  # logs/generateDatasetReport.json -> run_dir
+                    
+                    # Generate the HTML report silently (verbose=False)
+                    generate_dataset_report(dataset_run_dir, verbose=False)
+                    
+                except Exception as html_error:
+                    if logger:
+                        logger.warning(f"Failed to generate HTML dataset report: {html_error}", group="completion")
+            
+            return json_path
             
         except Exception as e:
             if logger:

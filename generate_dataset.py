@@ -11,6 +11,7 @@ import requests
 import json
 import os
 import sys
+import signal
 from datetime import datetime, timezone, timedelta
 from time import sleep
 import argparse
@@ -23,6 +24,19 @@ def get_analysis_tools_root():
     current_file = Path(__file__).resolve()
     # Navigate up from generate_dataset.py to Analysis_Tools/
     return current_file.parent
+
+
+def _handle_interrupt(signum, frame):
+    """Handle interrupt signals - flush cache and exit cleanly"""
+    try:
+        logger = get_logger()
+        logger.warning("\nInterrupt received - flushing cache batches...", group="DATASET")
+        _flush_cache_batches()
+        logger.warning("Cache flushed - exiting", group="DATASET")
+    except Exception as e:
+        print(f"\nWarning: Cache flush on interrupt failed: {e}", file=sys.stderr)
+    sys.exit(130)
+
 
 def validate_uuid(uuid_string):
     """Validate that a string is a proper UUID format"""
@@ -747,6 +761,10 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
 
 def main():
     """Main function with command line argument parsing"""
+    # Register interrupt handler to flush cache on Ctrl+C
+    signal.signal(signal.SIGINT, _handle_interrupt)
+    signal.signal(signal.SIGTERM, _handle_interrupt)
+    
     parser = argparse.ArgumentParser(description='Generate CVE dataset from NVD API')
     
     # Group 1: Tool Output - What analysis outputs to generate
@@ -1048,6 +1066,13 @@ def main():
         )
     
     if success:
+        # Flush any pending cache batches from dataset generation phase
+        try:
+            _flush_cache_batches()
+            logger.debug("Cache batches flushed after dataset generation", group="CACHE_MANAGEMENT")
+        except Exception as flush_error:
+            logger.warning(f"Failed to flush cache batches after dataset generation: {flush_error}", group="CACHE_MANAGEMENT")
+        
         # Handoff phase between dataset generation and integrated analysis
         dataset_path = run_directory / "logs" / output_file
         
@@ -1173,6 +1198,10 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
     except Exception as e:
         logger.error(f"Failed to run analysis tool: {e}", group="INIT")
         return False
-
-if __name__ == "__main__":
-    exit(main())
+    finally:
+        # Final cleanup: Flush any remaining cache batches before process termination
+        try:
+            _flush_cache_batches()
+            logger.debug("Cache batches flushed during final cleanup", group="CACHE_MANAGEMENT")
+        except Exception as cleanup_error:
+            logger.warning(f"Failed to flush cache batches during final cleanup: {cleanup_error}", group="CACHE_MANAGEMENT")
