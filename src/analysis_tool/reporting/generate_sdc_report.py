@@ -34,7 +34,7 @@ Usage:
 """
 
 import json
-import os
+import sys
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
@@ -42,21 +42,16 @@ from collections import defaultdict
 import html
 
 # Minimal imports - only what's needed for cache scanning and source resolution
+# CRITICAL IMPORTS - must succeed or script fails
+from ..logging.workflow_logger import get_logger
+from ..storage.run_organization import get_analysis_tools_root
+logger = get_logger()
+
+# Presentation-layer imports with graceful degradation
 try:
-    from ..logging.workflow_logger import get_logger
-    from ..storage.run_organization import get_analysis_tools_root
     from .. import __version__
-    logger = get_logger()
 except ImportError:
-    # Fallback for standalone execution
     __version__ = "unknown"
-    import logging
-    logger = logging.getLogger(__name__)
-    logging.basicConfig(level=logging.INFO)
-    
-    def get_analysis_tools_root():
-        """Fallback for standalone execution."""
-        return Path(__file__).resolve().parent.parent.parent.parent
 
 
 def load_config() -> Dict:
@@ -69,10 +64,10 @@ def load_config() -> Dict:
             with open(config_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         else:
-            logger.warning(f"Config file not found at {config_path}, using hardcoded defaults")
+            logger.warning(f"Config file not found at {config_path}, using hardcoded defaults", group="SDC_REPORT")
             return {}
     except Exception as e:
-        logger.warning(f"Failed to load config: {e}, using hardcoded defaults")
+        logger.warning(f"Failed to load config: {e}, using hardcoded defaults", group="SDC_REPORT")
         return {}
 
 
@@ -1032,7 +1027,7 @@ Examples:
             if not run_directory.exists():
                 raise ValueError(f"Run directory does not exist: {run_directory}")
             
-            logger.info(f"Using existing run directory: {args.run_id}")
+            logger.info(f"Using existing run directory: {args.run_id}", group="SDC_REPORT")
         
         # Generate report (will create run directory if needed)
         index_path = generate_report(
@@ -1058,12 +1053,11 @@ Examples:
         return 0
     except Exception as e:
         import traceback
-        logger.error(f"Report generation failed: {e}")
-        print(f"\nError: {e}")
+        logger.error(f"Report generation failed: {e}", group="SDC_REPORT")
+        print(f"\nError: {e}", file=sys.stderr)
         traceback.print_exc()
         return 1
 
 
 if __name__ == "__main__":
-    import sys
     sys.exit(main())

@@ -105,7 +105,6 @@ class GlobalNVDSourceManager:
             self._source_data = nvd_source_data.copy()
             self._build_lookup_tables()
             self._initialized = True
-            logger.info(f"Global NVD source manager initialized with {len(self._source_lookup)} source entries", group="data_processing")
         return self
     
     def _build_lookup_tables(self):

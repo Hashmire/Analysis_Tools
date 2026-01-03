@@ -1194,7 +1194,7 @@
             
             if (isArrayField) {
                 problemText = `<code>${concern.field}</code> contains placeholder data which prevents platform identification.`;
-                resolutionText = `Replace placeholder data with an appropriate <code>${concern.field}</code> value or leave platforms array empty.`;
+                resolutionText = `Replace placeholder data with an appropriate <code>${concern.field}</code> value.`;
             }
             
             // Handle different detectedPattern formats
@@ -2019,14 +2019,18 @@
                                             }
                                         });
 
+                                        const nvdUrl = `https://nvd.nist.gov/vuln/detail/${cveId}`;
+                                        const cveOrgUrl = `https://www.cve.org/CVERecord?id=${cveId}`;
+                                        
                                         return `
                                             <div class="cve-card" id="${cardId}">
                                                 <div class="cve-card-left-content">
                                                     <div class="cve-card-header">
-                                                        <a href="${githubUrl}" target="_blank" class="cve-id-link">
-                                                            <span class="cve-id">${cveId}</span>
-                                                        </a>
-                                                        <span class="cve-entries-count">${cveEntries.length} entries</span>
+                                                        <span class="cve-id">${cveId}</span>
+                                                        <div class="cve-external-links">
+                                                            <a href="${nvdUrl}" target="_blank" class="cve-external-link" title="View on NVD">NVD</a>
+                                                            <a href="${cveOrgUrl}" target="_blank" class="cve-external-link" title="View on CVE.org">CVE.org</a>
+                                                        </div>
                                                     </div>
                                                     <div class="cve-card-content" onclick="toggleCveDetails('${cardId}')">
                                                         <div class="cve-card-main-content">

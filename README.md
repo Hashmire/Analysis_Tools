@@ -10,8 +10,8 @@ For comprehensive insight into the challenges this tool addresses, see [CPE Auto
 
 **Dashboard Quick Links**:  
 
-- [Alias Mapping Dashboard](https://hashmire.github.io/Analysis_Tools/dashboards/aliasMappingDashboard.html)
-- [Source Data Concerns Dashboard](https://hashmire.github.io/Analysis_Tools/dashboards/sourceDataConcernDashboard.html)
+- [Alias Mapping Dashboard](https://hashmire.github.io/Alias_Mapping_Reports/)
+- [Source Data Concerns Dashboard](https://hashmire.github.io/SDC_Reports/)
 - [Generate Dataset Dashboard](https://hashmire.github.io/Analysis_Tools/dashboards/generateDatasetDashboard.html)
 
 ### CPE Applicability Generator
@@ -69,6 +69,26 @@ python generate_dataset.py --start-date 2024-01-01 --end-date 2024-01-31
 
 All dataset outputs are isolated in run-specific directories under `runs/[timestamp]_[context]/logs/`.
 
+### Alias Mapping Report Generation
+
+```bash
+# Generate alias extraction report from default NVD-ish cache (standalone)
+python -m src.analysis_tool.reporting.generate_alias_report
+
+# Generate report for specific source by name or UUID
+python -m src.analysis_tool.reporting.generate_alias_report \
+    --source-filter "Microsoft Corporation"
+
+# Generate report using existing run directory from dataset generation
+python -m src.analysis_tool.reporting.generate_alias_report \
+    --run-id 2025-12-01_10-30-00_dataset_last_7_days_nvd-ish
+```
+
+Reports are generated as per-source files in `runs/[timestamp]_alias_report/logs/`:
+- `aliasExtractionReport_index.json` - Source listing with statistics
+- `aliasExtractionReport_[source]_[id].json` - Individual source reports with alias data
+- Interactive HTML dashboard generated from report JSON files
+
 ### Source Data Concern Report Generation
 
 ```bash
@@ -79,9 +99,6 @@ python -m src.analysis_tool.reporting.generate_sdc_report
 python -m src.analysis_tool.reporting.generate_sdc_report \
     --run-id 2025-12-01_10-30-00_dataset_last_7_days_nvd-ish
 
-# Use custom cache directory (name only, must exist in cache/ folder)
-python -m src.analysis_tool.reporting.generate_sdc_report \
-    --custom-cache nvd-ish_test_data
 ```
 
 Reports are generated as per-source files in `runs/[timestamp]_sdc_report/logs/`:

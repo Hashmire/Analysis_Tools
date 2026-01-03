@@ -31,7 +31,13 @@ class UnifiedDashboardCollector:
     Maintains dashboard-compatible data structure throughout the complete workflow.
     """
     
-    def __init__(self):
+    def __init__(self, config_dict=None):
+        """
+        Initialize the dataset contents collector.
+        
+        Args:
+            config_dict: Optional pre-loaded config dictionary to avoid re-reading file.
+        """
         self.data = self._initialize_data_structure()
         self.output_file_path: Optional[str] = None
         self.processing_start_time: Optional[datetime] = None
@@ -72,8 +78,8 @@ class UnifiedDashboardCollector:
         self._temp_query_tracking = {}
         self._temp_cve_tracking = {}
         
-        # Load and inject configuration data
-        self._inject_config_data()
+        # Load and inject configuration data (use provided config or read from file)
+        self._inject_config_data(config_dict)
         
         # Install logger hook to capture warnings/errors automatically
         self._install_logger_hook()
@@ -115,12 +121,21 @@ class UnifiedDashboardCollector:
             # Don't break initialization if logger hook fails
             pass
     
-    def _inject_config_data(self):
-        """Load configuration from config.json and inject into metadata"""
+    def _inject_config_data(self, config_dict=None):
+        """
+        Load configuration and inject into metadata.
+        
+        Args:
+            config_dict: Optional pre-loaded config dictionary. If None, reads from file.
+        """
         try:
-            config_path = Path(__file__).parent.parent / "config.json"
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = json.load(f)
+            # Use provided config or load from file
+            if config_dict is None:
+                config_path = Path(__file__).parent.parent / "config.json"
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = config_dict
             
             # Extract application info
             app_config = config.get('application', {})
@@ -132,14 +147,15 @@ class UnifiedDashboardCollector:
             self.data["metadata"]["version"] = version
             self.data["metadata"]["config_loaded"] = True
             
-            # Only log config injection once per session to avoid log spam
-            if logger and not hasattr(self.__class__, '_config_logged'):
+            # Only log config file read once per session to avoid log spam
+            # Don't log when using pre-loaded config (already logged elsewhere)
+            if logger and not hasattr(self.__class__, '_config_logged') and config_dict is None:
                 logger.info(f"Configuration File Loaded:  {toolname} v{version}", group="INIT")
                 self.__class__._config_logged = True
                 
         except Exception as e:
             # GRACEFUL DEGRADATION: Dashboard metadata defaults for presentation layer
-            # Provides safe display values when config.json is unavailable (non-critical functionality)
+            # Provides safe display values when config is unavailable (non-critical functionality)
             self.data["metadata"]["toolname"] = "Analysis_Tools"
             self.data["metadata"]["version"] = "Unknown"
             self.data["metadata"]["config_loaded"] = False
@@ -286,6 +302,16 @@ class UnifiedDashboardCollector:
                 "detailed_reports_generated": [],
                 "total_bloat_size": 0.0,
                 "average_bloat_percentage": 0.0
+            },
+            "cache_refresh": {
+                "target_cve_count": 0,
+                "batch_processing_current": 0,
+                "batch_processing_total": 0,
+                "nvd_cache_refreshed_current": 0,
+                "nvd_cache_refreshed_total": 0,
+                "cve_list_v5_cache_refreshed_current": 0,
+                "cve_list_v5_cache_refreshed_total": 0,
+                "in_progress": False
             }
         }
 
@@ -437,6 +463,105 @@ class UnifiedDashboardCollector:
         if hasattr(self, 'current_cve_start_time') and self.current_cve_start_time:
             return (datetime.now(timezone.utc) - self.current_cve_start_time).total_seconds()
         return None
+
+    # =============================================================================
+    # Cache Refresh Tracking Methods (for Dataset Generation Phase)
+    # =============================================================================
+    
+    def start_cache_refresh(self, target_cve_count: int):
+        """
+        Initialize cache refresh tracking stage with target CVE count for cache validation.
+        
+        Args:
+            target_cve_count: Total CVE count that will be checked/refreshed in cache
+        """
+        try:
+            self.data["cache_refresh"]["target_cve_count"] = target_cve_count
+            self.data["cache_refresh"]["in_progress"] = True
+            self.data["metadata"]["workflow_phase"] = "cache_refresh"
+            
+            if logger:
+                logger.info(f"Cache refresh started with target CVE count: {target_cve_count}", group="cache")
+            
+            # Force save to ensure cache refresh stage is visible immediately
+            self._auto_save(force=True)
+            
+        except Exception as e:
+            if logger:
+                logger.error(f"Failed to start cache refresh: {e}", group="cache")
+    
+    def update_batch_progress(self, current: int, total: int):
+        """
+        Update batch processing progress for cache refresh stage.
+        
+        Args:
+            current: Current batch number being processed
+            total: Total number of batches to process
+        """
+        try:
+            self.data["cache_refresh"]["batch_processing_current"] = current
+            self.data["cache_refresh"]["batch_processing_total"] = total
+            
+            # Auto-save every batch update for real-time dashboard updates
+            self._auto_save(force=True)
+            
+        except Exception as e:
+            if logger:
+                logger.error(f"Failed to update batch progress: {e}", group="cache")
+    
+    def update_nvd_cache_refresh(self, current: int, total: int):
+        """
+        Update NVD cache refresh progress (updated per batch).
+        
+        Args:
+            current: Number of NVD records refreshed so far
+            total: Total NVD records to refresh
+        """
+        try:
+            self.data["cache_refresh"]["nvd_cache_refreshed_current"] = current
+            self.data["cache_refresh"]["nvd_cache_refreshed_total"] = total
+            
+            # Auto-save for real-time updates
+            self._auto_save(force=True)
+            
+        except Exception as e:
+            if logger:
+                logger.error(f"Failed to update NVD cache refresh: {e}", group="cache")
+    
+    def update_cve_list_cache_refresh(self, current: int, total: int):
+        """
+        Update CVE List v5 cache refresh progress (updated every 25 entries).
+        
+        Args:
+            current: Number of CVE List v5 records refreshed so far
+            total: Total CVE List v5 records to refresh
+        """
+        try:
+            self.data["cache_refresh"]["cve_list_v5_cache_refreshed_current"] = current
+            self.data["cache_refresh"]["cve_list_v5_cache_refreshed_total"] = total
+            
+            # Auto-save for real-time updates
+            self._auto_save(force=True)
+            
+        except Exception as e:
+            if logger:
+                logger.error(f"Failed to update CVE List cache refresh: {e}", group="cache")
+    
+    def complete_cache_refresh(self):
+        """Mark cache refresh stage as complete and transition to dataset generation."""
+        try:
+            self.data["cache_refresh"]["in_progress"] = False
+            self.data["metadata"]["workflow_phase"] = "dataset_generation"
+            
+            if logger:
+                logger.info("Cache refresh completed", group="cache")
+            
+            # Force save to transition out of cache refresh stage
+            self._auto_save(force=True)
+            
+        except Exception as e:
+            if logger:
+                logger.error(f"Failed to complete cache refresh: {e}", group="cache")
 
     def update_cve_affected_entries_count(self, cve_id: str, affected_entries_count: int):
         """Update the final affected entries count for a CVE after all processing is complete"""
@@ -1549,11 +1674,17 @@ class UnifiedDashboardCollector:
 # Global collector instance
 _dataset_contents_collector = None
 
-def get_dataset_contents_collector() -> UnifiedDashboardCollector:
-    """Get the global dataset contents collector instance."""
+def get_dataset_contents_collector(config_dict=None) -> UnifiedDashboardCollector:
+    """
+    Get the global dataset contents collector instance.
+    
+    Args:
+        config_dict: Optional pre-loaded config dictionary to avoid re-reading file.
+                    Only used if collector doesn't exist yet.
+    """
     global _dataset_contents_collector
     if _dataset_contents_collector is None:
-        _dataset_contents_collector = UnifiedDashboardCollector()
+        _dataset_contents_collector = UnifiedDashboardCollector(config_dict=config_dict)
     return _dataset_contents_collector
 
 def clear_dataset_contents_collector():
@@ -1592,13 +1723,6 @@ def get_current_cve_processing_time() -> Optional[float]:
 def finalize_dataset_contents_report() -> Optional[str]:
     """Finalize the dataset contents report at the end of a generation run."""
     collector = get_dataset_contents_collector()
-    
-    # Update cache file size before finalizing
-    try:
-        collector.update_cache_file_size()
-    except Exception as e:
-        if logger:
-            logger.warning(f"Could not update cache file size during finalization: {e}", group="completion")
     
     # Finalize CPE statistics
     try:

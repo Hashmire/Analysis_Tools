@@ -47,29 +47,17 @@ def load_config():
     with open(config_path, 'r') as f:
         return json.load(f)
 
-def load_mapping_file(cna_id: str) -> dict:
-    """Load a mapping file based on CNA ID"""
-    config = load_config()
-    mappings_dir = os.path.join(os.path.dirname(__file__), '..', config['confirmed_mappings']['mappings_directory'])
-    
-    # Search for mapping files that contain this CNA ID
-    for filename in os.listdir(mappings_dir):
-        if filename.endswith('.json'):
-            filepath = os.path.join(mappings_dir, filename)
-            try:
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    mapping_data = json.load(f)
-                    if mapping_data.get('cnaId') == cna_id:
-                        return mapping_data
-            except (json.JSONDecodeError, FileNotFoundError, KeyError):
-                continue
-    
-    return {}
-
 def normalize_string_for_comparison(s: str) -> str:
-    """Normalize string for case-insensitive comparison"""
+    """Normalize string for case-insensitive comparison with Unicode normalization"""
+    import unicodedata
+    
     if not isinstance(s, str):
-        return str(s).lower().strip()
+        s = str(s)
+    
+    # Normalize Unicode to NFC (canonical composition)
+    # This ensures 'é' (composed) and 'é' (e + combining acute) are treated as equal
+    s = unicodedata.normalize('NFC', s)
+    
     return s.lower().strip()
 
 def check_alias_match(alias: dict, raw_platform_data: dict) -> bool:
@@ -147,16 +135,26 @@ def find_confirmed_mappings(raw_platform_data: dict, source_id: str) -> List[str
     if not config.get('confirmed_mappings', {}).get('enabled', True):
         return []
     
-    # Load the appropriate mapping file based on source ID
-    mapping_data = load_mapping_file(source_id)
+    # Use confirmed mapping manager for O(1) lookup
+    from ..storage.confirmed_mapping_manager import get_global_mapping_manager
     
-    if not mapping_data or 'confirmedMappings' not in mapping_data:
+    mapping_manager = get_global_mapping_manager()
+    if not mapping_manager.is_initialized():
+        raise RuntimeError(
+            "Confirmed mapping manager not initialized. Ensure initialization occurs before calling find_confirmed_mappings()."
+        )
+    
+    confirmed_mappings = mapping_manager.get_mappings_for_source(source_id)
+    
+    if not confirmed_mappings:
         return []
+    
+    logger.debug(f"find_confirmed_mappings: Found {len(confirmed_mappings)} mapping records for source {source_id}", group="data_processing")
     
     confirmed_cpe_bases = []
     
     # Check each confirmed mapping
-    for mapping in mapping_data['confirmedMappings']:
+    for mapping in confirmed_mappings:
         cpe_base_string = mapping.get('cpebasestring') or mapping.get('cpeBaseString')
         aliases = mapping.get('aliases', [])
         
@@ -199,10 +197,19 @@ def extract_confirmed_mappings_for_affected_entry(affected_entry: dict) -> List[
     if not source_id:
         return []
     
-    # Load the appropriate mapping file based on source ID
-    mapping_data = load_mapping_file(source_id)
+    # Use confirmed mapping manager for O(1) lookup
+    from ..storage.confirmed_mapping_manager import get_global_mapping_manager
     
-    if not mapping_data or 'confirmedMappings' not in mapping_data:
+    mapping_manager = get_global_mapping_manager()
+    if not mapping_manager.is_initialized():
+        raise RuntimeError(
+            "Confirmed mapping manager not initialized - must call initialize() before processing. "
+            "Check that manager initialization occurs in entry point before confirmed mapping operations."
+        )
+    
+    confirmed_mappings = mapping_manager.get_mappings_for_source(source_id)
+    
+    if not confirmed_mappings:
         return []
     
     # Build raw platform data structure from affected entry for alias matching
@@ -220,7 +227,7 @@ def extract_confirmed_mappings_for_affected_entry(affected_entry: dict) -> List[
     confirmed_cpe_bases = []
     
     # Check each confirmed mapping using existing logic
-    for mapping in mapping_data['confirmedMappings']:
+    for mapping in confirmed_mappings:
         cpe_base_string = mapping.get('cpebasestring') or mapping.get('cpeBaseString')
         aliases = mapping.get('aliases', [])
         
@@ -251,12 +258,12 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
         logger.info("Confirmed mappings are disabled in configuration", group="badge_gen")
         return rawDataset
     
-    logger.info("Processing confirmed mappings...", group="badge_gen")
     tempDataset = rawDataset.copy()
       # Track confirmed mappings statistics
     total_processed = 0
     successful_mappings = 0
     total_mappings_found = 0
+    source_mapping_counts = {}  # Track mappings per source ID
     
     for index, row in tempDataset.iterrows():
         try:            
@@ -270,11 +277,13 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
             
             # Skip NVD entries since they use different data structure and won't have confirmed mappings
             if source_role == 'NVD':
-                logger.debug(f"Skipping NVD entry for confirmed mappings: {source_id}", group="badge_gen")
                 continue
             
             total_processed += 1
-            logger.debug(f"Processing confirmed mappings for {source_id} (role: {source_role})", group="badge_gen")
+            
+            # Initialize source count if not seen before
+            if source_id not in source_mapping_counts:
+                source_mapping_counts[source_id] = 0
             
             # Find confirmed mappings
             result = find_confirmed_mappings(raw_platform_data, source_id)
@@ -288,7 +297,9 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
             # Store metadata if we have any confirmed or culled mappings
             if confirmed_mappings or culled_mappings:
                 successful_mappings += 1
-                total_mappings_found += len(confirmed_mappings)
+                mapping_count = len(confirmed_mappings)
+                total_mappings_found += mapping_count
+                source_mapping_counts[source_id] += mapping_count
                 
                 platform_metadata = tempDataset.at[index, 'platformEntryMetadata']
                 if not isinstance(platform_metadata, dict):
@@ -309,9 +320,17 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
             logger.warning(f"Confirmed mappings processing failed: Unable to process mapping entries for platform entry {index} - {str(e)}", group="badge_gen")
             continue
     
-    # Log confirmed mappings statistics
-    hit_rate = (successful_mappings / total_processed * 100) if total_processed > 0 else 0
-    logger.info(f"Confirmed mappings statistics: {successful_mappings}/{total_processed} platform entries ({hit_rate:.1f}% hit rate), {total_mappings_found} total mappings found", group="badge_gen")
+    # Log confirmed mappings statistics (audit level only if mappings were found)
+    if total_processed > 0:
+        hit_rate = (successful_mappings / total_processed * 100) if total_processed > 0 else 0
+        
+        # Report per-source mapping counts
+        for source_id, count in source_mapping_counts.items():
+            logger.info(f"Confirmed mappings: {count} mappings for source {source_id}", group="badge_gen")
+        
+        # Overall summary if multiple sources
+        if len(source_mapping_counts) > 1:
+            logger.info(f"Confirmed mappings: {successful_mappings}/{total_processed} entries ({hit_rate:.1f}% hit rate), {total_mappings_found} total mappings across {len(source_mapping_counts)} sources", group="badge_gen")
     
     # Record mapping statistics for dashboard tracking
     record_mapping_activity(total_mappings_found, total_processed)
@@ -677,7 +696,17 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                     
                     # Track this entry as processed
                     issues['total_processed'] += 1
-                          # Generate CPE Match Strings based on available content
+                    
+                    # Initialize platform collection sets (used by multiple field processors)
+                    # Must be initialized before any field processing begins
+                    collected_sw_values = set()
+                    collected_hw_values = set()
+                    platform_values_searched = False
+                    
+                    # Initialize product curation tracking
+                    curated_product_for_cpe_generation = None
+                    
+                    # Generate CPE Match Strings based on available content
                     if 'vendor' in platform_data:
                         # Improved check for n/a values - convert to lowercase and check multiple formats
                         vendor_value = platform_data['vendor']
@@ -697,25 +726,15 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
 
                             # Track curation
                             if culledString != original_vendor:
+                                if 'vendor' not in curation_tracking:
+                                    curation_tracking['vendor'] = []
                                 curation_tracking["vendor"].append({
                                     "original": original_vendor,
                                     "curated": culledString
                                 })
                             
-                            part = "*"
-                            vendor = culledString
-                            product = "*"                     
-                            version = "*"
-                            update = "*"
-                            edition = "*"
-                            lang = "*"
-                            swEdition = "*"
-                            targetSW = "*"
-                            targetHW = "*"
-                            other = "*"
-
                             # Build a CPE Search String from supported elements
-                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                            rawMatchString = f"cpe:2.3:*:{culledString}:*:*:*:*:*:*:*:*:*"
                             scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                             scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                             cpeBaseStrings.append(scratchMatchString)
@@ -738,39 +757,26 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
 
                             # Track curation
                             if culledString != original_product:
+                                if 'product' not in curation_tracking:
+                                    curation_tracking['product'] = []
                                 curation_tracking["product"].append({
                                     "original": original_product,
                                     "curated": culledString
                                 })
                             
-                            part = "*"
-                            vendor = "*"
-                            product = culledString
-                            version = "*"
-                            update = "*"
-                            edition = "*"
-                            lang = "*"
-                            swEdition = "*"
-                            targetSW = "*"
-                            targetHW = "*"
-                            other = "*"
-
-                            # Build a CPE Search String from supported elements
-                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                            cpeBaseStrings.append(scratchMatchString)
-
-                    # Initialize platform_values_searched at the beginning of the platform entry processing
-                    platform_values_searched = False
+                            # Save curated product for CPE generation after platforms are processed
+                            curated_product_for_cpe_generation = culledString
 
                     # Generate CPE Match Strings based on available content for 'platform'
 
                     if 'platforms' in platform_data and isinstance(platform_data['platforms'], list):
                         platforms = platform_data['platforms']
                         platform_found_but_not_recognized = False
+                        all_platforms_mapped = True
                         
-                        # Iterate through each platform in the array
+                        # First pass: Collect all targetSW and targetHW values from the platforms array
+                        platform_curations = []
+                        
                         for platform_item in platforms:
                             platform_string = platform_item.lower() if isinstance(platform_item, str) else ""
                             
@@ -787,45 +793,43 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                             if is_placeholder:
                                 # This is a recognized placeholder - don't mark as unrecognized
                                 platform_found_but_not_recognized = False
-                                # Continue to next platform item since placeholders don't generate CPE strings
-                                continue
-                                
-                            # Handle common architecture terms in platform strings
-                            if "32-bit" in platform_string or "x32" in platform_string or "x86" in platform_string:
+                                logger.debug(f"Platform placeholder detected: '{platform_item}' in {source_role} (Row {index}). "
+                                              f"Source data concern attribution will be handled during badge generation.", 
+                                              group="DATA_PROC")
+                                continue  # Skip mapping attempt for placeholder values
+                            
+                            # Use curateCPEAttributes to map platform values
+                            curated_sw, curated_hw, was_mapped = curateCPEAttributes('platform', platform_item, None)
+                            
+                            if not was_mapped:
+                                all_platforms_mapped = False
+                            
+                            if was_mapped:
                                 platform_values_searched = True
                                 platform_found_but_not_recognized = False  # Successfully recognized
-                                targetHW = "x86"
-                                rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                                scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                                scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                                cpeBaseStrings.append(scratchMatchString)
                                 
-                            if "64-bit" in platform_string or "x64" in platform_string or "x86_64" in platform_string:
-                                platform_values_searched = True
-                                platform_found_but_not_recognized = False  # Successfully recognized
-                                targetHW = "x64"
-                                rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                                scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                                scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                                cpeBaseStrings.append(scratchMatchString)
+                                # Collect the mapped values
+                                if curated_sw:
+                                    collected_sw_values.add(curated_sw)
+                                if curated_hw:
+                                    collected_hw_values.add(curated_hw)
                                 
-                            if "arm" in platform_string and "arm64" not in platform_string:
-                                platform_values_searched = True
-                                platform_found_but_not_recognized = False  # Successfully recognized
-                                targetHW = "arm"
-                                rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                                scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                                scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                                cpeBaseStrings.append(scratchMatchString)
-                                
-                            if "arm64" in platform_string:
-                                platform_values_searched = True
-                                platform_found_but_not_recognized = False  # Successfully recognized
-                                targetHW = "arm64"
-                                rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                                scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                                scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                                cpeBaseStrings.append(scratchMatchString)
+                                # Track curation for this specific platform item
+                                platform_curations.append({
+                                    "original": platform_item,
+                                    "curated_sw": curated_sw if curated_sw else "(none)",
+                                    "curated_hw": curated_hw if curated_hw else "(none)"
+                                })
+                        
+                        # Platform values are collected and will be used by vendor+product and packageName processors
+                        # No standalone platform-only CPEs are generated as they would be overly broad
+                        
+                        # Track all platform curations
+                        if platform_curations:
+                            if 'platform' not in curation_tracking:
+                                curation_tracking["platform"] = []
+                            curation_tracking["platform"].extend(platform_curations)
+                        
                         # At the end of processing platforms, check if we had platforms but couldn't recognize any
                         # This will catch cases like "Unknown" platforms
                         if platform_found_but_not_recognized and not platform_values_searched:
@@ -833,82 +837,76 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                             unrecognized_platforms = [p for p in platform_data['platforms'] if p]
                             for unrecognized_platform in unrecognized_platforms:
                                 issues['unexpected_platforms'].append((index, source_role, unrecognized_platform))
-                                # Log unsupported platform value as warning instead of creating concern
                                 logger.warning(f"Unsupported platform value detected: '{unrecognized_platform}' in {source_role} (Row {index}). Platform not recognized by current mapping logic.", group="DATA_PROC")
                                 
                                 # Record in dataset contents collector for reporting
                                 collector = get_dataset_contents_collector()
                                 if collector:
                                     collector.record_cve_warning(f"Unrecognized platform '{unrecognized_platform}' in {source_role} (Row {index})", "platform_processing")
-
-                    # When processing platform data
-                    if 'platforms' in platform_data and isinstance(platform_data['platforms'], list):
-                        all_platforms_mapped = True  # Start with assumption that all platforms can be mapped
                         
-                        for platform_item in platform_data['platforms']:
-                            if platform_item and isinstance(platform_item, str):
-                                original_platform = platform_item
-                                
-                                # First check if this is a placeholder value
-                                platform_lower = platform_item.lower().strip()
-                                is_placeholder = platform_lower in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]
-                                
-                                if is_placeholder:
-                                    # Console warning for placeholder values - attribution handled in badge generation
-                                    logger.debug(f"Platform placeholder detected: '{platform_item}' in {source_role} (Row {index}). "
-                                                  f"Source data concern attribution will be handled during badge generation.", 
-                                                  group="DATA_PROC")
-                                    continue  # Skip mapping attempt for placeholder values
-                                
-                                # Try to map the platform using the curateCPEAttributes function
-                                curated_platform, was_mapped = curateCPEAttributes('platform', platform_item, None)
-                                
-                                # Console warning for unexpected platform values (not known placeholders, not mappable)
-                                if not was_mapped:
-                                    # Check if this is a known valid platform that just failed to map
-                                    known_platforms = ['x86', 'x64', 'arm64', 'arm', 'windows', 'linux', 'macos', 'android', 'ios']
-                                    platform_normalized = platform_item.lower().strip()
-                                    is_known_platform = any(known in platform_normalized for known in known_platforms)
+                        # Log unmapped platforms as warnings
+                        if platform_data['platforms'] and not all_platforms_mapped:
+                            # Track unmapped platforms that were not placeholders
+                            for platform_item in platform_data['platforms']:
+                                if platform_item and isinstance(platform_item, str):
+                                    platform_lower = platform_item.lower().strip()
+                                    is_placeholder = platform_lower in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]
                                     
-                                    if not is_known_platform and not is_placeholder:
-                                        logger.warning(f"Unexpected platform value detected: '{platform_item}' in {source_role} (Row {index}). "
-                                                      f"Not a known placeholder, not mappable via curateCPEAttributes. "
-                                                      f"Consider reviewing if this should be added to known platform patterns.", 
-                                                      group="DATA_PROC")
-                                
-                                if was_mapped:
-                                    platform_values_searched = True
-                                    targetHW = curated_platform
-                                    rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                                    if not is_placeholder:
+                                        curated_sw, curated_hw, was_mapped = curateCPEAttributes('platform', platform_item, None)
+                                        if not was_mapped:
+                                            issues['unexpected_platforms'].append((index, source_role, platform_item))
+                                            logger.warning(f"Unsupported platform value detected: '{platform_item}' in {source_role} (Row {index}). Platform could not be mapped via curateCPEAttributes.", group="DATA_PROC")
+                                            
+                                            # Record in dataset contents collector for reporting
+                                            collector = get_dataset_contents_collector()
+                                            if collector:
+                                                collector.record_cve_warning(f"Unmapped platform '{platform_item}' in {source_role} (Row {index})", "platform_processing")
+
+                    # Generate product-only CPE base strings (after platforms are collected)
+                    if curated_product_for_cpe_generation:
+                        culledString = curated_product_for_cpe_generation
+                        # Generate platform-aware CPE combinations or wildcarded version if no platforms
+                        if collected_sw_values or collected_hw_values:
+                            # Platform cross-product generation for product-only
+                            if collected_sw_values and collected_hw_values:
+                                # SW-only, HW-only, and combined variants
+                                for sw_val in collected_sw_values:
+                                    rawMatchString = f"cpe:2.3:*:*:{culledString}:*:*:*:*:*:{sw_val}:*:*"
                                     scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
                                     scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
                                     cpeBaseStrings.append(scratchMatchString)
-                                    
-                                    # Track the mapping in the curation tracking
-                                    if 'platform' not in curation_tracking:
-                                        curation_tracking["platform"] = []
-                                        
-                                    curation_tracking["platform"].append({
-                                        "original": original_platform,
-                                        "curated": curated_platform
-                                    })
-                                else:
-                                    all_platforms_mapped = False
-                        # Log unmapped platforms as warnings instead of setting platformDataConcern flag
-                        if platform_data['platforms'] and not all_platforms_mapped:
-                            # Track unmapped platforms and log as warnings
-                            for platform_item in platform_data['platforms']:
-                                if platform_item and isinstance(platform_item, str):
-                                    curated_platform, was_mapped = curateCPEAttributes('platform', platform_item, None)
-                                    if not was_mapped:
-                                        issues['unexpected_platforms'].append((index, source_role, platform_item))
-                                        # Log unsupported platform value as warning instead of creating concern
-                                        logger.warning(f"Unsupported platform value detected: '{platform_item}' in {source_role} (Row {index}). Platform could not be mapped via curateCPEAttributes.", group="DATA_PROC")
-                                        
-                                        # Record in dataset contents collector for reporting
-                                        collector = get_dataset_contents_collector()
-                                        if collector:
-                                            collector.record_cve_warning(f"Unmapped platform '{platform_item}' in {source_role} (Row {index})", "platform_processing")
+                                for hw_val in collected_hw_values:
+                                    rawMatchString = f"cpe:2.3:*:*:{culledString}:*:*:*:*:*:*:{hw_val}:*"
+                                    scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                    scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                    cpeBaseStrings.append(scratchMatchString)
+                                for sw_val in collected_sw_values:
+                                    for hw_val in collected_hw_values:
+                                        rawMatchString = f"cpe:2.3:*:*:{culledString}:*:*:*:*:*:{sw_val}:{hw_val}:*"
+                                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                        scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                        cpeBaseStrings.append(scratchMatchString)
+                            elif collected_sw_values:
+                                # Only SW values
+                                for sw_val in collected_sw_values:
+                                    rawMatchString = f"cpe:2.3:*:*:{culledString}:*:*:*:*:*:{sw_val}:*:*"
+                                    scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                    scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                    cpeBaseStrings.append(scratchMatchString)
+                            elif collected_hw_values:
+                                # Only HW values
+                                for hw_val in collected_hw_values:
+                                    rawMatchString = f"cpe:2.3:*:*:{culledString}:*:*:*:*:*:*:{hw_val}:*"
+                                    scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                    scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                    cpeBaseStrings.append(scratchMatchString)
+                        else:
+                            # No platforms - generate wildcarded CPE string (legacy behavior)
+                            rawMatchString = f"cpe:2.3:*:*:{culledString}:*:*:*:*:*:*:*:*"
+                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                            cpeBaseStrings.append(scratchMatchString)
 
                     # Generate CPE Match Strings based on available content for 'packageName'
                     if 'packageName' in platform_data and isinstance(platform_data['packageName'], str):
@@ -932,57 +930,61 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                             trackUnicodeNormalizationDetails(artifact_id, 'maven_artifact_id', index, rawDataset)
                             cpe_artifact_id = formatFor23CPE(artifact_id)
 
-                            # 1. Create a CPE string with just the groupId as the vendor
-                            part = "*"
-                            vendor = cpe_group_id
-                            product = "*"
-                            version = "*"
-                            update = "*"
-                            edition = "*"
-                            lang = "*"
-                            swEdition = "*"
-                            targetSW = "*"
-                            targetHW = "*"
-                            other = "*"
+                            # Helper function to generate Maven CPE strings with platform awareness
+                            def generate_maven_cpe_variant(vendor_val, product_val, sw_val, hw_val):
+                                """Generate a single Maven CPE string with specified vendor, product, and platform values."""
+                                cpe_str = f"cpe:2.3:*:{vendor_val}:{product_val}:*:*:*:*:*:{sw_val}:{hw_val}:*"
+                                if cpe_str not in cpeBaseStrings:
+                                    cpeBaseStrings.append(cpe_str)
                             
-                            group_id_match_string = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                            if group_id_match_string not in cpeBaseStrings:
-                                cpeBaseStrings.append(group_id_match_string)
-                            
-                            # 2. Create a CPE string with the artifactId as the product
-                            part = "*"
-                            vendor = "*"
-                            product = "*" + cpe_artifact_id + "*"
-                            version = "*"
-                            update = "*"
-                            edition = "*"
-                            lang = "*"
-                            swEdition = "*"
-                            targetSW = "*"
-                            targetHW = "*"
-                            other = "*"
-
-                            # Build a CPE Search String from supported elements
-                            artifact_id_match_string = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                            if artifact_id_match_string not in cpeBaseStrings:
-                                cpeBaseStrings.append(artifact_id_match_string)
-                            
-                            # 3. Create a CPE string with groupId as vendor and artifactId as product
-                            part = "*"
-                            vendor = cpe_group_id
-                            product = "*" + cpe_artifact_id + "*"
-                            version = "*"
-                            update = "*"
-                            edition = "*"
-                            lang = "*"
-                            swEdition = "*"
-                            targetSW = "*"
-                            targetHW = "*"
-                            other = "*"
-                            
-                            combined_match_string = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                            if combined_match_string not in cpeBaseStrings:
-                                cpeBaseStrings.append(combined_match_string)
+                            # Generate platform-aware CPE combinations or wildcarded versions if no platforms
+                            if collected_sw_values or collected_hw_values:
+                                # Platform cross-product generation for Maven packageName
+                                if collected_sw_values and collected_hw_values:
+                                    # Full cross-product: SW-only, HW-only, and combined
+                                    for sw_val in collected_sw_values:
+                                        # 1. GroupId vendor, SW-only
+                                        generate_maven_cpe_variant(cpe_group_id, "*", sw_val, "*")
+                                        # 2. ArtifactId product, SW-only
+                                        generate_maven_cpe_variant("*", f"*{cpe_artifact_id}*", sw_val, "*")
+                                        # 3. Combined groupId+artifactId, SW-only
+                                        generate_maven_cpe_variant(cpe_group_id, f"*{cpe_artifact_id}*", sw_val, "*")
+                                    
+                                    for hw_val in collected_hw_values:
+                                        # 1. GroupId vendor, HW-only
+                                        generate_maven_cpe_variant(cpe_group_id, "*", "*", hw_val)
+                                        # 2. ArtifactId product, HW-only
+                                        generate_maven_cpe_variant("*", f"*{cpe_artifact_id}*", "*", hw_val)
+                                        # 3. Combined groupId+artifactId, HW-only
+                                        generate_maven_cpe_variant(cpe_group_id, f"*{cpe_artifact_id}*", "*", hw_val)
+                                    
+                                    for sw_val in collected_sw_values:
+                                        for hw_val in collected_hw_values:
+                                            # 1. GroupId vendor, SW+HW combined
+                                            generate_maven_cpe_variant(cpe_group_id, "*", sw_val, hw_val)
+                                            # 2. ArtifactId product, SW+HW combined
+                                            generate_maven_cpe_variant("*", f"*{cpe_artifact_id}*", sw_val, hw_val)
+                                            # 3. Combined groupId+artifactId, SW+HW combined
+                                            generate_maven_cpe_variant(cpe_group_id, f"*{cpe_artifact_id}*", sw_val, hw_val)
+                                
+                                elif collected_sw_values:
+                                    # Only SW values
+                                    for sw_val in collected_sw_values:
+                                        generate_maven_cpe_variant(cpe_group_id, "*", sw_val, "*")
+                                        generate_maven_cpe_variant("*", f"*{cpe_artifact_id}*", sw_val, "*")
+                                        generate_maven_cpe_variant(cpe_group_id, f"*{cpe_artifact_id}*", sw_val, "*")
+                                
+                                elif collected_hw_values:
+                                    # Only HW values
+                                    for hw_val in collected_hw_values:
+                                        generate_maven_cpe_variant(cpe_group_id, "*", "*", hw_val)
+                                        generate_maven_cpe_variant("*", f"*{cpe_artifact_id}*", "*", hw_val)
+                                        generate_maven_cpe_variant(cpe_group_id, f"*{cpe_artifact_id}*", "*", hw_val)
+                            else:
+                                # No platforms - generate wildcarded CPE strings (legacy behavior)
+                                generate_maven_cpe_variant(cpe_group_id, "*", "*", "*")
+                                generate_maven_cpe_variant("*", f"*{cpe_artifact_id}*", "*", "*")
+                                generate_maven_cpe_variant(cpe_group_id, f"*{cpe_artifact_id}*", "*", "*")
                                   # Add metadata to track Maven package processing
                             if 'packageSourceTypes' not in rawDataset.at[index, 'platformEntryMetadata']:
                                 rawDataset.at[index, 'platformEntryMetadata']['packageSourceTypes'] = []
@@ -990,28 +992,56 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                                 rawDataset.at[index, 'platformEntryMetadata']['packageSourceTypes'].append('maven')
                         
                         else:
-                            # Process non-Maven packages with the existing code
+                            # Process non-Maven packages with platform awareness
                             trackUnicodeNormalizationDetails(platform_data['packageName'], 'package_name', index, rawDataset)
                             cpeValidstring = formatFor23CPE(platform_data['packageName'])
                             culledString = curateCPEAttributes('product', cpeValidstring, True)
                             
-                            part = "*"
-                            vendor = "*"
-                            product = culledString
-                            version = "*"
-                            update = "*"
-                            edition = "*"
-                            lang = "*"
-                            swEdition = "*"
-                            targetSW = "*"
-                            targetHW = "*"
-                            other = "*"
-
-                            # Build a CPE Search String from supported elements
-                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                            cpeBaseStrings.append(scratchMatchString)                    # Generate CPE Match Strings based on available content for 'vendor' and 'product'
+                            # Generate platform-aware CPE combinations or wildcarded version if no platforms
+                            if collected_sw_values or collected_hw_values:
+                                # Platform cross-product generation for non-Maven packageName
+                                if collected_sw_values and collected_hw_values:
+                                    # Full cross-product: SW-only, HW-only, and combined
+                                    for sw_val in collected_sw_values:
+                                        rawMatchString = f"cpe:2.3:*:*:{culledString}:*:*:*:*:*:{sw_val}:*:*"
+                                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                        scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                        cpeBaseStrings.append(scratchMatchString)
+                                    
+                                    for hw_val in collected_hw_values:
+                                        rawMatchString = f"cpe:2.3:*:*:{culledString}:*:*:*:*:*:*:{hw_val}:*"
+                                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                        scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                        cpeBaseStrings.append(scratchMatchString)
+                                    
+                                    for sw_val in collected_sw_values:
+                                        for hw_val in collected_hw_values:
+                                            rawMatchString = f"cpe:2.3:*:*:{culledString}:*:*:*:*:*:{sw_val}:{hw_val}:*"
+                                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                            cpeBaseStrings.append(scratchMatchString)
+                                
+                                elif collected_sw_values:
+                                    # Only SW values
+                                    for sw_val in collected_sw_values:
+                                        rawMatchString = f"cpe:2.3:*:*:{culledString}:*:*:*:*:*:{sw_val}:*:*"
+                                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                        scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                        cpeBaseStrings.append(scratchMatchString)
+                                
+                                elif collected_hw_values:
+                                    # Only HW values
+                                    for hw_val in collected_hw_values:
+                                        rawMatchString = f"cpe:2.3:*:*:{culledString}:*:*:*:*:*:*:{hw_val}:*"
+                                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                        scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                        cpeBaseStrings.append(scratchMatchString)
+                            else:
+                                # No platforms - generate wildcarded CPE string (legacy behavior)
+                                rawMatchString = f"cpe:2.3:*:*:{culledString}:*:*:*:*:*:*:*:*"
+                                scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                cpeBaseStrings.append(scratchMatchString)                    # Generate CPE Match Strings based on available content for 'vendor' and 'product'
                     if 'vendor' in platform_data and 'product' in platform_data:
                         vendor_value = platform_data['vendor']
                         product_value = platform_data['product']
@@ -1033,86 +1063,129 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                                     platform_data['vendor'], platform_data['product'],
                                     normalized_vendor, normalized_product
                                 ))
-                                continue
-                            
-                            # Proceed with CPE string generation using normalized vendor and product values
-                            # 1. Create base string with uncurated values first
-                            cpeValidstringVendor = normalized_vendor
-                            cpeValidstringProduct = normalized_product
-                            original_vendor_product = {
-                                "vendor": cpeValidstringVendor,
-                                "product": cpeValidstringProduct
-                            }
-                            
-                            part = "*"
-                            vendor = cpeValidstringVendor
-                            product = cpeValidstringProduct
-                            version = "*"
-                            update = "*"
-                            edition = "*"
-                            lang = "*"
-                            swEdition = "*"
-                            targetSW = "*"
-                            targetHW = "*"
-                            other = "*"
-
-                            # Build a CPE Search String with raw values
-                            rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                            rawSearchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                            if rawSearchString not in cpeBaseStrings:
-                                cpeBaseStrings.append(rawSearchString)
-                            
-                            # 2. Now create base string with curated values
-                            culledStringVendor = curateCPEAttributes('vendor', cpeValidstringVendor, True)
-                            culledStringProduct = curateCPEAttributes('vendorProduct', culledStringVendor, cpeValidstringProduct)
-
-                            # Check if vendorProduct curation successfully removed vendor prefix (like "lunary-ai/lunary" → "lunary")
-                            vendor_with_escaped_slash = culledStringVendor + "\\/"
-                            product_only_curation_applied = cpeValidstringProduct.startswith(vendor_with_escaped_slash)
-                            
-                            part = "*"
-                            vendor = culledStringVendor
-                            product = culledStringProduct
-                            version = "*"
-                            update = "*"
-                            edition = "*"
-                            lang = "*"
-                            swEdition = "*"
-                            targetSW = "*"
-                            targetHW = "*"
-                            other = "*"
-
-                            # Build a CPE Search String from curated elements
-                            curatedMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
-                            scratchSearchStringBreakout = breakoutCPEAttributes(curatedMatchString)
-                            # Use the standard baseQuery type for the partvendorproduct search - this will add wildcards to the product field
-                            curatedSearchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                            if curatedSearchString not in cpeBaseStrings:
-                                cpeBaseStrings.append(curatedSearchString)
-
-                            # If vendor prefix was successfully removed from product, also generate a product-only CPE Base String
-                            # This handles cases where the product is correctly curated but vendor name doesn't match CPE dictionary
-                            if product_only_curation_applied:
-                                product_only_match_string = "cpe:2.3:*:*:" + product + ":*:*:*:*:*:*:*:*"
-                                product_only_breakout = breakoutCPEAttributes(product_only_match_string)
-                                product_only_search_string = constructSearchString(product_only_breakout, "baseQuery")
-                                if product_only_search_string not in cpeBaseStrings:
-                                    cpeBaseStrings.append(product_only_search_string)
-
-                            vendor_original = platform_data['vendor']
-                            product_original = platform_data['product']
-                            
-                            # Track vendor+product curation if either value was modified
-                            if vendor != vendor_original or product != product_original:
-                                # Add combined vendor+product curation tracking
-                                if 'vendor_product' not in curation_tracking:
-                                    curation_tracking['vendor_product'] = []
+                                # Skip this vendor+product processing but continue with other fields
+                                pass
+                            else:
+                                # 1. Create base string with uncurated values first
+                                cpeValidstringVendor = normalized_vendor
+                                cpeValidstringProduct = normalized_product
                                 
-                                curation_tracking['vendor_product'].append({
-                                    "original": f"{vendor_original}:{product_original}",
-                                    "curated": f"{vendor}:{product}"
-                                })
+                                # Build a CPE Search String with raw values (no platforms)
+                                rawMatchString = f"cpe:2.3:*:{cpeValidstringVendor}:{cpeValidstringProduct}:*:*:*:*:*:*:*:*"
+                                scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                rawSearchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                if rawSearchString not in cpeBaseStrings:
+                                    cpeBaseStrings.append(rawSearchString)
+                                
+                                # 2. Now create base string with curated values
+                                culledStringVendor = curateCPEAttributes('vendor', cpeValidstringVendor, True)
+                                culledStringProduct = curateCPEAttributes('vendorProduct', culledStringVendor, cpeValidstringProduct)
+
+                                # Check if vendorProduct curation successfully removed vendor prefix (like "lunary-ai/lunary" → "lunary")
+                                vendor_with_escaped_slash = culledStringVendor + "\\/"
+                                product_only_curation_applied = cpeValidstringProduct.startswith(vendor_with_escaped_slash)
+                                
+                                # Generate platform-aware CPE combinations or wildcarded versions if no platforms
+                                if collected_sw_values or collected_hw_values:
+                                    # Platform cross-product generation for vendor+product
+                                    if collected_sw_values and collected_hw_values:
+                                        # Full cross-product: SW-only, HW-only, and combined
+                                        for sw_val in collected_sw_values:
+                                            rawMatchString = f"cpe:2.3:*:{culledStringVendor}:{culledStringProduct}:*:*:*:*:*:{sw_val}:*:*"
+                                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                            cpeBaseStrings.append(scratchMatchString)
+                                            # Product-only variant if curation was applied
+                                            if product_only_curation_applied:
+                                                product_only_match_string = f"cpe:2.3:*:*:{culledStringProduct}:*:*:*:*:*:{sw_val}:*:*"
+                                                product_only_breakout = breakoutCPEAttributes(product_only_match_string)
+                                                product_only_search_string = constructSearchString(product_only_breakout, "baseQuery")
+                                                if product_only_search_string not in cpeBaseStrings:
+                                                    cpeBaseStrings.append(product_only_search_string)
+                                        
+                                        for hw_val in collected_hw_values:
+                                            rawMatchString = f"cpe:2.3:*:{culledStringVendor}:{culledStringProduct}:*:*:*:*:*:*:{hw_val}:*"
+                                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                            cpeBaseStrings.append(scratchMatchString)
+                                            # Product-only variant if curation was applied
+                                            if product_only_curation_applied:
+                                                product_only_match_string = f"cpe:2.3:*:*:{culledStringProduct}:*:*:*:*:*:*:{hw_val}:*"
+                                                product_only_breakout = breakoutCPEAttributes(product_only_match_string)
+                                                product_only_search_string = constructSearchString(product_only_breakout, "baseQuery")
+                                                if product_only_search_string not in cpeBaseStrings:
+                                                    cpeBaseStrings.append(product_only_search_string)
+                                        
+                                        for sw_val in collected_sw_values:
+                                            for hw_val in collected_hw_values:
+                                                rawMatchString = f"cpe:2.3:*:{culledStringVendor}:{culledStringProduct}:*:*:*:*:*:{sw_val}:{hw_val}:*"
+                                                scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                                scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                                cpeBaseStrings.append(scratchMatchString)
+                                                # Product-only variant if curation was applied
+                                                if product_only_curation_applied:
+                                                    product_only_match_string = f"cpe:2.3:*:*:{culledStringProduct}:*:*:*:*:*:{sw_val}:{hw_val}:*"
+                                                    product_only_breakout = breakoutCPEAttributes(product_only_match_string)
+                                                    product_only_search_string = constructSearchString(product_only_breakout, "baseQuery")
+                                                    if product_only_search_string not in cpeBaseStrings:
+                                                        cpeBaseStrings.append(product_only_search_string)
+                                    
+                                    elif collected_sw_values:
+                                        # Only SW values
+                                        for sw_val in collected_sw_values:
+                                            rawMatchString = f"cpe:2.3:*:{culledStringVendor}:{culledStringProduct}:*:*:*:*:*:{sw_val}:*:*"
+                                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                            cpeBaseStrings.append(scratchMatchString)
+                                            if product_only_curation_applied:
+                                                product_only_match_string = f"cpe:2.3:*:*:{culledStringProduct}:*:*:*:*:*:{sw_val}:*:*"
+                                                product_only_breakout = breakoutCPEAttributes(product_only_match_string)
+                                                product_only_search_string = constructSearchString(product_only_breakout, "baseQuery")
+                                                if product_only_search_string not in cpeBaseStrings:
+                                                    cpeBaseStrings.append(product_only_search_string)
+                                    
+                                    elif collected_hw_values:
+                                        # Only HW values
+                                        for hw_val in collected_hw_values:
+                                            rawMatchString = f"cpe:2.3:*:{culledStringVendor}:{culledStringProduct}:*:*:*:*:*:*:{hw_val}:*"
+                                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                            cpeBaseStrings.append(scratchMatchString)
+                                            if product_only_curation_applied:
+                                                product_only_match_string = f"cpe:2.3:*:*:{culledStringProduct}:*:*:*:*:*:*:{hw_val}:*"
+                                                product_only_breakout = breakoutCPEAttributes(product_only_match_string)
+                                                product_only_search_string = constructSearchString(product_only_breakout, "baseQuery")
+                                                if product_only_search_string not in cpeBaseStrings:
+                                                    cpeBaseStrings.append(product_only_search_string)
+                                else:
+                                    # No platforms - generate wildcarded CPE strings (legacy behavior)
+                                    curatedMatchString = f"cpe:2.3:*:{culledStringVendor}:{culledStringProduct}:*:*:*:*:*:*:*:*"
+                                    scratchSearchStringBreakout = breakoutCPEAttributes(curatedMatchString)
+                                    curatedSearchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                    if curatedSearchString not in cpeBaseStrings:
+                                        cpeBaseStrings.append(curatedSearchString)
+
+                                    # If vendor prefix was successfully removed from product, also generate a product-only CPE Base String
+                                    if product_only_curation_applied:
+                                        product_only_match_string = f"cpe:2.3:*:*:{culledStringProduct}:*:*:*:*:*:*:*:*"
+                                        product_only_breakout = breakoutCPEAttributes(product_only_match_string)
+                                        product_only_search_string = constructSearchString(product_only_breakout, "baseQuery")
+                                        if product_only_search_string not in cpeBaseStrings:
+                                            cpeBaseStrings.append(product_only_search_string)
+
+                                vendor_original = platform_data['vendor']
+                                product_original = platform_data['product']
+                                
+                                # Track vendor+product curation if either value was modified
+                                if culledStringVendor != vendor_original or culledStringProduct != product_original:
+                                    # Add combined vendor+product curation tracking
+                                    if 'vendor_product' not in curation_tracking:
+                                        curation_tracking['vendor_product'] = []
+                                    
+                                    curation_tracking['vendor_product'].append({
+                                        "original": f"{vendor_original}:{product_original}",
+                                        "curated": f"{culledStringVendor}:{culledStringProduct}"
+                                    })
 
                     # Generate CPE Match Strings based on available content for 'vendor' and 'packageName'
                     if 'vendor' in platform_data and 'packageName' in platform_data:
@@ -1125,44 +1198,103 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                         vendor_with_escaped_slash = culledStringVendor + "\\/"
                         package_only_curation_applied = cpeValidstringPackageName.startswith(vendor_with_escaped_slash)
                         
-                        part = "*"
-                        vendor = culledStringVendor
-                        product = culledStringProduct
-                        version = "*"
-                        update = "*"
-                        edition = "*"
-                        lang = "*"
-                        swEdition = "*"
-                        targetSW = "*"
-                        targetHW = "*"
-                        other = "*"
-
-                        # Build a CPE Search String from supported elements
-                        rawMatchString = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update  + ":" + edition  + ":" + lang  + ":" + swEdition + ":" + targetSW + ":" + targetHW  + ":" + other
-                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
-                        scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
-                        cpeBaseStrings.append(scratchMatchString)           
-
-                        # If vendor prefix was successfully removed from packageName, also generate a product-only CPE Base String
-                        # This handles cases where the product is correctly curated but vendor name doesn't match CPE dictionary
-                        if package_only_curation_applied:
-                            package_only_match_string = "cpe:2.3:*:*:" + product + ":*:*:*:*:*:*:*:*"
-                            package_only_breakout = breakoutCPEAttributes(package_only_match_string)
-                            package_only_search_string = constructSearchString(package_only_breakout, "baseQuery")
-                            if package_only_search_string not in cpeBaseStrings:
-                                cpeBaseStrings.append(package_only_search_string)
+                        # Generate platform-aware CPE combinations or wildcarded versions if no platforms
+                        if collected_sw_values or collected_hw_values:
+                            # Platform cross-product generation for vendor+packageName
+                            if collected_sw_values and collected_hw_values:
+                                # Full cross-product: SW-only, HW-only, and combined
+                                for sw_val in collected_sw_values:
+                                    rawMatchString = f"cpe:2.3:*:{culledStringVendor}:{culledStringProduct}:*:*:*:*:*:{sw_val}:*:*"
+                                    scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                    scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                    cpeBaseStrings.append(scratchMatchString)
+                                    # Product-only variant if curation was applied
+                                    if package_only_curation_applied:
+                                        package_only_match_string = f"cpe:2.3:*:*:{culledStringProduct}:*:*:*:*:*:{sw_val}:*:*"
+                                        package_only_breakout = breakoutCPEAttributes(package_only_match_string)
+                                        package_only_search_string = constructSearchString(package_only_breakout, "baseQuery")
+                                        if package_only_search_string not in cpeBaseStrings:
+                                            cpeBaseStrings.append(package_only_search_string)
+                                
+                                for hw_val in collected_hw_values:
+                                    rawMatchString = f"cpe:2.3:*:{culledStringVendor}:{culledStringProduct}:*:*:*:*:*:*:{hw_val}:*"
+                                    scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                    scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                    cpeBaseStrings.append(scratchMatchString)
+                                    # Product-only variant if curation was applied
+                                    if package_only_curation_applied:
+                                        package_only_match_string = f"cpe:2.3:*:*:{culledStringProduct}:*:*:*:*:*:*:{hw_val}:*"
+                                        package_only_breakout = breakoutCPEAttributes(package_only_match_string)
+                                        package_only_search_string = constructSearchString(package_only_breakout, "baseQuery")
+                                        if package_only_search_string not in cpeBaseStrings:
+                                            cpeBaseStrings.append(package_only_search_string)
+                                
+                                for sw_val in collected_sw_values:
+                                    for hw_val in collected_hw_values:
+                                        rawMatchString = f"cpe:2.3:*:{culledStringVendor}:{culledStringProduct}:*:*:*:*:*:{sw_val}:{hw_val}:*"
+                                        scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                        scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                        cpeBaseStrings.append(scratchMatchString)
+                                        # Product-only variant if curation was applied
+                                        if package_only_curation_applied:
+                                            package_only_match_string = f"cpe:2.3:*:*:{culledStringProduct}:*:*:*:*:*:{sw_val}:{hw_val}:*"
+                                            package_only_breakout = breakoutCPEAttributes(package_only_match_string)
+                                            package_only_search_string = constructSearchString(package_only_breakout, "baseQuery")
+                                            if package_only_search_string not in cpeBaseStrings:
+                                                cpeBaseStrings.append(package_only_search_string)
+                            
+                            elif collected_sw_values:
+                                # Only SW values
+                                for sw_val in collected_sw_values:
+                                    rawMatchString = f"cpe:2.3:*:{culledStringVendor}:{culledStringProduct}:*:*:*:*:*:{sw_val}:*:*"
+                                    scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                    scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                    cpeBaseStrings.append(scratchMatchString)
+                                    if package_only_curation_applied:
+                                        package_only_match_string = f"cpe:2.3:*:*:{culledStringProduct}:*:*:*:*:*:{sw_val}:*:*"
+                                        package_only_breakout = breakoutCPEAttributes(package_only_match_string)
+                                        package_only_search_string = constructSearchString(package_only_breakout, "baseQuery")
+                                        if package_only_search_string not in cpeBaseStrings:
+                                            cpeBaseStrings.append(package_only_search_string)
+                            
+                            elif collected_hw_values:
+                                # Only HW values
+                                for hw_val in collected_hw_values:
+                                    rawMatchString = f"cpe:2.3:*:{culledStringVendor}:{culledStringProduct}:*:*:*:*:*:*:{hw_val}:*"
+                                    scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                                    scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                                    cpeBaseStrings.append(scratchMatchString)
+                                    if package_only_curation_applied:
+                                        package_only_match_string = f"cpe:2.3:*:*:{culledStringProduct}:*:*:*:*:*:*:{hw_val}:*"
+                                        package_only_breakout = breakoutCPEAttributes(package_only_match_string)
+                                        package_only_search_string = constructSearchString(package_only_breakout, "baseQuery")
+                                        if package_only_search_string not in cpeBaseStrings:
+                                            cpeBaseStrings.append(package_only_search_string)
+                        else:
+                            # No platforms - generate wildcarded CPE strings (legacy behavior)
+                            rawMatchString = f"cpe:2.3:*:{culledStringVendor}:{culledStringProduct}:*:*:*:*:*:*:*:*"
+                            scratchSearchStringBreakout = breakoutCPEAttributes(rawMatchString)
+                            scratchMatchString = constructSearchString(scratchSearchStringBreakout, "baseQuery")
+                            cpeBaseStrings.append(scratchMatchString)
+                            
+                            if package_only_curation_applied:
+                                package_only_match_string = f"cpe:2.3:*:*:{culledStringProduct}:*:*:*:*:*:*:*:*"
+                                package_only_breakout = breakoutCPEAttributes(package_only_match_string)
+                                package_only_search_string = constructSearchString(package_only_breakout, "baseQuery")
+                                if package_only_search_string not in cpeBaseStrings:
+                                    cpeBaseStrings.append(package_only_search_string)
 
                         vendor_original = platform_data['vendor']
                         packageName_original = platform_data['packageName']
                         # Track vendor+packageName curation if values were modified
-                        if vendor != vendor_original or product != packageName_original:
+                        if culledStringVendor != vendor_original or culledStringProduct != packageName_original:
                             # Add combined vendor+packageName tracking
                             if 'vendor_package' not in curation_tracking:
                                 curation_tracking['vendor_package'] = []
                             
                             curation_tracking['vendor_package'].append({
                                 "original": f"{vendor_original}:{packageName_original}",
-                                "curated": f"{vendor}:{product}"
+                                "curated": f"{culledStringVendor}:{culledStringProduct}"
                             })
 
                     # Extract and use CPEs from the CVE affected entry's 'cpes' array
@@ -1201,20 +1333,8 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                                     # 2. Add a searchSourcepartvendorproduct version that follows the same pattern as other searches
                                     # Only if there is a valid product in the CPE
                                     if cpe_attributes['product'] != '*':
-                                        part = cpe_attributes['part']  # Preserve the part from the CPE
-                                        vendor = cpe_attributes['vendor']  # Preserve the vendor from the CPE
-                                        product = "*" + cpe_attributes['product'] + "*"  # Add wildcards like other searches
-                                        version = "*"
-                                        update = "*"
-                                        edition = "*"
-                                        lang = "*"
-                                        swEdition = "*"
-                                        targetSW = "*"
-                                        targetHW = "*"
-                                        other = "*"
-
                                         # Build a CPE Search String with wildcarded product
-                                        wildcarded_match_string = "cpe:2.3:" + part + ":" + vendor + ":" + product + ":" + version + ":" + update + ":" + edition + ":" + lang + ":" + swEdition + ":" + targetSW + ":" + targetHW + ":" + other
+                                        wildcarded_match_string = f"cpe:2.3:{cpe_attributes['part']}:{cpe_attributes['vendor']}:*{cpe_attributes['product']}*:*:*:*:*:*:*:*:*"
                                         
                                         # Add this search string if it's not already in the list
                                         if wildcarded_match_string not in cpeBaseStrings:
@@ -1320,10 +1440,9 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
             
             # Process confirmed mappings if alias report or CPE-as-generator features are enabled
             if alias_report or cpe_as_generator:
-                logger.info("Processing confirmed mappings for alias/CPE features", group="data_processing")
                 rawDataset = process_confirmed_mappings(rawDataset)
             else:
-                logger.info("Confirmed mappings skipped - feature not enabled", group="data_processing")
+                logger.debug("Confirmed mappings skipped - feature not enabled", group="data_processing")
             
             # CPE features disabled: Skip expensive NVD CPE API calls but keep source data concerns analysis
             if sdc_only:
@@ -2052,28 +2171,85 @@ def curateCPEAttributes(case, attributeString1, attributeString2):
 
         case 'platform':
             # New case to handle platform data curation
+            # Returns: (targetSW, targetHW, was_mapped)
+            # Either targetSW or targetHW can be None if not applicable
             originalPlatform = attributeString1
             
-            # Map common platform designations to CPE targetHW values
-            platform_mappings = {
-                'x86': 'x86',
-                'x86_64': 'x64',
-                'x64': 'x64',
-                'arm': 'arm',
-                'arm64': 'arm64',
-                '32-bit': 'x86',
-                '64-bit': 'x64',
+            # Map operating systems to CPE targetSW values
+            # Structure: target_value: {set of exact aliases that map to it}
+            # Note: Exact match only (after normalization) to encourage data standardization
+            targetSW_mappings = {
+                'windows': {
+                    'windows'
+                },
+                'linux': {
+                    'linux'
+                },
+                'macos': {
+                    'macos',
+                    'mac os',
+                    'mac_os',
+                    'osx',
+                    'os x'
+                },
+                'android': {
+                    'android'
+                },
+                'iphone_os': {
+                    'ios'
+                }
             }
             
-            # Try to match the platform to known values (case-insensitive)
-            platform_lower = attributeString1.lower() if isinstance(attributeString1, str) else ""
-            for key, value in platform_mappings.items():
-                if key in platform_lower:
-                    # Return the mapped value and True to indicate successful mapping
-                    return (value, True)
-                    
-            # If no match is found, return original and False flag
-            return (originalPlatform, False)
+            # Map hardware architectures to CPE targetHW values
+            # Structure: target_value: {set of exact aliases that map to it}
+            # Note: Exact match only (after normalization) to encourage data standardization
+            targetHW_mappings = {
+                'x86': {
+                    'x86',
+                    '32-bit',
+                    '32 bit',
+                    'x32'
+                },
+                'x64': {
+                    'x86_64',
+                    'x64',
+                    '64-bit',
+                    '64 bit'
+                },
+                'arm': {
+                    'arm'
+                },
+                'arm64': {
+                    'arm64',
+                    'aarch64'
+                }
+            }
+            
+            # Normalize the platform value for exact matching
+            platform_normalized = attributeString1.lower().strip() if isinstance(attributeString1, str) else ""
+            
+            matched_os = None
+            matched_hw = None
+            
+            # Check for exact targetSW match
+            for target_value, aliases in targetSW_mappings.items():
+                if platform_normalized in aliases:
+                    matched_os = target_value
+                    break
+            
+            # Check for exact targetHW match
+            for target_value, aliases in targetHW_mappings.items():
+                if platform_normalized in aliases:
+                    matched_hw = target_value
+                    break
+            
+            # Return results
+            if matched_os or matched_hw:
+                # Return (targetSW, targetHW, was_mapped)
+                return (matched_os, matched_hw, True)
+            else:
+                # If no match is found, return None for both and False flag
+                return (None, None, False)
             
 # Build a CPE Search string from a cpeBreakout based on type desired
 def constructSearchString(rawBreakout, constructType):

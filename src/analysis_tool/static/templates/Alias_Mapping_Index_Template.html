@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Tools - CPE Alias Mapping Index</title>
+    
+    <!-- Alias Mapping Dashboard Styles -->
+    <link rel="stylesheet" href="css/alias_mapping_dashboard.css">
+    
+</head>
+<body>
+    <div class="container">
+        <!-- Page Header Section -->
+        <div class="header">
+            <h1>CPE Alias Mapping Index</h1>
+            <p>
+                Per-Source Alias Extraction Directory<br />
+                Hashmire/Analysis_Tools {{TOOL_VERSION}}
+            </p>
+        </div>
+
+        <!-- Report Status and Documentation Section -->
+        <div class="file-selector">            
+            <!-- Status Bar -->
+            <div class="file-input-container">
+                <div class="file-input-main">
+                    <div class="status-bar" id="status-bar" style="display: block;">
+                        <div class="status-filename" id="status-filename">--</div>
+                        <div class="status-details">
+                            <div class="status-item">
+                                <span>Generated: <span id="generation-time">--</span></span>
+                            </div>
+                            <div class="status-item">
+                                <span id="file-size">-- KB</span> • <span>Loaded <span id="load-time">--</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Documentation Toggle - Right Aligned -->
+                <div class="doc-toggle" onclick="toggleDocumentation()">
+                    <div class="doc-header">
+                        <div class="doc-header-content">
+                            <div class="doc-icon">ℹ️</div>
+                            <div>
+                                <h3 class="doc-title">What am I looking at?</h3>
+                                <p class="doc-subtitle">Click to learn how to use this dashboard</p>
+                            </div>
+                        </div>
+                        <div class="doc-chevron" id="doc-chevron">▼</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Documentation Content Section -->
+        <div class="documentation-content" id="documentation-content">
+            <div class="doc-intro">
+                <strong>Overview:</strong>
+                <p>
+                    The CPE Alias Mapping Index provides a directory of per-source alias extraction reports generated from enriched CVE records.
+                    Targeting <a href="https://github.com/Hashmire/Analysis_Tools/blob/main/documentation/cpe_automation_challenges.md#problem-domain-1-cpe-base-string-determination" target="_blank">Problem Domain #1 - CPE Base String Determination</a>, 
+                    this index helps navigate platform alias data extracted from various CVE contributors to facilitate CPE mapping workflows.
+                    Each source report contains detailed alias groups that can be reviewed and mapped to validated CPE Base Strings for improved automation coverage.
+                </p>
+                <strong>Goals:</strong>
+                <p>
+                    Provide a centralized directory for accessing per-source alias extraction data, enabling systematic review and CPE mapping across all CVE contributors.<br />
+                    Support the goal of achieving <strong>100% Confirmed Mapping coverage</strong> by organizing alias data for efficient processing and validation.
+                </p>
+                <strong>Feedback:</strong>
+                <p>
+                    For technical issues, feature requests, or questions; please visit the <a href="https://github.com/Hashmire/Analysis_Tools/issues" target="_blank">Repository Issues page</a>. <br />
+                    Community feedback and contributions to improve the dashboard's functionality and user experience are always encouraged!
+                </p>
+            </div>
+
+            <div class="doc-sections">
+                <div class="doc-section">
+                    <h4>🎯 How to Use</h4>
+                    <ul>
+                        <li><strong>Review Summary</strong> - Examine aggregate statistics across all sources</li>
+                        <li><strong>Browse Sources</strong> - Scan the table for source-specific alias extraction metrics</li>
+                        <li><strong>Filter Sources</strong> - Use the search field to quickly find specific organizations or source identifiers</li>
+                        <li><strong>Open Report Files</strong> - Click JSON file links to download detailed alias data for mapping workflows</li>
+                    </ul>
+                </div>
+
+                <div class="doc-section">
+                    <h4>📊 Understanding Metrics</h4>
+                    <ul>
+                        <li><strong>Total CVEs</strong> - Number of CVE records processed for this source</li>
+                        <li><strong>Unique Aliases</strong> - Distinct platform alias entries extracted from source contributions</li>
+                        <li><strong>Product Groups</strong> - Number of product-based groupings created from alias data</li>
+                        <li><strong>Avg Aliases/CVE</strong> - Average number of unique aliases per CVE record (indicates data richness)</li>
+                    </ul>
+                </div>
+
+                <div class="doc-section">
+                    <h4>🗺️ Next Steps</h4>
+                    <ul>
+                        <li><strong>Load Report in Dashboard</strong> - Use the <a href="Alias_Mapping_Report_Template.html" target="_blank">CPE Alias Mapping Dashboard</a> to review and map aliases</li>
+                        <li><strong>Review High-Volume Sources</strong> - Focus on sources with high alias counts for maximum impact</li>
+                        <li><strong>Process Systematically</strong> - Work through sources incrementally to build comprehensive CPE mappings</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- Summary Statistics -->
+            <div class="section" style="margin-top: 0;">
+                <div class="aliases-section-header gradient-green">
+                    <div class="section-header-flex">
+                        <div style="text-align: left; flex: 1;">
+                            <span style="font-weight: 600;">Summary Statistics</span>
+                            <div style="font-size: 0.8em; opacity: 0.9; margin-top: 1px;">Aggregate metrics across all sources</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="section-content">
+                    <div class="stats-grid" id="summary-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; padding: 20px;">
+                        <div class="loading">No data loaded</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Source Listing Table -->
+            <div class="section">
+                <div class="aliases-section-header gradient-green">
+                    <div class="section-header-flex">
+                        <div style="text-align: left; flex: 1;">
+                            <span style="font-weight: 600;">Source Reports</span>
+                            <div style="font-size: 0.8em; opacity: 0.9; margin-top: 1px;">Per-source alias extraction data</div>
+                        </div>
+                        <div style="flex: 1; display: flex; justify-content: flex-end; align-items: center;">
+                            <input 
+                                type="text" 
+                                id="source-filter" 
+                                placeholder="Filter sources..." 
+                                class="form-input"
+                                style="padding: 8px 12px; border: 1px solid #D1D5DB; border-radius: 6px; width: 300px; font-size: 14px;"
+                                oninput="filterSourceTable()"
+                            />
+                        </div>
+                    </div>
+                </div>
+                <div class="section-content">
+                    <div id="sources-table-container">
+                        <div class="loading">No data loaded</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let dashboardData = null;
+        
+        // Documentation toggle functionality
+        function toggleDocumentation() {
+            const content = document.getElementById('documentation-content');
+            const chevron = document.getElementById('doc-chevron');
+            const fileSelector = document.querySelector('.file-selector');
+            
+            if (!content || !chevron) {
+                console.error('Documentation elements not found:', { content, chevron });
+                return;
+            }
+            
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                chevron.textContent = '▼';
+                chevron.style.transform = 'rotate(0deg)';
+                if (fileSelector) {
+                    fileSelector.classList.remove('expanded');
+                }
+            } else {
+                content.classList.add('expanded');
+                chevron.textContent = '▲';
+                chevron.style.transform = 'rotate(180deg)';
+                if (fileSelector) {
+                    fileSelector.classList.add('expanded');
+                }
+            }
+        }
+
+        // Auto-load injected data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if data was pre-injected
+            if (dashboardData !== null) {
+                console.log('Pre-injected data detected, processing automatically...');
+                
+                // Process and render the injected data
+                processData(dashboardData);
+                renderDashboard();
+                
+                // Update status bar with proper metadata
+                const statusFilename = document.getElementById('status-filename');
+                const generationTime = document.getElementById('generation-time');
+                const fileSizeEl = document.getElementById('file-size');
+                const loadTimeEl = document.getElementById('load-time');
+                
+                // Set filename 
+                if (statusFilename) {
+                    statusFilename.textContent = 'CPE Alias Mapping Index';
+                }
+                
+                // Format generation time
+                if (generationTime && dashboardData.metadata && dashboardData.metadata.run_started_at) {
+                    const genDate = new Date(dashboardData.metadata.run_started_at);
+                    generationTime.textContent = genDate.toLocaleString();
+                }
+                
+                // Calculate data size
+                if (fileSizeEl) {
+                    const dataSize = (JSON.stringify(dashboardData).length / 1024).toFixed(1);
+                    fileSizeEl.textContent = `${dataSize} KB`;
+                }
+                
+                // Show load time
+                if (loadTimeEl) {
+                    const now = new Date();
+                    loadTimeEl.textContent = now.toLocaleTimeString();
+                }
+            } else {
+                console.error('No pre-injected data found - index requires pre-loaded data');
+            }
+        });
+
+        function processData(data) {
+            if (!data || !data.sources) {
+                throw new Error('Invalid index data format - missing sources array');
+            }
+            
+            // Calculate aggregate statistics
+            dashboardData.stats = {
+                totalSources: data.sources.length,
+                totalCVEs: data.sources.reduce((sum, s) => sum + s.total_cves_processed, 0),
+                totalAliases: data.sources.reduce((sum, s) => sum + s.unique_aliases_extracted, 0),
+                totalProductGroups: data.sources.reduce((sum, s) => sum + s.product_groups_created, 0)
+            };
+            
+            // Calculate average aliases per CVE
+            dashboardData.stats.avgAliasesPerCVE = dashboardData.stats.totalCVEs > 0
+                ? (dashboardData.stats.totalAliases / dashboardData.stats.totalCVEs).toFixed(1)
+                : 0;
+        }
+
+        // Sorting state
+        let currentSortColumn = 'total_unique_aliases';
+        let currentSortDirection = 'desc';
+        
+        function sortSources(column) {
+            // Toggle direction if clicking same column, otherwise default to descending
+            if (currentSortColumn === column) {
+                currentSortDirection = currentSortDirection === 'desc' ? 'asc' : 'desc';
+            } else {
+                currentSortColumn = column;
+                currentSortDirection = 'desc';
+            }
+            
+            renderSourcesTable();
+        }
+
+        function renderDashboard() {
+            renderSummary();
+            renderSourcesTable();
+        }
+
+        function renderSummary() {
+            const summaryGrid = document.getElementById('summary-grid');
+            if (!summaryGrid) return;
+            
+            const stats = dashboardData.stats;
+            
+            summaryGrid.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${stats.totalSources.toLocaleString()}</div>
+                    <div class="stat-label">Total Sources</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${stats.totalCVEs.toLocaleString()}</div>
+                    <div class="stat-label">Total CVEs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${stats.totalAliases.toLocaleString()}</div>
+                    <div class="stat-label">Unique Aliases Extracted</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${stats.totalProductGroups.toLocaleString()}</div>
+                    <div class="stat-label">Product Groups Created</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${stats.avgAliasesPerCVE}</div>
+                    <div class="stat-label">Avg Aliases per CVE</div>
+                </div>
+            `;
+        }
+
+        function renderSourcesTable() {
+            const container = document.getElementById('sources-table-container');
+            if (!container) return;
+            
+            // Sort sources based on current sort column and direction
+            const sources = [...dashboardData.sources].sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(currentSortColumn) {
+                    case 'source_name':
+                        aVal = a.source_name.toLowerCase();
+                        bVal = b.source_name.toLowerCase();
+                        return currentSortDirection === 'desc' 
+                            ? bVal.localeCompare(aVal)
+                            : aVal.localeCompare(bVal);
+                    
+                    case 'total_unique_aliases':
+                        aVal = a.total_unique_aliases || 0;
+                        bVal = b.total_unique_aliases || 0;
+                        break;
+                    
+                    case 'confirmed_coverage_pct':
+                        aVal = a.confirmed_coverage_pct || 0;
+                        bVal = b.confirmed_coverage_pct || 0;
+                        break;
+                    
+                    case 'confirmed_concerns_pct':
+                        aVal = a.confirmed_with_concerns_pct || 0;
+                        bVal = b.confirmed_with_concerns_pct || 0;
+                        break;
+                    
+                    case 'unconfirmed_concerns_pct':
+                        aVal = a.unconfirmed_with_concerns_pct || 0;
+                        bVal = b.unconfirmed_with_concerns_pct || 0;
+                        break;
+                    
+                    default:
+                        aVal = a.total_unique_aliases || 0;
+                        bVal = b.total_unique_aliases || 0;
+                }
+                
+                return currentSortDirection === 'desc' ? bVal - aVal : aVal - bVal;
+            });
+            
+            // Helper function to generate sort indicator
+            function getSortIndicator(column) {
+                if (currentSortColumn !== column) {
+                    return '<span style="opacity: 0.3;">⇅</span>';
+                }
+                return currentSortDirection === 'desc' ? '▼' : '▲';
+            }
+            
+            container.innerHTML = `
+                <table style="width: 100%; border-collapse: collapse; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                    <thead>
+                        <tr style="background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%); color: white;">
+                            <th style="padding: 12px; text-align: left; font-weight: 600; cursor: pointer; user-select: none;" onclick="sortSources('source_name')">
+                                Source ${getSortIndicator('source_name')}
+                            </th>
+                            <th style="padding: 12px; text-align: center; font-weight: 600; cursor: pointer; user-select: none;" onclick="sortSources('total_unique_aliases')">
+                                Total Unique Aliases ${getSortIndicator('total_unique_aliases')}
+                            </th>
+                            <th style="padding: 12px; text-align: center; font-weight: 600; cursor: pointer; user-select: none;" onclick="sortSources('confirmed_coverage_pct')">
+                                Confirmed Mapping Coverage ${getSortIndicator('confirmed_coverage_pct')}
+                            </th>
+                            <th style="padding: 12px; text-align: center; font-weight: 600; cursor: pointer; user-select: none;" onclick="sortSources('confirmed_concerns_pct')">
+                                Confirmed Mapping Alias Data Concerns ${getSortIndicator('confirmed_concerns_pct')}
+                            </th>
+                            <th style="padding: 12px; text-align: center; font-weight: 600; cursor: pointer; user-select: none;" onclick="sortSources('unconfirmed_concerns_pct')">
+                                Unconfirmed Alias Data Concerns ${getSortIndicator('unconfirmed_concerns_pct')}
+                            </th>
+                            <th style="padding: 12px; text-align: center; font-weight: 600;">Report File</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${sources.map((source, index) => {
+                            const totalAliases = source.total_unique_aliases || 0;
+                            const confirmedCoverage = source.confirmed_coverage_pct || 0;
+                            const confirmedConcerns = source.confirmed_with_concerns_count || 0;
+                            const confirmedConcernsPct = source.confirmed_with_concerns_pct || 0;
+                            const unconfirmedConcerns = source.unconfirmed_with_concerns_count || 0;
+                            const unconfirmedConcernsPct = source.unconfirmed_with_concerns_pct || 0;
+                            
+                            // Get source identifiers from metadata if available
+                            const sourceIdentifiers = source.all_source_identifiers || [];
+                            const hasIdentifiers = sourceIdentifiers.length > 1; // More than just the source_id
+                            
+                            return `
+                                <tr style="border-bottom: 1px solid #E5E7EB; ${index % 2 === 0 ? 'background: #F9FAFB;' : ''}">
+                                    <td style="padding: 12px;">
+                                        <div style="font-weight: 500; color: #111827;">${source.source_name}</div>
+                                        ${hasIdentifiers ? `
+                                            <div style="cursor: pointer; color: #4CAF50; font-size: 0.85em; margin-top: 4px;" onclick="toggleSourceIdentifiers(${index})">
+                                                <span id="source-toggle-${index}">▶</span> View Source Identifiers (${sourceIdentifiers.length})
+                                            </div>
+                                            <div id="source-identifiers-${index}" style="display: none; margin-top: 8px; padding: 8px; background: rgba(76, 175, 80, 0.05); border-radius: 4px; font-size: 0.85em;">
+                                                ${sourceIdentifiers.map(id => `<div style="padding: 2px 0; color: #6B7280;">• ${id}</div>`).join('')}
+                                            </div>
+                                        ` : `<div style="color: #9CA3AF; font-size: 0.85em;">${source.source_id}</div>`}
+                                    </td>
+                                    <td style="padding: 12px; text-align: center;">
+                                        <div style="font-weight: 600; color: #4CAF50; font-size: 1.2em;">${totalAliases}</div>
+                                    </td>
+                                    <td style="padding: 12px; text-align: center;">
+                                        <div style="font-weight: 600; color: #4CAF50; font-size: 1.2em;">${confirmedCoverage.toFixed(1)}%</div>
+                                    </td>
+                                    <td style="padding: 12px; text-align: center;">
+                                        <div style="font-weight: 600; color: ${confirmedConcerns > 0 ? '#F59E0B' : '#4CAF50'}; font-size: 1.1em;">
+                                            ${confirmedConcerns} (${confirmedConcernsPct.toFixed(1)}%)
+                                        </div>
+                                    </td>
+                                    <td style="padding: 12px; text-align: center;">
+                                        <div style="font-weight: 600; color: ${unconfirmedConcerns > 0 ? '#F59E0B' : '#4CAF50'}; font-size: 1.1em;">
+                                            ${unconfirmedConcerns} (${unconfirmedConcernsPct.toFixed(1)}%)
+                                        </div>
+                                    </td>
+                                    <td style="padding: 12px; text-align: center;">
+                                        <a href="${source.report_file}"
+                                           style="display: inline-block; background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%); color: white; 
+                                                  text-decoration: none; padding: 6px 16px; border-radius: 6px; font-size: 0.9em; 
+                                                  font-weight: 500; box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3); 
+                                                  transition: all 0.2s ease;"
+                                           onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(76, 175, 80, 0.4)'"
+                                           onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 4px rgba(76, 175, 80, 0.3)'"
+                                           title="Open report for ${source.source_name}">
+                                            📊 View Report
+                                        </a>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+        
+        // Toggle source identifiers visibility
+        function toggleSourceIdentifiers(index) {
+            const identifiersDiv = document.getElementById(`source-identifiers-${index}`);
+            const toggleIcon = document.getElementById(`source-toggle-${index}`);
+            
+            if (identifiersDiv && toggleIcon) {
+                if (identifiersDiv.style.display === 'none') {
+                    identifiersDiv.style.display = 'block';
+                    toggleIcon.textContent = '▼';
+                } else {
+                    identifiersDiv.style.display = 'none';
+                    toggleIcon.textContent = '▶';
+                }
+            }
+        }
+
+        // Filter source table rows
+        function filterSourceTable() {
+            const filterInput = document.getElementById('source-filter');
+            if (!filterInput) return;
+            
+            const filterValue = filterInput.value.toLowerCase().trim();
+            const table = document.querySelector('table tbody');
+            if (!table) return;
+            
+            const rows = table.getElementsByTagName('tr');
+            let visibleCount = 0;
+            
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const sourceCell = row.getElementsByTagName('td')[0];
+                
+                if (sourceCell) {
+                    const sourceText = sourceCell.textContent.toLowerCase();
+                    
+                    if (filterValue === '' || sourceText.includes(filterValue)) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                }
+            }
+            
+            // Add count display below filter
+            const filterCountId = 'filter-count';
+            let countDisplay = document.getElementById(filterCountId);
+            if (!countDisplay) {
+                countDisplay = document.createElement('div');
+                countDisplay.id = filterCountId;
+                countDisplay.style.cssText = 'color: #6B7280; font-size: 0.85em; margin-top: 4px; text-align: right;';
+                filterInput.parentElement.appendChild(countDisplay);
+            }
+            
+            if (filterValue !== '') {
+                countDisplay.textContent = `Showing ${visibleCount} of ${rows.length} sources`;
+                countDisplay.style.display = 'block';
+            } else {
+                countDisplay.style.display = 'none';
+            }
+        }
+    </script>
+
+</body>
+</html>

@@ -1787,14 +1787,31 @@ h8.subcategory-header {
     font-weight: 600;
     color: #2563eb;
     font-size: 0.95em;
-    text-decoration: underline;
-    cursor: pointer;
-    transition: color 0.2s ease, text-decoration-color 0.2s ease;
 }
 
-.cve-id:hover {
-    color: #1d4ed8;
-    text-decoration-color: #1d4ed8;
+.cve-external-links {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.cve-external-link {
+    background: linear-gradient(135deg, #8B5CF6 0%, #A855F7 100%);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.cve-external-link:hover {
+    background: linear-gradient(135deg, #7C3AED 0%, #9333EA 100%);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
 }
 
 .cve-entries-count {

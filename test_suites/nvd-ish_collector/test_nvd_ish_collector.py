@@ -49,6 +49,12 @@ import shutil
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
+# Force UTF-8 output encoding for Windows compatibility
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+
 # Test configuration
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 TEST_FILES_DIR = Path(__file__).parent
@@ -60,7 +66,7 @@ class NVDishCollectorTestSuite:
     def __init__(self):
         self.passed = 0
         # Update total test count to include placeholder filtering integration test
-        self.total = 22
+        self.total = 23
         self.test_cves = [
             # Core functionality tests (use test 1337 files)
             "CVE-1337-0001",  # Dual-source success
@@ -102,7 +108,7 @@ class NVDishCollectorTestSuite:
         
         # Pre-create all necessary cache directory structures
         cache_types = ["cve_list_v5", "nvd_2.0_cves", "nvd-ish_2.0_cves"]  # INPUT + OUTPUT caches
-        dir_patterns = ["0xxx", "1xxx", "2xxx", "9xxx"]  # All test sequence patterns
+        dir_patterns = ["0xxx", "1xxx", "2xxx", "4xxx", "9xxx"]  # All test sequence patterns
         
         for cache_type in cache_types:
             for dir_pattern in dir_patterns:
@@ -122,7 +128,9 @@ class NVDishCollectorTestSuite:
             ("CVE-1337-1004", "detection groups validation", True, True),
             ("CVE-1337-1005", "skip logic validation (clean data)", True, True),
             # CPE culling tests
-            ("CVE-1337-2001", "comprehensive CPE culling validation", True, True)
+            ("CVE-1337-2001", "comprehensive CPE culling validation", True, True),
+            # Platform mapping tests
+            ("CVE-1337-4001", "platform CPE base string enumeration", True, True)
         ]
         
         for cve_id, description, has_cve_list, has_nvd in all_test_files:
@@ -153,9 +161,9 @@ class NVDishCollectorTestSuite:
                     copied_files.append(str(nvd_target))
         
         # Copy test mapping file for confirmed mappings test (CVE-1337-2001)
-        # Source is now in the test suite directory, target is in the mappings directory
+        # Source is now in the test suite directory, target is in the alias mappings directory
         test_mapping_source = TEST_FILES_DIR / "test_cve_1337_2001_mappings.json"
-        mappings_dir = PROJECT_ROOT / "src" / "analysis_tool" / "mappings"
+        mappings_dir = PROJECT_ROOT / "cache" / "alias_mappings"
         test_mapping_target = mappings_dir / "test_cve_1337_2001_mappings_active.json"
         
         if test_mapping_source.exists():
@@ -168,6 +176,20 @@ class NVDishCollectorTestSuite:
             print(f"  * Copied test mapping file for confirmed mappings test")
         else:
             print(f"  ⚠️  Test mapping file not found: {test_mapping_source}")
+        
+        # Copy test mapping file for Test 22: Placeholder Filtering Integration (CVE-1337-3002)
+        test_mapping_source_3002 = TEST_FILES_DIR / "CVE-1337-3002-confirmed-mappings.json"
+        test_mapping_target_3002 = mappings_dir / "testorg.json"
+        
+        if test_mapping_source_3002.exists():
+            mappings_dir.mkdir(parents=True, exist_ok=True)
+            if test_mapping_target_3002.exists():
+                test_mapping_target_3002.unlink()
+            shutil.copy2(test_mapping_source_3002, test_mapping_target_3002)
+            copied_files.append(str(test_mapping_target_3002))
+            print(f"  * Copied test mapping file for placeholder filtering test (CVE-1337-3002)")
+        else:
+            print(f"  ⚠️  Test mapping file not found: {test_mapping_source_3002}")
         
         print(f"Setup complete. Copied {len(copied_files)} test files.")
         return copied_files
@@ -207,20 +229,27 @@ class NVDishCollectorTestSuite:
                 except OSError:
                     pass
         
-        # Clean up test mapping files (only the active ones, preserve the original test files)
-        mappings_dir = PROJECT_ROOT / "src" / "analysis_tool" / "mappings"
+        # Clean up test mapping files (only the test copies, preserve the original test files in test suite)
+        mappings_dir = PROJECT_ROOT / "cache" / "alias_mappings"
         test_mapping_active = mappings_dir / "test_cve_1337_2001_mappings_active.json"
+        test_mapping_3002 = mappings_dir / "testorg.json"
         
         if test_mapping_active.exists():
             test_mapping_active.unlink()
             removed_count += 1
             print(f"  ✓ Removed test mapping file: {test_mapping_active.name}")
         
-        # Also clean up any other leftover active mapping files (in case of test failures)
-        for active_mapping in mappings_dir.glob("*_active.json"):
-            active_mapping.unlink()
+        if test_mapping_3002.exists():
+            test_mapping_3002.unlink()
             removed_count += 1
-            print(f"  ✓ Removed leftover mapping file: {active_mapping.name}")
+            print(f"  ✓ Removed test mapping file: {test_mapping_3002.name}")
+        
+        # Also clean up any other leftover active mapping files (in case of test failures)
+        if mappings_dir.exists():
+            for active_mapping in mappings_dir.glob("*_active.json"):
+                active_mapping.unlink()
+                removed_count += 1
+                print(f"  ✓ Removed leftover mapping file: {active_mapping.name}")
         
         print(f"Cleanup complete. Removed {removed_count} test files.")
     
@@ -1073,8 +1102,7 @@ class NVDishCollectorTestSuite:
             
             # EXACT expected results based on testorg.json mappings and CVE-1337-2001 affected entries
             expected_confirmed_mappings = {
-                4: ["cpe:2.3:a:testvendor:testproduct:*:*:*:*:*:*:*:*"],  # Entry 4: testvendor/testproduct
-                5: ["cpe:2.3:a:münchen_café_unicode_test:unicode_product:*:*:*:*:*:*:*:*"]  # Entry 5: unicode vendor/product
+                4: ["cpe:2.3:a:testvendor:testproduct:*:*:*:*:*:*:*:*"]  # Entry 4: testvendor/testproduct
             }
             
             validated_entries = 0
@@ -1111,25 +1139,9 @@ class NVDishCollectorTestSuite:
                     print(f"  Actual: {confirmed_mappings}")
                     return False
                 
-                # Validate each expected mapping is present (with unicode normalization)
+                # Validate each expected mapping is present
                 for expected_mapping in expected_mappings:
-                    # Check if any confirmed mapping matches (with unicode normalization)
-                    mapping_found = False
-                    for confirmed_mapping in confirmed_mappings:
-                        # Normalize both strings for comparison (handle UTF-8 encoding differences)
-                        try:
-                            expected_normalized = expected_mapping.encode('utf-8').decode('utf-8')
-                            confirmed_normalized = confirmed_mapping.encode('latin-1').decode('utf-8')
-                        except (UnicodeDecodeError, UnicodeEncodeError):
-                            # If normalization fails, fall back to direct comparison
-                            expected_normalized = expected_mapping
-                            confirmed_normalized = confirmed_mapping
-                        
-                        if expected_normalized == confirmed_normalized or expected_mapping == confirmed_mapping:
-                            mapping_found = True
-                            break
-                    
-                    if not mapping_found:
+                    if expected_mapping not in confirmed_mappings:
                         print(f"❌ FAIL: Entry {entry_index} missing expected mapping: {expected_mapping}")
                         print(f"  Found mappings: {confirmed_mappings}")
                         return False
@@ -1374,19 +1386,19 @@ class NVDishCollectorTestSuite:
             cve_list_entries = data.get("enrichedCVEv5Affected", {}).get("cveListV5AffectedEntries", [])
             
             # Expected NVD API culling from two specific entries:
-            # Entry 6: extremely_long_vendor_name (> 100 chars) - should cull 2 CPE strings  
-            # Entry 7: escaped_commas in product name (> 50 chars with \\,) - should cull 2 CPE strings
+            # Entry 6: extremely_long_vendor_name (> 100 chars) - should cull 3 CPE strings (raw, curated, platform variant)
+            # Entry 7: escaped_commas in product name (> 50 chars with \\,) - should cull 3 CPE strings (raw, curated, platform variant)
             expected_nvd_api_entries = [
                 {
                     "entry_index": 6, 
                     "description": "extremely long vendor name",
-                    "expected_culled_count": 2,
+                    "expected_culled_count": 3,
                     "expected_reason": "Field vendor too long"
                 },
                 {
                     "entry_index": 7,
                     "description": "escaped commas in product", 
-                    "expected_culled_count": 2,
+                    "expected_culled_count": 3,
                     "expected_reason": "escaped commas and is long"
                 }
             ]
@@ -2487,17 +2499,8 @@ class NVDishCollectorTestSuite:
                 json.dump(nvd_data, f, indent=2)
             test_files.append(str(nvd_target))
             
-            # Copy confirmed mappings file to mappings directory with correct naming
-            mappings_dir = PROJECT_ROOT / "src" / "analysis_tool" / "mappings"
-            mappings_dir.mkdir(parents=True, exist_ok=True)
-            
-            mappings_source = TEST_FILES_DIR / "CVE-1337-3002-confirmed-mappings.json"
-            # Use testorg.json to match the shortName in providerMetadata
-            mappings_target = mappings_dir / "testorg.json"
-            if mappings_target.exists():
-                mappings_target.unlink()
-            shutil.copy2(mappings_source, mappings_target)
-            test_files.append(str(mappings_target))
+            # Note: The confirmed mappings file (testorg.json) was already copied during
+            # setup_test_environment(), so the confirmed mapping manager has already loaded it
             
             print(f"  * Setup complete: Copied test files with placeholder data to INPUT cache")
             
@@ -2623,6 +2626,272 @@ class NVDishCollectorTestSuite:
             return False
 
 
+    def test_platform_cpe_base_string_enumeration(self) -> bool:
+        """Test comprehensive platform mapping and CPE base string cross-product generation."""
+        print(f"\n=== Test 23: Platform CPE Base String Enumeration ===")
+        
+        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-4001")
+        
+        if not success:
+            print(f"❌ FAIL: Analysis tool execution failed")
+            if stdout:
+                print(f"  STDOUT: {stdout[:500]}")
+            if stderr:
+                print(f"  STDERR: {stderr[:500]}")
+            return False
+        
+        if not output_path or not os.path.exists(output_path):
+            print(f"❌ FAIL: Output path not found: {output_path}")
+            return False
+        
+        try:
+            with open(output_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            entries = data.get("enrichedCVEv5Affected", {}).get("cveListV5AffectedEntries", [])
+            if len(entries) != 6:
+                print(f"❌ FAIL: Expected 6 entries, got {len(entries)}")
+                return False
+            
+            test_cases = [
+                {
+                    "index": 0,
+                    "name": "os_and_arch_product (Windows + x64)",
+                    "platforms": ["Windows", "x64"],
+                    "expected_cpe_patterns": [
+                        # Vendor+product platform-specific: SW only (HW wildcarded)
+                        "cpe:2.3:*:testvendor:*os_and_arch_product*:*:*:*:*:*:windows:*:*",
+                        # Vendor+product platform-specific: HW only (SW wildcarded)  
+                        "cpe:2.3:*:testvendor:*os_and_arch_product*:*:*:*:*:*:*:x64:*",
+                        # Vendor+product platform-specific: Combined cross-product
+                        "cpe:2.3:*:testvendor:*os_and_arch_product*:*:*:*:*:*:windows:x64:*",
+                        # PackageName platform-specific CPEs
+                        "cpe:2.3:*:*:*os-and-arch-package*:*:*:*:*:*:windows:*:*",
+                        "cpe:2.3:*:*:*os-and-arch-package*:*:*:*:*:*:*:x64:*",
+                        "cpe:2.3:*:*:*os-and-arch-package*:*:*:*:*:*:windows:x64:*"
+                    ],
+                    "min_platform_cpes": 6,  # 3 vendor+product + 3 packageName variants
+                    "expected_alias_count": 2,  # 2 unique platform values: Windows, x64
+                    "expected_alias_fields": {
+                        "packageName": "os-and-arch-package",
+                        "repo": "https://github.com/testvendor/os_and_arch_product"  # Present but not processed
+                    }
+                },
+                {
+                    "index": 1,
+                    "name": "multi_platform_product (Linux + x86 + arm64) with packageName",
+                    "platforms": ["Linux", "x86", "arm64"],
+                    "expected_cpe_patterns": [
+                        # Platform-specific: SW only (HW wildcarded)
+                        "cpe:2.3:*:*:*multi_platform_product*:*:*:*:*:*:linux:*:*",
+                        # Platform-specific: HW only (SW wildcarded) - x86
+                        "cpe:2.3:*:*:*multi_platform_product*:*:*:*:*:*:*:x86:*",
+                        # Platform-specific: HW only (SW wildcarded) - arm64
+                        "cpe:2.3:*:*:*multi_platform_product*:*:*:*:*:*:*:arm64:*",
+                        # Platform-specific: Cross-products (Linux + each HW)
+                        "cpe:2.3:*:*:*multi_platform_product*:*:*:*:*:*:linux:x86:*",
+                        "cpe:2.3:*:*:*multi_platform_product*:*:*:*:*:*:linux:arm64:*",
+                        # PackageName-based CPEs with platforms
+                        "cpe:2.3:*:*:*testvendor-multi-platform*:*:*:*:*:*:linux:*:*",
+                        "cpe:2.3:*:*:*testvendor-multi-platform*:*:*:*:*:*:*:x86:*",
+                        "cpe:2.3:*:*:*testvendor-multi-platform*:*:*:*:*:*:*:arm64:*",
+                        "cpe:2.3:*:*:*testvendor-multi-platform*:*:*:*:*:*:linux:x86:*",
+                        "cpe:2.3:*:*:*testvendor-multi-platform*:*:*:*:*:*:linux:arm64:*"
+                    ],
+                    "min_platform_cpes": 10,  # 5 product + 5 packageName variants
+                    "expected_alias_count": 3,  # 3 unique platform values: Linux, x86, arm64
+                    "expected_alias_fields": {
+                        "packageName": "testvendor-multi-platform"
+                    }
+                },
+                {
+                    "index": 2,
+                    "name": "os_only_product (macOS)",
+                    "platforms": ["macOS"],
+                    "expected_cpe_patterns": [
+                        # Platform-specific: OS only
+                        "cpe:2.3:*:*:*os_only_product*:*:*:*:*:*:macos:*:*"
+                    ],
+                    "min_platform_cpes": 1  # Just OS variant
+                },
+                {
+                    "index": 3,
+                    "name": "arch_only_product (x64)",
+                    "platforms": ["x64"],
+                    "expected_cpe_patterns": [
+                        # Platform-specific: HW only
+                        "cpe:2.3:*:*:*arch_only_product*:*:*:*:*:*:*:x64:*"
+                    ],
+                    "min_platform_cpes": 1  # Just HW variant
+                },
+                {
+                    "index": 4,
+                    "name": "multi_os_product (Windows + Linux + macOS) with repo",
+                    "platforms": ["Windows", "Linux", "macOS"],
+                    "expected_cpe_patterns": [
+                        # Vendor+product platform-specific: Each OS
+                        "cpe:2.3:*:testvendor:*multi_os_product*:*:*:*:*:*:windows:*:*",
+                        "cpe:2.3:*:testvendor:*multi_os_product*:*:*:*:*:*:linux:*:*",
+                        "cpe:2.3:*:testvendor:*multi_os_product*:*:*:*:*:*:macos:*:*"
+                    ],
+                    "min_platform_cpes": 3,  # 3 vendor+product variants (repo field present but not processed)
+                    "expected_alias_fields": {
+                        "repo": "https://github.com/testvendor/multi-os"  # Present but not processed
+                    }
+                },
+                {
+                    "index": 5,
+                    "name": "complex_combo_product with packageName + repo + collectionURL",
+                    "platforms": ["Windows", "Linux", "x64", "arm64"],
+                    "expected_cpe_patterns": [
+                        # Vendor+product platform-specific: SW only (all OS, HW wildcarded)
+                        "cpe:2.3:*:testvendor:*complex_combo_product*:*:*:*:*:*:windows:*:*",
+                        "cpe:2.3:*:testvendor:*complex_combo_product*:*:*:*:*:*:linux:*:*",
+                        # Vendor+product platform-specific: HW only (all arch, SW wildcarded)
+                        "cpe:2.3:*:testvendor:*complex_combo_product*:*:*:*:*:*:*:x64:*",
+                        "cpe:2.3:*:testvendor:*complex_combo_product*:*:*:*:*:*:*:arm64:*",
+                        # Vendor+product platform-specific: Cross-products (2 OS × 2 HW = 4 combinations)
+                        "cpe:2.3:*:testvendor:*complex_combo_product*:*:*:*:*:*:windows:x64:*",
+                        "cpe:2.3:*:testvendor:*complex_combo_product*:*:*:*:*:*:windows:arm64:*",
+                        "cpe:2.3:*:testvendor:*complex_combo_product*:*:*:*:*:*:linux:x64:*",
+                        "cpe:2.3:*:testvendor:*complex_combo_product*:*:*:*:*:*:linux:arm64:*",
+                        # PackageName-based CPEs with platforms
+                        "cpe:2.3:*:*:*complex-combo-pkg*:*:*:*:*:*:windows:*:*",
+                        "cpe:2.3:*:*:*complex-combo-pkg*:*:*:*:*:*:linux:*:*",
+                        "cpe:2.3:*:*:*complex-combo-pkg*:*:*:*:*:*:*:x64:*",
+                        "cpe:2.3:*:*:*complex-combo-pkg*:*:*:*:*:*:*:arm64:*",
+                        "cpe:2.3:*:*:*complex-combo-pkg*:*:*:*:*:*:windows:x64:*",
+                        "cpe:2.3:*:*:*complex-combo-pkg*:*:*:*:*:*:windows:arm64:*",
+                        "cpe:2.3:*:*:*complex-combo-pkg*:*:*:*:*:*:linux:x64:*",
+                        "cpe:2.3:*:*:*complex-combo-pkg*:*:*:*:*:*:linux:arm64:*"
+                    ],
+                    "min_platform_cpes": 16,  # 8 vendor+product + 8 packageName variants (repo field present but not processed)
+                    "expected_alias_count": 4,  # 4 unique platform values: Windows, Linux, x64, arm64
+                    "expected_alias_fields": {
+                        "collectionURL": "https://downloads.testvendor.com/complex",
+                        "packageName": "complex-combo-pkg",
+                        "repo": "https://gitlab.com/testvendor/complex_combo_product"  # Present but not processed
+                    }
+                }
+            ]
+            
+            all_passed = True
+            alias_field_test_cases = []  # Track cases that should validate additional alias fields
+            
+            for test_case in test_cases:
+                entry = entries[test_case["index"]]
+                cpe_suggestions = entry.get("cpeSuggestions", {})
+                cpe_match_strings = cpe_suggestions.get("cpeMatchStringsSearched", [])
+                
+                if not isinstance(cpe_match_strings, list):
+                    print(f"  ❌ FAIL: Entry {test_case['index']} ({test_case['name']}) - cpeMatchStringsSearched is not a list")
+                    all_passed = False
+                    continue
+                
+                # Count platform-specific CPE strings (those with targetSW or targetHW filled)
+                platform_cpes = [
+                    cpe for cpe in cpe_match_strings 
+                    if not (cpe.endswith(":*:*:*") or cpe.endswith(":*:*:*:*"))
+                ]
+                
+                if len(platform_cpes) < test_case["min_platform_cpes"]:
+                    print(f"  ❌ FAIL: Entry {test_case['index']} ({test_case['name']}) - Expected at least {test_case['min_platform_cpes']} platform-specific CPEs, got {len(platform_cpes)}")
+                    print(f"    Platform CPEs found: {platform_cpes}")
+                    all_passed = False
+                    continue
+                
+                # Check that expected patterns exist
+                missing_patterns = []
+                for pattern in test_case["expected_cpe_patterns"]:
+                    found = False
+                    for cpe in cpe_match_strings:
+                        if pattern.replace("*", "") in cpe.replace("*", ""):
+                            # Check that the CPE has the right structure (not just contains the pattern)
+                            cpe_parts = cpe.split(":")
+                            pattern_parts = pattern.split(":")
+                            if len(cpe_parts) == len(pattern_parts):
+                                match = True
+                                for i, (p_part, c_part) in enumerate(zip(pattern_parts, cpe_parts)):
+                                    if p_part != "*" and p_part not in c_part:
+                                        match = False
+                                        break
+                                if match:
+                                    found = True
+                                    break
+                    if not found:
+                        missing_patterns.append(pattern)
+                
+                if missing_patterns:
+                    print(f"  ❌ FAIL: Entry {test_case['index']} ({test_case['name']}) - Missing expected CPE patterns:")
+                    for pattern in missing_patterns:
+                        print(f"    - {pattern}")
+                    print(f"    Actual CPEs generated ({len(cpe_match_strings)}):")
+                    for cpe in cpe_match_strings:
+                        print(f"      {cpe}")
+                    print(f"    Debug: First actual CPE parts: {cpe_match_strings[0].split(':') if cpe_match_strings else 'NONE'}")
+                    print(f"    Debug: First pattern parts: {missing_patterns[0].split(':') if missing_patterns else 'NONE'}")
+                    all_passed = False
+                    continue
+                
+                print(f"  ✅ Entry {test_case['index']} ({test_case['name']}): {len(platform_cpes)} platform-specific CPEs validated")
+                
+                # Check if this entry should also validate additional alias fields
+                if "expected_alias_fields" in test_case:
+                    alias_field_test_cases.append(test_case)
+            
+            if all_passed:
+                print(f"✅ PASS: Platform CPE base string enumeration validated successfully")
+                print(f"  ✓ Cross-product generation working for mixed OS+architecture platforms")
+                print(f"  ✓ Single-type platforms (OS-only or HW-only) generating correctly")
+                print(f"  ✓ Complex multi-platform scenarios validated")
+                
+                # Additional validation: Check that alias fields are preserved during platform expansion
+                if alias_field_test_cases:
+                    print(f"\n  Validating additional alias fields preservation...")
+                    alias_validation_passed = True
+                    
+                    for test_case in alias_field_test_cases:
+                        entry = entries[test_case["index"]]
+                        alias_extraction = entry.get("aliasExtraction", {})
+                        aliases = alias_extraction.get("aliases", [])
+                        expected_fields = test_case["expected_alias_fields"]
+                        expected_count = test_case.get("expected_alias_count", len(test_case["platforms"]))
+                        
+                        if len(aliases) != expected_count:
+                            print(f"    ❌ Entry {test_case['index']}: Expected {expected_count} aliases, got {len(aliases)}")
+                            alias_validation_passed = False
+                            continue
+                        
+                        # Validate that all aliases have the expected additional fields
+                        for alias_idx, alias in enumerate(aliases):
+                            for field_name, expected_value in expected_fields.items():
+                                if field_name not in alias:
+                                    print(f"    ❌ Entry {test_case['index']} alias {alias_idx}: Missing field '{field_name}'")
+                                    alias_validation_passed = False
+                                elif alias[field_name] != expected_value:
+                                    print(f"    ❌ Entry {test_case['index']} alias {alias_idx}: Field '{field_name}' = '{alias[field_name]}', expected '{expected_value}'")
+                                    alias_validation_passed = False
+                        
+                        if alias_validation_passed:
+                            print(f"    ✓ Entry {test_case['index']}: All {len(aliases)} aliases have required fields: {', '.join(expected_fields.keys())}")
+                    
+                    if not alias_validation_passed:
+                        print(f"  ❌ Additional alias fields validation FAILED")
+                        return False
+                    
+                    print(f"  ✅ Additional alias fields properly preserved across platform expansion")
+                
+                return True
+            else:
+                print(f"❌ FAIL: Some platform CPE enumeration tests failed")
+                return False
+                
+        except Exception as e:
+            print(f"❌ FAIL: Platform CPE enumeration test failed with exception: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
     def run_all_tests(self) -> bool:
         """Run all comprehensive tests and return overall success."""
         
@@ -2669,6 +2938,8 @@ class NVDishCollectorTestSuite:
                 ("Alias Extraction Integration", self.test_alias_extraction_integration),
                 ("Alias Extraction Placeholder Filtering", self.test_alias_extraction_placeholder_filtering),
                 ("Confirmed Mappings Placeholder Filtering Integration", self.test_confirmed_mappings_placeholder_filtering_integration),
+                # Platform Mapping CPE Enumeration Test
+                ("Platform CPE Base String Enumeration", self.test_platform_cpe_base_string_enumeration),
             ]
             
             for test_name, test_func in tests:

@@ -1,7 +1,9 @@
-# Cache files - keep directory but ignore cache contents
-*.json
-*.gz
-*.log
+# Ignore all cache contents by default
+*
 
-# Keep this directory in git but ignore all cache files
+# Keep the directory structure and this .gitignore file
 !.gitignore
+
+# Exception: Track alias_mappings directory and all its contents
+!alias_mappings/
+!alias_mappings/**

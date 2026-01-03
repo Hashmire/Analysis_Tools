@@ -124,7 +124,7 @@
     },
     "confirmed_mappings": {
         "enabled": true,
-        "mappings_directory": "mappings"
+        "mappings_directory": "cache/alias_mappings"
     },
 
     "harvest_and_process_sources": {

@@ -70,11 +70,11 @@ try:
 except ImportError:
     get_source_name = None
 
-# Import confirmed mappings loader from gatherData
+# Import confirmed mapping manager for alias reports
 try:
-    from ..core.gatherData import load_confirmed_mappings_for_uuid
+    from ..storage.confirmed_mapping_manager import get_global_mapping_manager
 except ImportError:
-    load_confirmed_mappings_for_uuid = None
+    get_global_mapping_manager = None
 
 class BadgeContentsCollector:
     """
@@ -650,12 +650,21 @@ class BadgeContentsCollector:
             # Sort alias groups by total alias count (largest first)
             alias_groups.sort(key=lambda group: -len(group['aliases']))
             
-            # Load confirmed mappings for this UUID
+            # Load confirmed mappings for this UUID using manager
             confirmed_mappings = []
-            if load_confirmed_mappings_for_uuid and source_uuid:
-                confirmed_mappings = load_confirmed_mappings_for_uuid(source_uuid)
-                if logger and confirmed_mappings:
-                    logger.info(f"Loaded {len(confirmed_mappings)} confirmed mappings for UUID {source_uuid}", group="completion")
+            if get_global_mapping_manager and source_uuid:
+                mapping_manager = get_global_mapping_manager()
+                if not mapping_manager.is_initialized():
+                    raise RuntimeError(
+                        "Confirmed mapping manager must be initialized before badge collection. "
+                        "Check entry point initialization sequence."
+                    )
+                
+                mapping_data = mapping_manager.get_mappings_for_source(source_uuid)
+                if mapping_data:
+                    confirmed_mappings = mapping_data
+                    if logger:
+                        logger.info(f"Loaded confirmed mappings for UUID {source_uuid}", group="completion")
                 elif logger:
                     logger.debug(f"No confirmed mappings found for UUID {source_uuid}", group="completion")
             

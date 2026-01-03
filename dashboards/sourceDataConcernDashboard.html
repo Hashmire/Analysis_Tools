@@ -1593,14 +1593,31 @@
             font-weight: 600;
             color: #2563eb;
             font-size: 0.95em;
-            text-decoration: underline;
-            cursor: pointer;
-            transition: color 0.2s ease, text-decoration-color 0.2s ease;
         }
 
-        .cve-id:hover {
-            color: #1d4ed8;
-            text-decoration-color: #1d4ed8;
+        .cve-external-links {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .cve-external-link {
+            background: linear-gradient(135deg, #8B5CF6 0%, #A855F7 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .cve-external-link:hover {
+            background: linear-gradient(135deg, #7C3AED 0%, #9333EA 100%);
+            color: white;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
         }
 
         .cve-entries-count {
@@ -3593,7 +3610,7 @@
             
             if (isArrayField) {
                 problemText = `<code>${concern.field}</code> contains placeholder data which prevents platform identification.`;
-                resolutionText = `Replace placeholder data with an appropriate <code>${concern.field}</code> value or leave platforms array empty.`;
+                resolutionText = `Replace placeholder data with an appropriate <code>${concern.field}</code> value.`;
             }
             
             // Handle different detectedPattern formats
@@ -4328,6 +4345,7 @@
             
             const sourcesHTML = sortedSources.map(([sourceId, data], sourceIndex) => {
                 const topConcerns = Object.entries(data.concern_breakdown)
+                    .filter(([type, count]) => count > 0)
                     .sort((a, b) => b[1] - a[1])
                     .slice(0, 5);
                 
@@ -4471,6 +4489,7 @@
                                         });
 
                                         const concernTypeEntries = Object.entries(concernTypeCounts)
+                                            .filter(([type, count]) => count > 0)
                                             .sort(([,a], [,b]) => b - a);
 
                                         const githubUrl = `https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/${cveId}.html`;
@@ -4488,14 +4507,18 @@
                                             }
                                         });
 
+                                        const nvdUrl = `https://nvd.nist.gov/vuln/detail/${cveId}`;
+                                        const cveOrgUrl = `https://www.cve.org/CVERecord?id=${cveId}`;
+                                        
                                         return `
                                             <div class="cve-card" id="${cardId}">
                                                 <div class="cve-card-left-content">
                                                     <div class="cve-card-header">
-                                                        <a href="${githubUrl}" target="_blank" class="cve-id-link">
-                                                            <span class="cve-id">${cveId}</span>
-                                                        </a>
-                                                        <span class="cve-entries-count">${cveEntries.length} entries</span>
+                                                        <span class="cve-id">${cveId}</span>
+                                                        <div class="cve-external-links">
+                                                            <a href="${nvdUrl}" target="_blank" class="cve-external-link" title="View on NVD">NVD</a>
+                                                            <a href="${cveOrgUrl}" target="_blank" class="cve-external-link" title="View on CVE.org">CVE.org</a>
+                                                        </div>
                                                     </div>
                                                     <div class="cve-card-content" onclick="toggleCveDetails('${cardId}')">
                                                         <div class="cve-card-main-content">

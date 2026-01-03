@@ -330,8 +330,10 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         # Platform Data Processing and CPE Generation
         if cpe_suggestions:
             # Full CPE processing: platform data + CPE generation + API calls
-            tool_execution_timestamps['cpeSuggestions'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-            tool_execution_timestamps['cpeSuggestionMetadata'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+            # Use same timestamp for both cpeSuggestions and cpeSuggestionMetadata (set at same execution point)
+            cpe_timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+            tool_execution_timestamps['cpeSuggestions'] = cpe_timestamp
+            tool_execution_timestamps['cpeSuggestionMetadata'] = cpe_timestamp
             try:
                 primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1, 
                                                             alias_report=alias_report, cpe_as_generator=cpe_as_generator)
@@ -408,7 +410,6 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
             logger.info("SDC report processing completed", group="data_processing")
         
         # Alias Extraction Processing (ignores source UUID filtering) - Runs independently of SDC
-        logger.debug(f"Checking alias_report flag: {alias_report}", group="data_processing")
         if alias_report:
             try:
                 logger.info("Starting alias extraction processing (all sources)", group="data_processing")
@@ -494,8 +495,6 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         # Confirmed Mappings Processing
         if cpe_suggestions or alias_report or cpe_as_generator:
             try:
-                logger.info("Starting confirmed mappings processing", group="data_processing")
-                
                 # Import confirmed mapping functions
                 from .processData import extract_confirmed_mappings_for_affected_entry
                 from .badge_modal_system import create_confirmed_mappings_registry_entry
@@ -539,8 +538,6 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
                         
                         if confirmed_mappings:
                             logger.debug(f"Found {len(confirmed_mappings)} confirmed mappings for affected entry {table_index}", group="data_processing")
-                
-                logger.info("Confirmed mappings processing completed", group="data_processing")
                 
             except Exception as confirmed_error:
                 logger.error(f"Confirmed mappings processing failed for {cve_id}: {str(confirmed_error)}", group="data_processing")
@@ -596,7 +593,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         
         if not should_generate_html:
             if nvd_ish_only:
-                logger.info("HTML generation skipped (NVD-ish only)", group="page_generation")
+                logger.info("CPE-AS Generator HTML page generation skipped (NVD-ish only)", group="page_generation")
             else:
                 logger.info("HTML generation skipped for this feature configuration", group="page_generation")
             
@@ -898,23 +895,11 @@ def finalize_dashboard_data():
         from ..reporting.dataset_contents_collector import get_dataset_contents_collector, update_cache_statistics
         
         # Update cache statistics with actual data from CPE cache
+        # Don't save here - generate_dataset.py will call finalize_dataset_contents_report() which saves
         update_cache_statistics()
-        
-        collector = get_dataset_contents_collector()
-        if collector.output_file_path:
-            # Perform final save with enhanced log analysis
-            result = collector.save_to_file(collector.output_file_path)
-            if result:
-                logger.debug("Final dashboard data generated with enhanced log analysis", group="completion")
-                return True
-            else:
-                logger.debug("Final dashboard generation completed with warnings", group="completion")
-                return False
-        else:
-            logger.debug("No dashboard output path configured", group="completion")
-            return False
+        return True
     except Exception as e:
-        logger.debug(f"Final dashboard generation error: {e}", group="completion")
+        logger.debug(f"Failed to update cache statistics: {e}", group="completion")
         return False
 
 def main():
@@ -1170,6 +1155,27 @@ def main():
         cache_manager.initialize(cache_config)
     else:
         cache_manager.initialize(config.get('cache_settings', {}).get('cpe_cache', {}))
+    
+    # Initialize confirmed mapping manager (requires NVD source manager)
+    from ..storage.confirmed_mapping_manager import get_global_mapping_manager
+    from ..storage.nvd_source_manager import get_global_source_manager
+    
+    mapping_manager = get_global_mapping_manager()
+    if not mapping_manager.is_initialized():
+        source_manager = get_global_source_manager()
+        if not source_manager.is_initialized():
+            raise RuntimeError(
+                "NVD source manager must be initialized before confirmed mapping manager. "
+                "Ensure harvest_and_process_sources.py or generate_dataset.py ran first to create source cache."
+            )
+        
+        mapping_manager.initialize(source_manager=source_manager)
+        logger.info(
+            f"Confirmed mapping manager initialized: {mapping_manager.get_stats()['files_loaded']} files loaded",
+            group="initialization"
+        )
+    else:
+        logger.info("Confirmed mapping manager already initialized", group="initialization")
     
     # Handle test file processing
     if args.test_file:
@@ -1496,7 +1502,6 @@ def main():
                 collector = get_badge_contents_collector()
                 if hasattr(collector, 'cve_data'):
                     collector.cve_data.clear()  # Clear accumulated CVE data to prevent memory bloat
-                    logger.debug(f"Cleared cross-CVE alias tracking data for memory optimization (nvd-ish-only mode)", group="data_processing")
             
             # Start CVE processing in real-time collector
             try:
@@ -1654,15 +1659,7 @@ def main():
     
     # Wait for any pending background dashboard updates and perform final update
     wait_for_dashboard_updates()
-    
-    logger.info("Updating final dashboard...", group="completion")
-    if finalize_dashboard_data():
-        if current_run_paths:
-            logger.info(f"Dashboard updated with final results: runs/{run_id}/logs/generateDatasetReport.json", group="completion")
-        else:
-            logger.info("Dashboard updated with final results: logs/generateDatasetReport.json", group="completion")
-    else:
-        logger.debug("Final dashboard update completed with warnings", group="completion")
+    finalize_dashboard_data()
     
     if success_count > 0:
         avg_time = total_time / success_count
@@ -1676,22 +1673,12 @@ def main():
             reason = skipped_reasons.get(cve, "Unknown reason")
             logger.error(f"SKIPPED: {cve} - {reason}", group="data_processing")
     
-    # Display generated files
-    if generated_files:
-        logger.info("Generated files:", group="completion")
-        for filepath in generated_files[-10:]:  # Show last 10 files
-            logger.info(f"  {filepath}", group="completion")
-        if len(generated_files) > 10:
-            logger.info(f"  ... and {len(generated_files) - 10} more files", group="completion")
-    
     # Finalize badge contents report (skip in NVD-ish only mode)
     from ..logging.badge_contents_collector import finalize_badge_contents_report, generate_alias_extraction_report
     if not nvd_ish_only:
         badge_report_path = finalize_badge_contents_report()
         if badge_report_path:
             logger.info(f"Badge contents report finalized: {badge_report_path}", group="completion")
-    else:
-        logger.info("Badge contents report generation skipped (NVD-ish only mode)", group="completion")
     
     # Generate alias extraction report if enabled (skip in NVD-ish only mode)
     if args.alias_report and not nvd_ish_only:
@@ -1701,8 +1688,6 @@ def main():
             logger.info(f"Alias extraction report generated: {alias_report_path}", group="completion")
         else:
             logger.info("No alias extraction data found - alias report not generated", group="completion")
-    elif args.alias_report and nvd_ish_only:
-        logger.info("Alias extraction report generation skipped (NVD-ish only mode)", group="completion")
     
     # Stop file logging
     logger.stop_file_logging()

@@ -1078,52 +1078,6 @@ def gatherAllCVEIDs(apiKey):
     return all_cves
 
 
-def load_confirmed_mappings_for_uuid(target_uuid):
-    """
-    Load confirmed mappings file for the specified target UUID.
-    
-    Args:
-        target_uuid (str): The target UUID to search for in confirmed mapping files
-        
-    Returns:
-        list: List of confirmed mappings, or empty list if none found
-        
-    Note:
-        This function searches the mappings directory for JSON files containing
-        the specified cnaId and returns the confirmedMappings array.
-    """
-    try:
-        # Get the mappings directory from config
-        config = load_config()
-        mappings_dir = Path(__file__).parent.parent / config['confirmed_mappings']['mappings_directory']
-        
-        if not mappings_dir.exists():
-            logger.debug(f"Mappings directory not found: {mappings_dir}", group="data_proc")
-            return []
-        
-        # Search for JSON files containing the target UUID
-        for mapping_file in mappings_dir.glob("*.json"):
-            try:
-                with open(mapping_file, 'r', encoding='utf-8') as f:
-                    mapping_data = json.load(f)
-                    
-                if mapping_data.get('cnaId') == target_uuid:
-                    confirmed_mappings = mapping_data.get('confirmedMappings', [])
-                    logger.info(f"Found confirmed mappings file: {mapping_file.name} with {len(confirmed_mappings)} mappings", group="data_proc")
-                    return confirmed_mappings
-                    
-            except (json.JSONDecodeError, IOError) as e:
-                logger.warning(f"Could not read mapping file {mapping_file}: {e}", group="data_proc")
-                continue
-                
-        logger.debug(f"No confirmed mappings file found for UUID: {target_uuid}", group="data_proc")
-        return []
-        
-    except Exception as e:
-        logger.error(f"Error loading confirmed mappings for UUID {target_uuid}: {e}", group="data_proc")
-        return []
-
-
 def harvestSourceUUIDs():
     """
     Fetch all source UUIDs from the NVD sources API.

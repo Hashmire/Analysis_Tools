@@ -1043,6 +1043,215 @@
             overflow: hidden;
         }
 
+        .log-view-switcher {
+            display: flex;
+            gap: 10px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .log-view-tab {
+            padding: 10px 20px;
+            border: none;
+            background: white;
+            cursor: pointer;
+            border-radius: 6px;
+            color: #6c757d;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .log-view-tab:hover {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .log-view-tab.active {
+            background: #3498db;
+            color: white;
+            border-color: #2980b9;
+            font-weight: 600;
+        }
+
+        .log-view-panel {
+            display: none;
+            padding: 20px;
+        }
+
+        .log-view-panel.active {
+            display: block;
+        }
+
+        .frequency-category-group {
+            margin: 10px 0;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .frequency-category-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            cursor: pointer;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        .frequency-category-header:hover {
+            background: #e9ecef;
+        }
+
+        .frequency-category-events {
+            display: none;
+            background: white;
+        }
+
+        .frequency-category-group.expanded .frequency-category-events {
+            display: block;
+        }
+
+        .event-frequency-item {
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .event-frequency-item:last-child {
+            border-bottom: none;
+        }
+
+        .event-frequency-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            cursor: pointer;
+            background: white;
+            transition: background 0.2s ease;
+        }
+
+        .event-frequency-header:hover {
+            background: #f8f9fa;
+        }
+
+        .event-frequency-message {
+            font-weight: 500;
+            color: #495057;
+            font-size: 0.85em;
+            flex: 1;
+            line-height: 1.3;
+        }
+
+        .event-frequency-count {
+            background: #3498db;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.75em;
+            margin: 0 8px;
+        }
+
+        .event-frequency-type {
+            font-size: 0.85em;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .event-expand-indicator {
+            transition: transform 0.2s ease;
+            color: #6c757d;
+            font-size: 0.8em;
+        }
+
+        .event-frequency-item.expanded .event-expand-indicator {
+            transform: rotate(180deg);
+        }
+
+        .frequency-category-group.expanded .frequency-category-header .event-expand-indicator {
+            transform: rotate(180deg);
+        }
+
+        .event-frequency-details {
+            display: none;
+            padding: 8px 12px 12px 28px;
+            background: #fafafa;
+            font-size: 0.8em;
+            color: #6c757d;
+        }
+
+        .event-frequency-item.expanded .event-frequency-details {
+            display: block;
+        }
+
+        .event-cve-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 6px;
+        }
+
+        .event-cve-badge {
+            font-size: 0.8em;
+        }
+
+        .frequency-filter-controls {
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            align-items: center;
+        }
+
+        .frequency-filter-label {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 0.9em;
+        }
+
+        .frequency-filter-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .frequency-filter-checkbox input[type="checkbox"] {
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+        }
+
+        .frequency-filter-checkbox label {
+            cursor: pointer;
+            font-size: 0.9em;
+            color: #495057;
+        }
+
+        .frequency-category-warning {
+            border-left-color: #ffc107;
+        }
+
+        .frequency-category-warning .event-frequency-count {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .frequency-category-error {
+            border-left-color: #dc3545;
+        }
+
+        .frequency-category-error .event-frequency-count {
+            background: #dc3545;
+        }
+
         .log-category-tabs {
             display: flex;
             background: #f8f9fa;
@@ -1228,8 +1437,7 @@
             <h1 id="dashboard-title">Generate Dataset Dashboard</h1>
             <div id="dashboard-subtitle" style="font-size: 1.2em; margin-top: 5px; opacity: 0.9;">
                 <p>
-                    Real-time monitoring and analytics for dataset generation <br />
-                    Hashmire/Analysis_Tools v0.2.0
+                    Real-time monitoring and analytics for dataset generation
                 </p>
             </div>
         </div>
@@ -1272,7 +1480,29 @@
                 <div class="progress-bar">
                     <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
                 </div>
-                <div style="margin-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center;">
+                
+                <!-- Cache Refresh Stage (hidden by default) -->
+                <div id="cache-refresh-stats" style="margin-top: 15px; display: none; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center;">
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #3498db;" id="cache-target-cves">0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Target CVE Count</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #27ae60;" id="cache-batch-progress">0/0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Batch Processing</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #e67e22;" id="cache-nvd-refreshed">0/0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">NVD Cache Refreshed</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #8e44ad;" id="cache-cvelist-refreshed">0/0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">CVE List v5 Refreshed</div>
+                    </div>
+                </div>
+                
+                <!-- Dataset Generation Stage (default view) -->
+                <div id="dataset-generation-stats" style="margin-top: 15px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center;">
                     <div>
                         <div style="font-size: 1.8em; font-weight: 700; color: #27ae60;" id="processed-cves">0</div>
                         <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Processed</div>
@@ -1781,27 +2011,61 @@
             const deduplication_stats = data.deduplication_stats || {};
             const speed_stats = data.speed_stats || {};
             const bloat_analysis = data.bloat_analysis || {};
+            const cache_refresh = data.cache_refresh || {};
 
-            // Detect CVE list generation phase (simple detection)
-            const isListGeneration = data.metadata?.workflow_phase === 'cve_list_generation' ||
+            // Detect workflow phase
+            const workflowPhase = data.metadata?.workflow_phase || 'dataset_generation';
+            const isListGeneration = workflowPhase === 'cve_list_generation' ||
                                    (processing.total_cves === 0 && api.total_calls > 0);
+            const isCacheRefresh = workflowPhase === 'cache_refresh' || cache_refresh.in_progress === true;
 
             // Show/hide sections based on phase
             toggleSectionsForPhase(isListGeneration);
 
-            // Overall progress
-            const progressPercent = formatNumber(processing.progress_percentage || 100, 1) + '%';
-            document.getElementById('progress-percent').textContent = progressPercent;
-            document.getElementById('progress-fill').style.width = progressPercent;
-
-            // Progress stats
-            document.getElementById('processed-cves').textContent = processing.processed_cves || processing.total_cves || data.summary?.total_cves || 0;
-            document.getElementById('remaining-cves').textContent = processing.remaining_cves || 0;
-            document.getElementById('total-cves').textContent = processing.total_cves || data.summary?.total_cves || 0;
+            // Toggle Overall Progress stats based on workflow phase
+            const cacheRefreshStatsDiv = document.getElementById('cache-refresh-stats');
+            const datasetGenerationStatsDiv = document.getElementById('dataset-generation-stats');
             
-            // Handle ETA - use same logic as detailed section
-            const etaValue = processing.eta_simple || (processing.remaining_cves > 0 ? 'Calculating...' : 'Completed');
-            document.getElementById('eta-simple').textContent = etaValue;
+            if (isCacheRefresh) {
+                // Show cache refresh stats, hide dataset generation stats
+                cacheRefreshStatsDiv.style.display = 'grid';
+                datasetGenerationStatsDiv.style.display = 'none';
+                
+                // Update cache refresh metrics
+                document.getElementById('cache-target-cves').textContent = formatNumber(cache_refresh.target_cve_count || 0);
+                document.getElementById('cache-batch-progress').textContent = 
+                    `${formatNumber(cache_refresh.batch_processing_current || 0)}/${formatNumber(cache_refresh.batch_processing_total || 0)}`;
+                document.getElementById('cache-nvd-refreshed').textContent = 
+                    `${formatNumber(cache_refresh.nvd_cache_refreshed_current || 0)}/${formatNumber(cache_refresh.nvd_cache_refreshed_total || 0)}`;
+                document.getElementById('cache-cvelist-refreshed').textContent = 
+                    `${formatNumber(cache_refresh.cve_list_v5_cache_refreshed_current || 0)}/${formatNumber(cache_refresh.cve_list_v5_cache_refreshed_total || 0)}`;
+                
+                // Calculate cache refresh progress percentage
+                const batchTotal = cache_refresh.batch_processing_total || 1;
+                const batchCurrent = cache_refresh.batch_processing_current || 0;
+                const cacheRefreshProgress = Math.min(100, (batchCurrent / batchTotal) * 100);
+                const progressPercent = formatNumber(cacheRefreshProgress, 1) + '%';
+                document.getElementById('progress-percent').textContent = progressPercent;
+                document.getElementById('progress-fill').style.width = progressPercent;
+            } else {
+                // Show dataset generation stats, hide cache refresh stats
+                cacheRefreshStatsDiv.style.display = 'none';
+                datasetGenerationStatsDiv.style.display = 'grid';
+                
+                // Update dataset generation metrics
+                document.getElementById('processed-cves').textContent = processing.processed_cves || processing.total_cves || data.summary?.total_cves || 0;
+                document.getElementById('remaining-cves').textContent = processing.remaining_cves || 0;
+                document.getElementById('total-cves').textContent = processing.total_cves || data.summary?.total_cves || 0;
+                
+                // Handle ETA - use same logic as detailed section
+                const etaValue = processing.eta_simple || (processing.remaining_cves > 0 ? 'Calculating...' : 'Completed');
+                document.getElementById('eta-simple').textContent = etaValue;
+                
+                // Overall progress percentage for dataset generation
+                const progressPercent = formatNumber(processing.progress_percentage || 100, 1) + '%';
+                document.getElementById('progress-percent').textContent = progressPercent;
+                document.getElementById('progress-fill').style.width = progressPercent;
+            }
 
             // Metric cards - Updated to match legacy format
             document.getElementById('wall-clock-time').textContent = formatTime(performance.wall_clock_time || performance.total_runtime || 0);
@@ -2189,6 +2453,26 @@
                 html += `
                     <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">📋 Log Analysis</h4>
                     <div class="log-analysis-container">
+                        <div class="log-view-switcher">
+                            <button class="log-view-tab active" onclick="switchLogView('frequency-view')">
+                                📊 By Event Frequency
+                            </button>
+                            <button class="log-view-tab" onclick="switchLogView('cve-view')">
+                                👤 By CVE
+                            </button>
+                        </div>
+                        <div id="frequency-view" class="log-view-panel active">
+                            <div class="frequency-filter-controls">
+                                <span class="frequency-filter-label">Show:</span>
+                                <div class="frequency-filter-checkbox">
+                                    <input type="checkbox" id="filter-warnings" checked onchange="filterFrequencyEvents()">
+                                    <label for="filter-warnings">⚠️ Warnings</label>
+                                </div>
+                                <div class="frequency-filter-checkbox">
+                                    <input type="checkbox" id="filter-errors" checked onchange="filterFrequencyEvents()">
+                                    <label for="filter-errors">❌ Errors</label>
+                                </div>
+                            </div>
                 `;
                 
                 // Debug: Log the actual data structure
@@ -2197,6 +2481,7 @@
                 
                 // Collect all CVE groups from all categories (both warnings and errors)
                 const allCveGroups = new Map();
+                const eventFrequencyMap = new Map(); // Track event message frequencies
                 
                 // Process warnings - handle both old and new data structures
                 Object.keys(warnings).forEach(categoryKey => {
@@ -2236,6 +2521,25 @@
                                     name: subcat.category,
                                     count: subcat.count,
                                     messages: subcat.messages || []
+                                });
+                                
+                                // NEW: Track event frequency
+                                (subcat.messages || []).forEach(message => {
+                                    if (message) {
+                                        const freqKey = `${subcat.category}|||${message}`;
+                                        if (!eventFrequencyMap.has(freqKey)) {
+                                            eventFrequencyMap.set(freqKey, {
+                                                message: message,
+                                                category: subcat.category,
+                                                type: 'warnings',
+                                                count: 0,
+                                                cves: new Set()
+                                            });
+                                        }
+                                        const freqData = eventFrequencyMap.get(freqKey);
+                                        freqData.count += subcat.count;
+                                        freqData.cves.add(cveId);
+                                    }
                                 });
                             });
                         } else {
@@ -2290,6 +2594,26 @@
                                     messages: entry.messages || [entry.message || entry.sample_message].filter(Boolean)
                                 });
                             }
+                            
+                            // NEW: Track event frequency for old structure
+                            const messages = entry.messages || [entry.message || entry.sample_message].filter(Boolean);
+                            messages.forEach(message => {
+                                if (message) {
+                                    const freqKey = `${categoryName}|||${message}`;
+                                    if (!eventFrequencyMap.has(freqKey)) {
+                                        eventFrequencyMap.set(freqKey, {
+                                            message: message,
+                                            category: categoryName,
+                                            type: 'warnings',
+                                            count: 0,
+                                            cves: new Set()
+                                        });
+                                    }
+                                    const freqData = eventFrequencyMap.get(freqKey);
+                                    freqData.count += entryCount;
+                                    freqData.cves.add(cveId);
+                                }
+                            });
                         }
                     });
                 });
@@ -2332,6 +2656,25 @@
                                     name: subcat.category,
                                     count: subcat.count,
                                     messages: subcat.messages || []
+                                });
+                                
+                                // NEW: Track event frequency
+                                (subcat.messages || []).forEach(message => {
+                                    if (message) {
+                                        const freqKey = `${subcat.category}|||${message}`;
+                                        if (!eventFrequencyMap.has(freqKey)) {
+                                            eventFrequencyMap.set(freqKey, {
+                                                message: message,
+                                                category: subcat.category,
+                                                type: 'errors',
+                                                count: 0,
+                                                cves: new Set()
+                                            });
+                                        }
+                                        const freqData = eventFrequencyMap.get(freqKey);
+                                        freqData.count += subcat.count;
+                                        freqData.cves.add(cveId);
+                                    }
                                 });
                             });
                         } else {
@@ -2386,9 +2729,130 @@
                                     messages: entry.messages || [entry.message || entry.sample_message].filter(Boolean)
                                 });
                             }
+                            
+                            // NEW: Track event frequency for old structure
+                            const messages = entry.messages || [entry.message || entry.sample_message].filter(Boolean);
+                            messages.forEach(message => {
+                                if (message) {
+                                    const freqKey = `${categoryName}|||${message}`;
+                                    if (!eventFrequencyMap.has(freqKey)) {
+                                        eventFrequencyMap.set(freqKey, {
+                                            message: message,
+                                            category: categoryName,
+                                            type: 'errors',
+                                            count: 0,
+                                            cves: new Set()
+                                        });
+                                    }
+                                    const freqData = eventFrequencyMap.get(freqKey);
+                                    freqData.count += entryCount;
+                                    freqData.cves.add(cveId);
+                                }
+                            });
                         }
                     });
                 });
+                
+                // Generate Event Frequency View FIRST
+                // Group events by category and type
+                const categoryGroups = new Map();
+                
+                eventFrequencyMap.forEach(eventData => {
+                    const groupKey = `${eventData.type}:::${eventData.category}`;
+                    if (!categoryGroups.has(groupKey)) {
+                        categoryGroups.set(groupKey, {
+                            type: eventData.type,
+                            category: eventData.category,
+                            totalCount: 0,
+                            events: []
+                        });
+                    }
+                    const group = categoryGroups.get(groupKey);
+                    group.totalCount += eventData.count;
+                    group.events.push(eventData);
+                });
+                
+                // Sort category groups by total count
+                const sortedCategories = Array.from(categoryGroups.values()).sort((a, b) => {
+                    if (b.totalCount !== a.totalCount) {
+                        return b.totalCount - a.totalCount;
+                    }
+                    return a.category.localeCompare(b.category);
+                });
+                
+                console.log('Category groups:', sortedCategories);
+                
+                html += `<div class="frequency-event-list">`;
+                
+                sortedCategories.forEach(categoryGroup => {
+                    const iconClass = categoryGroup.type === 'warnings' ? '⚠️' : '❌';
+                    const categoryClass = categoryGroup.type === 'warnings' ? 'frequency-category-warning' : 'frequency-category-error';
+                    
+                    // Sort events within category by count
+                    const sortedEvents = categoryGroup.events.sort((a, b) => {
+                        if (b.count !== a.count) return b.count - a.count;
+                        return a.message.localeCompare(b.message);
+                    });
+                    
+                    html += `
+                        <div class="frequency-category-group ${categoryClass}" data-event-type="${categoryGroup.type}">
+                            <div class="frequency-category-header" onclick="toggleFrequencyCategoryDetails(this)">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span>${iconClass}</span>
+                                    <span>${categoryGroup.category}</span>
+                                    <span style="font-size: 0.85em; color: #6c757d; font-weight: 400;">(${sortedEvents.length} ${sortedEvents.length === 1 ? 'event' : 'events'})</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 0.85em; color: #6c757d;">${categoryGroup.totalCount} occurrences</span>
+                                    <span class="event-expand-indicator">▼</span>
+                                </div>
+                            </div>
+                            <div class="frequency-category-events">
+                    `;
+                    
+                    sortedEvents.forEach(eventData => {
+                        const cveCount = eventData.cves.size;
+                        
+                        html += `
+                            <div class="event-frequency-item">
+                                <div class="event-frequency-header" onclick="toggleEventFrequencyDetails(this)">
+                                    <div class="event-frequency-message">
+                                        ${eventData.message}
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <span style="font-size: 0.75em; color: #6c757d;">${cveCount} CVE${cveCount !== 1 ? 's' : ''}</span>
+                                        <div class="event-frequency-count">${eventData.count}</div>
+                                        <span class="event-expand-indicator">▼</span>
+                                    </div>
+                                </div>
+                                <div class="event-frequency-details">
+                                    <div class="event-cve-list">
+                        `;
+                        
+                        // Display all CVEs affected by this event
+                        Array.from(eventData.cves).sort().forEach(cveId => {
+                            const cveDisplay = createCveIdElement(cveId, { compact: true, className: 'event-cve-badge' });
+                            html += cveDisplay;
+                        });
+                        
+                        html += `
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`; // Close frequency-event-list
+                html += `</div>`; // Close frequency-view panel
+                
+                // Now generate CVE View
+                html += `<div id="cve-view" class="log-view-panel">`;
                 
                 console.log('Final consolidated CVE groups:', Array.from(allCveGroups.entries()));
                 
@@ -2459,7 +2923,9 @@
                     `;
                 });
                 
-                html += `</div></div>`;
+                html += `</div>`; // Close cve-log-entries
+                html += `</div>`; // Close cve-view panel
+                html += `</div>`; // Close log-analysis-container
             } else if ((totalWarnings > 0) || (totalErrors > 0)) {
                 // No categorized structure - minimal display
                 html += `
@@ -3063,6 +3529,63 @@
                     indicator.textContent = logItem.classList.contains('expanded') ? '▲' : '▼';
                 }
             }
+        }
+
+        // NEW: Switch between CVE view and Event Frequency view
+        function switchLogView(viewId) {
+            // Hide all view panels
+            document.querySelectorAll('.log-view-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            
+            // Deactivate all view tabs
+            document.querySelectorAll('.log-view-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected panel
+            const targetPanel = document.getElementById(viewId);
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+            }
+            
+            // Activate corresponding tab
+            const targetTab = event.target.closest('.log-view-tab');
+            if (targetTab) {
+                targetTab.classList.add('active');
+            }
+        }
+
+        // Toggle frequency category group (expand/collapse)
+        function toggleFrequencyCategoryDetails(headerElement) {
+            const categoryGroup = headerElement.closest('.frequency-category-group');
+            if (categoryGroup) {
+                categoryGroup.classList.toggle('expanded');
+            }
+        }
+
+        // Toggle event frequency details (expand/collapse)
+        function toggleEventFrequencyDetails(headerElement) {
+            const eventItem = headerElement.closest('.event-frequency-item');
+            if (eventItem) {
+                eventItem.classList.toggle('expanded');
+            }
+        }
+
+        // Filter frequency events by type (warnings/errors)
+        function filterFrequencyEvents() {
+            const showWarnings = document.getElementById('filter-warnings')?.checked ?? true;
+            const showErrors = document.getElementById('filter-errors')?.checked ?? true;
+            
+            document.querySelectorAll('.frequency-category-group').forEach(item => {
+                const eventType = item.getAttribute('data-event-type');
+                
+                let shouldShow = false;
+                if (eventType === 'warnings' && showWarnings) shouldShow = true;
+                if (eventType === 'errors' && showErrors) shouldShow = true;
+                
+                item.style.display = shouldShow ? 'block' : 'none';
+            });
         }
 
         // Initialize tab click handlers
