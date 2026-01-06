@@ -7,26 +7,35 @@ existing GlobalCPECacheManager for consistency.
 
 Features:
 - Singleton pattern for global access
+- Intelligent cache-aware loading with configurable staleness threshold
 - JSON-based cache storage for transparency and debugging
-- Localized cache support for harvest script efficiency
-- Automatic cache creation and cleanup
+- Automatic cache refresh when stale or missing
 - Cross-process cache sharing via unified /cache directory
-- Consistent with CPE cache storage format and location
 
-Usage:
-    from .nvd_source_manager import get_global_source_manager
+Configuration:
+    Cache staleness threshold is configurable in config.json:
+    cache_settings.nvd_source_data.refresh_strategy.notify_age_hours (default: 24)
+
+Recommended Usage:
+    # High-level entry points (scripts, main functions) - use get_or_refresh_source_manager
+    from .nvd_source_manager import get_or_refresh_source_manager
     
-    # Initialize once with NVD source data
-    source_manager = get_global_source_manager()
-    source_manager.initialize(nvd_source_data)
+    # Get source manager - handles cache age checking and API refresh automatically
+    source_manager = get_or_refresh_source_manager(api_key, log_group="INIT")
     
-    # Use throughout the codebase
-    source_name = source_manager.get_source_name('some-uuid')
-    source_info = source_manager.get_source_info('some-uuid')
+    # Low-level usage - convenience functions for lookups (no initialization needed)
+    from .nvd_source_manager import get_source_name, get_source_info
     
-    # For harvest scripts - create cache for cross-process sharing
-    cache_path = source_manager.create_localized_cache()
-    # Pass cache_path to subprocesses via environment or arguments
+    source_name = get_source_name('some-uuid')
+    source_info = get_source_info('some-uuid')
+
+Architecture:
+    get_or_refresh_source_manager() orchestrates:
+    - Early return if already initialized
+    - Cache age checking against config.notify_age_hours threshold
+    - Cache refresh from NVD API if stale
+    - Automatic cache file creation via initialize()
+    - Fail-fast errors if API key missing when refresh needed
 """
 
 from typing import Dict, Any, Optional, List
@@ -522,40 +531,124 @@ def cleanup_cache(cache_file_path: Optional[str] = None) -> None:
     return get_global_source_manager().cleanup_cache(cache_file_path)
 
 
-def try_load_from_environment_cache() -> bool:
+def get_or_refresh_source_manager(api_key: str, log_group: str = "CACHE_MANAGEMENT") -> 'GlobalNVDSourceManager':
     """
-    Try to load source data from cache path specified in environment variables or standard location.
+    Get the global source manager, using cache or refreshing from NVD API as needed.
     
-    Checks for:
-    1. NVD_SOURCE_CACHE_PATH environment variable (for harvest script coordination)
-    2. Standard project cache location (for consistent cache usage)
+    This function implements cache management:
+    - Returns existing initialized manager if already loaded
+    - Checks cache age against threshold configured in config.json
+      (cache_settings.nvd_source_data.refresh_strategy.notify_age_hours)
+    - Uses existing cache if fresh enough
+    - Fetches from NVD API and refreshes cache if stale or missing
+    - Fails fast with clear errors if API key missing or network issues occur
+    
+    Args:
+        api_key: NVD API key for fetching fresh data if needed
+        log_group: Logger group name for contextualized logging
     
     Returns:
-        bool: True if successfully loaded from any cache source, False otherwise
-    """
-    # Check if caching is enabled in config
-    if not is_caching_enabled():
-        logger.info("NVD source data caching disabled in config - skipping cache load", group="CACHE_MANAGEMENT")
-        return False
-    
-    # First, try environment variable (harvest script coordination)
-    env_cache_path = os.environ.get('NVD_SOURCE_CACHE_PATH')
-    if env_cache_path:
-        logger.info(f"Found NVD source cache path in environment: {env_cache_path}", group="CACHE_MANAGEMENT")
-        if load_from_cache(env_cache_path):
-            return True
-    
-    # Second, try standard project cache location
-    try:
-        config = get_nvd_source_data_config()
-        cache_filename = config.get('filename', 'nvd_source_data.json')
-        current_file = Path(__file__).resolve()
-        project_root = current_file.parent.parent.parent.parent 
-        standard_cache_path = project_root / "cache" / cache_filename
+        Initialized GlobalNVDSourceManager instance
         
-        if standard_cache_path.exists():
-            return load_from_cache(str(standard_cache_path))
-    except Exception as e:
-        logger.warning(f"Could not check standard cache location: {e}", group="CACHE_MANAGEMENT")
+    Raises:
+        ValueError: If API key is missing when refresh is needed
+        RuntimeError: If cache is corrupted or initialization fails
+        ImportError: If required dependencies (pandas) are not available
+    """
+    import pandas as pd
+    from ..core.gatherData import gatherNVDSourceData
+    from datetime import datetime, timezone
+    import json
     
-    return False
+    source_manager = get_global_source_manager()
+    
+    # Return early if already initialized
+    if source_manager.is_initialized():
+        logger.info(f"Source manager already initialized with {source_manager.get_source_count()} sources", group=log_group)
+        return source_manager
+    
+    # Determine project root and cache paths
+    current_file = Path(__file__).resolve()
+    project_root = current_file.parent.parent.parent.parent
+    cache_file = project_root / "cache" / "nvd_source_data.json"
+    cache_metadata_file = project_root / "cache" / "cache_metadata.json"
+    
+    should_refresh = True
+    cache_data = None
+    
+    # Step 1: Validate cache file structure and schema
+    if cache_file.exists():
+        logger.info(f"Found existing NVD source cache, validating structure...", group=log_group)
+        
+        try:
+            # Load cache file
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                cache_data = json.load(f)
+            
+            # Validate required schema fields
+            if not cache_data.get('source_data'):
+                logger.warning("Cache schema validation failed: missing 'source_data' field", group=log_group)
+                should_refresh = True
+                cache_data = None
+            elif not isinstance(cache_data['source_data'], list):
+                logger.warning("Cache schema validation failed: 'source_data' must be a list", group=log_group)
+                should_refresh = True
+                cache_data = None
+            else:
+                # Schema is valid - now check age
+                logger.info("Cache schema validated successfully", group=log_group)
+                
+                # Step 2: Check cache age from metadata (now that we know structure is valid)
+                if not cache_metadata_file.exists():
+                    logger.warning("Cache metadata file not found - treating cache as stale", group=log_group)
+                    should_refresh = True
+                else:
+                    try:
+                        with open(cache_metadata_file, 'r') as f:
+                            metadata = json.load(f)
+                        
+                        if 'datasets' not in metadata or 'nvd_source_data' not in metadata['datasets']:
+                            logger.warning("Cache metadata missing nvd_source_data entry - treating cache as stale", group=log_group)
+                            should_refresh = True
+                        else:
+                            # Check staleness
+                            last_updated = datetime.fromisoformat(metadata['datasets']['nvd_source_data']['last_updated'])
+                            if last_updated.tzinfo is None:
+                                last_updated = last_updated.replace(tzinfo=timezone.utc)
+                            age_hours = (datetime.now(timezone.utc) - last_updated).total_seconds() / 3600
+                            threshold = get_cache_age_threshold()
+                            
+                            if is_cache_stale(age_hours):
+                                logger.warning(f"Cache is stale ({age_hours:.1f} hours old, threshold: {threshold}h)", group=log_group)
+                                should_refresh = True
+                            else:
+                                logger.info(f"Cache is fresh (age: {age_hours:.1f} hours, threshold: {threshold}h)", group=log_group)
+                                should_refresh = False
+                    except Exception as e:
+                        logger.warning(f"Metadata validation failed: {e} - treating cache as stale", group=log_group)
+                        should_refresh = True
+                        
+        except json.JSONDecodeError as e:
+            logger.warning(f"Cache file is corrupted (invalid JSON): {e}", group=log_group)
+            should_refresh = True
+            cache_data = None
+        except Exception as e:
+            logger.warning(f"Unexpected error reading cache: {e}", group=log_group)
+            should_refresh = True
+            cache_data = None
+    
+    # Refresh cache if needed (stale, corrupted, or missing)
+    if should_refresh:
+        if not api_key:
+            raise ValueError("NVD API key required to refresh cache but not provided")
+        
+        logger.info(f"Fetching fresh NVD source data from API...", group=log_group)
+        source_data = gatherNVDSourceData(api_key)
+        source_manager.initialize(source_data)
+    else:
+        # Use validated cache data
+        sources_df = pd.DataFrame(cache_data['source_data'])
+        source_manager.initialize(sources_df)
+    
+    logger.info(f"Source manager initialized with {source_manager.get_source_count()} sources", group=log_group)
+    return source_manager

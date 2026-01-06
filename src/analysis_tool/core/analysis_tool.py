@@ -1071,72 +1071,9 @@ def main():
         logger.warning("No NVD API key available - processing will be MUCH slower due to rate limiting", group="initialization")
         logger.info("Use --api-key YOUR_KEY or --api-key (for config default) or set default_api_key in config.json", group="initialization")
     
-    # Initialize global NVD source manager with fallback logic for direct execution
-    from ..storage.nvd_source_manager import get_global_source_manager
-    source_manager = get_global_source_manager()
-    
-    if source_manager.is_initialized():
-        logger.info("NVD source manager already initialized", group="initialization")
-        logger.info(f"Using existing source data with {source_manager.get_source_count()} entries", group="initialization")
-    else:
-        # Try to load from cache first
-        from ..storage.nvd_source_manager import try_load_from_environment_cache
-        
-        if try_load_from_environment_cache():
-            # Check if cache is too old (more than 24 hours)
-            from datetime import datetime, timedelta
-            from pathlib import Path
-            try:
-                current_file = Path(__file__).resolve()
-                project_root = current_file.parent.parent.parent.parent 
-                cache_metadata_path = project_root / "cache" / "cache_metadata.json"
-                
-                if cache_metadata_path.exists():
-                    import json
-                    with open(cache_metadata_path, 'r') as f:
-                        metadata = json.load(f)
-                    
-                    if 'datasets' in metadata and 'nvd_source_data' in metadata['datasets']:
-                        last_updated = datetime.fromisoformat(metadata['datasets']['nvd_source_data']['last_updated'])
-                        # Ensure timezone-aware comparison
-                        if last_updated.tzinfo is None:
-                            last_updated = last_updated.replace(tzinfo=timezone.utc)
-                        age_hours = (datetime.now(timezone.utc) - last_updated).total_seconds() / 3600
-                        
-                        from ..storage.nvd_source_manager import is_cache_stale, get_cache_age_threshold
-                        if is_cache_stale(age_hours):
-                            threshold = get_cache_age_threshold()
-                            logger.warning(f"NVD source cache is {age_hours:.1f} hours old (threshold: {threshold}h) - refreshing from API", group="initialization")
-                            # Refresh the cache
-                            nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
-                            source_manager.initialize(nvd_source_data)
-                            source_manager.create_localized_cache()
-                            logger.info(f"NVD source cache refreshed with {source_manager.get_source_count()} entries", group="initialization")
-                        else:
-                            logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries (age: {age_hours:.1f}h)", group="initialization")
-                    else:
-                        logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries", group="initialization")
-                else:
-                    logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries", group="initialization")
-            except Exception as e:
-                logger.warning(f"Could not check cache age: {e}", group="initialization")
-                logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries", group="initialization")
-        else:
-            logger.warning("NVD source cache not found - creating fresh cache", group="initialization")
-            
-            # Fallback: Create fresh source data and cache it
-            logger.info("Gathering NVD source data from API as fallback for direct execution", group="initialization")
-            nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
-            source_manager.initialize(nvd_source_data)
-            
-            # Create cache for future use
-            try:
-                cache_path = source_manager.create_localized_cache()
-                logger.info(f"Created NVD source cache for future use: {cache_path}", group="initialization")
-            except Exception as e:
-                logger.warning(f"Could not create source cache: {e}", group="initialization")
-            
-            logger.info(f"NVD source manager initialized from API with {source_manager.get_source_count()} entries", group="initialization")
+    # Get global NVD source manager (uses cache or refreshes as needed)
+    from ..storage.nvd_source_manager import get_or_refresh_source_manager
+    source_manager = get_or_refresh_source_manager(nvd_api_key, log_group="initialization")
     
     # Initialize unified source manager
     from .unified_source_manager import get_unified_source_manager
@@ -1315,26 +1252,10 @@ def main():
                 if str(src_path) not in sys.path:
                     sys.path.insert(0, str(src_path))
                 
-                from ..storage.nvd_source_manager import get_global_source_manager, try_load_from_environment_cache
+                from ..storage.nvd_source_manager import get_or_refresh_source_manager
                 
-                source_manager = get_global_source_manager()
-                # Try to load from cache first
-                if not source_manager.is_initialized():
-                    if not try_load_from_environment_cache():
-                        logger.warning(f"NVD source cache not available for shortname resolution - loading from API", group="initialization")
-                        
-                        # Fallback: Load NVD source data for shortname resolution
-                        nvd_source_data = gatherData.gatherNVDSourceData(nvd_api_key)
-                        source_manager.initialize(nvd_source_data)
-                        
-                        # Create cache for future use
-                        try:
-                            cache_path = source_manager.create_localized_cache()
-                            logger.info(f"Created NVD source cache during shortname resolution: {cache_path}", group="initialization")
-                        except Exception as e:
-                            logger.warning(f"Could not create source cache: {e}", group="initialization")
-                        
-                        logger.info(f"NVD source manager initialized from API for shortname resolution", group="initialization")
+                # Get source manager for shortname resolution
+                source_manager = get_or_refresh_source_manager(nvd_api_key, log_group="initialization")
                 
                 # Get human-readable shortname (capped to 7-8 characters)
                 full_shortname = source_manager.get_source_shortname(args.source_uuid)

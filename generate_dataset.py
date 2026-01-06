@@ -380,7 +380,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     if run_directory:
         logs_dir = run_directory / "logs"
         logs_dir.mkdir(exist_ok=True)
-        initialize_dataset_contents_report(str(logs_dir))
+        initialize_dataset_contents_report(str(logs_dir), source_uuid=source_uuid)
         logger.info("=== CVE Record Cache Preparation ===", group="DATASET")
         start_collection_phase("cache_preparation", "nvd_api")
     
@@ -624,7 +624,7 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
     if run_directory:
         logs_dir = run_directory / "logs"
         logs_dir.mkdir(exist_ok=True)
-        initialize_dataset_contents_report(str(logs_dir))
+        initialize_dataset_contents_report(str(logs_dir), source_uuid=source_uuid)
         
     logger.info("=== END Generate Dataset Initialization Phase ===", group="DATASET")
     logger.info("=== CVE Record Cache Preparation ===", group="DATASET")
@@ -908,73 +908,10 @@ def main():
         if str(src_path) not in sys.path:
             sys.path.insert(0, str(src_path))
         
-        from analysis_tool.core.gatherData import gatherNVDSourceData
-        from analysis_tool.storage.nvd_source_manager import get_global_source_manager
+        from analysis_tool.storage.nvd_source_manager import get_or_refresh_source_manager
         
-        # Initialize NVD source manager with cache-aware fallback logic
-        source_manager = get_global_source_manager()
-        
-        if source_manager.is_initialized():
-            logger.info("NVD source manager already initialized", group="DATASET")
-            logger.info(f"Using existing source data with {source_manager.get_source_count()} entries", group="DATASET")
-        else:
-            # Try to load from cache first
-            from analysis_tool.storage.nvd_source_manager import try_load_from_environment_cache
-            
-            if try_load_from_environment_cache():
-                # Check if cache is too old (more than 24 hours)
-                try:
-                    from pathlib import Path
-                    import json
-                    current_file = Path(__file__).resolve()
-                    project_root = current_file.parent
-                    cache_metadata_path = project_root / "cache" / "cache_metadata.json"
-                    
-                    if cache_metadata_path.exists():
-                        with open(cache_metadata_path, 'r') as f:
-                            metadata = json.load(f)
-                        
-                        if 'datasets' in metadata and 'nvd_source_data' in metadata['datasets']:
-                            last_updated = datetime.fromisoformat(metadata['datasets']['nvd_source_data']['last_updated'])
-                            # Ensure timezone-aware comparison
-                            if last_updated.tzinfo is None:
-                                last_updated = last_updated.replace(tzinfo=timezone.utc)
-                            age_hours = (datetime.now(timezone.utc) - last_updated).total_seconds() / 3600
-                            
-                            from analysis_tool.storage.nvd_source_manager import is_cache_stale, get_cache_age_threshold
-                            if is_cache_stale(age_hours):
-                                threshold = get_cache_age_threshold()
-                                logger.warning(f"NVD source cache is {age_hours:.1f} hours old (threshold: {threshold}h) - refreshing from API", group="DATASET")
-                                # Refresh the cache
-                                nvd_source_data = gatherNVDSourceData(resolved_api_key)
-                                source_manager.initialize(nvd_source_data)
-                                source_manager.create_localized_cache()
-                                logger.info(f"NVD source cache refreshed with {source_manager.get_source_count()} entries", group="DATASET")
-                            else:
-                                logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries (age: {age_hours:.1f}h)", group="DATASET")
-                        else:
-                            logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries", group="DATASET")
-                    else:
-                        logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries", group="DATASET")
-                except Exception as e:
-                    logger.warning(f"Could not check cache age: {e}", group="DATASET")
-                    logger.info(f"NVD source manager loaded from cache with {source_manager.get_source_count()} entries", group="DATASET")
-            else:
-                logger.warning("NVD source cache not found - creating fresh cache", group="DATASET")
-                
-                # Fallback: Load NVD source data as fallback for standalone execution
-                logger.info("Gathering NVD source data from API for standalone dataset generation", group="DATASET")
-                nvd_source_data = gatherNVDSourceData(resolved_api_key)
-                source_manager.initialize(nvd_source_data)
-                
-                # Create cache for future use
-                try:
-                    cache_path = source_manager.create_localized_cache()
-                    logger.info(f"Created NVD source cache for future use: {cache_path}", group="DATASET")
-                except Exception as e:
-                    logger.warning(f"Could not create source cache: {e}", group="DATASET")
-                
-                logger.info(f"NVD source manager initialized from API with {source_manager.get_source_count()} entries", group="DATASET")
+        # Get NVD source manager (uses cache or refreshes as needed)
+        source_manager = get_or_refresh_source_manager(resolved_api_key, log_group="DATASET")
         
         # Get human-readable shortname (capped to 7-8 characters)
         full_shortname = source_manager.get_source_shortname(args.source_uuid)
@@ -1181,11 +1118,7 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
                 logger.info("Analysis tool completed successfully", group="INIT")
                 if run_directory:
                     logger.info(f"Results available in: {run_directory}", group="INIT")
-                    
-                    # Finalize dataset contents report after integrated analysis completes
-                    from src.analysis_tool.reporting.dataset_contents_collector import finalize_dataset_contents_report
-                    finalize_dataset_contents_report()
-                    
+                
                 return True
             else:
                 logger.error(f"Analysis tool failed with exit code {exit_code}", group="INIT")
@@ -1194,6 +1127,38 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
         finally:
             # Restore original sys.argv
             sys.argv = original_argv
+            
+            # Finalize dataset contents report
+            try:
+                if run_directory:
+                    logger.info("Finalizing dataset contents report...", group="DATASET")
+                    from src.analysis_tool.reporting.dataset_contents_collector import finalize_dataset_contents_report, get_dataset_contents_collector
+                    result = finalize_dataset_contents_report()
+                    if result:
+                        logger.info(f"Dataset contents report finalized: {result}", group="DATASET")
+                        
+                        # Output statistics for harvest script to capture
+                        try:
+                            collector = get_dataset_contents_collector()
+                            stats_output = {
+                                'total_cves': collector.data['processing']['total_cves'],
+                                'processed_cves': collector.data['processing']['processed_cves'],
+                                'warnings': collector.data['log_stats']['warning_count'],
+                                'errors': collector.data['log_stats']['error_count'],
+                                'runtime': collector.data['performance']['total_runtime']
+                            }
+                            # Print structured output for harvest script to parse
+                            print(f"DATASET_STATS: {json.dumps(stats_output)}", flush=True)
+                        except Exception as stats_error:
+                            logger.warning(f"Could not output dataset statistics: {stats_error}", group="DATASET")
+                    else:
+                        logger.warning("Dataset contents report finalization returned None", group="DATASET")
+                else:
+                    logger.warning("Cannot finalize dataset report - run_directory is None", group="DATASET")
+            except Exception as report_error:
+                logger.error(f"Failed to finalize dataset contents report: {report_error}", group="DATASET")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}", group="DATASET")
             
     except Exception as e:
         logger.error(f"Failed to run analysis tool: {e}", group="INIT")
@@ -1205,3 +1170,6 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
             logger.debug("Cache batches flushed during final cleanup", group="CACHE_MANAGEMENT")
         except Exception as cleanup_error:
             logger.warning(f"Failed to flush cache batches during final cleanup: {cleanup_error}", group="CACHE_MANAGEMENT")
+
+if __name__ == "__main__":
+    sys.exit(main())

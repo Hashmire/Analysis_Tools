@@ -782,38 +782,13 @@ def generate_report(
     
     source_manager = None
     try:
-        import pandas as pd
-        from ..storage.nvd_source_manager import get_global_source_manager
+        from ..storage.nvd_source_manager import get_or_refresh_source_manager
         
-        source_manager = get_global_source_manager()
+        # Get API key from config for potential cache refresh
+        api_key = config.get('defaults', {}).get('default_api_key', '')
         
-        if not source_manager.is_initialized():
-            cache_file = get_analysis_tools_root() / "cache" / "nvd_source_data.json"
-            
-            if cache_file.exists():
-                if logger:
-                    logger.info(f"Loading NVD source data from cache: {cache_file}", group="ALIAS_REPORT")
-                
-                with open(cache_file, 'r', encoding='utf-8') as f:
-                    cache_data = json.load(f)
-                
-                source_list = cache_data.get('source_data', [])
-                if not source_list:
-                    if logger:
-                        logger.warning("Cache file exists but contains no source_data - proceeding without name resolution", group="ALIAS_REPORT")
-                    source_manager = None
-                else:
-                    sources_df = pd.DataFrame(source_list)
-                    source_manager.initialize(sources_df)
-                    if logger:
-                        logger.info(f"Source manager initialized with {source_manager.get_source_count()} sources from cache", group="ALIAS_REPORT")
-            else:
-                if logger:
-                    logger.warning(f"NVD source cache not found at {cache_file} - UUIDs will appear as-is", group="ALIAS_REPORT")
-                source_manager = None
-        else:
-            if logger:
-                logger.info(f"Source manager already initialized with {source_manager.get_source_count()} sources", group="ALIAS_REPORT")
+        # Get source manager using intelligent cache management
+        source_manager = get_or_refresh_source_manager(api_key, log_group="ALIAS_REPORT")
     except ImportError:
         if logger:
             logger.warning("Source manager module not available - organization UUIDs will be displayed as-is", group="ALIAS_REPORT")
@@ -1008,8 +983,6 @@ def generate_report(
                 html_file = reports_dir / f"{base_filename}.html"
                 generate_alias_html_report(report_data, html_file, report_template, __version__)
                 html_files.append(html_file)
-                if logger:
-                    logger.debug(f"Generated HTML report for {org_name}", group="ALIAS_REPORT")
             except Exception as e:
                 if logger:
                     logger.warning(f"Failed to generate HTML for {org_name}: {e}", group="ALIAS_REPORT")
@@ -1069,7 +1042,7 @@ def generate_report(
     
     if html_generation_enabled:
         try:
-            index_html = reports_dir / "index.html"
+            index_html = reports_dir / "Alias_Extraction_Report_Index.html"
             generate_alias_index_html(index_data, index_html, index_template, __version__)
             html_files.append(index_html)
             if logger:

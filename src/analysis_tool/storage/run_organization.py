@@ -310,42 +310,42 @@ def find_latest_test_run_report(report_filename: str = "sourceDataConcernReport.
                         if report_path.exists():
                             with open(report_path, 'r', encoding='utf-8') as f:
                                 data = json.load(f)
-                                print(f"✅ Report found: {report_path}")
+                                print(f"Report found: {report_path}")
                                 return data
                         else:
-                            print(f"❌ Report not found in consolidated run: {report_path}")
+                            print(f"Report not found in consolidated run: {report_path}")
                             return None
                     else:
-                        print(f"❌ No test run directories found in consolidated logs: {logs_dir}")
+                        print(f"No test run directories found in consolidated logs: {logs_dir}")
                         return None
                 else:
-                    print(f"❌ Consolidated logs directory not found: {logs_dir}")
+                    print(f"Consolidated logs directory not found: {logs_dir}")
                     return None
             else:
-                print(f"❌ Consolidated test path not found: {consolidated_path}")
+                print(f"Consolidated test path not found: {consolidated_path}")
                 return None
         
         # Standard mode - look in main runs directory
         runs_dir = Path(__file__).parent.parent.parent.parent / "runs"
         run_dirs = [d for d in runs_dir.glob("*") if d.is_dir() and not d.name.startswith("run_all_tests")]
         if not run_dirs:
-            print("❌ No run directories found")
+            print("No run directories found")
             return None
             
         latest_run = max(run_dirs, key=lambda x: x.stat().st_mtime)
         report_path = latest_run / "logs" / report_filename
         
         if not report_path.exists():
-            print(f"❌ Report not found: {report_path}")
+            print(f"Report not found: {report_path}")
             return None
             
         with open(report_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            print(f"✅ Report found: {report_path}")
+            print(f"Report found: {report_path}")
             return data
             
     except Exception as e:
-        print(f"❌ Error finding report: {e}")
+        print(f"Error finding report: {e}")
         return None
 
 
@@ -429,7 +429,7 @@ def find_curator_output_files(file_pattern: str = "source_mapping_extraction_*.j
                     print(f"[ERROR] Consolidated logs directory not found: {logs_dir}")
                     return []
             else:
-                print(f"❌ Consolidated test path not found: {consolidated_path}")
+                print(f"Consolidated test path not found: {consolidated_path}")
                 return []
         
         # Standard mode - look in main runs directory
@@ -445,12 +445,12 @@ def find_curator_output_files(file_pattern: str = "source_mapping_extraction_*.j
                         curator_files.append(pattern_file)
         
         if curator_files:
-            print(f"✅ Found {len(curator_files)} curator files matching '{file_pattern}' in standard runs")
+            print(f"Found {len(curator_files)} curator files matching '{file_pattern}' in standard runs")
             return curator_files
         else:
-            print(f"❌ No curator files matching '{file_pattern}' found in standard runs")
+            print(f"No curator files matching '{file_pattern}' found in standard runs")
             return []
             
     except Exception as e:
-        print(f"❌ Error finding curator files: {e}")
+        print(f"Error finding curator files: {e}")
         return []

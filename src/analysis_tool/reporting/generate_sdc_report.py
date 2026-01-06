@@ -523,57 +523,32 @@ def generate_report(
         logger.info(f"  Cache path: {cache_path}", group="SDC_REPORT")
         logger.info(f"  Progress interval: {progress_interval}", group="SDC_REPORT")
     
-    # Initialize source manager for UUID resolution
-    # Note: Source manager is optional - reports will work without it but UUIDs won't be resolved to names
+    # Get source manager for UUID resolution (uses cache or refreshes as needed)
     source_manager = None
     try:
-        import pandas as pd
-        from ..storage.nvd_source_manager import get_global_source_manager
+        from ..storage.nvd_source_manager import get_or_refresh_source_manager
         
-        source_manager = get_global_source_manager()
+        # Get API key from config for potential cache refresh
+        api_key = config.get('defaults', {}).get('default_api_key', '')
         
-        # Only initialize if not already initialized
-        if not source_manager.is_initialized():
-            # Try to load from cache
-            cache_file = get_analysis_tools_root() / "cache" / "nvd_source_data.json"
-            
-            if cache_file.exists():
-                if logger:
-                    logger.info(f"Loading NVD source data from cache: {cache_file}", group="SDC_REPORT")
-                
-                with open(cache_file, 'r', encoding='utf-8') as f:
-                    cache_data = json.load(f)
-                
-                # Extract source_data list and convert to DataFrame
-                source_list = cache_data.get('source_data', [])
-                if not source_list:
-                    logger.warning("Cache file exists but contains no source_data - proceeding without name resolution", group="SDC_REPORT")
-                    source_manager = None
-                else:
-                    sources_df = pd.DataFrame(source_list)
-                    source_manager.initialize(sources_df)
-                    
-                    if logger:
-                        logger.info(f"Source manager initialized with {source_manager.get_source_count()} sources from cache", group="SDC_REPORT")
-            else:
-                if logger:
-                    logger.warning(f"NVD source cache not found at {cache_file} - UUIDs will appear as-is", group="SDC_REPORT")
-                source_manager = None
-        else:
-            if logger:
-                logger.info(f"Source manager already initialized with {source_manager.get_source_count()} sources", group="SDC_REPORT")
+        # Get source manager using intelligent cache management
+        source_manager = get_or_refresh_source_manager(api_key, log_group="SDC_REPORT")
                 
     except ImportError as e:
         # Missing dependencies - this is expected in minimal environments
         if logger:
-            logger.warning(f"Source manager dependencies not available: {e} - UUIDs will appear as-is", group="SDC_REPORT")
-        source_manager = None
+            logger.error(f"Source manager dependencies not available: {e}", group="SDC_REPORT")
+        raise ImportError(
+            f"Required dependencies for source manager not available: {e}. "
+        )
     except Exception as e:
         # Unexpected error - log with full context for debugging
         if logger:
-            logger.warning(f"Source manager initialization failed: {e} - UUIDs will appear as-is", group="SDC_REPORT")
+            logger.error(f"Source manager initialization failed: {e}", group="SDC_REPORT")
             logger.debug(f"Traceback: {__import__('traceback').format_exc()}", group="SDC_REPORT")
-        source_manager = None
+        raise RuntimeError(
+            f"Failed to initialize source manager: {e}. "
+        )
     
     # Scan cache
     builder = SDCReportBuilder(source_manager=source_manager)
@@ -698,8 +673,6 @@ def generate_report(
                 html_file = reports_dir / f"{base_filename}.html"
                 generate_html_report(report_data, html_file, dashboard_template, __version__)
                 html_files.append(html_file)
-                if logger:
-                    logger.debug(f"Generated HTML report for {source_name}", group="SDC_REPORT")
             except Exception as e:
                 if logger:
                     logger.warning(f"Failed to generate HTML for {source_name}: {e}", group="SDC_REPORT")
@@ -747,7 +720,7 @@ def generate_report(
     # Generate HTML index page if templates available
     if html_generation_enabled:
         try:
-            index_html = reports_dir / "index.html"
+            index_html = reports_dir / "SDC_Report_Index.html"
             generate_index_html(index_data, index_html, index_template, reports_dir, __version__)
             html_files.insert(0, index_html)
             if logger:
@@ -952,7 +925,7 @@ def generate_report(
         logger.info(f"  Duration: {duration:.1f}s", group="SDC_REPORT")
         logger.info(f"  JSON index file: {index_file}", group="SDC_REPORT")
         if html_generation_enabled:
-            logger.info(f"  HTML index file: {reports_dir / 'index.html'}", group="SDC_REPORT")
+            logger.info(f"  HTML index file: {reports_dir / 'SDC_Report_Index.html'}", group="SDC_REPORT")
             logger.info(f"  HTML reports directory: {reports_dir}", group="SDC_REPORT")
         logger.info(f"=" * 70, group="SDC_REPORT")
         logger.info(f"", group="SDC_REPORT")
@@ -1044,8 +1017,8 @@ Examples:
         print(f"JSON Index: {index_path}")
         print(f"JSON Reports: {index_file_path.parent}")
         
-        if reports_dir.exists() and (reports_dir / "index.html").exists():
-            print(f"\nHTML Index: {reports_dir / 'index.html'}")
+        if reports_dir.exists() and (reports_dir / "SDC_Report_Index.html").exists():
+            print(f"\nHTML Index: {reports_dir / 'SDC_Report_Index.html'}")
             print(f"HTML Reports: {reports_dir}")
             print(f"\nOpen the HTML index in your browser to view interactive reports")
         

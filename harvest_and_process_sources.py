@@ -20,7 +20,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from analysis_tool.logging.workflow_logger import get_logger
 from analysis_tool.storage.run_organization import create_run_directory, get_current_run_paths
 from analysis_tool.core.gatherData import checkSourceCVECount, harvestSourceUUIDs
-from analysis_tool.reporting.generate_harvest_index import generate_harvest_index
 
 logger = get_logger()
 
@@ -41,90 +40,29 @@ def load_config():
         return json.load(f)
 
 
-def create_source_data_cache(api_key):
+def initialize_source_manager_for_harvest(api_key):
     """
-    Create a localized cache of NVD source data for the harvest session.
-    This prevents each subprocess from having to reload the same source data.
-    """
-    logger.info("Initializing NVD source data cache for harvest session...", group="CACHE_MANAGEMENT")
+    Initialize NVD source manager for harvest session.
+    This ensures source data is loaded once and cached for all subprocess calls.
+    Uses get_or_refresh_source_manager() for consistent cache management.
     
-    try:
-        # Import the source manager
-        sys.path.insert(0, str(get_analysis_tools_root() / "src"))
-        from analysis_tool.storage.nvd_source_manager import get_global_source_manager, try_load_from_environment_cache
-        from analysis_tool.core.gatherData import gatherNVDSourceData
-        
-        # Check existing cache age and refresh if needed
-        source_manager = get_global_source_manager()
-        
-        # Check if we need to refresh the cache
-        should_refresh = True
-        if not source_manager.is_initialized():
-            # Try to load existing cache first
-            if try_load_from_environment_cache():
-                logger.info("Found existing cache, checking age...", group="CACHE_MANAGEMENT")
-                
-                # Check cache age
-                from datetime import datetime, timezone
-                import json
-                from pathlib import Path
-                
-                try:
-                    cache_metadata_path = get_analysis_tools_root() / "cache" / "cache_metadata.json"
-                    if cache_metadata_path.exists():
-                        with open(cache_metadata_path, 'r') as f:
-                            metadata = json.load(f)
-                        
-                        if 'datasets' in metadata and 'nvd_source_data' in metadata['datasets']:
-                            last_updated = datetime.fromisoformat(metadata['datasets']['nvd_source_data']['last_updated'])
-                            # Ensure timezone-aware comparison
-                            if last_updated.tzinfo is None:
-                                last_updated = last_updated.replace(tzinfo=timezone.utc)
-                            age_hours = (datetime.now(timezone.utc) - last_updated).total_seconds() / 3600
-                            
-                            from analysis_tool.storage.nvd_source_manager import is_cache_stale, get_cache_age_threshold
-                            threshold = get_cache_age_threshold()
-                            if not is_cache_stale(age_hours):
-                                logger.info(f"Using existing cache (age: {age_hours:.1f} hours, threshold: {threshold}h)", group="CACHE_MANAGEMENT")
-                                should_refresh = False
-                            else:
-                                logger.warning(f"Cache is {age_hours:.1f} hours old (threshold: {threshold}h) - refreshing", group="CACHE_MANAGEMENT")
-                except Exception as e:
-                    logger.warning(f"Could not check cache age: {e} - refreshing anyway", group="CACHE_MANAGEMENT")
-        
-        if should_refresh:
-            logger.info("Fetching fresh NVD source data...", group="CACHE_MANAGEMENT")
-            source_data = gatherNVDSourceData(api_key)
-            source_manager.initialize(source_data)
-        else:
-            logger.info("Using cached NVD source data", group="CACHE_MANAGEMENT")
-        
-        # Create cache file for cross-process sharing
-        cache_file_path = source_manager.create_localized_cache()
-        
-        return str(cache_file_path)
-        
-    except Exception as e:
-        logger.warning(f"Could not create source data cache: {e}", group="CACHE_MANAGEMENT")
-        logger.info("Each subprocess will load source data independently", group="CACHE_MANAGEMENT")
-        return None
+    Raises:
+        ValueError: If API key is invalid or source data cannot be fetched
+        RuntimeError: If initialization fails for any other reason
+    """
+    logger.info("Initializing NVD source manager for harvest session...", group="CACHE_MANAGEMENT")
+    
+    sys.path.insert(0, str(get_analysis_tools_root() / "src"))
+    from analysis_tool.storage.nvd_source_manager import get_or_refresh_source_manager
+    
+    # Initialize source manager - fails fast if unable to initialize
+    source_manager = get_or_refresh_source_manager(api_key, log_group="CACHE_MANAGEMENT")
+    
+    logger.info(f"Source manager initialized with {source_manager.get_source_count()} sources", 
+               group="CACHE_MANAGEMENT")
 
 
-def cleanup_source_data_cache(cache_file_path):
-    """Clean up the temporary source data cache file"""
-    if cache_file_path:
-        try:
-            # Use the source manager to clean up properly
-            sys.path.insert(0, str(get_analysis_tools_root() / "src"))
-            from analysis_tool.storage.nvd_source_manager import cleanup_cache
-            
-            cleanup_cache(cache_file_path)
-            logger.info(f"Cleaned up source data cache", group="CACHE_MANAGEMENT")
-        except Exception as e:
-            logger.warning(f"Could not clean up cache file: {e}", group="CACHE_MANAGEMENT")
-
-
-def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_file_path=None, 
+def run_generate_dataset(source_name, source_uuid, allow_logging=True, 
                          parent_run_dir=None, **kwargs):
     """
     Run generate_dataset.py for a specific source UUID
@@ -133,20 +71,21 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_fil
         source_name (str): Human-readable source name for logging
         source_uuid (str): UUID of the source to process
         allow_logging (bool): Whether to allow console logging to pass through
-        cache_file_path (str): Path to NVD source data cache file for efficient loading
         parent_run_dir (Path): Parent run directory for hierarchical organization (harvest run directory)
         **kwargs: All processed parameters to pass to generate_dataset.py
         
     Returns:
-        Tuple of (success: bool, run_dir: str or None, error_type: str or None, cve_progress: tuple or None) - 
-        success status, dataset run directory path, error type if failed, and progress tuple (processed, total) if available
+        Tuple of (success: bool, run_dir: str or None, error_type: str or None, statistics: dict or None) - 
+        success status, dataset run directory path, error type if failed, and statistics dict from subprocess
     """
     project_root = get_analysis_tools_root()
     generate_script = project_root / "generate_dataset.py"
     
-    # Build command - all parameters have been intelligently processed
+    # Build command
     cmd = [
-        sys.executable,
+        sys.executable, # Unbuffered output (interpreter flag)
+        "-u",           # -u is mandatory Python interpreter flag (not a script parameter) for unbuffered stdout/stderr
+                        # Required for real-time log streaming through subprocess.PIPE
         str(generate_script),
         "--api-key", kwargs['api_key'],
         "--source-uuid", source_uuid
@@ -191,15 +130,10 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_fil
     logger.info(f"{'='*60}", group="HARVEST")
     
     try:
-        # Prepare environment with cache path for subprocess
-        env = os.environ.copy()
-        if cache_file_path:
-            env['NVD_SOURCE_CACHE_PATH'] = cache_file_path
-            logger.debug(f"Using cached source data: {cache_file_path}", group="CACHE_MANAGEMENT")
-        
         # Stream output in real-time while capturing needed information
         dataset_run_dir = None
-        process = subprocess.Popen(cmd, cwd=project_root, env=env,
+        statistics = None
+        process = subprocess.Popen(cmd, cwd=project_root,
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                   text=True, bufsize=1)
         
@@ -212,6 +146,14 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_fil
             # Extract run directory if present
             if 'Run directory:' in line:
                 dataset_run_dir = line.split('Run directory:', 1)[1].strip()
+            
+            # Extract statistics output from subprocess
+            if line.startswith('DATASET_STATS:'):
+                try:
+                    stats_json = line.split('DATASET_STATS:', 1)[1].strip()
+                    statistics = json.loads(stats_json)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse dataset statistics: {e}", group="HARVEST")
             
             # Display output in real-time if logging enabled
             if allow_logging:
@@ -236,11 +178,12 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_fil
         # Update harvest index after successful processing
         if parent_run_dir:
             try:
-                generate_harvest_index(parent_run_dir, verbose=False)
-            except Exception:
-                pass  # Silently continue on index update failure
+                from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
+                update_harvest_index_incremental(parent_run_dir, {}, current_source_info=None)
+            except Exception as e:
+                logger.warning(f"Failed to update harvest index after successful processing (non-critical): {e}", group="HARVEST")
         
-        return True, dataset_run_dir, None, None
+        return True, dataset_run_dir, None, statistics
         
     except subprocess.CalledProcessError as e:
         # Clear global subprocess reference on error
@@ -257,9 +200,10 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True, cache_fil
         # Update harvest index after error
         if parent_run_dir:
             try:
-                generate_harvest_index(parent_run_dir, verbose=False)
-            except Exception:
-                pass  # Silently continue on index update failure
+                from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
+                update_harvest_index_incremental(parent_run_dir, {}, current_source_info=None)
+            except Exception as e:
+                logger.warning(f"Failed to update harvest index after error (non-critical): {e}", group="HARVEST")
         
         return False, None, error_type, None
 
@@ -281,7 +225,7 @@ def main():
         defaults_config = {}
         local_cve_config = {}
     
-    # Tool Output - Feature flags (always pass explicit boolean values)
+    # Tool Output - Feature flags
     output_group = parser.add_argument_group('Tool Output', 'Select which analysis outputs to generate')
     output_group.add_argument(
         "--sdc-report",
@@ -319,7 +263,7 @@ def main():
         help="Generate complete NVD-ish enriched records without report files or HTML (ignores other output flags)"
     )
     
-    # Dataset Generation - Parameters intelligently handled before passing to generate_dataset
+    # Dataset Generation - Parameters passed to generate_dataset.py
     dataset_group = parser.add_argument_group('Dataset Generation', 'Control CVE data selection and dataset creation')
     dataset_group.add_argument(
         "--api-key",
@@ -522,7 +466,10 @@ def main():
     
     # Start file logging to run's logs directory
     logger.set_run_logs_directory(str(run_paths['logs']))
-    logger.start_file_logging("harvest_session")
+    logger.start_file_logging("generate_dataset")
+    
+    # Track session start time for duration calculation
+    session_start_time = datetime.now(timezone.utc)
     
     logger.stage_start("NVD Source Harvester & Dataset Processor", "Initializing multi-source processing", group="HARVEST")
     logger.info("="*60, group="HARVEST")
@@ -538,23 +485,52 @@ def main():
         logger.stop_file_logging()
         sys.exit(1)
     
-    # Create localized source data cache for efficient subprocess sharing
-    logger.info(f"Preparing NVD source data cache for efficient processing...", group="CACHE_MANAGEMENT")
-    cache_file_path = create_source_data_cache(processed_params['api_key'])
+    # Initialize source manager for harvest session and subprocesses
+    initialize_source_manager_for_harvest(processed_params['api_key'])
+    
+    # Create initial harvest index with metadata before processing starts
+    logger.info("Initializing harvest index...", group="HARVEST")
+    try:
+        from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
+        # Create initial index with all sources marked as not_processed
+        initial_sources = []
+        for source_name, source_uuid, last_modified in source_info:
+            initial_sources.append({
+                'name': source_name,
+                'uuid': source_uuid,
+                'status': 'not_processed',
+                'details': 'Source was in queue but never processed'
+            })
+        
+        initial_stats = {
+            'session_start': session_start_time.isoformat(),
+            'session_end': None,
+            'duration': 'In Progress',
+            'status': 'In Progress',
+            'total_sources': len(source_info),
+            'successful': 0,
+            'failed': 0,
+            'skipped': 0,
+            'interrupted': 0,
+            'not_processed': len(source_info),  # All sources start as not_processed
+            'sources': initial_sources
+        }
+        update_harvest_index_incremental(run_directory, initial_stats)
+        logger.info("Harvest index initialized with all sources", group="HARVEST")
+    except Exception as e:
+        logger.warning(f"Could not initialize harvest index: {e}", group="HARVEST")
     
     # Process each source
     logger.stage_start("Multi-Source Processing", f"Processing {len(source_info)} sources", group="HARVEST")
     logger.info(f"{'='*60}", group="HARVEST")
     
-    successful = 0
-    failed = 0
-    skipped = 0
-    skipped_sources = []  # Track skipped sources with details
-    failed_sources = []  # Track failed sources with details
-    not_processed_sources = []  # Track sources that were never attempted due to early termination
-    last_processed_index = -1  # Track which sources were actually attempted
-    termination_reason = None  # Track why processing ended
-    current_source_info = None  # Track the source being processed when interrupted (name, uuid)
+    skipped_sources = []
+    failed_sources = []
+    successful_sources = []
+    not_processed_sources = []
+    last_processed_index = -1
+    termination_reason = None
+    current_source_info = None
     
     try:
         for i, (source_name, source_uuid, last_modified) in enumerate(source_info, 1):
@@ -567,36 +543,183 @@ def main():
             # Track current source being processed
             current_source_info = (source_name, source_uuid)
             
+            # Update harvest index to show this source as in progress
+            try:
+                from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
+                update_harvest_index_incremental(run_directory, {}, current_source_info=current_source_info)
+            except Exception as e:
+                logger.warning(f"Failed to mark source as in-progress in harvest index (non-critical): {e}", group="HARVEST")
+            
             if should_skip:
                 logger.info(f"Skipped {source_name} (too many CVEs: {cve_count:,})", group="HARVEST")
-                skipped += 1
                 skipped_sources.append((source_name, source_uuid, cve_count))
             else:
-                success, dataset_run_dir, error_type, cve_progress = run_generate_dataset(
+                success, dataset_run_dir, error_type, statistics = run_generate_dataset(
                     source_name=source_name,
                     source_uuid=source_uuid,
                     allow_logging=not args.quiet_individual,
-                    cache_file_path=cache_file_path,
                     parent_run_dir=run_directory,
                     **processed_params
                 )
                 
                 if success:
-                    successful += 1
+                    # Use statistics returned from subprocess (in-memory data, no file parsing needed)
+                    if statistics:
+                        cve_info = (statistics['processed_cves'], statistics['total_cves'])
+                        warnings_count = statistics['warnings']
+                        errors_count = statistics['errors']
+                        runtime = statistics['runtime']
+                    else:
+                        # No statistics available - shouldn't happen for successful runs but handle gracefully
+                        logger.warning(f"No statistics returned for successful source {source_name}", group="HARVEST")
+                        cve_info = (cve_count, cve_count) if cve_count is not None else None
+                        warnings_count = 0
+                        errors_count = 0
+                        runtime = 0
+                    
+                    successful_sources.append((source_name, source_uuid, cve_info, dataset_run_dir, warnings_count, errors_count, runtime))
                     # Provide audit trail to detailed dataset logs
                     if dataset_run_dir:
                         logger.info(f"Dataset logs available at: {dataset_run_dir}", group="HARVEST")
+                    
+                    # Update harvest index with completed source data
+                    try:
+                        from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
+                        # Build incremental harvest_statistics with completed sources so far
+                        current_time = datetime.now(timezone.utc)
+                        elapsed = current_time - session_start_time
+                        hours, remainder = divmod(int(elapsed.total_seconds()), 3600)
+                        minutes, seconds = divmod(remainder, 60)
+                        duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                        incremental_stats = {
+                            'sources': [],
+                            'total_sources': len(source_info),
+                            'successful': len(successful_sources),
+                            'failed': len(failed_sources),
+                            'skipped': len(skipped_sources),
+                            'interrupted': 0,
+                            'not_processed': len(source_info) - (len(successful_sources) + len(failed_sources) + len(skipped_sources)),
+                            'session_start': session_start_time.isoformat(),
+                            'session_end': current_time.isoformat(),
+                            'duration': duration_str,
+                            'status': 'In Progress'
+                        }
+                        # Add all successful sources processed so far
+                        for src_name, src_uuid, src_cve_info, src_dir, src_warnings, src_errors, src_runtime in successful_sources:
+                            incremental_stats['sources'].append({
+                                'name': src_name,
+                                'uuid': src_uuid,
+                                'status': 'completed',
+                                'details': 'Successfully processed',
+                                'cve_info': src_cve_info,
+                                'dataset_run_dir': src_dir,
+                                'warnings': src_warnings,
+                                'errors': src_errors,
+                                'runtime': src_runtime
+                            })
+                        # Add all failed sources so far - use whatever statistics were captured before failure
+                        for src_name, src_uuid, src_cve_info, src_error, src_dir, src_warnings, src_errors, src_runtime in failed_sources:
+                            details = f"Failed: {src_error}" if src_error else "Failed"
+                            incremental_stats['sources'].append({
+                                'name': src_name,
+                                'uuid': src_uuid,
+                                'status': 'failed',
+                                'details': details,
+                                'cve_info': src_cve_info,
+                                'dataset_run_dir': src_dir,
+                                'warnings': src_warnings,
+                                'errors': src_errors,
+                                'runtime': src_runtime
+                            })
+                        # Add all skipped sources so far
+                        for src_name, src_uuid, src_cve_count in skipped_sources:
+                            incremental_stats['sources'].append({
+                                'name': src_name,
+                                'uuid': src_uuid,
+                                'status': 'skipped',
+                                'details': f"Exceeded --max-cves {args.max_cves} threshold",
+                                'cve_info': src_cve_count
+                            })
+                        update_harvest_index_incremental(run_directory, incremental_stats)
+                    except Exception as e:
+                        logger.warning(f"Failed to update harvest index with completed source data (non-critical): {e}", group="HARVEST")
                 else:
-                    failed += 1
-                    # Track failed source with details, including progress if available
-                    # cve_info will be either (processed, total) tuple, (0, total) for early failure, or None
-                    if cve_progress:
-                        cve_info = cve_progress  # (processed, total)
-                    elif cve_count is not None:
-                        cve_info = (0, cve_count)  # Early failure - 0 of total
+                    # Track failed source with statistics if available from subprocess
+                    if statistics:
+                        cve_info = (statistics['processed_cves'], statistics['total_cves'])
+                        warnings_count = statistics['warnings']
+                        errors_count = statistics['errors']
+                        runtime = statistics['runtime']
                     else:
-                        cve_info = None  # Very early failure - count not available
-                    failed_sources.append((source_name, source_uuid, cve_info, error_type, dataset_run_dir))
+                        # No statistics available - failure occurred before stats could be generated
+                        cve_info = (0, cve_count) if cve_count is not None else None
+                        warnings_count = 0
+                        errors_count = 0
+                        runtime = 0
+                    
+                    failed_sources.append((source_name, source_uuid, cve_info, error_type, dataset_run_dir, warnings_count, errors_count, runtime))
+                    
+                    # Update harvest index with failed source data
+                    try:
+                        from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
+                        # Build incremental harvest_statistics with all sources so far
+                        current_time = datetime.now(timezone.utc)
+                        elapsed = current_time - session_start_time
+                        hours, remainder = divmod(int(elapsed.total_seconds()), 3600)
+                        minutes, seconds = divmod(remainder, 60)
+                        duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                        incremental_stats = {
+                            'sources': [],
+                            'total_sources': len(source_info),
+                            'successful': len(successful_sources),
+                            'failed': len(failed_sources),
+                            'skipped': len(skipped_sources),
+                            'interrupted': 0,
+                            'not_processed': len(source_info) - (len(successful_sources) + len(failed_sources) + len(skipped_sources)),
+                            'session_start': session_start_time.isoformat(),
+                            'session_end': current_time.isoformat(),
+                            'duration': duration_str,
+                            'status': 'In Progress'
+                        }
+                        # Add all successful sources processed so far
+                        for src_name, src_uuid, src_cve_info, src_dir, src_warnings, src_errors, src_runtime in successful_sources:
+                            incremental_stats['sources'].append({
+                                'name': src_name,
+                                'uuid': src_uuid,
+                                'status': 'completed',
+                                'details': "Successfully processed",
+                                'cve_info': src_cve_info,
+                                'dataset_run_dir': src_dir,
+                                'warnings': src_warnings,
+                                'errors': src_errors,
+                                'runtime': src_runtime
+                            })
+                        # Add all failed sources so far - use whatever statistics were captured before failure
+                        for src_name, src_uuid, src_cve_info, src_error, src_dir, src_warnings, src_errors, src_runtime in failed_sources:
+                            details = f"Failed: {src_error}" if src_error else "Failed"
+                            incremental_stats['sources'].append({
+                                'name': src_name,
+                                'uuid': src_uuid,
+                                'status': 'failed',
+                                'details': details,
+                                'cve_info': src_cve_info,
+                                'dataset_run_dir': src_dir,
+                                'warnings': src_warnings,
+                                'errors': src_errors,
+                                'runtime': src_runtime
+                            })
+                        # Add all skipped sources so far
+                        for src_name, src_uuid, src_cve_count in skipped_sources:
+                            incremental_stats['sources'].append({
+                                'name': src_name,
+                                'uuid': src_uuid,
+                                'status': 'skipped',
+                                'details': f"Exceeded --max-cves {args.max_cves} threshold",
+                                'cve_info': src_cve_count
+                            })
+                        update_harvest_index_incremental(run_directory, incremental_stats)
+                    except Exception as e:
+                        logger.warning(f"Failed to update harvest index with failed source data (non-critical): {e}", group="HARVEST")
             
             # Small delay between requests to be respectful to the API
             if i < len(source_info):  # Don't delay after the last one
@@ -649,7 +772,7 @@ def main():
                 not_processed_sources.append((source_name, source_uuid))
     
     # Summary
-    logger.stage_end("Multi-Source Processing", f"{successful}/{len(source_info)} sources processed successfully", group="HARVEST")
+    logger.stage_end("Multi-Source Processing", f"{len(successful_sources)}/{len(source_info)} sources processed successfully", group="HARVEST")
     
     # If terminated early, show clear status
     if termination_reason:
@@ -662,7 +785,7 @@ def main():
     if api_totals['duplicates_found'] > 0:
         logger.info(f"Sources filtered out (duplicates): {api_totals['duplicates_found']}", group="HARVEST")
     logger.info(f"Sources available for processing: {api_totals['unique_sources_available']}", group="HARVEST")
-    logger.info(f"Sources attempted: {successful + failed + skipped}", group="HARVEST")
+    logger.info(f"Sources attempted: {len(successful_sources) + len(failed_sources) + len(skipped_sources)}", group="HARVEST")
     
     # Show not-processed and interrupted counts if any
     not_processed_count = len(not_processed_sources)
@@ -673,9 +796,9 @@ def main():
         logger.warning(f"Sources interrupted mid-processing: {interrupted_count}", group="HARVEST")
     
     logger.data_summary("Processing Results", group="HARVEST",
-        successful=successful,
-        failed=failed,
-        skipped_too_many_cves=skipped,
+        successful=len(successful_sources),
+        failed=len(failed_sources),
+        skipped_too_many_cves=len(skipped_sources),
         interrupted=interrupted_count,
         not_processed=not_processed_count,
         total_sources=len(source_info))
@@ -693,7 +816,7 @@ def main():
     if failed_sources:
         logger.error(f"FAILED SOURCES REPORT:", group="HARVEST")
         logger.info(f"The following {len(failed_sources)} sources failed to process:", group="HARVEST")
-        for source_name, source_uuid, cve_info, error_type, dataset_run_dir in failed_sources:
+        for source_name, source_uuid, cve_info, error_type, dataset_run_dir, warnings_count, errors_count, runtime in failed_sources:
             logger.error(f"{source_name}", group="HARVEST")
             logger.info(f"  UUID: {source_uuid}", group="HARVEST")
             if cve_info is not None:
@@ -727,37 +850,81 @@ def main():
             logger.warning(f"{source_name}", group="HARVEST")
             logger.info(f"  UUID: {source_uuid}", group="HARVEST")
     
-    # Clean up cache file
-    if cache_file_path:
-        logger.info(f"Cleaning up cache...", group="CACHE_MANAGEMENT")
-        cleanup_source_data_cache(cache_file_path)
+    # Calculate session duration
+    session_end_time = datetime.now(timezone.utc)
+    duration_str = 'Unknown'
+    if session_start_time:
+        duration_sec = (session_end_time - session_start_time).total_seconds()
+        hours = int(duration_sec // 3600)
+        minutes = int((duration_sec % 3600) // 60)
+        seconds = int(duration_sec % 60)
+        duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
     
-    # Final harvest index generation
-    logger.info("Finalizing harvest session index page...", group="HARVEST")
+    # Determine final session status
+    if termination_reason:
+        session_status = 'Interrupted - Early Termination'
+    elif len(failed_sources) == 0 and len(successful_sources) > 0:
+        session_status = 'Completed Successfully'
+    elif len(failed_sources) > 0:
+        session_status = f"Completed with {len(failed_sources)} Failures"
+    else:
+        session_status = 'Unknown'
+    
+    # Final harvest index and report generation
+    logger.info("Finalizing harvest session reports...", group="HARVEST")
     try:
-        index_file = generate_harvest_index(run_directory, verbose=True)
-        if index_file:
-            logger.info(f"Harvest index available: {index_file.relative_to(run_directory)}", group="HARVEST")
-        else:
-            logger.warning("Failed to generate final harvest index page", group="HARVEST")
+        # Import update function to finalize session metadata
+        from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
+        
+        # Build final harvest statistics including interrupted and not_processed sources
+        final_stats = {
+            'sources': [],
+            'session_end': session_end_time.isoformat(),
+            'duration': duration_str,
+            'status': session_status
+        }
+        
+        # Mark interrupted source if early termination occurred during processing
+        if interrupted_source_info:
+            source_name, source_uuid = interrupted_source_info
+            final_stats['sources'].append({
+                'name': source_name,
+                'uuid': source_uuid,
+                'status': 'interrupted',
+                'details': 'Early Termination',
+                'cve_info': None
+            })
+        
+        # Add not_processed sources as skipped with early termination reason
+        for source_name, source_uuid in not_processed_sources:
+            final_stats['sources'].append({
+                'name': source_name,
+                'uuid': source_uuid,
+                'status': 'skipped',
+                'details': 'Early Termination',
+                'cve_info': None
+            })
+        
+        update_harvest_index_incremental(run_directory, final_stats)
+        logger.info("Harvest session data finalized", group="HARVEST")
     except Exception as e:
-        logger.warning(f"Error generating final harvest index: {e}", group="HARVEST")
+        logger.warning(f"Error finalizing harvest session data: {e}", group="HARVEST")
     
     # Determine exit status based on what happened
     if termination_reason:
         # Early termination - always exit with error
         logger.error(f"Harvest session ended: {termination_reason}", group="HARVEST")
-        logger.warning(f"Summary: {successful} successful, {failed} failed, {skipped} skipped, {interrupted_count} interrupted, {not_processed_count} not processed", group="HARVEST")
+        logger.warning(f"Summary: {len(successful_sources)} successful, {len(failed_sources)} failed, {len(skipped_sources)} skipped, {interrupted_count} interrupted, {not_processed_count} not processed", group="HARVEST")
         logger.stop_file_logging()
         sys.exit(1)
-    elif failed > 0:
+    elif len(failed_sources) > 0:
         # Completed but with failures
-        logger.warning(f"{failed} sources failed to process. See FAILED SOURCES REPORT above for details.", group="HARVEST")
+        logger.warning(f"{len(failed_sources)} sources failed to process. See FAILED SOURCES REPORT above for details.", group="HARVEST")
         logger.stop_file_logging()
         sys.exit(1)
     else:
         # Fully successful completion
-        logger.info(f"All processable sources completed successfully! ({skipped} sources skipped due to size)", group="HARVEST")
+        logger.info(f"All processable sources completed successfully! ({len(skipped_sources)} sources skipped due to size)", group="HARVEST")
         logger.stop_file_logging()
         sys.exit(0)
 

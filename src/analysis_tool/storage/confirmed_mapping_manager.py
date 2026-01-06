@@ -78,11 +78,20 @@ class ConfirmedMappingManager:
             self._initialized = True
             return self
         
-        # Get source manager for validation
+        # Get source manager for validation - REQUIRED for data integrity
         if source_manager is None:
-            from ..storage.nvd_source_manager import get_global_source_manager
-            self._source_manager = get_global_source_manager()
+            from ..storage.nvd_source_manager import get_or_refresh_source_manager
+            config = load_config()
+            api_key = config.get('defaults', {}).get('default_api_key', '')
+            
+            # get_or_refresh_source_manager() guarantees initialization or raises exception
+            self._source_manager = get_or_refresh_source_manager(api_key, log_group="ALIAS_AUDIT")
         else:
+            # Verify provided source manager is initialized - fail fast if not
+            if not source_manager.is_initialized():
+                raise RuntimeError(
+                    "source_manager is not initialized - confirmed mapping manager"
+                )
             self._source_manager = source_manager
         
         # Load and index all mapping files
@@ -125,62 +134,42 @@ class ConfirmedMappingManager:
                 self._files_rejected.append((mapping_file.name, "No mappings"))
                 return
             
-            # Validate against NVD source manager
-            if self._source_manager and self._source_manager.is_initialized():
-                source_info = self._source_manager.get_source_info(cna_id)
-                
-                if not source_info:
-                    logger.warning(
-                        f"❌ REJECTED {mapping_file.name}: cnaId {cna_id} not found in NVD source database",
-                        group="ALIAS_AUDIT"
-                    )
-                    self._files_rejected.append((mapping_file.name, f"Unknown cnaId: {cna_id}"))
-                    return
-                
-                # Extract organization info
-                org_name = source_info.get('name', 'Unknown')
-                source_identifiers = source_info.get('sourceIdentifiers', [])
-                
-                # Create mapping record
-                mapping_record = {
-                    'cnaId': cna_id,
-                    'mappings': confirmed_mappings,
-                    'file': mapping_file.name,
-                    'org': org_name,
-                    'count': len(confirmed_mappings)
-                }
-                
-                # Index by ALL sourceIdentifiers for this organization (emails + UUIDs)
-                if isinstance(source_identifiers, list):
-                    for identifier in source_identifiers:
-                        if identifier:
-                            self._mapping_lookup[identifier] = mapping_record
-                
-                logger.info(
-                    f"✅ LOADED {mapping_file.name}: {org_name} ({len(confirmed_mappings)} mappings, "
-                    f"{len(source_identifiers)} identifiers indexed)",
-                    group="ALIAS_AUDIT"
-                )
-                self._files_loaded.append(mapping_file.name)
+            # Validate against NVD source manager (guaranteed to be initialized)
+            source_info = self._source_manager.get_source_info(cna_id)
             
-            else:
-                # Source manager not available - load without validation
+            if not source_info:
                 logger.warning(
-                    f"⚠️ LOADED (unvalidated) {mapping_file.name}: {len(confirmed_mappings)} mappings",
+                    f"REJECTED {mapping_file.name}: cnaId {cna_id} not found in NVD source database",
                     group="ALIAS_AUDIT"
                 )
-                
-                mapping_record = {
-                    'cnaId': cna_id,
-                    'mappings': confirmed_mappings,
-                    'file': mapping_file.name,
-                    'org': 'Unknown (unvalidated)',
-                    'count': len(confirmed_mappings)
-                }
-                
-                # Index only by cnaId without validation
-                self._mapping_lookup[cna_id] = mapping_record
-                self._files_loaded.append(mapping_file.name)
+                self._files_rejected.append((mapping_file.name, f"Unknown cnaId: {cna_id}"))
+                return
+            
+            # Extract organization info
+            org_name = source_info.get('name', 'Unknown')
+            source_identifiers = source_info.get('sourceIdentifiers', [])
+            
+            # Create mapping record
+            mapping_record = {
+                'cnaId': cna_id,
+                'mappings': confirmed_mappings,
+                'file': mapping_file.name,
+                'org': org_name,
+                'count': len(confirmed_mappings)
+            }
+            
+            # Index by ALL sourceIdentifiers for this organization (emails + UUIDs)
+            if isinstance(source_identifiers, list):
+                for identifier in source_identifiers:
+                    if identifier:
+                        self._mapping_lookup[identifier] = mapping_record
+            
+            logger.info(
+                f"LOADED {mapping_file.name}: {org_name} ({len(confirmed_mappings)} mappings, "
+                f"{len(source_identifiers)} identifiers indexed)",
+                group="ALIAS_AUDIT"
+            )
+            self._files_loaded.append(mapping_file.name)
         
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in {mapping_file.name}: {e}", group="ALIAS_AUDIT")

@@ -12,53 +12,58 @@
         <!-- Header -->
         <div class="header">
             <h1>Generate Dataset Session Report</h1>
-            <p>NVD Source Processing Summary<br />
+            <p>Organized by Organization<br />
             Hashmire/Analysis_Tools {{TOOL_VERSION}}</p>
         </div>
 
         <div class="content">
-            <!-- Session Information -->
-            <div class="session-info">
-                <h3>Session Information</h3>
-                <p><strong>Run ID:</strong> <span id="run-id">--</span></p>
-                <p><strong>Started:</strong> <span id="session-start">--</span></p>
-                <p><strong>Completed:</strong> <span id="session-end">--</span></p>
-                <p><strong>Duration:</strong> <span id="session-duration">--</span></p>
-                <p><strong>Status:</strong> <span id="session-status">--</span></p>
-            </div>
-
-            <!-- Summary Statistics -->
-            <div class="section">
-                <div class="section-header">
+            <!-- Overall Progress Section -->
+            <div class="progress-section" style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 30px;">
+                <!-- Session Information -->
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #e0e0e0;">
                     <div>
-                        <h2 class="section-title">Processing Summary</h2>
-                        <p class="section-subtitle">Overall generate dataset session statistics</p>
+                        <div style="font-size: 0.75em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">Run ID</div>
+                        <div style="font-size: 0.95em; font-weight: 600; color: #2c3e50;" id="run-id">--</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">Duration</div>
+                        <div style="font-size: 0.95em; font-weight: 600; color: #2c3e50;" id="session-duration">--</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">Status</div>
+                        <div style="font-size: 0.95em; font-weight: 600; color: #2c3e50;" id="session-status">--</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">CVEs Processed</div>
+                        <div style="font-size: 0.95em; font-weight: 600; color: #2c3e50;" id="session-total-cves">0</div>
                     </div>
                 </div>
-                <div class="stats-grid" id="summary-stats">
-                    <div class="stat-card info">
-                        <div class="stat-label">Total Sources Available</div>
-                        <div class="stat-value" id="stat-total-sources">0</div>
+
+                <div class="progress-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div class="progress-title" style="font-size: 1.4em; font-weight: 600; color: #2c3e50;">Overall Progress</div>
+                    <div class="progress-percentage" id="progress-percent" style="font-size: 1.8em; font-weight: 700; color: #27ae60;">0%</div>
+                </div>
+                <div class="progress-bar" style="background: #ecf0f1; height: 30px; border-radius: 15px; overflow: hidden;">
+                    <div class="progress-fill" id="progress-fill" style="width: 0%; height: 100%; background: linear-gradient(90deg, #27ae60, #2ecc71); transition: width 0.3s ease;"></div>
+                </div>
+
+                <!-- Source Processing Stats -->
+                <div id="source-stats" style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center;">
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #27ae60;" id="stat-successful">0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Successful</div>
                     </div>
-                    <div class="stat-card success">
-                        <div class="stat-label">Successful</div>
-                        <div class="stat-value" id="stat-successful">0</div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #e74c3c;" id="stat-failed">0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Failed</div>
                     </div>
-                    <div class="stat-card warning">
-                        <div class="stat-label">Failed</div>
-                        <div class="stat-value" id="stat-failed">0</div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #f39c12;" id="stat-skipped">0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Skipped</div>
                     </div>
-                    <div class="stat-card warning">
-                        <div class="stat-label">Skipped (Too Large)</div>
-                        <div class="stat-value" id="stat-skipped">0</div>
-                    </div>
-                    <div class="stat-card info">
-                        <div class="stat-label">Total CVEs Processed</div>
-                        <div class="stat-value" id="stat-total-cves">0</div>
-                    </div>
-                    <div class="stat-card warning">
-                        <div class="stat-label">Total Warnings</div>
-                        <div class="stat-value" id="stat-total-warnings">0</div>
+                    <div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #95a5a6;" id="stat-total-sources">0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Total Sources</div>
                     </div>
                 </div>
             </div>
@@ -106,25 +111,40 @@
 
         function renderDashboard(data) {
             // Session Information
-            document.getElementById('run-id').textContent = data.run_id || 'Unknown';
-            document.getElementById('session-start').textContent = formatDateTime(data.session_start);
-            document.getElementById('session-end').textContent = formatDateTime(data.session_end);
-            document.getElementById('session-duration').textContent = data.duration || 'Unknown';
-            document.getElementById('session-status').textContent = data.status || 'In Progress';
+            document.getElementById('run-id').textContent = data.metadata?.run_id || 'Unknown';
+            document.getElementById('session-duration').textContent = data.metadata?.duration || 'Unknown';
+            document.getElementById('session-status').textContent = data.metadata?.status || 'In Progress';
+            document.getElementById('session-total-cves').textContent = (data.summary?.total_cves_processed || 0).toLocaleString();
 
             // Summary Statistics
-            document.getElementById('stat-total-sources').textContent = data.total_sources || 0;
-            document.getElementById('stat-successful').textContent = data.successful || 0;
-            document.getElementById('stat-failed').textContent = data.failed || 0;
-            document.getElementById('stat-skipped').textContent = data.skipped || 0;
-            document.getElementById('stat-total-cves').textContent = data.total_cves_processed || 0;
-            document.getElementById('stat-total-warnings').textContent = data.total_warnings || 0;
-
-            // Dataset Runs Table
-            renderDatasetRuns(data.dataset_runs || []);
+            const totalSources = data.summary?.total_sources || 0;
+            const successful = data.summary?.successful || 0;
+            const failed = data.summary?.failed || 0;
+            const skipped = data.summary?.skipped || 0;
+            const totalCves = data.summary?.total_cves_processed || 0;
             
-            // Source Issues Table (only failed/skipped/interrupted)
-            renderSourceTable(data.sources || []);
+            document.getElementById('stat-total-sources').textContent = totalSources;
+            document.getElementById('stat-successful').textContent = successful;
+            document.getElementById('stat-failed').textContent = failed;
+            document.getElementById('stat-skipped').textContent = skipped;
+
+            // Calculate and update progress bar
+            const processedSources = successful + failed + skipped + (data.summary?.interrupted || 0);
+            const progressPercent = totalSources > 0 ? Math.round((processedSources / totalSources) * 100) : 0;
+            
+            document.getElementById('progress-percent').textContent = `${progressPercent}%`;
+            document.getElementById('progress-fill').style.width = `${progressPercent}%`;
+
+            // Split datasets into completed (successful/completed) and issues (exclude completed statuses and not_processed)
+            const allDatasets = data.datasets || [];
+            const completedRuns = allDatasets.filter(d => d.status === 'successful' || d.status === 'completed');
+            const issuesSources = allDatasets.filter(d => d.status !== 'successful' && d.status !== 'completed' && d.status !== 'not_processed');
+            
+            // Dataset Runs Table (successful only)
+            renderDatasetRuns(completedRuns);
+            
+            // Source Issues Table (failed/skipped/interrupted/in_progress/unknown - NOT not_processed)
+            renderSourceTable(issuesSources);
         }
 
         function renderDatasetRuns(runs) {
@@ -136,16 +156,15 @@
             }
 
             let tableHTML = `
-                <table class="source-table">
+                <table class="source-table sortable-table">
                     <thead>
                         <tr>
-                            <th>Source</th>
-                            <th>Total CVEs</th>
-                            <th>Processed</th>
-                            <th>Warnings</th>
-                            <th>Errors</th>
-                            <th>Status</th>
-                            <th>Runtime</th>
+                            <th class="sortable" onclick="sortTable(0, 'dataset-runs')">Source <span class="sort-indicator">⇅</span></th>
+                            <th class="sortable" onclick="sortTable(1, 'dataset-runs')">CVEs (Processed/Total) <span class="sort-indicator">⇅</span></th>
+                            <th class="sortable" onclick="sortTable(2, 'dataset-runs')">Warnings <span class="sort-indicator">⇅</span></th>
+                            <th class="sortable" onclick="sortTable(3, 'dataset-runs')">Errors <span class="sort-indicator">⇅</span></th>
+                            <th class="sortable" onclick="sortTable(4, 'dataset-runs')">Status <span class="sort-indicator">⇅</span></th>
+                            <th class="sortable" onclick="sortTable(5, 'dataset-runs')">Runtime <span class="sort-indicator">⇅</span></th>
                             <th>Report</th>
                         </tr>
                     </thead>
@@ -153,11 +172,19 @@
             `;
 
             runs.forEach(run => {
-                const statusClass = run.status === 'completed' ? 'status-success' : 'status-badge';
+                const statusClass = (run.status === 'successful' || run.status === 'completed') ? 'status-success' : 'status-badge';
                 
-                // Construct relative path to dataset report (same directory as index)
-                const reportFilename = run.report_filename || `${run.dataset_dir}_report.html`;
-                const reportPath = reportFilename;
+                // Combine total and processed CVEs into X/Y format
+                const processed = run.processed_cves || 0;
+                const total = run.total_cves || 0;
+                const cveDisplay = `${processed}/${total}`;
+                
+                // Format runtime in human-readable format
+                const runtimeDisplay = formatRuntime(run.runtime);
+                
+                // Construct relative path to dataset report
+                // Dataset reports are in the same reports/ directory as this index: ./<dataset_name>_report.html
+                const reportPath = run.report_filename ? run.report_filename : null;
                 const reportLink = reportPath ? 
                     `<a href="${reportPath}" class="report-link" title="View detailed dataset report">View Report</a>` : 
                     '<span style="color: #95a5a6;">N/A</span>';
@@ -165,12 +192,11 @@
                 tableHTML += `
                     <tr>
                         <td><strong>${escapeHtml(run.source)}</strong></td>
-                        <td>${run.total_cves}</td>
-                        <td>${run.processed_cves}</td>
-                        <td>${run.warnings}</td>
-                        <td>${run.errors}</td>
+                        <td>${cveDisplay}</td>
+                        <td>${run.warnings || 0}</td>
+                        <td>${run.errors || 0}</td>
                         <td><span class="status-badge ${statusClass}">${run.status}</span></td>
-                        <td>${run.runtime}</td>
+                        <td>${runtimeDisplay}</td>
                         <td>${reportLink}</td>
                     </tr>
                 `;
@@ -187,37 +213,38 @@
         function renderSourceTable(sources) {
             const container = document.getElementById('sources-container');
             
-            // Only show sources with issues (not success status)
-            const problemSources = sources.filter(s => s.status !== 'success');
-            
-            if (!problemSources || problemSources.length === 0) {
+            // sources parameter is already filtered by renderDashboard to exclude successful and not_processed
+            // This is for issues only: failed, skipped, interrupted, in_progress, unknown
+            if (!sources || sources.length === 0) {
                 container.innerHTML = '<div class="no-data">No issues to report - all sources processed successfully</div>';
                 return;
             }
 
             let tableHTML = `
-                <table class="source-table">
+                <table class="source-table sortable-table">
                     <thead>
                         <tr>
-                            <th>Source Name</th>
-                            <th>UUID</th>
-                            <th>CVE Count</th>
-                            <th>Status</th>
-                            <th>Details</th>
+                            <th class="sortable" onclick="sortTable(0, 'source-issues')">Source Name <span class="sort-indicator">⇅</span></th>
+                            <th class="sortable" onclick="sortTable(1, 'source-issues')">UUID <span class="sort-indicator">⇅</span></th>
+                            <th class="sortable" onclick="sortTable(2, 'source-issues')">CVE Count <span class="sort-indicator">⇅</span></th>
+                            <th class="sortable" onclick="sortTable(3, 'source-issues')">Status <span class="sort-indicator">⇅</span></th>
+                            <th class="sortable" onclick="sortTable(4, 'source-issues')">Details <span class="sort-indicator">⇅</span></th>
                         </tr>
                     </thead>
                     <tbody>
             `;
 
-            problemSources.forEach(source => {
+            sources.forEach(source => {
                 const statusClass = getStatusClass(source.status);
-                const statusText = source.status || 'Unknown';
-                const cveInfo = source.cve_info || 'N/A';
+                const statusText = source.status || 'unknown';
+                const cveInfo = source.cve_count !== undefined ? source.cve_count.toLocaleString() : 
+                               (source.processed_cves && source.total_cves ? 
+                                `${source.processed_cves} of ${source.total_cves}` : '--');
                 const details = source.details || '';
                 
                 tableHTML += `
                     <tr>
-                        <td><strong>${escapeHtml(source.name)}</strong></td>
+                        <td><strong>${escapeHtml(source.source)}</strong></td>
                         <td><code>${escapeHtml(source.uuid)}</code></td>
                         <td>${cveInfo}</td>
                         <td><span class="status-badge ${statusClass}">${statusText}</span></td>
@@ -236,13 +263,34 @@
 
         function getStatusClass(status) {
             const statusMap = {
-                'success': 'status-success',
+                'successful': 'status-success',
+                'completed': 'status-success',
                 'failed': 'status-failed',
                 'skipped': 'status-skipped',
                 'interrupted': 'status-interrupted',
-                'not_processed': 'status-not-processed'
+                'not_processed': 'status-not-processed',
+                'in_progress': 'status-in-progress',
+                'unknown': 'status-badge'
             };
             return statusMap[status] || 'status-badge';
+        }
+
+        function formatRuntime(runtimeSeconds) {
+            if (!runtimeSeconds || runtimeSeconds === 'N/A') return 'N/A';
+            
+            const totalSeconds = Math.floor(runtimeSeconds);
+            const days = Math.floor(totalSeconds / 86400);
+            const hours = Math.floor((totalSeconds % 86400) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            
+            const parts = [];
+            if (days > 0) parts.push(`${days}d`);
+            if (hours > 0) parts.push(`${hours}h`);
+            if (minutes > 0) parts.push(`${minutes}m`);
+            if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
+            
+            return parts.join(' ');
         }
 
         function formatDateTime(dateString) {
@@ -259,6 +307,97 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // Table sorting functionality
+        let sortDirections = {}; // Track sort direction for each table
+
+        function sortTable(columnIndex, tableId) {
+            const tableBody = document.querySelector(`#${tableId}-container table tbody`);
+            if (!tableBody) return;
+
+            const rows = Array.from(tableBody.querySelectorAll('tr'));
+            const currentDirection = sortDirections[`${tableId}-${columnIndex}`] || 'asc';
+            const newDirection = currentDirection === 'asc' ? 'desc' : 'asc';
+            
+            // Store new direction
+            sortDirections[`${tableId}-${columnIndex}`] = newDirection;
+
+            rows.sort((a, b) => {
+                let aValue = a.cells[columnIndex].textContent.trim();
+                let bValue = b.cells[columnIndex].textContent.trim();
+
+                // Special handling for CVEs column (format: "X/Y")
+                if (columnIndex === 1 && tableId === 'dataset-runs') {
+                    const aMatch = aValue.match(/(\d+)\/(\d+)/);
+                    const bMatch = bValue.match(/(\d+)\/(\d+)/);
+                    if (aMatch && bMatch) {
+                        // Sort by total first, then by processed
+                        const aTotalProcessed = parseInt(aMatch[2]) * 10000 + parseInt(aMatch[1]);
+                        const bTotalProcessed = parseInt(bMatch[2]) * 10000 + parseInt(bMatch[1]);
+                        aValue = aTotalProcessed;
+                        bValue = bTotalProcessed;
+                    }
+                }
+                // Special handling for Runtime column (format: "1d 2h 3m 4s" or "N/A")
+                else if (columnIndex === 5 && tableId === 'dataset-runs') {
+                    const parseRuntime = (str) => {
+                        if (str === 'N/A') return -1;
+                        const match = str.match(/(?:(\d+)d)?\s*(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+)s)?/);
+                        if (!match) return 0;
+                        const days = parseInt(match[1] || 0);
+                        const hours = parseInt(match[2] || 0);
+                        const minutes = parseInt(match[3] || 0);
+                        const seconds = parseInt(match[4] || 0);
+                        return days * 86400 + hours * 3600 + minutes * 60 + seconds;
+                    };
+                    aValue = parseRuntime(aValue);
+                    bValue = parseRuntime(bValue);
+                }
+                // Numeric columns (Warnings, Errors, CVE Count)
+                else if ((tableId === 'dataset-runs' && (columnIndex === 2 || columnIndex === 3)) ||
+                         (tableId === 'source-issues' && columnIndex === 2)) {
+                    aValue = parseInt(aValue) || 0;
+                    bValue = parseInt(bValue) || 0;
+                }
+
+                // Compare values
+                let comparison = 0;
+                if (typeof aValue === 'number' && typeof bValue === 'number') {
+                    comparison = aValue - bValue;
+                } else {
+                    comparison = aValue.toString().localeCompare(bValue.toString());
+                }
+
+                return newDirection === 'asc' ? comparison : -comparison;
+            });
+
+            // Clear and re-append sorted rows
+            rows.forEach(row => tableBody.appendChild(row));
+
+            // Update sort indicators
+            updateSortIndicators(tableId, columnIndex, newDirection);
+        }
+
+        function updateSortIndicators(tableId, activeColumn, direction) {
+            const table = document.querySelector(`#${tableId}-container table`);
+            if (!table) return;
+
+            // Reset all indicators
+            table.querySelectorAll('.sort-indicator').forEach(indicator => {
+                indicator.textContent = '⇅';
+                indicator.style.opacity = '0.3';
+            });
+
+            // Set active indicator
+            const activeHeader = table.querySelectorAll('th')[activeColumn];
+            if (activeHeader) {
+                const indicator = activeHeader.querySelector('.sort-indicator');
+                if (indicator) {
+                    indicator.textContent = direction === 'asc' ? '▲' : '▼';
+                    indicator.style.opacity = '1';
+                }
+            }
         }
     </script>
 </body>

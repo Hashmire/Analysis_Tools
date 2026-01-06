@@ -273,6 +273,22 @@
                 : 0;
         }
 
+        // Sorting state
+        let currentSortColumn = 'concern_percentage';
+        let currentSortDirection = 'desc';
+        
+        function sortSources(column) {
+            // Toggle direction if clicking same column, otherwise default to descending
+            if (currentSortColumn === column) {
+                currentSortDirection = currentSortDirection === 'desc' ? 'asc' : 'desc';
+            } else {
+                currentSortColumn = column;
+                currentSortDirection = 'desc';
+            }
+            
+            renderSourcesTable();
+        }
+
         function renderDashboard() {
             renderSummary();
             renderSourcesTable();
@@ -312,22 +328,81 @@
             const container = document.getElementById('sources-table-container');
             if (!container) return;
             
-            const sources = dashboardData.sources.sort((a, b) => {
-                const percentA = a.total_platform_entries > 0 ? (a.entries_with_concerns / a.total_platform_entries) : 0;
-                const percentB = b.total_platform_entries > 0 ? (b.entries_with_concerns / b.total_platform_entries) : 0;
-                return percentB - percentA; // Sort by concern percentage descending
+            // Sort sources based on current sort column and direction
+            const sources = [...dashboardData.sources].sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(currentSortColumn) {
+                    case 'source_name':
+                        aVal = a.source_name.toLowerCase();
+                        bVal = b.source_name.toLowerCase();
+                        return currentSortDirection === 'desc' 
+                            ? bVal.localeCompare(aVal)
+                            : aVal.localeCompare(bVal);
+                    
+                    case 'total_cves':
+                        aVal = a.total_cves_processed || 0;
+                        bVal = b.total_cves_processed || 0;
+                        break;
+                    
+                    case 'total_entries':
+                        aVal = a.total_platform_entries || 0;
+                        bVal = b.total_platform_entries || 0;
+                        break;
+                    
+                    case 'with_concerns':
+                        aVal = a.entries_with_concerns || 0;
+                        bVal = b.entries_with_concerns || 0;
+                        break;
+                    
+                    case 'without_concerns':
+                        aVal = a.entries_without_concerns || 0;
+                        bVal = b.entries_without_concerns || 0;
+                        break;
+                    
+                    case 'concern_percentage':
+                        aVal = a.total_platform_entries > 0 ? (a.entries_with_concerns / a.total_platform_entries) : 0;
+                        bVal = b.total_platform_entries > 0 ? (b.entries_with_concerns / b.total_platform_entries) : 0;
+                        break;
+                    
+                    default:
+                        aVal = a.total_platform_entries > 0 ? (a.entries_with_concerns / a.total_platform_entries) : 0;
+                        bVal = b.total_platform_entries > 0 ? (b.entries_with_concerns / b.total_platform_entries) : 0;
+                }
+                
+                return currentSortDirection === 'desc' ? bVal - aVal : aVal - bVal;
             });
+            
+            // Helper function to generate sort indicator
+            function getSortIndicator(column) {
+                if (currentSortColumn !== column) {
+                    return '<span style="opacity: 0.3;">⇅</span>';
+                }
+                return currentSortDirection === 'desc' ? '▼' : '▲';
+            }
             
             container.innerHTML = `
                 <table class="source-table">
                     <thead>
                         <tr>
-                            <th>Source</th>
-                            <th style="text-align: right;">CVEs</th>
-                            <th style="text-align: right;">Total Entries</th>
-                            <th style="text-align: right;">With Concerns</th>
-                            <th style="text-align: right;">Without Concerns</th>
-                            <th style="text-align: center;">Concern %</th>
+                            <th style="cursor: pointer; user-select: none;" onclick="sortSources('source_name')">
+                                Source ${getSortIndicator('source_name')}
+                            </th>
+                            <th style="text-align: right; cursor: pointer; user-select: none;" onclick="sortSources('total_cves')">
+                                CVEs ${getSortIndicator('total_cves')}
+                            </th>
+                            <th style="text-align: right; cursor: pointer; user-select: none;" onclick="sortSources('total_entries')">
+                                Total Entries ${getSortIndicator('total_entries')}
+                            </th>
+                            <th style="text-align: right; cursor: pointer; user-select: none;" onclick="sortSources('with_concerns')">
+                                With Concerns ${getSortIndicator('with_concerns')}
+                            </th>
+                            <th style="text-align: right; cursor: pointer; user-select: none;" onclick="sortSources('without_concerns')">
+                                Without Concerns ${getSortIndicator('without_concerns')}
+                            </th>
+                            <th style="text-align: center; cursor: pointer; user-select: none;" onclick="sortSources('concern_percentage')">
+                                Concern % ${getSortIndicator('concern_percentage')}
+                            </th>
                             <th>Report File</th>
                         </tr>
                     </thead>

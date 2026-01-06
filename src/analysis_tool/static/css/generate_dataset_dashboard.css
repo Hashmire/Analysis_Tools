@@ -184,6 +184,26 @@ body {
     font-weight: 600;
 }
 
+/* Sortable table headers */
+.source-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    transition: background-color 0.2s ease;
+}
+
+.source-table th.sortable:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.source-table th.sortable .sort-indicator {
+    display: inline-block;
+    margin-left: 5px;
+    font-size: 0.8em;
+    opacity: 0.3;
+    transition: opacity 0.2s ease;
+}
+
 .source-table td {
     padding: 12px 15px;
     border-bottom: 1px solid #e0e0e0;
@@ -247,6 +267,11 @@ body {
 .status-not-processed {
     background: #e2e3e5;
     color: #383d41;
+}
+
+.status-in-progress {
+    background: #cfe2ff;
+    color: #084298;
 }
 
 /* Session Information Box */

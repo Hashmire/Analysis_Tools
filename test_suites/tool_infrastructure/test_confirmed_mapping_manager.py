@@ -61,21 +61,28 @@ class TestConfirmedMappingManager:
         print("-" * 50)
         
         try:
-            # Initialize source manager first (must load from cache or fetch data)
-            from analysis_tool.storage.nvd_source_manager import try_load_from_environment_cache
+            # Initialize source manager using get_or_refresh_source_manager
+            from analysis_tool.storage.nvd_source_manager import get_or_refresh_source_manager
+            from analysis_tool.core.gatherData import load_config
             
             source_manager = get_global_source_manager()
             if not source_manager.is_initialized():
-                # Try to load from cache first
-                if try_load_from_environment_cache():
-                    self.add_result("Source manager loaded from cache",
+                # Get API key from config for potential refresh
+                config = load_config()
+                api_key = config.get('defaults', {}).get('default_api_key', '')
+                
+                # Get source manager - will use cache or refresh as needed
+                try:
+                    source_manager = get_or_refresh_source_manager(api_key, log_group="TEST")
+                    self.add_result("Source manager loaded",
                                    source_manager.is_initialized(),
                                    f"Sources: {source_manager.get_source_count()}")
-                else:
-                    # For tests, we can skip source manager if cache unavailable
-                    self.add_result("Source manager cache check",
+                except Exception as e:
+                    # For tests, we can skip source manager if unavailable
+                    self.add_result("Source manager initialization failed",
                                    True,
-                                   "No cache available - testing manager in isolation")
+                                   f"Testing manager in isolation: {e}")
+                    source_manager = None
             else:
                 self.add_result("Source manager already initialized", 
                                source_manager.is_initialized(),

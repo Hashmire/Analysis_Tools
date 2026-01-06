@@ -599,6 +599,9 @@ class UnifiedDashboardCollector:
             
         self.data["warnings"][category].append(warning_entry)
         
+        # Increment in-memory counter
+        self.data["log_stats"]["warning_count"] += 1
+        
 
     def record_cve_error(self, message: str, category: str = "processing_errors"):
         """Record an error directly associated with the current CVE (STREAMLINED)"""
@@ -614,6 +617,9 @@ class UnifiedDashboardCollector:
             self.data["errors"][category] = []
             
         self.data["errors"][category].append(error_entry)
+        
+        # Increment in-memory counter
+        self.data["log_stats"]["error_count"] += 1
         
 
     def record_cve_info(self, message: str, category: str = "processing_info"):
@@ -1092,69 +1098,6 @@ class UnifiedDashboardCollector:
     # =============================================================================
     # Helper Methods
     # =============================================================================
-    
-    def update_log_statistics(self):
-        """Update log statistics by analyzing the current log file and extracting warning/error entries"""
-        try:
-            # Get log file path from workflow logger if available
-            if logger and hasattr(logger, 'current_log_path') and logger.current_log_path:
-                log_file_path = logger.current_log_path
-                
-                if os.path.exists(log_file_path):
-                    with open(log_file_path, 'r', encoding='utf-8') as f:
-                        lines = f.readlines()
-                    
-                    # Count different log levels and extract warning/error entries
-                    info_count = 0
-                    debug_count = 0
-                    warning_count = 0
-                    error_count = 0
-                    
-                    warnings_found = []
-                    errors_found = []
-                    
-                    for line in lines:
-                        line = line.strip()
-                        if not line:
-                            continue
-                            
-                        # Count log levels
-                        if '[INFO]' in line:
-                            info_count += 1
-                        elif '[DEBUG]' in line:
-                            debug_count += 1
-                        elif '[WARNING]' in line:
-                            warning_count += 1
-                            warnings_found.append(line)
-                        elif '[ERROR]' in line:
-                            error_count += 1
-                            errors_found.append(line)
-                    
-                    # Update log stats
-                    self.data["log_stats"]["total_lines"] = len(lines)
-                    self.data["log_stats"]["info_count"] = info_count
-                    self.data["log_stats"]["debug_count"] = debug_count
-                    self.data["log_stats"]["warning_count"] = warning_count
-                    self.data["log_stats"]["error_count"] = error_count
-                    
-                    # STREAMLINED: Skip complex log parsing - use direct attribution instead
-                    if warnings_found or errors_found:
-                        if logger:
-                            logger.debug(f"Found {len(warnings_found)} warnings and {len(errors_found)} errors - using direct attribution", group="data_processing")
-                        
-                        # IMPORTANT: Do NOT re-parse log entries - this overwrites the detailed CVE-specific
-                        # categorization that was built up during real-time processing with direct attribution.
-                        # The real-time system is more accurate than post-processing log file parsing.
-                        
-                        # Just update the log stats counts without disturbing the detailed categorized data
-                        if logger:
-                            warnings_count = sum(len(entries) for entries in self.data['warnings'].values() if isinstance(entries, list))
-                            errors_count = sum(len(entries) for entries in self.data['errors'].values() if isinstance(entries, list))
-                            logger.debug(f"Preserving {warnings_count} warnings and {errors_count} errors from real-time attribution", group="data_processing")
-                    
-        except Exception as e:
-            if logger:
-                logger.debug(f"Failed to update log statistics: {e}", group="data_processing")
 
     # ========================================================================
     # DATASET GENERATION TRACKING (Streamlined)
@@ -1352,6 +1295,8 @@ class UnifiedDashboardCollector:
             with open(temp_file_path, 'w', encoding='utf-8') as f:
                 json.dump(initial_data, f, indent=2, ensure_ascii=False)
             os.replace(temp_file_path, self.output_file_path)
+            
+            self.data.update(initial_data)
             
             if logger:
                 logger.info("Generate Dataset Report initialized: /logs/generateDatasetReport.json", group="INIT")
@@ -1676,7 +1621,7 @@ class UnifiedDashboardCollector:
                     dataset_run_dir = json_file.parent.parent  # logs/generateDatasetReport.json -> run_dir
                     
                     # Generate the HTML report silently (verbose=False)
-                    generate_dataset_report(dataset_run_dir, verbose=False)
+                    generate_dataset_report(dataset_run_dir)
                     
                 except Exception as html_error:
                     if logger:
@@ -1710,9 +1655,12 @@ def clear_dataset_contents_collector():
     global _dataset_contents_collector
     _dataset_contents_collector = None
 
-def initialize_dataset_contents_report(logs_directory: str) -> bool:
+def initialize_dataset_contents_report(logs_directory: str, source_uuid: str = None) -> bool:
     """Initialize the dataset contents report file for incremental updates."""
     collector = get_dataset_contents_collector()
+    # Store source UUID in metadata if provided
+    if source_uuid:
+        collector.consolidated_metadata['source_uuid'] = source_uuid
     return collector.initialize_output_file(logs_directory)
 
 def start_collection_phase(phase_name: str, data_source: str = "nvd_api"):
