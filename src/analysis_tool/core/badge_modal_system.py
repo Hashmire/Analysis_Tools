@@ -2554,6 +2554,9 @@ def create_supporting_information_badge(table_index: int, row: Dict, platform_me
             for field_name, modifications in curation_tracking.items():
                 display_name = field_name.replace('_', ' ').title()
                 for mod in modifications:
+                    # Skip malformed modifications without required keys
+                    if 'original' not in mod or 'curated' not in mod:
+                        continue
                     all_transformations.append({
                         "category": "Field Curation",
                         "field": display_name,

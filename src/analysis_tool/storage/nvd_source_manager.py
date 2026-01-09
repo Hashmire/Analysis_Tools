@@ -645,6 +645,10 @@ def get_or_refresh_source_manager(api_key: str, log_group: str = "CACHE_MANAGEME
         logger.info(f"Fetching fresh NVD source data from API...", group=log_group)
         source_data = gatherNVDSourceData(api_key)
         source_manager.initialize(source_data)
+        
+        # Write refreshed data to cache and update metadata
+        logger.info(f"Updating cache with fresh source data...", group=log_group)
+        source_manager.create_localized_cache(cache_file.parent)
     else:
         # Use validated cache data
         sources_df = pd.DataFrame(cache_data['source_data'])

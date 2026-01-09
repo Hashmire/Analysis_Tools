@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 """
-NVD-ish Collector Comprehensive Test Suite
+NVD-ish Collector Core Test Suite
 
-Consolidated test suite covering all NVD-ish collector functionality:
+Test suite covering core NVD-ish collector functionality:
 - Core dual-source validation (NVD 2.0 + CVE List V5)
-- Source Data Concerns integration
-- Basic detection group validation
-- Enhanced record structure and caching
+- Cache structure and organization
+- Source alias resolution
+- Complex merge scenarios
+- Enhanced record structure
+
+This suite focuses on fundamental collector behavior. Other features have
+dedicated test suites:
+- test_sdc_integration.py: Source Data Concerns detection and integration
+- test_confirmed_mappings.py: Confirmed CPE mapping functionality
+- test_cpe_suggestions.py: CPE suggestions workflow and components
+- test_cpe_culling.py: CPE quality control and filtering
+- test_alias_extraction.py: Alias extraction and placeholder filtering
 
 Test Pattern Compliance:
 All test cases follow the proper NVD-ish collector test pattern:
@@ -38,7 +47,7 @@ NVD-ish Collector Test Implementation Pattern:
 Outputs standardized test results: TEST_RESULTS: PASSED=X TOTAL=Y SUITE="Name"
 
 Usage:
-    python test_suites/nvd-ish_collector/test_nvd_ish_collector_comprehensive.py
+    python test_suites/nvd-ish_collector/test_nvd_ish_collector.py
 """
 
 import sys
@@ -61,12 +70,11 @@ TEST_FILES_DIR = Path(__file__).parent
 CACHE_DIR = PROJECT_ROOT / "cache"
 
 class NVDishCollectorTestSuite:
-    """Comprehensive test suite for NVD-ish collector functionality."""
+    """Core NVD-ish collector test suite - fundamental functionality only."""
     
     def __init__(self):
         self.passed = 0
-        # Update total test count to include placeholder filtering integration test
-        self.total = 23
+        self.total = 6  # Core functionality tests only (others moved to focused suites)
         self.test_cves = [
             # Core functionality tests (use test 1337 files)
             "CVE-1337-0001",  # Dual-source success
@@ -1104,171 +1112,7 @@ class NVDishCollectorTestSuite:
             print(f"❌ FAIL: Error validating enhanced CPE mapping data: {e}")
             return False
     
-    def test_confirmed_mappings_integration(self) -> bool:
-        """Test confirmed mappings integration using CVE-1337-2001 with exact testorg.json matches."""
-        print(f"\n=== Test 13: Confirmed Mappings Integration ===")
-        
-        print(f"  ✓ Using CVE-1337-2001 with test_cve_1337_2001_mappings_active.json for definitive validation")
-        
-        # SETUP: Copy test files to INPUT cache (following established pattern)
-        test_files = []
-        try:
-            # Create cache directory structure for CVE-1337-2001 (year 1337, subdir 2xxx)
-            cve_list_cache_dir = CACHE_DIR / "cve_list_v5" / "1337" / "2xxx"
-            nvd_cache_dir = CACHE_DIR / "nvd_2.0_cves" / "1337" / "2xxx"
-            
-            cve_list_cache_dir.mkdir(parents=True, exist_ok=True)
-            nvd_cache_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Copy CVE List V5 test file to INPUT cache
-            cve_list_source = TEST_FILES_DIR / "CVE-1337-2001-cve-list-v5.json"
-            cve_list_target = cve_list_cache_dir / "CVE-1337-2001.json"
-            if cve_list_target.exists():
-                cve_list_target.unlink()
-            shutil.copy2(cve_list_source, cve_list_target)
-            test_files.append(str(cve_list_target))
-            
-            # Copy NVD 2.0 test file to INPUT cache  
-            nvd_source = TEST_FILES_DIR / "CVE-1337-2001-nvd-2.0.json"
-            nvd_target = nvd_cache_dir / "CVE-1337-2001.json"
-            if nvd_target.exists():
-                nvd_target.unlink()
-            shutil.copy2(nvd_source, nvd_target)
-            test_files.append(str(nvd_target))
-            
-            print(f"  ✓ Setup complete: Copied test files to INPUT cache")
-            
-        except Exception as e:
-            print(f"❌ FAIL: Setup failed: {e}")
-            return False
-        
-        # EXECUTE: Run normal tool execution (not test-file mode) with confirmed mapping parameters
-        # Note: Confirmed mappings are triggered by --cpe-suggestions parameter
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001", additional_args=["--sdc-report", "--cpe-suggestions", "--alias-report", "--cpe-as-generator"])
-        
-        # TEARDOWN: Clean up INPUT cache files 
-        try:
-            for test_file in test_files:
-                if os.path.exists(test_file):
-                    os.unlink(test_file)
-            print(f"  ✓ Cleanup complete: Removed {len(test_files)} INPUT cache files")
-        except Exception as e:
-            print(f"⚠️  WARNING: Cleanup failed: {e}")
-        
-        if not success:
-            print(f"❌ FAIL: Analysis tool failed")
-            print(f"STDERR: {stderr}")
-            return False
-        
-        # VALIDATE: Check OUTPUT cache for enhanced record with EXACT confirmed mappings
-        try:
-            with open(output_path, 'r') as f:
-                data = json.load(f)
-            
-            # Validate enhanced record structure (dual-source requirement)
-            if "enrichedCVEv5Affected" not in data:
-                print(f"❌ FAIL: Missing enrichedCVEv5Affected in enhanced record")
-                return False
-            
-            cve_list_entries = data.get("enrichedCVEv5Affected", {}).get("cveListV5AffectedEntries", [])
-            if not cve_list_entries:
-                print(f"❌ FAIL: No CVE List V5 entries in enhanced record")
-                return False
-            
-            # EXACT expected results based on testorg.json mappings and CVE-1337-2001 affected entries
-            expected_confirmed_mappings = {
-                4: ["cpe:2.3:a:testvendor:testproduct:*:*:*:*:*:*:*:*"]  # Entry 4: testvendor/testproduct
-            }
-            
-            validated_entries = 0
-            total_confirmed_mappings = 0
-            
-            # Validate each expected entry has exact confirmed mappings
-            for entry_index, expected_mappings in expected_confirmed_mappings.items():
-                if len(cve_list_entries) <= entry_index:
-                    print(f"❌ FAIL: Expected at least {entry_index + 1} CVE entries, found {len(cve_list_entries)}")
-                    return False
-                    
-                target_entry = cve_list_entries[entry_index]
-                cpe_suggestions = target_entry.get("cpeSuggestions", {})
-                
-                if not cpe_suggestions:
-                    print(f"❌ FAIL: Entry {entry_index} missing cpeSuggestions")
-                    return False
-                
-                if 'confirmedMappings' not in cpe_suggestions:
-                    print(f"❌ FAIL: Entry {entry_index} missing confirmedMappings array")
-                    return False
-                    
-                confirmed_mappings = cpe_suggestions['confirmedMappings']
-                
-                # Validate structure
-                if not isinstance(confirmed_mappings, list):
-                    print(f"❌ FAIL: Entry {entry_index} confirmedMappings should be array, got {type(confirmed_mappings)}")
-                    return False
-                
-                # Validate exact expected confirmed mappings are present
-                if len(confirmed_mappings) != len(expected_mappings):
-                    print(f"❌ FAIL: Entry {entry_index} expected {len(expected_mappings)} confirmed mappings, got {len(confirmed_mappings)}")
-                    print(f"  Expected: {expected_mappings}")
-                    print(f"  Actual: {confirmed_mappings}")
-                    return False
-                
-                # Validate each expected mapping is present
-                for expected_mapping in expected_mappings:
-                    if expected_mapping not in confirmed_mappings:
-                        print(f"❌ FAIL: Entry {entry_index} missing expected mapping: {expected_mapping}")
-                        print(f"  Found mappings: {confirmed_mappings}")
-                        return False
-                    
-                    # Validate CPE format
-                    if not expected_mapping.startswith('cpe:2.3:'):
-                        print(f"❌ FAIL: Entry {entry_index} invalid CPE format: {expected_mapping}")
-                        return False
-                
-                # Validate metadata structure
-                if 'sourceId' not in cpe_suggestions:
-                    print(f"❌ FAIL: Entry {entry_index} missing sourceId in cpeSuggestions")
-                    return False
-                
-                if 'cvelistv5AffectedEntryIndex' not in cpe_suggestions:
-                    print(f"❌ FAIL: Entry {entry_index} missing cvelistv5AffectedEntryIndex")
-                    return False
-                
-                validated_entries += 1
-                total_confirmed_mappings += len(confirmed_mappings)
-                print(f"  ✓ Entry {entry_index}: Validated {len(confirmed_mappings)} confirmed mappings")
-                for mapping in confirmed_mappings:
-                    print(f"    - {mapping}")
-            
-            # Validate that other entries do NOT have confirmed mappings (they shouldn't match testorg.json)
-            for i, entry in enumerate(cve_list_entries):
-                if i not in expected_confirmed_mappings:
-                    cpe_suggestions = entry.get("cpeSuggestions", {})
-                    if cpe_suggestions and 'confirmedMappings' in cpe_suggestions:
-                        confirmed_mappings = cpe_suggestions['confirmedMappings']
-                        if confirmed_mappings:  # Should be empty for non-matching entries
-                            print(f"❌ FAIL: Entry {i} has unexpected confirmed mappings: {confirmed_mappings}")
-                            return False
-            
-            if validated_entries == len(expected_confirmed_mappings):
-                print(f"✅ PASS: Confirmed mappings integration validated successfully")
-                print(f"  ✓ Enhanced record created with dual-source data")  
-                print(f"  ✓ Found exact expected confirmed mappings in {validated_entries} entries")
-                print(f"  ✓ Total confirmed mappings validated: {total_confirmed_mappings}")
-                print(f"  ✓ All mappings are valid CPE 2.3 strings from testorg.json")
-                print(f"  ✓ Metadata structure follows established pattern")
-                print(f"  ✓ Non-matching entries correctly have empty confirmed mappings")
-                return True
-            else:
-                print(f"❌ FAIL: Validated {validated_entries} entries, expected {len(expected_confirmed_mappings)}")
-                return False
-            
-        except Exception as e:
-            print(f"❌ FAIL: Error validating confirmed mappings: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
+    # NOTE: Test 13 (test_confirmed_mappings_integration) extracted to test_confirmed_mappings.py (isolated execution)
     
     def test_cpe_match_strings_searched_validation(self) -> bool:
         """Test CPE match strings searched structure and validation."""
@@ -2517,189 +2361,7 @@ class NVDishCollectorTestSuite:
             traceback.print_exc()
             return False
 
-    def test_confirmed_mappings_placeholder_filtering_integration(self) -> bool:
-        """Test confirmed mappings placeholder filtering with full tool execution integration."""
-        print(f"\n=== Test 22: Confirmed Mappings Placeholder Filtering Integration ===")
-        
-        # This test validates that placeholder filtering works correctly:
-        # - Entries with placeholder vendor/product should NOT get confirmed mappings
-        # - Entries with valid vendor/product should get confirmed mappings when available
-        
-        # SETUP: Copy test files to INPUT cache (following established pattern)
-        test_files = []
-        try:
-            # Create cache directory structure for CVE-1337-3002 (year 1337, subdir 3xxx)
-            cve_list_cache_dir = CACHE_DIR / "cve_list_v5" / "1337" / "3xxx"
-            nvd_cache_dir = CACHE_DIR / "nvd_2.0_cves" / "1337" / "3xxx"
-            
-            cve_list_cache_dir.mkdir(parents=True, exist_ok=True)
-            nvd_cache_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Copy CVE List V5 test file with placeholder data to INPUT cache
-            cve_list_source = TEST_FILES_DIR / "CVE-1337-3002-cve-list-v5.json"
-            cve_list_target = cve_list_cache_dir / "CVE-1337-3002.json"
-            if cve_list_target.exists():
-                cve_list_target.unlink()
-            shutil.copy2(cve_list_source, cve_list_target)
-            test_files.append(str(cve_list_target))
-            
-            # Create minimal NVD 2.0 data for dual-source requirement
-            nvd_data = {
-                "resultsPerPage": 1,
-                "startIndex": 0,
-                "totalResults": 1,
-                "format": "NVD_CVE", 
-                "version": "2.0",
-                "timestamp": "2025-11-14T00:00:00.000Z",
-                "vulnerabilities": [{
-                    "cve": {
-                        "id": "CVE-1337-3002",
-                        "sourceIdentifier": "testorg@example.com",
-                        "published": "2001-01-01T00:00:00.000",
-                        "lastModified": "2001-01-01T00:00:00.000", 
-                        "vulnStatus": "Analyzed",
-                        "descriptions": [{
-                            "lang": "en",
-                            "value": "Test CVE for confirmed mappings placeholder filtering validation."
-                        }],
-                        "configurations": []
-                    }
-                }]
-            }
-            
-            nvd_target = nvd_cache_dir / "CVE-1337-3002.json"
-            if nvd_target.exists():
-                nvd_target.unlink()
-            with open(nvd_target, 'w', encoding='utf-8') as f:
-                json.dump(nvd_data, f, indent=2)
-            test_files.append(str(nvd_target))
-            
-            # Note: The confirmed mappings file (testorg.json) was already copied during
-            # setup_test_environment(), so the confirmed mapping manager has already loaded it
-            
-            print(f"  * Setup complete: Copied test files with placeholder data to INPUT cache")
-            
-        except Exception as e:
-            print(f"FAIL: Setup failed: {e}")
-            return False
-        
-        # EXECUTE: Run normal tool execution with confirmed mappings parameters
-        # Note: Confirmed mappings work based on orgId in CVE providerMetadata
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-3002", 
-                                                                     additional_args=["--sdc-report", "--cpe-suggestions", "--alias-report", "--cpe-as-generator"])
-        
-        # TEARDOWN: Clean up INPUT cache files 
-        try:
-            for test_file in test_files:
-                if os.path.exists(test_file):
-                    os.unlink(test_file)
-            print(f"  * Cleanup complete: Removed {len(test_files)} INPUT cache files")
-        except Exception as e:
-            print(f"  WARNING: Cleanup failed: {e}")
-        
-        # VALIDATE: Check both tool execution and placeholder filtering behavior
-        if not success:
-            print(f"FAIL: Tool execution failed")
-            print(f"STDERR: {stderr}")
-            return False
-        
-        # Validation 1: Tool execution completed successfully
-        print(f"  * Tool execution completed successfully")
-        
-        # Validation 2: Confirmed mappings processing occurred 
-        if "confirmed mappings" not in stdout.lower():
-            print(f"FAIL: No confirmed mappings processing detected in tool output")
-            return False
-        print(f"  * Confirmed mappings processing executed")
-        
-        # Validation 3: Parameter matrix compliance
-        parameter_checks = [
-            ("--cpe-suggestions", "cpe suggestions"),
-            ("--sdc-report", "source data concerns"),
-            ("--alias-report", "alias report"),
-            ("--cpe-as-generator", "cpe-as generator")
-        ]
-        
-        for param, indicator in parameter_checks:
-            if indicator not in stdout.lower() and param.replace("--", "") not in stdout.lower():
-                print(f"FAIL: Parameter {param} may not have executed (missing indicator: {indicator})")
-                return False
-        print(f"  * All tool parameters executed correctly")
-        
-        # Validation 4: Check NVD-ish record for proper placeholder filtering behavior
-        if not output_path or not os.path.exists(output_path):
-            print(f"FAIL: No NVD-ish output file found")
-            return False
-        
-        try:
-            with open(output_path, 'r', encoding='utf-8') as f:
-                nvd_ish_data = json.load(f)
-            
-            # Check enhanced record structure
-            if "enrichedCVEv5Affected" not in nvd_ish_data:
-                print(f"FAIL: Missing enrichedCVEv5Affected in enhanced record")
-                return False
-            
-            cve_list_entries = nvd_ish_data["enrichedCVEv5Affected"].get("cveListV5AffectedEntries", [])
-            if len(cve_list_entries) != 4:
-                print(f"FAIL: Expected 4 affected entries, found {len(cve_list_entries)}")
-                return False
-            
-            # Expected behavior based on CVE-1337-3002 data and placeholder filtering:
-            # Entry 0: n/a/testproduct - vendor is placeholder → NO confirmed mapping
-            # Entry 1: testvendor/unknown - product is placeholder → NO confirmed mapping  
-            # Entry 2: validvendor/validproduct - both valid → should have confirmed mapping
-            # Entry 3: placeholdervendor/placeholderproduct - no mapping available → NO confirmed mapping
-            
-            valid_mappings_found = 0
-            placeholder_mappings_found = 0
-            
-            for i, entry in enumerate(cve_list_entries):
-                origin_entry = entry.get("originAffectedEntry", {})
-                vendor = origin_entry.get("vendor", "")
-                product = origin_entry.get("product", "")
-                
-                cpe_suggestions = entry.get("cpeSuggestions", {})
-                confirmed_mappings = cpe_suggestions.get("confirmedMappings", [])
-                
-                if i == 0:  # n/a/testproduct - placeholder vendor
-                    if len(confirmed_mappings) > 0:
-                        print(f"FAIL: Entry 0 (n/a/testproduct) should have no mappings due to placeholder vendor, found {len(confirmed_mappings)}")
-                        return False
-                elif i == 1:  # testvendor/unknown - placeholder product  
-                    if len(confirmed_mappings) > 0:
-                        print(f"FAIL: Entry 1 (testvendor/unknown) should have no mappings due to placeholder product, found {len(confirmed_mappings)}")
-                        return False
-                elif i == 2:  # validvendor/validproduct - both valid, should match mapping
-                    if len(confirmed_mappings) == 1:
-                        expected_mapping = "cpe:2.3:a:validvendor:validproduct:*:*:*:*:*:*:*:*"
-                        if confirmed_mappings[0] == expected_mapping:
-                            valid_mappings_found += 1
-                            print(f"  * Entry 2 correctly has confirmed mapping: {confirmed_mappings[0]}")
-                        else:
-                            print(f"FAIL: Entry 2 mapping mismatch. Expected: {expected_mapping}, Found: {confirmed_mappings[0]}")
-                            return False
-                    else:
-                        print(f"FAIL: Entry 2 (validvendor/validproduct) expected 1 confirmed mapping, found {len(confirmed_mappings)}")
-                        return False
-                elif i == 3:  # placeholdervendor/placeholderproduct - no mapping available
-                    if len(confirmed_mappings) > 0:
-                        print(f"FAIL: Entry 3 (placeholdervendor/placeholderproduct) should have no mappings (no mapping file entry), found {len(confirmed_mappings)}")
-                        return False
-            
-            # Final validation
-            if valid_mappings_found == 1 and placeholder_mappings_found == 0:
-                print(f"PASS: Confirmed mappings placeholder filtering integration test passed")
-                print(f"  * Placeholder filtering working: valid entries got mappings, placeholder entries filtered out")
-                return True
-            else:
-                print(f"FAIL: Expected 1 valid mapping and 0 placeholder mappings, found {valid_mappings_found} valid and {placeholder_mappings_found} placeholder")
-                return False
-                
-        except Exception as e:
-            print(f"FAIL: NVD-ish output validation failed: {e}")
-            return False
-
+    # NOTE: Test 22 (test_confirmed_mappings_placeholder_filtering_integration) extracted to test_confirmed_mappings.py (isolated execution)
 
     def test_platform_cpe_base_string_enumeration(self) -> bool:
         """Test comprehensive platform mapping and CPE base string cross-product generation."""
@@ -2985,7 +2647,13 @@ class NVDishCollectorTestSuite:
         copied_files = self.setup_test_environment()
         
         try:
-            # Core Functionality Tests
+            # Core Functionality Tests Only
+            # NOTE: Other tests moved to focused suites:
+            # - test_sdc_integration.py (4 tests)
+            # - test_confirmed_mappings.py (2 tests)
+            # - test_cpe_suggestions.py (7 tests)
+            # - test_cpe_culling.py (2 tests)
+            # - test_alias_extraction.py (2 tests)
             tests = [
                 ("Dual-Source Success", self.test_dual_source_success),
                 ("Single-Source Fail-Fast", self.test_single_source_fail_fast),
@@ -2993,28 +2661,6 @@ class NVDishCollectorTestSuite:
                 ("Source Alias Resolution", self.test_source_alias_resolution),
                 ("Complex Merge Scenarios", self.test_complex_merge_scenarios),
                 ("Enhanced Record Structure", self.test_enhanced_record_structure),
-                # SDC Integration Tests
-                ("SDC Basic Integration", self.test_sdc_basic_integration),
-                ("SDC Registry Parameter Passing", self.test_sdc_registry_passing),
-                ("SDC Metadata Placement", self.test_sdc_metadata_placement),
-                ("SDC Detection Sample", self.test_sdc_detection_sample),
-                # CPE Integration Tests
-                ("CPE Suggestions Timestamp Tracking", self.test_cpe_suggestions_timestamp_tracking),
-                ("Enhanced CPE Mapping Data Extraction", self.test_enhanced_cpe_mapping_data_extraction),
-                # CPE Suggestions Specific Cases
-                ("Confirmed Mappings Integration", self.test_confirmed_mappings_integration),
-                ("CPE Match Strings Searched Validation", self.test_cpe_match_strings_searched_validation),
-                ("Culled CPE Strings - Specificity Issues", self.test_culled_cpe_specificity),
-                ("Culled CPE Strings - NVD API Issues", self.test_culled_cpe_nvd_api),
-                ("Platform Registry → NVD-ish Record Data Flow", self.test_platform_registry_to_nvd_ish_data_flow),
-                ("CPE Suggestions Complete Workflow", self.test_cpe_suggestions_complete_workflow),
-                ("Top 10 CPE Suggestions Validation", self.test_top10_cpe_suggestions_validation),  # FLAKY: depends on external CPE cache data
-                # Alias Extraction Integration Tests
-                ("Alias Extraction Integration", self.test_alias_extraction_integration),
-                ("Alias Extraction Placeholder Filtering", self.test_alias_extraction_placeholder_filtering),
-                ("Confirmed Mappings Placeholder Filtering Integration", self.test_confirmed_mappings_placeholder_filtering_integration),
-                # Platform Mapping CPE Enumeration Test
-                ("Platform CPE Base String Enumeration", self.test_platform_cpe_base_string_enumeration),
             ]
             
             for test_name, test_func in tests:
@@ -3030,12 +2676,12 @@ class NVDishCollectorTestSuite:
             
             success = self.passed == self.total
             if success:
-                print("SUCCESS: All NVD-ish collector tests passed!")
+                print("SUCCESS: All core NVD-ish collector tests passed!")
             else:
-                print("FAIL: Some NVD-ish collector tests failed")
+                print("FAIL: Some core NVD-ish collector tests failed")
             
             # Output standardized test results
-            print(f'TEST_RESULTS: PASSED={self.passed} TOTAL={self.total} SUITE="NVD-ish Collector Comprehensive"')
+            print(f'TEST_RESULTS: PASSED={self.passed} TOTAL={self.total} SUITE="NVD-ish Collector (Core)"')
             
             return success
             

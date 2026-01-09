@@ -327,7 +327,7 @@ def update_harvest_index_incremental(run_directory: Path, harvest_stats: Dict, c
                 },
                 'summary': {
                     'total_sources': harvest_stats.get('total_sources', 0),
-                    'successful': 0,
+                    'completed': 0,
                     'failed': 0,
                     'skipped': 0,
                     'interrupted': 0,
@@ -348,6 +348,11 @@ def update_harvest_index_incremental(run_directory: Path, harvest_stats: Dict, c
                 if dataset.get('uuid') == source_uuid:
                     dataset['status'] = 'in_progress'
                     dataset['details'] = 'Currently processing'
+                    # Ensure CVE fields exist for template rendering
+                    if 'processed_cves' not in dataset:
+                        dataset['processed_cves'] = 0
+                    if 'total_cves' not in dataset:
+                        dataset['total_cves'] = 0
                     found = True
                     break
             
@@ -356,7 +361,12 @@ def update_harvest_index_incremental(run_directory: Path, harvest_stats: Dict, c
                     'source': source_name,
                     'uuid': source_uuid,
                     'status': 'in_progress',
-                    'details': 'Currently processing'
+                    'details': 'Currently processing',
+                    'processed_cves': 0,  # Default for in-progress sources
+                    'total_cves': 0,       # Default for in-progress sources
+                    'warnings': 0,
+                    'errors': 0,
+                    'runtime': 'In Progress'
                 })
             
             data['datasets'] = datasets
@@ -415,7 +425,7 @@ def update_harvest_index_incremental(run_directory: Path, harvest_stats: Dict, c
             
             # Recalculate summary statistics
             summary = data['summary']
-            summary['successful'] = sum(1 for d in datasets if d.get('status') == 'completed')
+            summary['completed'] = sum(1 for d in datasets if d.get('status') == 'completed')
             summary['failed'] = sum(1 for d in datasets if d.get('status') == 'failed')
             summary['skipped'] = sum(1 for d in datasets if d.get('status') == 'skipped')
             summary['interrupted'] = sum(1 for d in datasets if d.get('status') == 'interrupted')

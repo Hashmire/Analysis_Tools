@@ -253,6 +253,12 @@ The system generates CPE base strings organized by specificity level, from least
 
 Each CPE undergoes multiple transformation stages:
 
+- **`formatFor23CPE()`**: Transforms raw attribute strings to CPE 2.3 compliant format:
+  - Normalizes Unicode to ASCII via `normalizeToASCII()`
+  - Strips leading/trailing whitespace
+  - **Removes structural characters (`*` and `:`) BEFORE escaping** to prevent malformed CPE construction
+  - Applies CPE 2.3 escape rules (spaces to underscores, special character escaping)
+  - Converts to lowercase
 - **`breakoutCPEAttributes()`**: Parses CPE strings into component dictionary with validation for malformed entries
 - **`constructSearchString()`**: Converts components to "baseQuery" format with wildcarded product fields (`*product*`) for broader NVD matching
 - **`curateCPEAttributes()`**: Applies vendor/product normalization including vendor prefix removal, version pattern cleaning, and suffix trimming
@@ -285,9 +291,9 @@ Each CPE undergoes multiple transformation stages:
 
 **platform Curation (`curateCPEAttributes('platform')`)**:
 
-- **Architecture Mapping**: `"x86_64"` → `"x64"`, `"32-bit"` → `"x86"`
-- **ARM Variants**: `"arm64"` → `"arm64"`, `"arm"` → `"arm"`
-- **Returns Success Flag**: `(mapped_value, True)` or `(original_value, False)`
+- **Target Software Mapping**: `"ios"` → `"iphone_os"`, `"mac os"` → `"macos"`, etc.
+- **Target Hardware Mapping**: `"x86_64"` → `"x64"`, `"32-bit"` → `"x86"`, `"aarch64"` → `"arm64"`
+- **Returns Tuple**: `(targetSW, targetHW, was_mapped)` where either SW or HW can be None if not applicable
 
 **packageName Processing (Colon-Delimited)**:
 
@@ -303,8 +309,13 @@ Each generated CPE undergoes comprehensive validation before inclusion:
 - ✅ Must start with `cpe:2.3:` prefix
 - ✅ Must have exactly 13 colon-separated components
 - ✅ No non-ASCII characters in any field
-- ✅ Vendor/product fields under 100 characters
-- ✅ No complex escaped comma patterns in long fields
+- ✅ Vendor/product fields must be 88 characters or less
+- ✅ No trailing underscores (indicates uncleaned whitespace)
+- ✅ No internal asterisks in vendor/product (only boundary wildcards allowed)
+- ✅ No escaped structural characters (`\:` or `\*`) in vendor/product fields
+- ✅ No `\:` pattern in raw CPE string (indicates malformed escaping)
+- ✅ No complex escaped comma patterns in long fields (>50 chars)
+- ✅ Total CPE string length must be 375 characters or less
 - ❌ **Culled** if any check fails with reason logged
 
 **Specificity Validation (`validate_cpe_specificity()`)**:

@@ -9,15 +9,34 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1 id="dashboard-title">Generate Dataset Report</h1>
-            <div id="dashboard-subtitle" style="font-size: 1.2em; margin-top: 5px; opacity: 0.9;">
-                <p>
-                    Dataset generation analytics and monitoring
-                </p>
-            </div>
+            <h1>Individual Generate Dataset Report</h1>
+            <p id="organization-name">Loading...</p>
+            <p id="tool-version">Hashmire/Analysis_Tools 0.3.0</p>
         </div>
 
 <div class="dashboard-content">
+            <!-- Session Metadata -->
+            <div class="progress-section" style="background: white; padding: 20px 25px 10px 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; padding-bottom: 10px;">
+                    <div>
+                        <div style="font-size: 0.75em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">Organization</div>
+                        <div style="font-size: 0.95em; font-weight: 600; color: #2c3e50;" id="metadata-organization">--</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">Run ID</div>
+                        <div style="font-size: 0.95em; font-weight: 600; color: #2c3e50;" id="metadata-run-id">--</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">Duration</div>
+                        <div style="font-size: 0.95em; font-weight: 600; color: #2c3e50;" id="metadata-duration">--</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">Status</div>
+                        <div style="font-size: 0.95em; font-weight: 600; color: #2c3e50;" id="metadata-status">--</div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Overall Progress -->
             <div class="progress-section">
                 <div class="progress-header">
@@ -185,34 +204,88 @@
         function updatePageTitles(data) {
             try {
                 const metadata = data.metadata || {};
-                const toolname = metadata.toolname || 'Hashmire/Analysis_Tools';
-                const version = metadata.version || '0.2.0';
+                
+                // Check if metadata exists and has required fields
+                const hasToolname = metadata.toolname !== undefined && metadata.toolname !== null;
+                const hasVersion = metadata.version !== undefined && metadata.version !== null;
+                const configLoaded = metadata.config_loaded !== false;
+                
+                // Use metadata values or ERROR indicators (fail-fast, presentation layer degradation)
+                const toolname = metadata.toolname || '[ERROR: Toolname Not Loaded]';
+                const version = metadata.version || '[ERROR: Version Not Loaded]';
+                
+                // Organization name should be populated by backend - no extraction fallback needed
+                const organizationName = metadata.organization_name || '[ERROR: Organization Not Loaded]';
                 
                 // Update page title
-                const pageTitle = version ? `${toolname} v${version} - Generate Dataset Dashboard` : `${toolname} - Generate Dataset Dashboard`;
-                document.title = pageTitle;
+                document.title = `${organizationName} - Individual Generate Dataset Report`;
                 
-                // Update header title (toolname with v prefix for version)
-                const headerTitle = version ? `${toolname} v${version}` : toolname;
-                document.getElementById('dashboard-title').textContent = headerTitle;
+                // Update header sections
+                const orgElement = document.getElementById('organization-name');
+                if (orgElement) {
+                    orgElement.textContent = `${organizationName} Source Processing Summary`;
+                }
                 
-                console.log('Config loaded from metadata:', { toolname, version, headerTitle });
+                const versionElement = document.getElementById('tool-version');
+                if (versionElement) {
+                    // Add visual indicator if using fallback values
+                    if (!hasToolname || !hasVersion || !configLoaded) {
+                        versionElement.textContent = `${toolname} ${version} (using defaults)`;
+                        versionElement.style.opacity = '0.7';
+                        versionElement.title = 'Config not loaded from metadata - using default values';
+                        
+                        // Log detailed warning about missing config
+                        console.warn('CONFIG FALLBACK ACTIVE:', {
+                            reason: !configLoaded ? 'config_loaded flag is false' : 'missing config fields in metadata',
+                            hasToolname: hasToolname,
+                            hasVersion: hasVersion,
+                            configLoaded: configLoaded,
+                            configError: metadata.config_error || 'none',
+                            usingFallback: { toolname, version }
+                        });
+                    } else {
+                        versionElement.textContent = `${toolname} ${version}`;
+                        versionElement.style.opacity = '1';
+                        versionElement.title = '';
+                        console.log('Config loaded from metadata:', { toolname, version, organizationName });
+                    }
+                }
                 
             } catch (error) {
-                console.error('Could not load config from metadata:', error);
-                // Fallback values using proper config values
-                const toolname = 'Hashmire/Analysis_Tools';
-                const version = '0.2.0';
-                const headerTitle = `${toolname} v${version}`;
-                const pageTitle = `${headerTitle} - Generate Dataset Dashboard`;
+                console.error('ERROR loading config from metadata:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    stack: error.stack
+                });
                 
-                document.title = pageTitle;
-                document.getElementById('dashboard-title').textContent = headerTitle;
+                const toolname = '[ERROR: Toolname Not Loaded]';
+                const version = '[ERROR: Version Not Loaded]';
+                const organizationName = '[ERROR: Organization Not Loaded]';
                 
-                console.warn('Using fallback values:', { headerTitle });
+                document.title = `${organizationName} - Individual Generate Dataset Report`;
+                
+                const orgElement = document.getElementById('organization-name');
+                if (orgElement) {
+                    orgElement.textContent = `${organizationName} Source Processing Summary`;
+                }
+                
+                const versionElement = document.getElementById('tool-version');
+                if (versionElement) {
+                    versionElement.textContent = `${toolname} ${version} (ERROR - using defaults)`;
+                    versionElement.style.color = '#e74c3c';
+                    versionElement.style.opacity = '0.8';
+                    versionElement.title = `Config loading failed: ${error.message}`;
+                }
+                
+                console.warn('FALLBACK VALUES IN USE DUE TO ERROR:', { 
+                    toolname, 
+                    version, 
+                    organizationName,
+                    error: error.message 
+                });
             }
         }
-
+        
         function handleFileSelect(event) {
             const files = event.target.files || event.dataTransfer?.files;
             const file = files?.[0];
@@ -492,7 +565,6 @@
                 'Debug Messages ⓘ': 'Number of debug-level log messages for troubleshooting',
                 'Warning Messages ⓘ': 'Number of warning messages indicating potential issues',
                 'Error Messages ⓘ': 'Number of error messages indicating processing failures',
-                'Log File Size ⓘ': 'Size of the log file on disk',
                 
                 // Error Summary Section
                 'Total Errors ⓘ': 'Total number of errors encountered during the processing run',
@@ -547,6 +619,56 @@
                 }
             });
         }
+        
+        // Populate metadata section
+        function populateMetadata(data) {
+            const metadata = data.metadata || {};
+            const processing = data.processing || {};
+            const performance = data.performance || {};
+            
+            // Organization name should be provided by backend
+            const organizationName = metadata.organization_name || '[ERROR: Organization Not Loaded]';
+            document.getElementById('metadata-organization').textContent = organizationName;
+            
+            // Extract run ID (use parent directory name pattern)
+            let runId = metadata.run_id || 'Unknown';
+            if (!metadata.run_id && metadata.run_started_at) {
+                // Try to construct from timestamp
+                const startDate = new Date(metadata.run_started_at);
+                runId = `${startDate.toISOString().split('T')[0]}_run`;
+            }
+            document.getElementById('metadata-run-id').textContent = runId;
+            
+            // Calculate duration
+            let duration = '--';
+            if (metadata.run_started_at && metadata.run_completed_at) {
+                const startTime = new Date(metadata.run_started_at);
+                const endTime = new Date(metadata.run_completed_at);
+                const durationMs = endTime - startTime;
+                duration = formatDuration(durationMs / 1000);
+            }
+            document.getElementById('metadata-duration').textContent = duration;
+            
+            // Status
+            const status = metadata.status || 'unknown';
+            const statusFormatted = status.charAt(0).toUpperCase() + status.slice(1);
+            document.getElementById('metadata-status').textContent = statusFormatted;
+        }
+        
+        // Format duration in human readable format
+        function formatDuration(seconds) {
+            if (seconds < 60) {
+                return `${seconds.toFixed(1)}s`;
+            } else if (seconds < 3600) {
+                const minutes = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${minutes}m ${secs}s`;
+            } else {
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                return `${hours}h ${minutes}m`;
+            }
+        }
 
         function populateDashboard(data) {
             const processing = data.processing || {};
@@ -561,6 +683,9 @@
             const speed_stats = data.speed_stats || {};
             const bloat_analysis = data.bloat_analysis || {};
             const cache_refresh = data.cache_refresh || {};
+            
+            // Populate metadata section first
+            populateMetadata(data);
 
             // Detect workflow phase
             const workflowPhase = data.metadata?.workflow_phase || 'dataset_generation';
@@ -616,12 +741,12 @@
                 document.getElementById('progress-fill').style.width = progressPercent;
             }
 
-            // Metric cards - Updated to match legacy format
-            document.getElementById('wall-clock-time').textContent = formatTime(performance.wall_clock_time || performance.total_runtime || 0);
+            // Metric cards
+            document.getElementById('wall-clock-time').textContent = formatTime(performance.wall_clock_time || 0);
             
             // Calculate overhead time if we have both wall clock and active processing time
-            const wallClockTime = performance.wall_clock_time || performance.total_runtime || 0;
-            const activeTime = performance.active_processing_time || performance.total_time || 0;
+            const wallClockTime = performance.wall_clock_time || 0;
+            const activeTime = performance.active_processing_time || 0;
             const overheadTime = wallClockTime > activeTime ? wallClockTime - activeTime : 0;
             document.getElementById('overhead-time').textContent = formatTime(overheadTime);
             
@@ -632,14 +757,7 @@
             document.getElementById('mapping-percentage').textContent = formatNumber(mapping_stats.mapping_percentage || 0, 1) + '%';
             document.getElementById('total-mappings').textContent = formatNumber(mapping_stats.total_mappings_found || 0);
             
-            document.getElementById('files-generated').textContent = formatNumber(processing.files_generated || file_stats.files_generated || data.summary?.files_generated || 0);
-            
-            // Calculate total file size from detailed_files to avoid double counting
-            let calculatedTotalSize = 0;
-            if (file_stats.detailed_files && Array.isArray(file_stats.detailed_files)) {
-                calculatedTotalSize = file_stats.detailed_files.reduce((sum, file) => sum + (file.file_size || 0), 0);
-            }
-            document.getElementById('total-file-size').textContent = formatFileSize(calculatedTotalSize || file_stats.total_file_size || 0);
+            document.getElementById('files-generated').textContent = formatNumber(file_stats.files_generated || 0);
             
             document.getElementById('processing-rate').textContent = formatNumber(performance.processing_rate || 0, 1);
             document.getElementById('avg-time-per-cve').textContent = formatNumber(performance.average_time || 0, 2);
@@ -692,10 +810,10 @@
             const processing = data.processing || {};
             
             // Main runtime stats in summary format
-            const wallClockTime = performance.wall_clock_time || performance.total_runtime || 0;
-            const activeTime = performance.active_processing_time || performance.total_time || 0;
+            const wallClockTime = performance.wall_clock_time || 0;
+            const activeTime = performance.active_processing_time || 0;
             const overheadTime = wallClockTime > activeTime ? wallClockTime - activeTime : 0;
-            const processedCves = performance.count || processing.processed_cves || 0;
+            const processedCves = processing.processed_cves || 0;
             const remainingCves = processing.remaining_cves || 0;
             const etaValue = processing.eta_simple || (remainingCves > 0 ? 'Calculating...' : 'Completed');
 
@@ -722,7 +840,7 @@
                                 <div class="icon">🌐</div>
                                 <div class="service-name">CVEs Processed</div>
                                 <div class="call-count">${formatNumber(processedCves)} CVEs</div>
-                                <div class="description">Successfully completed</div>
+                                <div class="description">Completed</div>
                             </div>
                         </div>
 
@@ -825,7 +943,7 @@
             // Expired entries don't save API calls since they require refresh
             const apiCallsSaved = cacheHits;
             
-            const cacheFileSize = cache.cache_file_size_formatted || formatFileSize(cache.cache_file_size || 0);
+            const cacheFileSize = formatFileSize(cache.cache_file_size || 0);
             
             let html = `
                 <div class="api-summary">
@@ -987,10 +1105,6 @@
                     <div class="detail-item">
                         <div class="detail-label">Error Messages ⓘ</div>
                         <div class="detail-value">${formatNumber(totalErrors)}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Log File Size ⓘ</div>
-                        <div class="detail-value">${formatFileSize(data.metadata?.file_size || 0)}</div>
                     </div>
                 </div>
             `;
@@ -1659,12 +1773,10 @@
             const top_queries = cpe_stats.top_queries || [];
             const top_cves = cpe_stats.top_cves_by_searches || [];
             const top_result_queries = cpe_stats.top_queries_by_results || [];
-            const query_details = cpe_stats.query_details || {};
             
             // Calculate additional metrics for the service items
             const avgResultsPerQuery = cpe_stats.total_queries > 0 ? 
                 (cpe_stats.total_results || 0) / cpe_stats.total_queries : 0;
-            const maxResultsInQuery = cpe_stats.max_results_in_single_query || 0;
             
             let html = `
                 <div class="api-summary">
@@ -1806,164 +1918,22 @@
         function populateFileSection(data) {
             const file_stats = data.file_stats || {};
             
-            // Check if section is tracked
-            if (file_stats.tracked === false) {
-                const note = file_stats.note || "File generation is disabled";
-                document.getElementById('file-section').innerHTML = `
-                    <div style="padding: 15px; text-align: center; color: #6c757d; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #95a5a6;">
-                        <small>📄 <strong>File Generation:</strong> ${note}</small>
-                    </div>
-                `;
-                return;
-            }
-            
-            const detailed_files = file_stats.detailed_files || [];
-            
-            // Sort files by file size in descending order and limit to top 20
-            const sortedFiles = [...detailed_files]
-                .sort((a, b) => (b.file_size || 0) - (a.file_size || 0))
-                .slice(0, 20); // Ensure we never show more than 20 files
-            
+            // Simplified file stats - only tracking file count now
             let html = `
                 <div class="api-summary">
                     <div class="detail-grid">
                         <div class="detail-item">
-                            <div class="detail-label">Total Files Generated ⓘ</div>
+                            <div class="detail-label">Files Generated ⓘ</div>
                             <div class="detail-value total-calls">${formatNumber(file_stats.files_generated || 0)}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Total File Size ⓘ</div>
-                            <div class="detail-value success-rate">${formatFileSize(file_stats.total_file_size || 0)}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Median File Size ⓘ</div>
-                            <div class="detail-value failed-calls">${formatFileSize(file_stats.median_file_size || file_stats.average_file_size || 0)}</div>
-                        </div>
-                    </div>
-                    
-                    <div class="detail-grid">
-                        <div class="api-service-item">
-                            <div class="api-service-content">
-                                <div class="icon">📊</div>
-                                <div class="service-name">Smallest File Size</div>
-                                <div class="call-count">${formatFileSize(file_stats.smallest_file_size || 0)}</div>
-                                <div class="description">Minimum generated file</div>
-                            </div>
-                        </div>
-
-                        <div class="api-service-item">
-                            <div class="api-service-content">
-                                <div class="icon">📈</div>
-                                <div class="service-name">Largest File Size</div>
-                                <div class="call-count">${formatFileSize(file_stats.largest_file_size || 0)}</div>
-                                <div class="description">Maximum generated file</div>
-                            </div>
-                        </div>
-
-                        <div class="api-service-item">
-                            <div class="api-service-content">
-                                <div class="icon">📁</div>
-                                <div class="service-name">Files Generated</div>
-                                <div class="call-count">${formatNumber(file_stats.files_generated || 0)} files</div>
-                                <div class="description">Total output count</div>
-                            </div>
                         </div>
                     </div>
                 </div>
                 
-                <h4 style="margin: 20px 0 15px 0; color: #2c3e50;">📁 Top 20 Generated Files by Size</h4>
+                <div style="background: white; border-radius: 8px; padding: 20px; text-align: center; color: #6c757d; margin-top: 20px;">
+                    <div style="font-size: 1.2em; margin-bottom: 10px;"></div>
+                    <div>File statistics tracking simplified - detailed file metrics removed for performance</div>
+                </div>
             `;
-
-            if (sortedFiles.length > 0) {
-                html += `
-                    <div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <thead style="background: #16a085; color: white;">
-                                <tr>
-                                    <th style="padding: 12px 15px; text-align: left; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">Rank</th>
-                                    <th style="padding: 12px 15px; text-align: left; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">CVE ID</th>
-                                    <th style="padding: 12px 15px; text-align: center; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">File Size</th>
-                                    <th style="padding: 12px 15px; text-align: center; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">Platform Entries</th>
-                                    <th style="padding: 12px 15px; text-align: center; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">Processing Time</th>
-                                    <th style="padding: 12px 15px; text-align: left; font-weight: 600; font-size: 0.9em; border-bottom: 2px solid #1abc9c;">Bloat Analysis</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                `;
-
-                sortedFiles.forEach((file, index) => {
-                    const rank = index + 1;
-                    const cveId = file.cve_id || 'Unknown';
-                    const fileSize = formatFileSize(file.file_size || 0);
-                    const platformEntries = file.dataframe_rows || 0;
-                    const processingTime = formatTime(file.processing_time || 0);
-                    const rowStyle = index % 2 === 0 ? 'background: #f8f9fa;' : 'background: #dfdfdf;';
-                    
-                    // Create CVE link using universal function
-                    const cveLink = createCveIdElement(cveId === 'Unknown' ? 'unknown' : cveId);
-                    
-                    // Use bloat analysis data if available
-                    const bloatAnalysis = file.bloat_analysis || {};
-                    const bloatSources = bloatAnalysis.top_5_sources || [];
-                    
-                    html += `
-                        <tr style="${rowStyle} border-bottom: 1px solid #dee2e6;">
-                            <td style="padding: 12px; font-weight: bold; color: #2c3e50;">📋 #${rank}</td>
-                            <td style="padding: 12px;">
-                                ${cveLink}
-                            </td>
-                            <td style="padding: 12px; text-align: center; font-weight: bold; color: #16a085;">${fileSize}</td>
-                            <td style="padding: 12px; text-align: center;">${formatNumber(platformEntries)}</td>
-                            <td style="padding: 12px; text-align: center; color: #e67e22;">${processingTime}</td>
-                            <td style="padding: 12px;">
-                                <div style="width: 100%; max-width: 600px;">
-                                    ${bloatSources.length > 0 ? `
-                                        <details style="cursor: pointer;">
-                                            <summary style="font-weight: 600; font-size: 0.95em; color: #2c3e50; padding: 10px 12px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6; transition: all 0.2s ease; list-style: none; display: flex; align-items: center; justify-content: space-between;">
-                                                <span>🔍 Top ${bloatSources.length} Bloat Sources</span>
-                                                <span style="font-size: 0.8em; color: #6c757d;">${bloatSources.length} identified</span>
-                                            </summary>
-                                            <div style="background: #f8f9fa; border-radius: 6px; padding: 12px; border: 1px solid #dee2e6; margin-top: 6px;">
-                                                ${bloatSources.map((source, idx) => `
-                                                    <div style="display: flex; align-items: center; margin: 3px 0; padding: 8px; background: #fff; border-radius: 4px; border-left: 4px solid #6c757d; font-size: 0.9em;">
-                                                        <div style="min-width: 24px; font-weight: bold; color: #495057; margin-right: 12px;">${idx + 1}.</div>
-                                                        <div style="flex: 1; display: flex; justify-content: space-between; align-items: center;">
-                                                            <div style="display: flex; align-items: center; gap: 8px;">
-                                                                <span style="font-weight: 600; color: #2c3e50;">${source.size}</span>
-                                                                <span style="color: #6c757d;">(${source.percentage}%)</span>
-                                                            </div>
-                                                            <span style="background: #6c757d; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.8em; font-weight: 500;">
-                                                                ${source.description}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                `).join('')}
-                                            </div>
-                                        </details>
-                                    ` : `
-                                        <div style="padding: 10px 12px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6; color: #6c757d; text-align: center;">
-                                            📊 No bloat analysis available
-                                        </div>
-                                    `}
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                });
-
-                html += `
-                            </tbody>
-                        </table>
-                    </div>
-                `;
-            } else {
-                html += `
-                    <div style="background: white; border-radius: 8px; padding: 20px; text-align: center; color: #6c757d;">
-                        <div style="font-size: 1.2em; margin-bottom: 10px;">📂</div>
-                        <div>No detailed file information available</div>
-                    </div>
-                `;
-            }
 
             document.getElementById('file-section').innerHTML = html;
         }

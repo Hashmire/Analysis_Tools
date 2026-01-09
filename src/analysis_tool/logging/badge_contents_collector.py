@@ -105,7 +105,7 @@ class BadgeContentsCollector:
         # Frequency control for intelligent save operations (aligned with dataset collector)
         self._save_counter = 0
         self._last_save_time = datetime.now(timezone.utc)
-        self._save_interval_seconds = 5  # Save every 5 seconds at most
+        self._save_interval_seconds = 30  # Save every 30 seconds at most
         self._save_every_n_operations = 100  # Or every 100 operations
     
     def configure_alias_reporting(self, logs_directory: str, source_uuid: str) -> None:

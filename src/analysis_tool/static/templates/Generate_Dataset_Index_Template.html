@@ -50,8 +50,8 @@
                 <!-- Source Processing Stats -->
                 <div id="source-stats" style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; text-align: center;">
                     <div>
-                        <div style="font-size: 1.8em; font-weight: 700; color: #27ae60;" id="stat-successful">0</div>
-                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Successful</div>
+                        <div style="font-size: 1.8em; font-weight: 700; color: #27ae60;" id="stat-completed">0</div>
+                        <div style="font-size: 0.8em; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;">Completed</div>
                     </div>
                     <div>
                         <div style="font-size: 1.8em; font-weight: 700; color: #e74c3c;" id="stat-failed">0</div>
@@ -118,32 +118,50 @@
 
             // Summary Statistics
             const totalSources = data.summary?.total_sources || 0;
-            const successful = data.summary?.successful || 0;
+            const completed = data.summary?.completed || 0;
             const failed = data.summary?.failed || 0;
             const skipped = data.summary?.skipped || 0;
             const totalCves = data.summary?.total_cves_processed || 0;
             
             document.getElementById('stat-total-sources').textContent = totalSources;
-            document.getElementById('stat-successful').textContent = successful;
+            document.getElementById('stat-completed').textContent = completed;
             document.getElementById('stat-failed').textContent = failed;
             document.getElementById('stat-skipped').textContent = skipped;
 
             // Calculate and update progress bar
-            const processedSources = successful + failed + skipped + (data.summary?.interrupted || 0);
+            const processedSources = completed + failed + skipped + (data.summary?.interrupted || 0);
             const progressPercent = totalSources > 0 ? Math.round((processedSources / totalSources) * 100) : 0;
             
             document.getElementById('progress-percent').textContent = `${progressPercent}%`;
             document.getElementById('progress-fill').style.width = `${progressPercent}%`;
 
-            // Split datasets into completed (successful/completed) and issues (exclude completed statuses and not_processed)
+            // Split datasets into completed (completed/in_progress) and issues (failed/skipped/interrupted/unknown - exclude not_processed)
             const allDatasets = data.datasets || [];
-            const completedRuns = allDatasets.filter(d => d.status === 'successful' || d.status === 'completed');
-            const issuesSources = allDatasets.filter(d => d.status !== 'successful' && d.status !== 'completed' && d.status !== 'not_processed');
             
-            // Dataset Runs Table (successful only)
+            // In-progress and completed runs go to the main Dataset Runs table
+            const completedRuns = allDatasets.filter(d => 
+                d.status === 'completed' || 
+                d.status === 'in_progress'
+            );
+            
+            // Sort so in_progress comes first, then by source name
+            completedRuns.sort((a, b) => {
+                if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
+                if (a.status !== 'in_progress' && b.status === 'in_progress') return 1;
+                return (a.source || '').localeCompare(b.source || '');
+            });
+            
+            // Issues: failed, skipped, interrupted, unknown (NOT not_processed, in_progress, or completed)
+            const issuesSources = allDatasets.filter(d => 
+                d.status !== 'completed' && 
+                d.status !== 'in_progress' && 
+                d.status !== 'not_processed'
+            );
+            
+            // Dataset Runs Table (completed/in_progress - in_progress items shown first)
             renderDatasetRuns(completedRuns);
             
-            // Source Issues Table (failed/skipped/interrupted/in_progress/unknown - NOT not_processed)
+            // Source Issues Table (failed/skipped/interrupted/unknown - NOT not_processed or in_progress)
             renderSourceTable(issuesSources);
         }
 
@@ -172,7 +190,13 @@
             `;
 
             runs.forEach(run => {
-                const statusClass = (run.status === 'successful' || run.status === 'completed') ? 'status-success' : 'status-badge';
+                // Status badge styling
+                let statusClass = 'status-badge';
+                if (run.status === 'completed') {
+                    statusClass = 'status-success';
+                } else if (run.status === 'in_progress') {
+                    statusClass = 'status-in-progress';
+                }
                 
                 // Combine total and processed CVEs into X/Y format
                 const processed = run.processed_cves || 0;
@@ -186,7 +210,7 @@
                 // Dataset reports are in the same reports/ directory as this index: ./<dataset_name>_report.html
                 const reportPath = run.report_filename ? run.report_filename : null;
                 const reportLink = reportPath ? 
-                    `<a href="${reportPath}" class="report-link" title="View detailed dataset report">View Report</a>` : 
+                    `<a href="${reportPath}" class="report-link" title="View detailed dataset report" target="_blank">View Report</a>` : 
                     '<span style="color: #95a5a6;">N/A</span>';
                 
                 tableHTML += `
@@ -263,7 +287,6 @@
 
         function getStatusClass(status) {
             const statusMap = {
-                'successful': 'status-success',
                 'completed': 'status-success',
                 'failed': 'status-failed',
                 'skipped': 'status-skipped',

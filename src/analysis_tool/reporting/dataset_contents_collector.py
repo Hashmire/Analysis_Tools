@@ -47,31 +47,18 @@ class UnifiedDashboardCollector:
         self.api_call_history: List[Dict] = []
         self.current_phase: Optional[Dict] = None
         
-        # Initialize missing attributes for tracking
-        self.collection_phases: List[Dict] = []
-        self.output_files: List[Dict] = []
-        
+        # Core metadata - identity and timestamps only
+        # Calculated stats belong in their respective sections (api, processing, etc.)
         self.consolidated_metadata = {
-            'generated_by': 'unified_dashboard_collector',
-            'generation_time': datetime.now(timezone.utc).isoformat(),
-            'data_source': 'nvd_api',
-            'total_api_calls': 0,
-            'total_cves_collected': 0,
-            'unique_cves_count': 0,
             'run_started_at': datetime.now(timezone.utc).isoformat()
-        }
-        self.dataset_statistics = {
-            'cve_distribution': {
-                'by_year': {},
-                'by_status': {},
-                'by_source': {}
-            }
+            # run_id, organization_name, source_uuid added during initialization
+            # toolname, version, config_loaded added by _inject_config_data()
         }
         
         # Performance optimization: Reduce auto-save frequency to minimize file locking
         self._save_counter = 0
         self._last_save_time = datetime.now(timezone.utc)
-        self._save_interval_seconds = 5  # Save every 5 seconds at most
+        self._save_interval_seconds = 30  # Save every 30 seconds at most
         self._save_every_n_operations = 100  # Or every 100 operations (increased from 50)
         
         # Initialize temporary tracking dictionaries
@@ -177,38 +164,25 @@ class UnifiedDashboardCollector:
         """Initialize the unified dashboard data structure"""
         return {
             "metadata": {
-                "generated_by": "unified_dashboard_collector",
-                "generation_time": datetime.now(timezone.utc).isoformat(),
-                "log_file": "unified_collection",
-                "last_updated": datetime.now(timezone.utc).isoformat(),
-                "file_size": 0,
                 "run_started_at": datetime.now(timezone.utc).isoformat(),
-                "data_source": "nvd_api",
-                "workflow_phase": "dataset_generation"
+                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "status": "in_progress"
+                # run_id, organization_name, source_uuid, toolname, version added during initialization
             },
             "processing": {
                 "total_cves": 0,
                 "processed_cves": 0,
-                "current_cve": None,
-                "start_time": None,
-                "end_time": None,
                 "progress_percentage": 0.0,
-                "eta": None,
                 "remaining_cves": 0,
-                "log_start_time": None,
-                "log_end_time": None,
-                "mapping_success_rate": 0.0,
-                "avg_processing_speed": 0.0,
                 "eta_simple": None,
                 "files_generated": 0
             },
             "performance": {
                 "average_time": 0.0,
                 "processing_rate": 0.0,
-                "total_runtime": 0.0,
                 "wall_clock_time": 0.0,
-                "total_time": 0.0,
-                "count": 0,
+                "total_runtime": 0.0,
+                "overhead_time": 0.0,
                 "min_time": None,
                 "max_time": 0.0,
                 "active_processing_time": 0.0
@@ -221,7 +195,6 @@ class UnifiedDashboardCollector:
                 "hit_rate": 0.0,
                 "api_calls_saved": 0,
                 "cache_file_size": 0,
-                "cache_file_size_formatted": "0 KB",
                 "total_requests": 0
             },
             "api": {
@@ -236,9 +209,7 @@ class UnifiedDashboardCollector:
             "log_stats": {
                 "total_lines": 0,
                 "info_count": 0,
-                "debug_count": 0,
-                "warning_count": 0,
-                "error_count": 0
+                "debug_count": 0
             },
             "warnings": {
                 "api_warnings": [],
@@ -257,15 +228,7 @@ class UnifiedDashboardCollector:
                 "other_errors": []
             },
             "file_stats": {
-                "files_generated": 0,
-                "largest_file_size": 0,
-                "smallest_file_size": None,
-                "largest_file_name": "",
-                "smallest_file_name": "",
-                "total_file_size": 0,
-                "median_file_size": 0.0,
-                "file_sizes": [],  # Store individual file sizes for median calculation
-                "detailed_files": []
+                "files_generated": 0
             },
             "speed_stats": {
                 "fastest_cve_time": None,
@@ -286,22 +249,11 @@ class UnifiedDashboardCollector:
             "cpe_query_stats": {
                 "total_queries": 0,
                 "unique_base_strings": 0,
-                "avg_results_per_query": 0.0,
-                "max_results_single_query": 0,
                 "total_results": 0,
+                "max_results_single_query": 0,
                 "top_queries": [],
                 "top_cves_by_searches": [],
-                "top_queries_by_results": [],
-                "query_details": {}  # {base_string: {"count": X, "total_results": Y, "cves": [...]}}
-            },
-            "bloat_analysis": {
-                "enabled": True,
-                "files_analyzed": 0,
-                "total_bloat_potential": 0.0,
-                "average_severity": 0.0,
-                "detailed_reports_generated": [],
-                "total_bloat_size": 0.0,
-                "average_bloat_percentage": 0.0
+                "top_queries_by_results": []
             },
             "cache_refresh": {
                 "target_cve_count": 0,
@@ -325,7 +277,6 @@ class UnifiedDashboardCollector:
             self.processing_start_time = datetime.now(timezone.utc)
             self.data["processing"]["total_cves"] = total_cves
             self.data["processing"]["remaining_cves"] = total_cves
-            self.data["processing"]["start_time"] = self.processing_start_time.isoformat()
             self.data["metadata"]["run_started_at"] = self.processing_start_time.isoformat()
             
             # Reset counters for new run
@@ -339,7 +290,6 @@ class UnifiedDashboardCollector:
     def start_cve_processing(self, cve_id: str):
         """Start processing a specific CVE"""
         try:
-            self.data["processing"]["current_cve"] = cve_id
             self.current_processing_cve = cve_id  # Set the current processing CVE for log entry attribution
             self.current_cve_start_time = datetime.now(timezone.utc)
             
@@ -380,10 +330,9 @@ class UnifiedDashboardCollector:
                 # Only update performance stats for actually processed CVEs (not rejected/skipped)
                 # Rejected CVEs would skew timing statistics since they exit immediately
                 if not skipped:
-                    self.data["performance"]["count"] += 1
-                    self.data["performance"]["total_time"] += processing_time
-                    self.data["performance"]["active_processing_time"] = self.data["performance"]["total_time"]
-                    self.data["performance"]["average_time"] = self.data["performance"]["total_time"] / self.data["performance"]["count"]
+                    processed_count = self.data["processing"]["processed_cves"]
+                    self.data["performance"]["active_processing_time"] += processing_time
+                    self.data["performance"]["average_time"] = self.data["performance"]["active_processing_time"] / max(1, processed_count)
                     
                     # Track min/max
                     if self.data["performance"]["min_time"] is None or processing_time < self.data["performance"]["min_time"]:
@@ -434,8 +383,8 @@ class UnifiedDashboardCollector:
                 self._update_eta()
                 
                 # Calculate processing rate (CVEs per second, converted to CVEs per hour)
-                if self.data["performance"]["total_time"] > 0:
-                    rate_per_second = processed / self.data["performance"]["total_time"]
+                if self.data["performance"]["wall_clock_time"] > 0:
+                    rate_per_second = processed / self.data["performance"]["wall_clock_time"]
                     self.data["performance"]["processing_rate"] = rate_per_second * 3600  # Convert to per hour
             
             self.current_cve_start_time = None
@@ -478,7 +427,6 @@ class UnifiedDashboardCollector:
         try:
             self.data["cache_refresh"]["target_cve_count"] = target_cve_count
             self.data["cache_refresh"]["in_progress"] = True
-            self.data["metadata"]["workflow_phase"] = "cache_refresh"
             
             if logger:
                 logger.info(f"Cache refresh started with target CVE count: {target_cve_count}", group="cache")
@@ -551,7 +499,6 @@ class UnifiedDashboardCollector:
         """Mark cache refresh stage as complete and transition to dataset generation."""
         try:
             self.data["cache_refresh"]["in_progress"] = False
-            self.data["metadata"]["workflow_phase"] = "dataset_generation"
             
             if logger:
                 logger.info("Cache refresh completed", group="cache")
@@ -598,9 +545,6 @@ class UnifiedDashboardCollector:
             self.data["warnings"][category] = []
             
         self.data["warnings"][category].append(warning_entry)
-        
-        # Increment in-memory counter
-        self.data["log_stats"]["warning_count"] += 1
         
 
     def record_cve_error(self, message: str, category: str = "processing_errors"):
@@ -701,14 +645,6 @@ class UnifiedDashboardCollector:
             # Update cache file size if provided (separate from entry count)
             if cache_size > 0:
                 self.data["cache"]["cache_file_size"] = cache_size
-                
-                # Format file size
-                if cache_size < 1024:
-                    self.data["cache"]["cache_file_size_formatted"] = f"{cache_size} B"
-                elif cache_size < 1024 * 1024:
-                    self.data["cache"]["cache_file_size_formatted"] = f"{cache_size / 1024:.1f} KB"
-                else:
-                    self.data["cache"]["cache_file_size_formatted"] = f"{cache_size / (1024 * 1024):.1f} MB"
             
             # Calculate hit rate (only true hits count toward hit rate)
             total_requests = self.data["cache"]["total_requests"]
@@ -784,16 +720,6 @@ class UnifiedDashboardCollector:
             file_size_bytes = os.path.getsize(cache_file_path)
             
             self.data["cache"]["cache_file_size"] = file_size_bytes
-            
-            # Format file size for display
-            if file_size_bytes < 1024:
-                self.data["cache"]["cache_file_size_formatted"] = f"{file_size_bytes} B"
-            elif file_size_bytes < 1024 * 1024:
-                self.data["cache"]["cache_file_size_formatted"] = f"{file_size_bytes / 1024:.1f} KB"
-            elif file_size_bytes < 1024 * 1024 * 1024:
-                self.data["cache"]["cache_file_size_formatted"] = f"{file_size_bytes / (1024 * 1024):.1f} MB"
-            else:
-                self.data["cache"]["cache_file_size_formatted"] = f"{file_size_bytes / (1024 * 1024 * 1024):.1f} GB"
                 
         except Exception as e:
             if logger:
@@ -812,8 +738,8 @@ class UnifiedDashboardCollector:
                 # Track largest mapping count
                 if mappings_found > self.data["mapping_stats"]["largest_mapping_count"]:
                     self.data["mapping_stats"]["largest_mapping_count"] = mappings_found
-                    if self.data["processing"]["current_cve"]:
-                        self.data["mapping_stats"]["largest_mapping_cve"] = self.data["processing"]["current_cve"]
+                    if hasattr(self, 'current_processing_cve') and self.current_processing_cve:
+                        self.data["mapping_stats"]["largest_mapping_cve"] = self.current_processing_cve
             
             # Calculate mapping percentage
             total_entries = self.data["mapping_stats"]["total_platform_entries_processed"]
@@ -978,59 +904,11 @@ class UnifiedDashboardCollector:
     def _update_cpe_top_lists(self):
         """Update the top CPE queries and CVE lists for dashboard display"""
         try:
-            # Use temporary tracking if available (new approach), otherwise fall back to query_details
+            # Use temporary tracking system 
             if hasattr(self, '_temp_query_tracking') and self._temp_query_tracking:
                 self._update_cpe_top_lists_from_temp()
-                return
-                
-            # Legacy data structure support
-            query_details = self.data["cpe_query_stats"]["query_details"]
-            
-            # Query details should already be serializable (using lists not sets)
-            # Generate top queries by result count
-            top_queries_by_results = []
-            for base_string, details in query_details.items():
-                top_queries_by_results.append({
-                    "base_string": base_string,
-                    "total_results": details["total_results"],
-                    "query_count": details["count"]
-                })
-            
-            # Sort by total results descending
-            top_queries_by_results.sort(key=lambda x: x["total_results"], reverse=True)
-            self.data["cpe_query_stats"]["top_queries_by_results"] = top_queries_by_results[:20]
-            
-            # Generate top CVEs by search count (only if CVE data exists)
-            cve_search_counts = {}
-            for base_string, details in query_details.items():
-                if "cves" in details:  # Check if CVE data exists
-                    for cve_id in details["cves"]:
-                        if cve_id not in cve_search_counts:
-                            cve_search_counts[cve_id] = {"search_count": 0, "total_results": 0}
-                        cve_search_counts[cve_id]["search_count"] += 1
-                        cve_search_counts[cve_id]["total_results"] += details["total_results"]
-            
-            top_cves_by_searches = []
-            for cve_id, data in cve_search_counts.items():
-                top_cves_by_searches.append({
-                    "cve_id": cve_id,
-                    "search_count": data["search_count"],
-                    "total_results": data["total_results"]
-                })
-            
-            # Sort by search count descending
-            top_cves_by_searches.sort(key=lambda x: x["search_count"], reverse=True)
-            self.data["cpe_query_stats"]["top_cves_by_searches"] = top_cves_by_searches[:20]
-            
-            # Also update the top_queries format
-            top_queries = []
-            for base_string, details in query_details.items():
-                top_queries.append({
-                    "base_string": base_string,
-                    "query_count": details["count"]
-                })
-            top_queries.sort(key=lambda x: x["query_count"], reverse=True)
-            self.data["cpe_query_stats"]["top_queries"] = top_queries[:20]
+            else:
+                logger.debug("No temporary query tracking available for CPE top lists", group="data_processing")
             
         except Exception as e:
             logger.error(f"Failed to update CPE top lists: {e}", group="data_processing")
@@ -1098,29 +976,6 @@ class UnifiedDashboardCollector:
     # =============================================================================
     # Helper Methods
     # =============================================================================
-
-    # ========================================================================
-    # DATASET GENERATION TRACKING (Streamlined)
-    # ========================================================================
-    
-    def start_collection_phase(self, phase_name: str):
-        """Start a new collection phase for dataset generation"""
-        try:
-            phase = {
-                'name': phase_name,
-                'start_time': datetime.now(timezone.utc).isoformat(),
-                'cves_processed': 0,
-                'progress': 0.0
-            }
-            self.collection_phases.append(phase)
-            self.current_phase = phase
-            
-            if logger:
-                logger.debug(f"Started collection phase: {phase_name}", group="data_processing")
-                
-        except Exception as e:
-            if logger:
-                logger.debug(f"Failed to start collection phase: {e}", group="data_processing")
 
     def _categorize_warning(self, message):
         """Categorize warning messages into appropriate sub-categories"""
@@ -1259,7 +1114,26 @@ class UnifiedDashboardCollector:
             self.data["processing"]["files_generated"] = self.data["file_stats"]["files_generated"]
             
             # Always use the unified data structure for real-time updates
-            self.save_to_file(self.output_file_path)
+            json_path = self.save_to_file(self.output_file_path)
+            
+            # Generate HTML report incrementally for real-time dashboard updates
+            # This ensures viewers see current progress, not stale data
+            if json_path:
+                try:
+                    from .generate_dataset_report import generate_dataset_report
+                    
+                    # Get the dataset run directory (parent of logs directory)
+                    json_file = Path(json_path)
+                    dataset_run_dir = json_file.parent.parent  # logs/generateDatasetReport.json -> run_dir
+                    
+                    # Generate the HTML report silently (no verbose logging for incremental updates)
+                    generate_dataset_report(dataset_run_dir)
+                    
+                except Exception as html_error:
+                    # Don't fail the auto-save if HTML generation fails
+                    # HTML will be regenerated on next auto-save or at finalization
+                    if logger:
+                        logger.debug(f"Incremental HTML generation skipped: {html_error}", group="data_processing")
             
         except Exception as e:
             if logger:
@@ -1282,12 +1156,9 @@ class UnifiedDashboardCollector:
             initial_data = {
                 'metadata': {
                     **self.consolidated_metadata,
-                    'report_scope': 'Dataset Generation Metrics and Statistics',
-                    'status': 'in_progress'
-                },
-                'collection_phases': [],
-                'dataset_statistics': self.dataset_statistics,
-                'output_files': []
+                    'status': 'in_progress',
+                    'last_updated': datetime.now(timezone.utc).isoformat()
+                }
             }
             
             # Use atomic write for initial file creation
@@ -1315,9 +1186,7 @@ class UnifiedDashboardCollector:
     def start_collection_phase(self, phase_name: str, data_source: str = "nvd_api"):
         """Start a new collection phase for dataset generation"""
         try:
-            # Update metadata with phase information
-            self.data["metadata"]["workflow_phase"] = phase_name
-            self.data["metadata"]["data_source"] = data_source
+            # Update last_updated timestamp only
             self.data["metadata"]["last_updated"] = datetime.now(timezone.utc).isoformat()
             
             # Create current phase tracking
@@ -1341,9 +1210,7 @@ class UnifiedDashboardCollector:
             if total_count > 0:
                 progress_pct = (current_count / total_count) * 100
                 self.data["processing"]["progress_percentage"] = round(progress_pct, 1)
-                self.data["processing"]["current_cve"] = f"Discovering CVEs: {matched_cves} found"
                 self.data["processing"]["eta_simple"] = f"Scanning {current_count}/{total_count} CVEs"
-                
                 
         except Exception as e:
             logger.error(f"Failed to update CVE discovery progress: {e}", group="collection")
@@ -1388,125 +1255,23 @@ class UnifiedDashboardCollector:
             if logger:
                 logger.error(f"Failed to record error: {e}", group="collection")
     
-    def update_cve_statistics(self, cve_data: Dict[str, Any]):
-        """
-        Update CVE distribution statistics.
-        
-        Args:
-            cve_data: CVE record data for statistical analysis
-        """
-        # Extract year from CVE ID (e.g., CVE-2024-12345 -> 2024)
-        cve_id = cve_data.get('cve_id', '')
-        if cve_id and cve_id.startswith('CVE-'):
-            year = cve_id.split('-')[1]
-            self.dataset_statistics['cve_distribution']['by_year'][year] = \
-                self.dataset_statistics['cve_distribution']['by_year'].get(year, 0) + 1
-        
-        # Update status distribution
-        status = cve_data.get('status', 'unknown')
-        self.dataset_statistics['cve_distribution']['by_status'][status] = \
-            self.dataset_statistics['cve_distribution']['by_status'].get(status, 0) + 1
-        
-        # Update source distribution
-        source = cve_data.get('source', 'unknown')
-        self.dataset_statistics['cve_distribution']['by_source'][source] = \
-            self.dataset_statistics['cve_distribution']['by_source'].get(source, 0) + 1
-    
-    def complete_collection_phase(self) -> bool:
-        """
-        Complete the current collection phase and save to file.
-        
-        Returns:
-            True if save successful, False otherwise
-        """
-        if not self.current_phase or not self.output_file_path:
-            return False
-        
-        # Mark phase as completed
-        self.current_phase['completed_at'] = datetime.now(timezone.utc).isoformat()
-        
-        # Add to phases list
-        self.collection_phases.append(self.current_phase)
-        self.current_phase = None
-        
-        return self._save_to_file()
-    
     def record_output_file(self, filename: str, file_path: str, cve_count: int, 
                           cve_id: str = None, dataframe_rows: int = None, 
                           processing_time: float = None, bloat_analysis: dict = None):
-        """Record information about a generated output file
+        """Record information about a generated output file - simplified to track only file count
         
         Args:
             filename: Name of the generated file
             file_path: Full path to the generated file
             cve_count: Number of CVEs in the file (1 for individual CVE files)
-            cve_id: Specific CVE ID for individual CVE files
-            dataframe_rows: Number of platform entries/dataframe rows processed
-            processing_time: Time spent processing this specific file
-            bloat_analysis: Detailed bloat analysis data
+            cve_id: Specific CVE ID for individual CVE files (unused)
+            dataframe_rows: Number of platform entries/dataframe rows processed (unused)
+            processing_time: Time spent processing this specific file (unused)
+            bloat_analysis: Detailed bloat analysis data (unused)
         """
         try:
-            # Get file size if file exists
-            file_size = 0
-            if os.path.exists(file_path):
-                file_size = os.path.getsize(file_path)
-            
-            output_record = {
-                'filename': filename,
-                'path': file_path,
-                'cve_count': cve_count,
-                'file_size': file_size,
-                'created_at': datetime.now(timezone.utc).isoformat()
-            }
-            
-            # Add enhanced fields for individual CVE files
-            if cve_id:
-                output_record['cve_id'] = cve_id
-            if dataframe_rows is not None:
-                output_record['dataframe_rows'] = dataframe_rows
-            if processing_time is not None:
-                output_record['processing_time'] = processing_time
-            if bloat_analysis:
-                output_record['bloat_analysis'] = bloat_analysis
-            
-            # Add to both new and old structures for compatibility
-            self.output_files.append(output_record)
-            self.data["file_stats"]["detailed_files"].append(output_record)
-            
-            # Keep only top 20 files by size to prevent bloat in large datasets
-            # Dashboard shows "Top 20 Files" table
-            if len(self.data["file_stats"]["detailed_files"]) > 20:
-                # Sort by file size descending and keep top 20
-                self.data["file_stats"]["detailed_files"].sort(key=lambda x: x.get('file_size', 0), reverse=True)
-                self.data["file_stats"]["detailed_files"] = self.data["file_stats"]["detailed_files"][:20]
-            
-            # Update size tracking
-            if file_size > self.data["file_stats"]["largest_file_size"]:
-                self.data["file_stats"]["largest_file_size"] = file_size
-                self.data["file_stats"]["largest_file_name"] = filename
-            
-            if (self.data["file_stats"]["smallest_file_size"] is None or 
-                file_size < self.data["file_stats"]["smallest_file_size"]):
-                self.data["file_stats"]["smallest_file_size"] = file_size
-                self.data["file_stats"]["smallest_file_name"] = filename
-            
-            # Store file size for median calculation
-            self.data["file_stats"]["file_sizes"].append(file_size)
-            
-            # Calculate median file size
-            files_count = self.data["file_stats"]["files_generated"]
-            if files_count > 0:
-                import statistics
-                self.data["file_stats"]["median_file_size"] = statistics.median(self.data["file_stats"]["file_sizes"])
-            
-            # Update consolidated metadata
-            self.consolidated_metadata['unique_cves_count'] = cve_count
-            
-            
-            # Update current phase if active
-            if self.current_phase:
-                self.current_phase["files_generated"] += 1
-            
+            # Increment files generated counter only
+            self.data["file_stats"]["files_generated"] += 1
             
         except Exception as e:
             if logger:
@@ -1517,15 +1282,20 @@ class UnifiedDashboardCollector:
         try:
             # Update metadata before saving
             self.data["metadata"]["last_updated"] = datetime.now(timezone.utc).isoformat()
-            self.data["metadata"]["file_size"] = len(json.dumps(self.data, indent=2))
-            
-            # Add log file info if available
-            if logger and hasattr(logger, 'current_log_path'):
-                self.data["metadata"]["log_file"] = logger.current_log_path
             
             # Atomic write: Write to temporary file first, then rename
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             temp_file_path = file_path + '.tmp'
+            
+            # Clean up any stale .tmp file from previous interrupted runs
+            if os.path.exists(temp_file_path):
+                try:
+                    os.remove(temp_file_path)
+                    if logger:
+                        logger.debug(f"Removed stale temporary file: {temp_file_path}", group="completion")
+                except Exception as cleanup_error:
+                    if logger:
+                        logger.warning(f"Could not remove stale temp file {temp_file_path}: {cleanup_error}", group="completion")
             
             # Write to temporary file
             with open(temp_file_path, 'w', encoding='utf-8') as f:
@@ -1540,14 +1310,13 @@ class UnifiedDashboardCollector:
             self.output_file_path = file_path
             
             if logger:
-                current_cve = self.data["processing"].get("current_cve", "None")
                 progress = self.data["processing"].get("progress_percentage", 0.0)
                 status = self.data["metadata"].get("status", "")
                 
                 # Skip logging for final "completed" saves to avoid duplicate messages
                 # Reduce logging frequency - only log dashboard saves at progress milestones (skip initialization at 0%)
                 if status != "completed" and progress > 0 and (progress % 10.0 < 0.1 or progress >= 100.0):  # Log every 10% and at completion
-                    logger.debug(f"Dashboard data saved: {file_path} (CVE: {current_cve}, Progress: {progress}%)", group="data_processing")
+                    logger.debug(f"Dashboard data saved: {file_path} (Progress: {progress}%)", group="data_processing")
             
             return file_path
             
@@ -1600,13 +1369,8 @@ class UnifiedDashboardCollector:
         try:
             # Update final metadata
             self.data["metadata"]["run_completed_at"] = datetime.now(timezone.utc).isoformat()
-            self.data["metadata"]["report_scope"] = "Dataset Generation Metrics and Statistics"
             self.data["metadata"]["status"] = "completed"
             self.data["metadata"]["last_updated"] = datetime.now(timezone.utc).isoformat()
-            
-            # Add log file path if available
-            if logger and hasattr(logger, 'current_log_path'):
-                self.data["metadata"]["log_file"] = logger.current_log_path
             
             # Use the standard save_to_file method to save the complete data structure
             json_path = self.save_to_file(self.output_file_path)
@@ -1655,13 +1419,96 @@ def clear_dataset_contents_collector():
     global _dataset_contents_collector
     _dataset_contents_collector = None
 
-def initialize_dataset_contents_report(logs_directory: str, source_uuid: str = None) -> bool:
-    """Initialize the dataset contents report file for incremental updates."""
+def initialize_dataset_contents_report(logs_directory: str, source_uuid: str = None, run_id: str = None) -> bool:
+    """Initialize the dataset contents report file for incremental updates.
+    
+    Args:
+        logs_directory: Path to logs directory
+        source_uuid: Optional source UUID for filtering
+        run_id: Optional run identifier (run directory name)
+    """
     collector = get_dataset_contents_collector()
+    
+    # Store run_id in metadata if provided
+    if run_id:
+        collector.consolidated_metadata['run_id'] = run_id
+        
     # Store source UUID in metadata if provided
     if source_uuid:
         collector.consolidated_metadata['source_uuid'] = source_uuid
-    return collector.initialize_output_file(logs_directory)
+        
+        # Resolve source UUID to organization name
+        try:
+            from ..storage.nvd_source_manager import get_source_name
+            organization_name = get_source_name(source_uuid)
+            if organization_name:
+                collector.consolidated_metadata['organization_name'] = organization_name
+            else:
+                if logger:
+                    logger.warning(f"Source name not found for UUID {source_uuid} - source manager may not be fully initialized", group="INIT")
+                collector.consolidated_metadata['organization_name'] = f"UUID_{source_uuid[:8]}"
+        except ImportError as e:
+            if logger:
+                logger.error(f"Failed to import source manager: {e} - organization name will not be resolved", group="INIT")
+            collector.consolidated_metadata['organization_name'] = f"UUID_{source_uuid[:8]}"
+        except RuntimeError as e:
+            if logger:
+                logger.warning(f"Source manager not initialized yet: {e} - organization name will be resolved during processing", group="INIT")
+            collector.consolidated_metadata['organization_name'] = f"UUID_{source_uuid[:8]}"
+    
+    # Initialize the output file
+    init_result = collector.initialize_output_file(logs_directory)
+    
+    # Update parent harvest index with dataset directory info for in_progress report linking
+    if init_result and source_uuid:
+        try:
+            # Determine if we're in a harvest context (parent_run_dir exists)
+            logs_path = Path(logs_directory)
+            dataset_run_dir = logs_path.parent  # logs/ -> run_dir/
+            parent_run_dir = dataset_run_dir.parent  # run_dir/ -> parent_harvest_dir/
+            
+            # Check if parent has a generate_dataset_index.json (indicates harvest context)
+            parent_index_path = parent_run_dir / "logs" / "generate_dataset_index.json"
+            if parent_index_path.exists():
+                # We're in a harvest context - update the existing in_progress entry with directory info
+                from .generate_dataset_report import update_harvest_index_incremental
+                
+                dataset_dir_name = dataset_run_dir.name
+                
+                # Load existing index to get the source name (already set when marked as in_progress)
+                import json
+                with open(parent_index_path, 'r', encoding='utf-8') as f:
+                    index_data = json.load(f)
+                
+                # Find the in_progress entry for this source
+                source_entry = next((d for d in index_data.get('datasets', []) if d.get('uuid') == source_uuid), None)
+                if source_entry:
+                    source_name = source_entry.get('source', f"UUID_{source_uuid[:8]}")
+                    
+                    # Update the in_progress entry with directory and report filename
+                    harvest_stats = {
+                        'sources': [{
+                            'name': source_name,
+                            'uuid': source_uuid,
+                            'status': 'in_progress',
+                            'details': 'Dataset processing started',
+                            'directory': dataset_dir_name,
+                            'report_filename': f"{dataset_dir_name}_report.html",
+                            'processed_cves': 0,
+                            'total_cves': 0,
+                            'warnings': 0,
+                            'errors': 0,
+                            'runtime': 'In Progress'
+                        }]
+                    }
+                    update_harvest_index_incremental(parent_run_dir, harvest_stats)
+                
+        except Exception as harvest_update_error:
+            # Non-critical - just log and continue
+            if logger:
+                logger.debug(f"Could not update parent harvest index (non-critical): {harvest_update_error}", group="INIT")
+    
+    return init_result
 
 def start_collection_phase(phase_name: str, data_source: str = "nvd_api"):
     """Initialize dataset collection for a new phase."""
@@ -1899,24 +1746,9 @@ def initialize_dashboard_collector(logs_directory: str, processing_mode: str = "
                 if "collection_phases" in existing_data:
                     collector.collection_phases = existing_data["collection_phases"]
                 
-                # Update metadata to indicate transition to analysis phase
-                collector.data["metadata"]["workflow_phase"] = "analysis_processing"
-                collector.data["metadata"]["previous_phase"] = "dataset_generation"
-                
             except (json.JSONDecodeError, KeyError) as e:
                 if logger:
                     logger.warning(f"Could not parse existing dashboard data, starting fresh: {e}", group="INIT")
-        
-        # Add processing mode metadata
-        collector.data["metadata"]["processing_mode"] = processing_mode
-        collector.data["metadata"]["processing_mode_description"] = {
-            "full": "Complete analysis with NVD CPE API calls and HTML generation",
-            "sdc-only": "Source Data Concerns analysis only - skips NVD CPE API calls and HTML generation",
-            "test": "Test mode with local test files"
-        }.get(processing_mode, "Unknown processing mode")
-        
-        # Set tracked properties based on processing mode
-        _set_tracked_properties_for_mode(collector, processing_mode, cache_disabled, cache_disable_reason)
         
         # Save the potentially merged data
         result = collector.save_to_file(output_file)

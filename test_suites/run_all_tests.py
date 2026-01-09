@@ -253,8 +253,28 @@ class TestSuiteRunner:
                 'command': ['python', 'test_suites\\\\other_badges\\\\test_platform_badges.py']
             },
             {
-                'name': 'NVD-ish Collector',
+                'name': 'NVD-ish Confirmed Mappings',
+                'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_confirmed_mappings.py']
+            },
+            {
+                'name': 'NVD-ish Collector (Core)',
                 'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_nvd_ish_collector.py']
+            },
+            {
+                'name': 'NVD-ish SDC Integration',
+                'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_sdc_integration.py']
+            },
+            {
+                'name': 'NVD-ish CPE Suggestions',
+                'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_cpe_suggestions.py']
+            },
+            {
+                'name': 'NVD-ish CPE Culling',
+                'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_cpe_culling.py']
+            },
+            {
+                'name': 'NVD-ish Alias Extraction',
+                'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_alias_extraction.py']
             }
         ]
 

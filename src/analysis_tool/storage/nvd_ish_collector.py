@@ -827,13 +827,19 @@ class NVDishCollector:
                                         'unspecified_filter': 'unknown_culling_reason'
                                     }
                                     
-                                    # Handle pattern-based reasons with specific subtypes
-                                    if 'too long' in reason and 'NVD API rejection' in reason:
+                                    # Handle pattern-based reasons with specific subtypes (check patterns first before fallback)
+                                    if 'too long' in reason and ('NVD API limit' in reason or 'NVD API rejection' in reason):
                                         mapped_reason = 'nvd_api_field_too_long'  
-                                    elif 'escaped commas' in reason and 'NVD API rejection' in reason:
+                                    elif 'escaped commas' in reason:
                                         mapped_reason = 'nvd_api_escaped_comma_pattern'
-                                    elif 'non-ASCII characters' in reason and 'NVD API rejection' in reason:
+                                    elif 'non-ASCII characters' in reason:
                                         mapped_reason = 'nvd_api_non_ascii_characters'
+                                    elif 'leading or trailing whitespace' in reason:
+                                        mapped_reason = 'nvd_api_whitespace_in_field'
+                                    elif 'trailing underscore' in reason:
+                                        mapped_reason = 'nvd_api_trailing_underscore'
+                                    elif 'internal asterisk' in reason:
+                                        mapped_reason = 'nvd_api_internal_asterisk'
                                     else:
                                         mapped_reason = reason_mapping.get(reason, 'unknown_culling_reason')
                                     
@@ -980,15 +986,21 @@ class NVDishCollector:
                                         'legacy_culling_process': 'legacy_filter_no_reason_available'
                                     }
                                     
-                                    # Handle pattern-based reasons with specific subtypes
+                                    # Handle pattern-based reasons with specific subtypes (check patterns first before fallback)
                                     if 'Two characters or less' in reason and 'too broad' in reason:
                                         mapped_reason = 'insufficient_specificity_too_short'
-                                    elif 'non-ASCII characters' in reason and 'NVD API rejection' in reason:
-                                        mapped_reason = 'nvd_api_non_ascii_characters'
-                                    elif 'too long' in reason and 'NVD API rejection' in reason:
+                                    elif 'too long' in reason and ('NVD API limit' in reason or 'NVD API rejection' in reason):
                                         mapped_reason = 'nvd_api_field_too_long'  
-                                    elif 'escaped commas' in reason and 'NVD API rejection' in reason:
+                                    elif 'escaped commas' in reason:
                                         mapped_reason = 'nvd_api_escaped_comma_pattern'
+                                    elif 'non-ASCII characters' in reason:
+                                        mapped_reason = 'nvd_api_non_ascii_characters'
+                                    elif 'leading or trailing whitespace' in reason:
+                                        mapped_reason = 'nvd_api_whitespace_in_field'
+                                    elif 'trailing underscore' in reason:
+                                        mapped_reason = 'nvd_api_trailing_underscore'
+                                    elif 'internal asterisk' in reason:
+                                        mapped_reason = 'nvd_api_internal_asterisk'
                                     else:
                                         mapped_reason = reason_mapping.get(reason, 'unknown_culling_reason')
                                     

@@ -344,7 +344,7 @@ def _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified)
         logger.debug(f"CVE List v5 local cache update queue failed for {cve_id}: {e}", group="CACHE_MANAGEMENT")
         return False
 
-def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cve_dataset.txt", run_directory=None, source_uuid=None, statuses_explicitly_provided=False):
+def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cve_dataset.txt", run_directory=None, source_uuid=None, statuses_explicitly_provided=False, run_id=None):
     """
     Query NVD API for CVEs with specific vulnerability statuses
     
@@ -356,6 +356,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         run_directory (Path): Run directory where dataset should be written
         source_uuid (str): Optional UUID to filter CVEs by sourceIdentifier (server-side filtering)
         statuses_explicitly_provided (bool): Whether user explicitly provided status filters
+        run_id (str): Optional run ID for tracking purposes
     """
     if target_statuses is None:
         target_statuses = ['Received', 'Awaiting Analysis', 'Undergoing Analysis']
@@ -372,7 +373,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     
     # Initialize dataset contents collector
     from src.analysis_tool.reporting.dataset_contents_collector import (
-        initialize_dataset_contents_report, start_collection_phase, 
+        initialize_dataset_contents_report, 
         record_api_call, record_output_file, update_cve_discovery_progress
     )
     
@@ -380,9 +381,8 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     if run_directory:
         logs_dir = run_directory / "logs"
         logs_dir.mkdir(exist_ok=True)
-        initialize_dataset_contents_report(str(logs_dir), source_uuid=source_uuid)
+        initialize_dataset_contents_report(str(logs_dir), source_uuid=source_uuid, run_id=run_id)
         logger.info("=== CVE Record Cache Preparation ===", group="DATASET")
-        start_collection_phase("cache_preparation", "nvd_api")
     
     base_url = config['api']['endpoints']['nvd_cves']
     headers = {
@@ -575,14 +575,19 @@ def generate_last_days(days, api_key=None, output_file="cve_recent_dataset.txt",
     
     logger.info(f"Generating dataset for CVEs modified in the last {days} days", group="DATASET")
     
+    # Extract run_id from run_directory if available
+    run_id = None
+    if run_directory:
+        run_id = os.path.basename(run_directory)
+    
     return query_nvd_cves_by_date_range(
         start_date.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
         end_date.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
-        api_key, output_file, run_directory, source_uuid
+        api_key, output_file, run_directory, source_uuid, run_id
     )
 
 
-def generate_date_range(start_date_str, end_date_str, api_key=None, output_file="cve_range_dataset.txt", run_directory=None, source_uuid=None):
+def generate_date_range(start_date_str, end_date_str, api_key=None, output_file="cve_range_dataset.txt", run_directory=None, source_uuid=None, run_id=None):
     """Generate dataset for CVEs modified in a specific date range"""
     try:
         # Parse dates
@@ -608,7 +613,7 @@ def generate_date_range(start_date_str, end_date_str, api_key=None, output_file=
         return False
 
 
-def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file="cve_dataset.txt", run_directory=None, source_uuid=None):
+def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file="cve_dataset.txt", run_directory=None, source_uuid=None, run_id=None):
     """Query NVD API for CVEs modified within a date range"""
     logger.info(f"Querying CVEs modified between {start_date} and {end_date}", group="DATASET")
     if source_uuid:
@@ -616,7 +621,7 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
     
     # Initialize dataset contents collector for date range queries
     from src.analysis_tool.reporting.dataset_contents_collector import (
-        initialize_dataset_contents_report, start_collection_phase, 
+        initialize_dataset_contents_report, 
         record_api_call, record_output_file, update_cve_discovery_progress
     )
     
@@ -624,13 +629,10 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
     if run_directory:
         logs_dir = run_directory / "logs"
         logs_dir.mkdir(exist_ok=True)
-        initialize_dataset_contents_report(str(logs_dir), source_uuid=source_uuid)
+        initialize_dataset_contents_report(str(logs_dir), source_uuid=source_uuid, run_id=run_id)
         
     logger.info("=== END Generate Dataset Initialization Phase ===", group="DATASET")
     logger.info("=== CVE Record Cache Preparation ===", group="DATASET")
-    
-    if run_directory:
-        start_collection_phase("cache_preparation", "nvd_api")
     
     base_url = config['api']['endpoints']['nvd_cves']
     headers = {
@@ -990,7 +992,7 @@ def main():
     if args.last_days:
         success = generate_last_days(args.last_days, resolved_api_key, output_file, run_directory, args.source_uuid)
     elif args.start_date and args.end_date:
-        success = generate_date_range(args.start_date, args.end_date, resolved_api_key, output_file, run_directory, args.source_uuid)
+        success = generate_date_range(args.start_date, args.end_date, resolved_api_key, output_file, run_directory, args.source_uuid, run_id)
     else:
         # Traditional status-based generation
         success = query_nvd_cves_by_status(
@@ -999,7 +1001,8 @@ def main():
             output_file=output_file,
             run_directory=run_directory,
             source_uuid=args.source_uuid,
-            statuses_explicitly_provided=statuses_explicitly_provided
+            statuses_explicitly_provided=statuses_explicitly_provided,
+            run_id=run_id
         )
     
     if success:
@@ -1140,12 +1143,16 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
                         # Output statistics for harvest script to capture
                         try:
                             collector = get_dataset_contents_collector()
+                            # Count warnings and errors from their respective arrays
+                            total_warnings = sum(len(v) for v in collector.data['warnings'].values())
+                            total_errors = sum(len(v) for v in collector.data['errors'].values())
+                            
                             stats_output = {
                                 'total_cves': collector.data['processing']['total_cves'],
                                 'processed_cves': collector.data['processing']['processed_cves'],
-                                'warnings': collector.data['log_stats']['warning_count'],
-                                'errors': collector.data['log_stats']['error_count'],
-                                'runtime': collector.data['performance']['total_runtime']
+                                'warnings': total_warnings,
+                                'errors': total_errors,
+                                'runtime': collector.data['performance']['wall_clock_time']
                             }
                             # Print structured output for harvest script to parse
                             print(f"DATASET_STATS: {json.dumps(stats_output)}", flush=True)

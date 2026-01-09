@@ -320,7 +320,8 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
             logger.warning(f"Confirmed mappings processing failed: Unable to process mapping entries for platform entry {index} - {str(e)}", group="badge_gen")
             continue
     
-    # Log confirmed mappings statistics (audit level only if mappings were found)
+    # Log confirmed mappings statistics
+    hit_rate = 0.0  # Initialize hit_rate before conditional block
     if total_processed > 0:
         hit_rate = (successful_mappings / total_processed * 100) if total_processed > 0 else 0
         
@@ -637,7 +638,7 @@ def deriveCPEMatchStringList(rawDataSet):
             # Validate CPE for NVD API compatibility early to prevent API calls with problematic strings
             is_compatible, reason = is_nvd_api_compatible(cpe_string)
             if not is_compatible:
-                logger.warning(f"CPE incompatible with NVD API in row {index}, skipping: {cpe_string} - {reason}", group="data_processing")
+                logger.info(f"CPE incompatible with NVD API in row {index}, skipping: {cpe_string} - {reason}", group="data_processing")
                 continue
                 
             distinct_values.add(cpe_string)
@@ -1356,7 +1357,7 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                         # Track overly broad CPE issue (console reporting only)
                         issues['overly_broad_cpe'].append((index, source_role, cpe_string, specificity_reason))
                         # Also log the validation failure for log analyzer to capture
-                        logger.warning(f"Overly broad CPE detected, skipping: {cpe_string} - {specificity_reason}", group="cpe_validation")
+                        logger.info(f"Overly broad CPE detected, skipping: {cpe_string} - {specificity_reason}", group="cpe_validation")
                         # Store culled CPE strings for badge display
                         culled_cpe_strings.append({
                             'cpe_string': cpe_string,
@@ -1370,7 +1371,7 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                         # Track NVD API incompatible CPE issue
                         issues['nvd_api_incompatible_cpe'].append((index, source_role, f"Validation failed: {compatibility_reason} for '{cpe_string}'"))
                         # Also log the validation failure for log analyzer to capture
-                        logger.warning(f"NVD API incompatible CPE detected, skipping: {cpe_string} - {compatibility_reason}", group="cpe_validation")
+                        logger.info(f"NVD API incompatible CPE detected, skipping: {cpe_string} - {compatibility_reason}", group="cpe_validation")
                         # Store culled CPE strings for badge display
                         culled_cpe_strings.append({
                             'cpe_string': cpe_string,
@@ -1543,8 +1544,6 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                 
                 # Check for invalid_cpe status from our updated gatherNVDCPEData function
                 if json_response and json_response.get("status") == "invalid_cpe":
-                    # Note: This should be rare due to early validation in deriveCPEMatchStringList
-                    logger.warning(f"API rejected CPE string (bypassed early validation): {query_string}", group="cpe_queries")
                     stats = {
                         "matches_found": 0,
                         "status": "invalid_cpe",
@@ -1607,8 +1606,6 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                 
                 # Don't retry for invalid cpeMatchstring errors
                 if "Invalid cpeMatchstring parameter" in error_message:
-                    # Note: This should be rare due to early validation in deriveCPEMatchStringList
-                    logger.warning(f"API rejected CPE string (bypassed early validation): {query_string}", group="cpe_queries")
                     stats = {
                         "matches_found": 0,
                         "status": "invalid_cpe",
@@ -2017,7 +2014,24 @@ def formatFor23CPE(rawAttribute):
     # Normalize Unicode to ASCII first
     ascii_attribute = normalizeToASCII(rawAttribute)
     
-    # Continue with existing CPE escaping logic
+    # Strip leading/trailing whitespace BEFORE converting to CPE format
+    # This prevents trailing spaces from becoming trailing underscores
+    ascii_attribute = ascii_attribute.strip()
+    
+    # Remove characters that have structural meaning in CPE format
+    # TODO: These cases will need to be supported in the future
+    # These MUST be removed before escaping logic to prevent parsing issues:
+    #
+    # 1. Asterisks (*) - CPE wildcards, invalid within field values
+    #    Example: "Sp*tify" -> "Sptify" prevents: cpe:2.3:*:*:*sp*tify*:...
+    #    NVD API does not support internal asterisks in vendor/product names
+    #
+    # 2. Colons (:) - CPE field delimiters
+    #    Example: "Foliovision: Making" -> "foliovision_making"
+    ascii_attribute = ascii_attribute.replace('*', '')  # Remove wildcards
+    ascii_attribute = ascii_attribute.replace(':', '')  # Remove field delimiters
+    
+    # Continue with existing CPE escaping logic for remaining special characters
     cpeEscape = {
         " ": "_", 
         "\\": "\\\\",
@@ -2029,10 +2043,8 @@ def formatFor23CPE(rawAttribute):
         "\'": "\\\'",
         "(": "\\(",
         ")": "\\)",
-        #"*": "\*", Not supported yet, need to build in logic for this case to not cause issues.
         "+": "\\+",
         "/": "\\/",
-        ":": "\\:",
         ";": "\\;",
         "<": "\\<",
         "=": "\\=",
@@ -2586,6 +2598,13 @@ def is_nvd_api_compatible(cpe_string):
     This checks for empirically observed patterns that cause NVD API "Invalid cpeMatchstring parameter" errors.
     Returns (is_compatible, reason) tuple.
     
+    NVD API constraints (empirically determined):
+    1. Rejects CPE strings with non-ASCII characters
+    2. Rejects vendor/product names longer than 88 characters
+       (90 characters when including wildcards at start/end like *value*)
+    3. Rejects total CPE string length > 375 characters
+    4. Rejects complex escaped comma patterns when string is long
+    
     Note: This is NOT a full CPE 2.3 specification validator - it only checks for known NVD API issues.
     """
     if not cpe_string:
@@ -2594,22 +2613,53 @@ def is_nvd_api_compatible(cpe_string):
     if not cpe_string.startswith('cpe:2.3:'):
         return False, "Missing CPE 2.3 prefix - NVD API requires 'cpe:2.3:' prefix"
     
+    # Check total CPE string length (empirically determined limit: 375 chars)
+    if len(cpe_string) > 375:
+        return False, f"Total CPE string too long ({len(cpe_string)} chars) - NVD API limit is 375 characters"
+    
     # Parse components using existing function
     components = parse_cpe_components(cpe_string)
     if not components:
         return False, "Incorrect component count - NVD API expects exactly 13 colon-separated components"
     
+    # Check for backslash-colon patterns in the raw string (indicates malformed escaping)
+    # These would cause incorrect parsing where \: splits fields instead of being part of a value
+    if '\\:' in cpe_string:
+        return False, "CPE string contains \\: pattern - indicates malformed escaping or structural corruption"
+    
     # Check for problematic patterns that cause NVD API "Invalid cpeMatchstring parameter" errors
     for field_name, value in components.items():
         if value and value not in ['*', '-']:
+            # Check for leading/trailing whitespace (should not occur after formatFor23CPE)
+            if value != value.strip():
+                return False, f"Field {field_name} contains leading or trailing whitespace - malformed CPE attribute"
+            
+            # Check for trailing underscores (often result from uncleaned trailing spaces)
+            if value.endswith('_') and not value.startswith('*'):
+                return False, f"Field {field_name} has trailing underscore - likely from uncleaned trailing space"
+            
+            # Check for internal asterisks (not at boundaries) - NVD API does not support these
+            # Valid: "*value*" (wildcarding), Invalid: "val*ue" (internal asterisk)
+            if field_name in ['vendor', 'product']:
+                # Strip boundary wildcards to check for internal ones
+                stripped = value.lstrip('*').rstrip('*')
+                if '*' in stripped:
+                    return False, f"Field {field_name} contains internal asterisk - NVD API does not support asterisks within field values"
+                
+                # Check for escaped structural characters that indicate malformed CPE construction
+                # These should never appear because formatFor23CPE() removes : and * BEFORE escaping
+                if '\\:' in value or '\\*' in value:
+                    return False, f"Field {field_name} contains escaped structural characters (\\: or \\*) - indicates malformed CPE construction or pre-escaped input"
+            
             # Check for non-ASCII characters that might have slipped through normalization
             if any(ord(char) > 127 for char in value):
                 non_ascii_chars = [char for char in value if ord(char) > 127]
                 return False, f"Field {field_name} contains non-ASCII characters ({non_ascii_chars}) - will cause NVD API rejection"
             
-            # Empirically observed: NVD API rejects very long vendor/product names
-            if field_name in ['vendor', 'product'] and len(value) > 100:
-                return False, f"Field {field_name} too long ({len(value)} chars) - likely to cause NVD API rejection"
+            # Empirically observed: NVD API rejects vendor/product names longer than 88 characters
+            # (90 characters when including wildcards at start/end like *value*)
+            if field_name in ['vendor', 'product'] and len(value) > 88:
+                return False, f"Field {field_name} too long ({len(value)} chars) - NVD API limit is 88 characters"
             
             # Empirically observed: Complex escaped comma patterns often rejected by NVD API
             if '\\,' in value and len(value) > 50:
