@@ -12,7 +12,7 @@ For comprehensive insight into the challenges this tool addresses, see [CPE Auto
 
 - [Alias Mapping Dashboard](https://hashmire.github.io/Alias_Mapping_Reports/)
 - [Source Data Concerns Dashboard](https://hashmire.github.io/SDC_Reports/)
-- [Generate Dataset Dashboard](https://hashmire.github.io/Analysis_Tools/dashboards/generateDatasetDashboard.html)
+- [Generate Dataset Dashboard](https://hashmire.github.io/Alias_Mapping_Reports)
 
 ### CPE Applicability Generator
 
@@ -24,7 +24,6 @@ Processes CVE records to generate CPE Applicability Statements:
 - Processes results to identify relevant CPE Base String values
 - Generates HTML reports for user review and selection
 - Produces CPE Applicability Statements (configurations) from selected CPE Base Strings
-
 
 ## Documentation
 

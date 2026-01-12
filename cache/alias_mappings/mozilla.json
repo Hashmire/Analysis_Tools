@@ -2,6 +2,42 @@
     "cnaId": "f16b083a-5664-49f3-a51e-8d479e5ed7fe",
     "confirmedMappings": [
         {
+            "cpeBaseString": "cpe:2.3:a:mozilla:bugzilla:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Mozilla",
+                    "product": "Bugzilla"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:mozilla:convict:*:*:*:*:*:node.js:*:*",
+            "aliases": [
+                {
+                    "vendor": "Mozilla",
+                    "product": "Convict"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:mozilla:geckodriver:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Mozilla",
+                    "product": "geckodriver"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:mozilla:nunjucks:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Mozilla",
+                    "product": "Nunjucks"
+                }
+            ]
+        },
+        {
             "cpeBaseString": "cpe:2.3:a:mozilla:firefox:*:*:*:*:*:*:*:*",
             "aliases": [
                 {
@@ -10,15 +46,6 @@
                 },
                 {
                     "product": "Firefox"
-                }
-            ]
-        },
-        {
-            "cpeBaseString": "cpe:2.3:a:mozilla:thunderbird:*:*:*:*:*:*:*:*",
-            "aliases": [
-                {
-                    "vendor": "Mozilla",
-                    "product": "Thunderbird"
                 }
             ]
         },
@@ -41,57 +68,24 @@
             ]
         },
         {
+            "cpeBaseString": "cpe:2.3:a:mozilla:firefox_focus:*:*:*:*:*:iphone_os:*:*",
+            "aliases": [
+                {
+                    "vendor": "Mozilla",
+                    "product": "Focus"
+                },
+                {
+                    "vendor": "Mozilla",
+                    "product": "Focus for iOS"
+                }
+            ]
+        },
+        {
             "cpeBaseString": "cpe:2.3:a:mozilla:firefox_focus:*:*:*:*:*:android:*:*",
             "aliases": [
                 {
                     "vendor": "Mozilla",
                     "product": "Focus for Android"
-                }
-            ]
-        },
-        {
-            "cpeBaseString": "cpe:2.3:a:mozilla:thunderbird_esr:*:*:*:*:*:*:*:*",
-            "aliases": [
-                {
-                    "vendor": "Mozilla",
-                    "product": "Thunderbird ESR"
-                }
-            ]
-        },
-        {
-            "cpeBaseString": "cpe:2.3:a:mozilla:firefox_focus:*:*:*:*:*:iphone_os:*:*",
-            "aliases": [
-                {
-                    "vendor": "Mozilla",
-                    "product": "Focus for iOS"
-                },
-                {
-                    "vendor": "Mozilla",
-                    "product": "Focus"
-                }
-            ]
-        },
-        {
-            "cpeBaseString": "cpe:2.3:a:mozilla:nss:*:*:*:*:*:*:*:*",
-            "aliases": [
-                {
-                    "vendor": "Mozilla",
-                    "product": "NSS"
-                },
-                {
-                    "vendor": "Mozilla",
-                    "product": "Network Security Services"
-                },
-                {
-                    "vendor": "Mozilla",
-                    "product": "Network Security Services (NSS)"
-                },
-                {
-                    "vendor": "NSS",
-                    "product": "Network Security Services (NSS)"
-                },
-                {
-                    "product": "nss"
                 }
             ]
         },
@@ -117,11 +111,53 @@
             ]
         },
         {
+            "cpeBaseString": "cpe:2.3:a:mozilla:nss:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Mozilla",
+                    "product": "Network Security Services"
+                },
+                {
+                    "vendor": "Mozilla",
+                    "product": "Network Security Services (NSS)"
+                },
+                {
+                    "vendor": "NSS",
+                    "product": "Network Security Services (NSS)"
+                },
+                {
+                    "vendor": "Mozilla",
+                    "product": "NSS"
+                },
+                {
+                    "product": "nss"
+                }
+            ]
+        },
+        {
             "cpeBaseString": "cpe:2.3:a:servo:idna:*:*:*:*:*:rust:*:*",
             "aliases": [
                 {
                     "vendor": "servo",
                     "product": "rust-url"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:mozilla:thunderbird:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Mozilla",
+                    "product": "Thunderbird"
+                }
+            ]
+        },
+        {
+            "cpeBaseString": "cpe:2.3:a:mozilla:thunderbird_esr:*:*:*:*:*:*:*:*",
+            "aliases": [
+                {
+                    "vendor": "Mozilla",
+                    "product": "Thunderbird ESR"
                 }
             ]
         }

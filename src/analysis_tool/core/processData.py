@@ -2214,22 +2214,22 @@ def curateCPEAttributes(case, attributeString1, attributeString2):
             
             # Map hardware architectures to CPE targetHW values
             # Structure: target_value: {set of exact aliases that map to it}
-            # Note: Exact match only (after normalization) to encourage data standardization
+            # Note: Exact match only; lowercase only (comparisons occur after data is already lowercased)
             targetHW_mappings = {
                 'x86': {
                     'x86',
                     '32-bit',
                     '32 bit',
                     'x32',
-                    'x86-based Systems',
-                    '32-bit Systems'
+                    'x86-based systems',
+                    '32-bit systems'
                 },
                 'x64': {
                     'x86_64',
                     'x64',
                     '64-bit',
                     '64 bit',
-                    'x64-based Systems'
+                    'x64-based systems'
                 },
                 'arm': {
                     'arm'
@@ -2237,7 +2237,7 @@ def curateCPEAttributes(case, attributeString1, attributeString2):
                 'arm64': {
                     'arm64',
                     'aarch64',
-                    'ARM64-based Systems'
+                    'arm64-based systems'
                 }
             }
             

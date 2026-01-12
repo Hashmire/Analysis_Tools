@@ -680,6 +680,9 @@
                         }
                     }
                     
+                    // Ensure CPE base string format: version and update must be wildcards
+                    cpeBaseString = ensureCpeBaseString(cpeBaseString);
+                    
                     // Find the alias in source dataset using efficient ID lookup
                     const sourceData = this.datasets[sourceDataset];
                     const aliasIndex = sourceData.findIndex(item => item.id === aliasId);
@@ -914,7 +917,7 @@
                     const exportData = {
                         cnaId: cnaId,
                         confirmedMappings: this.datasets.confirmedMapping.map(mapping => ({
-                            cpeBaseString: mapping.cpeBaseString,
+                            cpeBaseString: ensureCpeBaseString(mapping.cpeBaseString),
                             aliases: mapping.aliases || []
                         }))
                     };
@@ -1374,6 +1377,28 @@
             return parts.join(':');
         }
 
+        function ensureCpeBaseString(cpeString) {
+            if (!cpeString) return cpeString;
+            
+            // Split the CPE string into parts
+            const parts = cpeString.split(':');
+            
+            // If it's not a proper CPE string, return as-is
+            if (parts.length < 3 || !cpeString.startsWith('cpe:2.3:')) {
+                return cpeString;
+            }
+            
+            // CPE 2.3 format: cpe:2.3:part:vendor:product:version:update:edition:language:sw_edition:target_sw:target_hw:other
+            // Indices:       0    1    2    3      4       5       6      7       8        9          10         11        12
+            // Base strings must have version (5) and update (6) as wildcards
+            if (parts.length >= 7) {
+                parts[5] = '*';  // version
+                parts[6] = '*';  // update
+            }
+            
+            return parts.join(':');
+        }
+
         function validateCpeString(cpeString) {
             if (!cpeString) return { valid: false, message: 'Empty CPE string' };
             
@@ -1532,10 +1557,12 @@
             const validation = validateCpeString(value);
             
             if (validation.valid) {
+                // Ensure version and update are wildcards for base string format
+                const normalizedValue = ensureCpeBaseString(value);
                 validationDiv.innerHTML = `<span class="status-success">✅ Valid CPE 2.3 Base String</span>`;
                 previewDiv.innerHTML = '';
                 input.style.borderColor = '#4CAF50';
-                input.setAttribute('data-final-cpe', value);
+                input.setAttribute('data-final-cpe', normalizedValue);
             } else {
                 // Display validation errors in fixed height container with consistent formatting
                 if (validation.errors && validation.errors.length > 0) {
@@ -1602,6 +1629,9 @@
                     }
                     value = parts.join(':');
                 }
+                
+                // Ensure CPE base string format: version and update must be wildcards
+                value = ensureCpeBaseString(value);
                 
                 // Update input with sanitized and completed value
                 input.value = value;
@@ -4081,7 +4111,8 @@
             const input = document.getElementById('cpeBaseString');
             
             if (select.value) {
-                input.value = select.value;
+                // Ensure CPE base string format when selecting from dropdown
+                input.value = ensureCpeBaseString(select.value);
                 handleCpeInput(input); // Trigger validation and update
             }
         }
@@ -4244,6 +4275,9 @@
                 
                 // Normalize the CPE string
                 cpeBaseString = normalizeCpeString(cpeBaseString);
+                
+                // Ensure CPE base string format: version and update must be wildcards
+                cpeBaseString = ensureCpeBaseString(cpeBaseString);
                 
                 // Double-check validation (should already be valid due to button state)
                 const validation = validateCpeString(cpeBaseString);

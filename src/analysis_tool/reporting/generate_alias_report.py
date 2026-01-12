@@ -327,6 +327,33 @@ class AliasReportBuilder:
         
         return source_id
     
+    def _select_uuid_identifier(self, source_ids: set) -> str:
+        """
+        Select the UUID identifier from a set of source identifiers.
+        
+        Prioritizes UUID format over email addresses for use as cnaId.
+        UUIDs match the pattern: 8-4-4-4-12 hexadecimal characters.
+        
+        Args:
+            source_ids: Set of source identifiers (UUIDs and/or emails)
+            
+        Returns:
+            UUID identifier if found, otherwise the first identifier from sorted list
+        """
+        import re
+        
+        # UUID pattern: 8-4-4-4-12 hexadecimal characters
+        uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+        
+        # Try to find a UUID
+        for identifier in source_ids:
+            if uuid_pattern.match(identifier):
+                return identifier
+        
+        # Fallback to sorted list (deterministic selection)
+        sorted_ids = sorted(list(source_ids))
+        return sorted_ids[0] if sorted_ids else 'unknown'
+    
     def _generate_alias_key(self, alias: Dict) -> str:
         """
         Generate deduplication key from alias properties.
@@ -453,9 +480,12 @@ class AliasReportBuilder:
                     confirmed_mappings.extend(mappings)
                     break  # Use first found
             
-            # Build organization metadata
+            # Build organization metadata - use UUID as primary identifier for cnaId compatibility
+            primary_identifier = self._select_uuid_identifier(source_info['source_ids']) if source_info['source_ids'] else org_name
+            
             metadata = {
-                'source_id': list(source_info['source_ids'])[0] if source_info['source_ids'] else org_name,  # Primary identifier
+                'source_id': primary_identifier,  # Primary identifier - UUID preferred for cnaId
+                'target_uuid': primary_identifier,  # Dashboard compatibility - must be UUID for cnaId
                 'source_name': org_name,
                 'all_source_identifiers': sorted(list(source_info['source_ids'])),  # All identifiers for transparency
                 'extraction_timestamp': timestamp,
