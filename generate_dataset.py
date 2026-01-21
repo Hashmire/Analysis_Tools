@@ -371,18 +371,12 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     logger.info(f"Output file: {output_file}", group="DATASET")
     logger.info(f"Using API key: {'Yes' if api_key else 'No'}", group="DATASET")
     
-    # Initialize dataset contents collector
+    # Import dataset contents collector functions for progress tracking
     from src.analysis_tool.reporting.dataset_contents_collector import (
-        initialize_dataset_contents_report, 
         record_api_call, record_output_file, update_cve_discovery_progress
     )
     
-    # Initialize collector with run's logs directory
-    if run_directory:
-        logs_dir = run_directory / "logs"
-        logs_dir.mkdir(exist_ok=True)
-        initialize_dataset_contents_report(str(logs_dir), source_uuid=source_uuid, run_id=run_id)
-        logger.info("=== CVE Record Cache Preparation ===", group="DATASET")
+    logger.info("=== CVE Record Cache Preparation ===", group="DATASET")
     
     base_url = config['api']['endpoints']['nvd_cves']
     headers = {
@@ -619,18 +613,11 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
     if source_uuid:
         logger.info(f"Source UUID filter (server-side): {source_uuid}", group="DATASET")
     
-    # Initialize dataset contents collector for date range queries
+    # Import dataset contents collector functions for progress tracking
     from src.analysis_tool.reporting.dataset_contents_collector import (
-        initialize_dataset_contents_report, 
         record_api_call, record_output_file, update_cve_discovery_progress
     )
     
-    # Initialize collector with run's logs directory
-    if run_directory:
-        logs_dir = run_directory / "logs"
-        logs_dir.mkdir(exist_ok=True)
-        initialize_dataset_contents_report(str(logs_dir), source_uuid=source_uuid, run_id=run_id)
-        
     logger.info("=== END Generate Dataset Initialization Phase ===", group="DATASET")
     logger.info("=== CVE Record Cache Preparation ===", group="DATASET")
     
@@ -977,6 +964,11 @@ def main():
     logs_dir = run_directory / "logs"
     logger.set_run_logs_directory(str(logs_dir))
     logger.start_file_logging("cve_dataset")
+    
+    # Initialize dataset contents report immediately for periodic updates
+    from src.analysis_tool.reporting.dataset_contents_collector import initialize_dataset_contents_report
+    initialize_dataset_contents_report(str(logs_dir), source_uuid=args.source_uuid, run_id=run_id)
+    logger.info("Dataset contents report initialized", group="DATASET")
     
     logger.info("=== Generate Dataset Initialization Phase ===", group="DATASET")
     if api_key_source:

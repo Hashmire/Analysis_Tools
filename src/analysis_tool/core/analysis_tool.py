@@ -343,7 +343,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         elif sdc_report or alias_report or cpe_as_generator:
             # Platform data processing only (no CPE generation or API calls)
             if cpe_as_generator:
-                tool_execution_timestamps['cpeAsGenerationRules'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+                tool_execution_timestamps['cpeAsGeneration'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
             try:
                 primaryDataframe = processData.processPlatformDataOnly(primaryDataframe, 
                                                                      alias_report=alias_report, cpe_as_generator=cpe_as_generator)

@@ -475,13 +475,11 @@ class NVDishCollector:
                                 affected_entry_data=affected_entry,
                                 cvelistv5_affected_entry_index=f'cve.containers.{affected_entry.get("container_type", "unknown")}.affected.[{affected_entry.get("entry_index", 0)}]'
                             ),
-                            # II.C.5. CPE-AS Generation Rules (placeholder for CPE-AS integration)
-                            'cpeAsGenerationRules': {}
+                            # II.C.5. CPE-AS Generation (placeholder for CPE-AS integration)
+                            'cpeAsGeneration': {}
                         }
                         
                         self.enriched_record_data['cveListV5AffectedEntries'].append(analysis_entry)
-                    
-                    # Store legacy data temporarily for transition
                     cve_node['enhanced_data']['cve_list_v5_affected'] = {
                         'attribution': 'containers.*.affected (CNA + ADP)',
                         'timestamp': datetime.now(timezone.utc).isoformat(),
@@ -1492,7 +1490,7 @@ class NVDishCollector:
             
             # Add/update per-argument timestamps if provided
             timestamp_fields = [
-                'sourceDataConcerns', 'cpeSuggestions', 'cpeAsGenerationRules',
+                'sourceDataConcerns', 'cpeSuggestions', 'cpeAsGeneration',
                 'cpeSuggestionMetadata', 'aliasExtraction'
             ]
             

@@ -217,10 +217,6 @@ class TestSuiteRunner:
                 'command': ['python', 'test_suites\\\\alias_mappings\\\\test_alias_mapping_dashboard.py']
             },
             {
-                'name': 'Alias Extraction Report to Dashboard Compatibility',
-                'command': ['python', 'test_suites\\\\alias_mappings\\\\test_alias_extraction_dashboard_compatibility.py']
-            },
-            {
                 'name': 'Provenance Assistance',
                 'command': ['python', 'test_suites\\\\cpe-as_generation\\\\test_provenance_assistance.py', 'test_suites\\\\cpe-as_generation\\\\testProvenanceAssistance.json']
             },

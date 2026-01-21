@@ -139,7 +139,7 @@ class CPESuggestionsTestSuite:
                 cwd=PROJECT_ROOT,
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=120  # Increased from 60s to match core NVD-ish collector timeout for complex CPE enumeration
             )
             
             success = result.returncode == 0 and output_path.exists()

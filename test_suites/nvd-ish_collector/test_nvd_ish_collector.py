@@ -663,7 +663,7 @@ class NVDishCollectorTestSuite:
             if len(entries) > 0:
                 entry = entries[0]
                 required_entry_sections = ["originAffectedEntry", "sourceDataConcerns", "aliasExtraction", 
-                                         "cpeSuggestions", "cpeAsGenerationRules"]
+                                         "cpeSuggestions", "cpeAsGeneration"]
                 missing_entry_sections = [section for section in required_entry_sections if section not in entry]
                 if missing_entry_sections:
                     print(f"❌ FAIL: Missing required entry sections: {missing_entry_sections}")

@@ -731,6 +731,9 @@ body::before {
     display: none;
     padding: 20px;
     background: #FAFAFA;
+    max-height: 600px;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .alias-details.expanded {
@@ -1140,6 +1143,12 @@ body::before {
     opacity: 0;
     padding-top: 0;
     padding-bottom: 0;
+}
+
+/* Allow scrolling for alias section containers */
+.aliases-section-container.collapsible-content {
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .cpe-collapsible-content {
