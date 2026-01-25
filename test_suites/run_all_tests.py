@@ -171,10 +171,24 @@ class TestSuiteRunner:
                 'name': 'Logging System',
                 'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_logging_system.py']
             },
+            # === CPE-AS Generation Suite ===
             {
                 'name': 'Modular Rules', 
                 'command': ['python', 'test_suites\\\\cpe-as_generation\\\\test_modular_rules.py', 'test_suites\\\\cpe-as_generation\\\\testModularRulesEnhanced.json']
             },
+            {
+                'name': 'Update Patterns',
+                'command': ['python', 'test_suites\\\\cpe-as_generation\\\\test_update_patterns.py']
+            },
+            {
+                'name': 'Wildcard Expansion in Unaffected Entries',
+                'command': ['python', '-m', 'test_suites.cpe-as_generation.test_wildcard_expansion_unaffected']
+            },
+            {
+                'name': 'Provenance Assistance',
+                'command': ['python', 'test_suites\\\\cpe-as_generation\\\\test_provenance_assistance.py', 'test_suites\\\\cpe-as_generation\\\\testProvenanceAssistance.json']
+            },
+            # === Source Data Concerns Suite ===
             {
                 'name': 'SDC Placeholder Detection',
                 'command': ['python', 'test_suites\\\\source_data_concerns\\\\test_sdc_placeholder_detection.py']
@@ -215,18 +229,12 @@ class TestSuiteRunner:
                 'name': 'SDC Skip Logic Rules',
                 'command': ['python', 'test_suites\\\\\\\\source_data_concerns\\\\\\\\test_sdc_skip_logic_rules.py']
             },
-            {
-                'name': 'Update Patterns',
-                'command': ['python', 'test_suites\\\\cpe-as_generation\\\\test_update_patterns.py']
-            },
+            # === Alias Mapping Suite ===
             {
                 'name': 'Alias Mapping Dashboard',
                 'command': ['python', 'test_suites\\\\alias_mappings\\\\test_alias_mapping_dashboard.py']
             },
-            {
-                'name': 'Provenance Assistance',
-                'command': ['python', 'test_suites\\\\cpe-as_generation\\\\test_provenance_assistance.py', 'test_suites\\\\cpe-as_generation\\\\testProvenanceAssistance.json']
-            },
+            # === Tool Infrastructure Suite ===
             {
                 'name': 'NVD Source Manager',
                 'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_nvd_source_manager.py']

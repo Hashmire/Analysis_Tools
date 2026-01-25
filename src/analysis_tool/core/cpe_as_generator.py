@@ -138,7 +138,7 @@ def normalize_cpe_base_string(cpe_base_string: str) -> str:
 def create_ordered_cpe_match(
     versions_entry_index: Optional[int],
     applied_pattern: Optional[str],
-    vulnerable: bool,
+    vulnerable: Optional[bool] = None,
     criteria: Optional[str] = None,
     version_start_including: Optional[str] = None,
     version_start_excluding: Optional[str] = None,
@@ -165,7 +165,7 @@ def create_ordered_cpe_match(
     Args:
         versions_entry_index: Index in versions[] array (null if no versions array)
         applied_pattern: Pattern identifier for traceability (e.g., "exact.single", "range.lessThan")
-        vulnerable: True if affected, False for metadata-only or unaffected entries
+        vulnerable: True if affected/vulnerable, False if explicitly unaffected, None for metadata-only entries with concerns
         criteria: Full CPE 2.3 string (optional, omitted for metadata-only)
         version_start_including: Lower bound version, inclusive (optional)
         version_start_excluding: Lower bound version, exclusive (optional)
@@ -207,8 +207,10 @@ def create_ordered_cpe_match(
     if applied_pattern is not None:
         cpe_match['appliedPattern'] = applied_pattern
     
-    # Property 3: vulnerable (always present)
-    cpe_match['vulnerable'] = vulnerable
+    # Property 3: vulnerable (optional - omit for metadata-only entries with concerns)
+    # Metadata-only entries should NOT have vulnerable field as they can't make vulnerability determination
+    if vulnerable is not None:
+        cpe_match['vulnerable'] = vulnerable
     
     # Property 4: criteria (optional, omit if None)
     # CRITICAL: Validate CPE 2.3 format before adding to output
@@ -607,7 +609,7 @@ def handle_pattern_3_1(
         cpe_match = create_ordered_cpe_match(
             versions_entry_index=versions_entry_index,
             applied_pattern=applied_pattern,
-            vulnerable=False,
+            vulnerable=None,
             concerns=[concern_type]
         )
         results.append(cpe_match)
@@ -792,7 +794,7 @@ def handle_pattern_3_3(
                 cpe_match = create_ordered_cpe_match(
                     versions_entry_index=index,
                     applied_pattern=pattern_value,
-                    vulnerable=False,
+                    vulnerable=None,  # Metadata-only: no vulnerable field when we can't determine proper CPE
                     concerns=concerns if concerns else None
                 )
                 logger.debug(
@@ -946,6 +948,35 @@ def handle_pattern_3_4(
         # Get changes array early to check for inverse changes (unaffected→affected)
         changes = version_entry.get('changes', [])
         
+        # EARLY WILDCARD DETECTION: Check for wildcards in any range fields BEFORE status filtering
+        # This ensures unaffected/unknown entries also get wildcard expansion concerns
+        early_wildcard_concerns = []
+        less_than = version_entry.get('lessThan')
+        less_than_or_equal = version_entry.get('lessThanOrEqual')
+        
+        # Check version field for wildcard expansion patterns
+        if version_value and isinstance(version_value, str) and has_wildcard_expansion_pattern(version_value):
+            early_wildcard_concerns.append("inferredAffectedFromWildcardExpansion")
+            logger.debug(
+                f"Pattern 3.4: Wildcard expansion pattern detected in version '{version_value}' at index {index}"
+            )
+        
+        # Check lessThan field for wildcard expansion patterns
+        if less_than and isinstance(less_than, str) and has_wildcard_expansion_pattern(less_than):
+            if "inferredAffectedFromWildcardExpansion" not in early_wildcard_concerns:
+                early_wildcard_concerns.append("inferredAffectedFromWildcardExpansion")
+            logger.debug(
+                f"Pattern 3.4: Wildcard expansion pattern detected in lessThan '{less_than}' at index {index}"
+            )
+        
+        # Check lessThanOrEqual field for wildcard expansion patterns
+        if less_than_or_equal and isinstance(less_than_or_equal, str) and has_wildcard_expansion_pattern(less_than_or_equal):
+            if "inferredAffectedFromWildcardExpansion" not in early_wildcard_concerns:
+                early_wildcard_concerns.append("inferredAffectedFromWildcardExpansion")
+            logger.debug(
+                f"Pattern 3.4: Wildcard expansion pattern detected in lessThanOrEqual '{less_than_or_equal}' at index {index}"
+            )
+        
         # Check for inverse change (Pattern E: unaffected→affected)
         # This must be checked BEFORE the unaffected status check
         is_inverse_change = False
@@ -956,25 +987,31 @@ def handle_pattern_3_4(
         
         # Handle unaffected/unknown status → metadata-only (unless inverse change)
         if status == 'unaffected' and not is_inverse_change:
+            # Include wildcard concerns if detected
+            unaffected_concerns = ["statusUnaffected"] + early_wildcard_concerns
             cpe_match = create_ordered_cpe_match(
                 versions_entry_index=index,
                 applied_pattern=None,
                 vulnerable=False,
-                concerns=["statusUnaffected"]
+                concerns=unaffected_concerns
             )
             results.append(cpe_match)
-            logger.debug(f"Pattern 3.4: Version index {index} unaffected → metadata-only")
+            concern_msg = f" with {early_wildcard_concerns}" if early_wildcard_concerns else ""
+            logger.debug(f"Pattern 3.4: Version index {index} unaffected → metadata-only{concern_msg}")
             continue
         
         if status == 'unknown':
+            # Include wildcard concerns if detected
+            unknown_concerns = ["statusUnknown"] + early_wildcard_concerns
             cpe_match = create_ordered_cpe_match(
                 versions_entry_index=index,
                 applied_pattern=None,
                 vulnerable=False,
-                concerns=["statusUnknown"]
+                concerns=unknown_concerns
             )
             results.append(cpe_match)
-            logger.debug(f"Pattern 3.4: Version index {index} unknown → metadata-only")
+            concern_msg = f" with {early_wildcard_concerns}" if early_wildcard_concerns else ""
+            logger.debug(f"Pattern 3.4: Version index {index} unknown → metadata-only{concern_msg}")
             continue
         
         # Status is 'affected' OR inverse change → detect range pattern
@@ -988,13 +1025,15 @@ def handle_pattern_3_4(
         version_end_including = None
         version_end_excluding = None
         applied_pattern = None
-        concerns = []  # Track any concerns (e.g., update patterns in ranges)
+        
+        # Initialize concerns with early wildcard detection results
+        concerns = early_wildcard_concerns.copy()
         
         # Detect update patterns in range boundaries (Section 4.1 + Section 6.2 requirement)
         # Update patterns are DETECTED but NOT APPLIED for range boundaries
         has_update_pattern_in_boundaries = False
         
-        # Check version field for update patterns and wildcards
+        # Check version field for update patterns (wildcards already detected earlier)
         if version_value and isinstance(version_value, str):
             base_v, update_v, _ = transform_version_with_update_pattern(version_value)
             if base_v and update_v:
@@ -1003,15 +1042,8 @@ def handle_pattern_3_4(
                     f"Pattern 3.4: Update pattern detected in version boundary '{version_value}' → "
                     f"base='{base_v}', update='{update_v}' (NOT APPLIED per Section 6.2)"
                 )
-            
-            # Check for wildcard expansion patterns
-            if has_wildcard_expansion_pattern(version_value):
-                concerns.append("inferredAffectedFromWildcardExpansion")
-                logger.debug(
-                    f"Pattern 3.4: Wildcard expansion pattern detected in version '{version_value}' at index {index}"
-                )
         
-        # Check lessThan field for update patterns and wildcards
+        # Check lessThan field for update patterns (wildcards already detected earlier)
         if less_than and isinstance(less_than, str):
             base_lt, update_lt, _ = transform_version_with_update_pattern(less_than)
             if base_lt and update_lt:
@@ -1020,16 +1052,8 @@ def handle_pattern_3_4(
                     f"Pattern 3.4: Update pattern detected in lessThan boundary '{less_than}' → "
                     f"base='{base_lt}', update='{update_lt}' (NOT APPLIED per Section 6.2)"
                 )
-            
-            # Check for wildcard expansion patterns
-            if has_wildcard_expansion_pattern(less_than):
-                if "inferredAffectedFromWildcardExpansion" not in concerns:
-                    concerns.append("inferredAffectedFromWildcardExpansion")
-                logger.debug(
-                    f"Pattern 3.4: Wildcard expansion pattern detected in lessThan '{less_than}' at index {index}"
-                )
         
-        # Check lessThanOrEqual field for update patterns and wildcards
+        # Check lessThanOrEqual field for update patterns (wildcards already detected earlier)
         if less_than_or_equal and isinstance(less_than_or_equal, str):
             base_lte, update_lte, _ = transform_version_with_update_pattern(less_than_or_equal)
             if base_lte and update_lte:
@@ -1037,14 +1061,6 @@ def handle_pattern_3_4(
                 logger.debug(
                     f"Pattern 3.4: Update pattern detected in lessThanOrEqual boundary '{less_than_or_equal}' → "
                     f"base='{base_lte}', update='{update_lte}' (NOT APPLIED per Section 6.2)"
-                )
-            
-            # Check for wildcard expansion patterns
-            if has_wildcard_expansion_pattern(less_than_or_equal):
-                if "inferredAffectedFromWildcardExpansion" not in concerns:
-                    concerns.append("inferredAffectedFromWildcardExpansion")
-                logger.debug(
-                    f"Pattern 3.4: Wildcard expansion pattern detected in lessThanOrEqual '{less_than_or_equal}' at index {index}"
                 )
         
         # Check changes[].at field for update patterns
@@ -1192,7 +1208,7 @@ def handle_pattern_3_4(
             cpe_match = create_ordered_cpe_match(
                 versions_entry_index=index,
                 applied_pattern=applied_pattern,  # Preserve detected pattern for traceability
-                vulnerable=False,
+                vulnerable=None,
                 version_start_including=version_start_including,
                 version_start_excluding=version_start_excluding,
                 version_end_including=version_end_including,
@@ -1410,7 +1426,7 @@ def handle_pattern_3_5(
                 cpe_match = create_ordered_cpe_match(
                     versions_entry_index=index,
                     applied_pattern=applied_pattern,
-                    vulnerable=False,  # Metadata-only uses vulnerable=False
+                    vulnerable=None,
                     version_start_including=version_start_including,
                     version_start_excluding=version_start_excluding,
                     version_end_including=version_end_including,

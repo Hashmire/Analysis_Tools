@@ -48,7 +48,7 @@ class CPEDeterminationTestSuite:
     
     def __init__(self):
         self.passed = 0
-        self.total = 7
+        self.total = 8  # Added duplicate vendor/product test
         
     def setup_test_environment(self):
         """Set up test environment by copying test files to INPUT cache locations."""
@@ -818,6 +818,83 @@ class CPEDeterminationTestSuite:
             print(f"❌ FAIL: Platform CPE enumeration test failed with exception: {e}")
             return False
     
+    def test_duplicate_vendor_product_registry_consistency(self) -> bool:
+        """
+        Test that duplicate vendor/product entries get separate registry entries.
+        
+        Background:
+        Previously, the Platform Entry Notification Registry had deduplication logic
+        that would skip registration for entries with identical data. This caused
+        subsequent entries with the same vendor/product to have missing registry entries
+        because their table_index was never registered.
+        
+        Example: CVE-2026-23013 had two Linux Kernel entries (git + semver versions).
+        The second entry had no CPE determination data due to deduplication.
+        
+        This test validates the fix: Each table_index gets registered, even if
+        the data content is identical to another entry.
+        """
+        print(f"\n=== Test 8: Duplicate Vendor/Product Registry Consistency ===")
+        
+        try:
+            import sys
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+            from src.analysis_tool.core.badge_modal_system import (
+                PLATFORM_ENTRY_NOTIFICATION_REGISTRY,
+                register_platform_notification_data
+            )
+            
+            # Clear registry before test
+            PLATFORM_ENTRY_NOTIFICATION_REGISTRY.clear()
+            
+            # Test data - identical CPE search data for two entries with same vendor/product
+            test_cpe_search_data = {
+                'used_strings': [
+                    'cpe:2.3:o:linux:linux_kernel:*:*:*:*:*:*:*:*',
+                    'cpe:2.3:*:linux:linux_kernel:*:*:*:*:*:*:*:*'
+                ],
+                'used_count': 2
+            }
+            
+            # Register at table_index 0 (first affected entry)
+            result1 = register_platform_notification_data(0, 'cpeBaseStringSearches', test_cpe_search_data)
+            
+            # Register IDENTICAL data at table_index 1 (second affected entry)
+            result2 = register_platform_notification_data(1, 'cpeBaseStringSearches', test_cpe_search_data)
+            
+            # Both registrations should succeed
+            if not result1 or not result2:
+                print(f"❌ FAIL: Registration failed - result1={result1}, result2={result2}")
+                print(f"  Deduplication bug: Identical data with different table_index incorrectly skipped")
+                return False
+            
+            # Verify both table indices exist in registry
+            if 'cpeBaseStringSearches' not in PLATFORM_ENTRY_NOTIFICATION_REGISTRY:
+                print(f"❌ FAIL: cpeBaseStringSearches registry not created")
+                return False
+            
+            cpe_registry = PLATFORM_ENTRY_NOTIFICATION_REGISTRY['cpeBaseStringSearches']
+            
+            if 0 not in cpe_registry or 1 not in cpe_registry:
+                print(f"❌ FAIL: Missing table index - Registry contains: {list(cpe_registry.keys())}")
+                print(f"  Expected both 0 and 1 to be present")
+                return False
+            
+            # Verify both have the expected data
+            if cpe_registry[0] != test_cpe_search_data or cpe_registry[1] != test_cpe_search_data:
+                print(f"❌ FAIL: Data mismatch in registry entries")
+                return False
+            
+            print(f"✅ PASS: Duplicate vendor/product registry consistency validated")
+            print(f"  ✓ Both table indices correctly registered with identical data")
+            print(f"  ✓ Registry contains entries for indices: {sorted(cpe_registry.keys())}")
+            print(f"  ✓ Fix validated: Multiple entries for same platform get separate registry slots")
+            return True
+            
+        except Exception as e:
+            print(f"❌ FAIL: Registry consistency test failed with exception: {e}")
+            return False
+    
     def run_all_tests(self) -> bool:
         """Run all CPE determination tests and return overall success."""
         
@@ -836,6 +913,7 @@ class CPEDeterminationTestSuite:
                 ("CPE Determination Complete Workflow", self.test_cpe_determination_complete_workflow),
                 ("Top 10 CPE Suggestions Validation", self.test_top10_cpe_determination_validation),
                 ("Platform CPE Base String Enumeration", self.test_platform_cpe_base_string_enumeration),
+                ("Duplicate Vendor/Product Registry Consistency", self.test_duplicate_vendor_product_registry_consistency),
             ]
             
             for test_name, test_func in tests:

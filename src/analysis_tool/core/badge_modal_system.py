@@ -253,15 +253,7 @@ def register_platform_notification_data(table_index: int, data_type: str, data: 
     if table_index in PLATFORM_ENTRY_NOTIFICATION_REGISTRY[data_type]:
         return False  # Already registered
     
-    # Check for identical data already registered with different table indices
-    # This helps prevent bloat from duplicate content
-    data_json = json.dumps(data, sort_keys=True)
-    for existing_index, existing_data in PLATFORM_ENTRY_NOTIFICATION_REGISTRY[data_type].items():
-        if json.dumps(existing_data, sort_keys=True) == data_json:
-            logger.debug(f"Skipping duplicate {data_type} data for table {table_index} (identical to table {existing_index})", group="badge_modal")
-            return False  # Duplicate content
-    
-    # Register the data
+    # CRITICAL: Do NOT skip registration for identical data with different table indices
     PLATFORM_ENTRY_NOTIFICATION_REGISTRY[data_type][table_index] = data
     
     return True  # Newly registered

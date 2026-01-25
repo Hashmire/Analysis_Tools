@@ -466,18 +466,26 @@ class NVDishCollector:
                     # Each affected entry becomes a complete analysis object with all sub-sections
                     # ORDER: originAffectedEntry → sourceDataConcerns → aliasExtraction → cpeDetermination → cpeAsGeneration
                     for affected_entry in affected_data:
+                        # Build originAffectedEntry with all fields from CVE List V5
+                        origin_entry = {
+                            'sourceId': affected_entry.get('source', 'unknown_source'),
+                            'cvelistv5AffectedEntryIndex': f'cve.containers.{affected_entry.get("container_type", "unknown")}.affected.[{affected_entry.get("entry_index", 0)}]',
+                            'vendor': affected_entry.get('vendor'),
+                            'product': affected_entry.get('product'),
+                            'defaultStatus': affected_entry.get('defaultStatus'),  # Preserve defaultStatus for CPE-AS generator
+                            'versions': affected_entry.get('versions', []),
+                            'platforms': affected_entry.get('platforms', []),
+                            'cpes': affected_entry.get('cpes', [])
+                        }
+                        
+                        # Copy alias-related fields if present
+                        for field in ['collectionURL', 'packageName', 'repo', 'modules', 'programRoutines', 'programFiles']:
+                            if field in affected_entry:
+                                origin_entry[field] = affected_entry[field]
+                        
                         analysis_entry = {
                             # II.C.1. Original Affected Entry
-                            'originAffectedEntry': {
-                                'sourceId': affected_entry.get('source', 'unknown_source'),
-                                'cvelistv5AffectedEntryIndex': f'cve.containers.{affected_entry.get("container_type", "unknown")}.affected.[{affected_entry.get("entry_index", 0)}]',
-                                'vendor': affected_entry.get('vendor'),
-                                'product': affected_entry.get('product'),
-                                'defaultStatus': affected_entry.get('defaultStatus'),  # Preserve defaultStatus for CPE-AS generator
-                                'versions': affected_entry.get('versions', []),
-                                'platforms': affected_entry.get('platforms', []),
-                                'cpes': affected_entry.get('cpes', [])
-                            },
+                            'originAffectedEntry': origin_entry,
                             # II.C.2. Source Data Concerns (placeholder - populated by collect_source_data_concerns_from_registry)
                             'sourceDataConcerns': {},
                             # II.C.3. Alias Extraction (placeholder - populated by collect_alias_extraction_from_registry)

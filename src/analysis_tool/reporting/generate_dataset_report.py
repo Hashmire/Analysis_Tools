@@ -391,6 +391,11 @@ def update_harvest_index_incremental(run_directory: Path, harvest_stats: Dict, c
                         'status': source.get('status'),
                         'details': source.get('details', '')
                     })
+                    # Preserve directory and report_filename if provided directly
+                    if 'directory' in source:
+                        existing['directory'] = source['directory']
+                    if 'report_filename' in source:
+                        existing['report_filename'] = source['report_filename']
                 else:
                     # Create new entry
                     existing = {
@@ -401,8 +406,8 @@ def update_harvest_index_incremental(run_directory: Path, harvest_stats: Dict, c
                     }
                     datasets.append(existing)
                 
-                # Add dataset directory information for completed sources
-                if source.get('status') == 'completed':
+                # Add dataset directory information for completed and in_progress sources
+                if source.get('status') in ['completed', 'in_progress'] and 'dataset_run_dir' in source:
                     dataset_dir_name = Path(source['dataset_run_dir']).name
                     existing['directory'] = dataset_dir_name
                     existing['report_filename'] = f"{dataset_dir_name}_report.html"

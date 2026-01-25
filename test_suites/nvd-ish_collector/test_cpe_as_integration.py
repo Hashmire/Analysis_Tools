@@ -1426,9 +1426,10 @@ class CPEASIntegrationTestSuite:
                 print(f"❌ FAIL: Expected appliedPattern='noVersion.allAffected'")
                 return False
             
-            # Since test CVEs have no confirmed mappings, expect metadata-only output
-            if cpe_match.get("vulnerable") != False:
-                print(f"❌ FAIL: Expected vulnerable=false (metadata-only, no confirmed CPE)")
+            # Since test CVEs have no confirmed mappings, expect metadata-only output (vulnerable field ABSENT)
+            if "vulnerable" in cpe_match:
+                print(f"❌ FAIL: vulnerable field should be absent (metadata-only, no confirmed CPE)")
+                print(f"   Found: vulnerable={cpe_match.get('vulnerable')}")
                 return False
             
             # Should have concerns array, not criteria field
@@ -1590,12 +1591,12 @@ class CPEASIntegrationTestSuite:
             # Expected order for metadata-only cpeMatch (no confirmed CPE):
             # 1. versionsEntryIndex
             # 2. appliedPattern (if pattern detected, omitted for metadata-only Pattern 3.1)
-            # 3. vulnerable
-            # 4. concerns
+            # 3. concerns (vulnerable field ABSENT for cpeUnconfirmed* concerns)
             # NO criteria field since there's no confirmed CPE mapping
+            # NO vulnerable field since we can't make vulnerability determination
             
             # For Pattern 3.1 metadata-only, appliedPattern exists (e.g., "noVersion.emptyArray")
-            expected_start = ["versionsEntryIndex", "appliedPattern", "vulnerable"]
+            expected_start = ["versionsEntryIndex", "appliedPattern", "concerns"]
             actual_start = keys[:3] if len(keys) >= 3 else keys
             
             if actual_start != expected_start:
@@ -1651,9 +1652,11 @@ class CPEASIntegrationTestSuite:
                         print(f"❌ FAIL: versionsEntryIndex should be 0 for first version entry")
                         return False
                     
-                    # Since these are suggestions (not confirmed), vulnerable should be false
-                    if cpe_match.get("vulnerable") != False:
-                        print(f"❌ FAIL: vulnerable should be false for unconfirmed CPE suggestions")
+                    # Metadata-only entries with concerns should NOT have vulnerable field
+                    # (we're not making a vulnerability determination when we can't confirm CPE)
+                    if "vulnerable" in cpe_match:
+                        print(f"❌ FAIL: vulnerable field should not be present for metadata-only entries with concerns")
+                        print(f"   Found: vulnerable={cpe_match.get('vulnerable')}")
                         return False
                     
                     # Should have concerns array instead of criteria
@@ -1714,9 +1717,9 @@ class CPEASIntegrationTestSuite:
                 if "range" in applied_pattern:
                     range_found = True
                     
-                    # Since these are suggestions (not confirmed), vulnerable should be false
-                    if cpe_match.get("vulnerable") != False:
-                        print(f"❌ FAIL: vulnerable should be false for unconfirmed CPE suggestions")
+                    # Since these are suggestions (not confirmed), vulnerable field should be ABSENT
+                    if "vulnerable" in cpe_match:
+                        print(f"❌ FAIL: vulnerable field should be absent for unconfirmed CPE suggestions")
                         return False
                     
                     # Should have concerns array instead of criteria
@@ -1784,9 +1787,9 @@ class CPEASIntegrationTestSuite:
                 if "range" in applied_pattern and "changes" in applied_pattern.lower():
                     range_found = True
                     
-                    # Since these are suggestions (not confirmed), vulnerable should be false
-                    if cpe_match.get("vulnerable") != False:
-                        print(f"❌ FAIL: vulnerable should be false for unconfirmed CPE suggestions")
+                    # Since these are suggestions (not confirmed), vulnerable field should be ABSENT
+                    if "vulnerable" in cpe_match:
+                        print(f"❌ FAIL: vulnerable field should be absent for unconfirmed CPE suggestions")
                         return False
                     
                     # Should have version range fields
@@ -1863,12 +1866,12 @@ class CPEASIntegrationTestSuite:
                 pattern = cpe_match.get("appliedPattern")
                 
                 # Check for affected range (2.0 → 2.3.1)
-                # Metadata-only: vulnerable=False, no criteria, has concerns
+                # Metadata-only: vulnerable field ABSENT (not False), no criteria, has concerns
                 if start == "2.0" and end_excl == "2.3.1":
-                    if pattern == "multiRange.rangeStatusTransitions" and vulnerable == False:
+                    if pattern == "multiRange.rangeStatusTransitions" and "vulnerable" not in cpe_match:
                         affected_range_found = True
                     else:
-                        print(f"⚠️  WARNING: Found affected range but incorrect fields: pattern={pattern}, vulnerable={vulnerable}")
+                        print(f"⚠️  WARNING: Found affected range but incorrect fields: pattern={pattern}, has_vulnerable={'vulnerable' in cpe_match}")
             
             if not affected_range_found:
                 print(f"❌ FAIL: Missing affected range (2.0 → 2.3.1) with Pattern 3.5")
