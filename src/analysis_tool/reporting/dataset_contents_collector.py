@@ -51,8 +51,7 @@ class UnifiedDashboardCollector:
         # Calculated stats belong in their respective sections (api, processing, etc.)
         self.consolidated_metadata = {
             'run_started_at': datetime.now(timezone.utc).isoformat()
-            # run_id, organization_name, source_uuid added during initialization
-            # toolname, version, config_loaded added by _inject_config_data()
+            # run_id, organization_name, source_uuid, toolname, version, config_loaded added dynamically
         }
         
         # Performance optimization: Reduce auto-save frequency to minimize file locking
@@ -129,10 +128,10 @@ class UnifiedDashboardCollector:
             toolname = app_config.get('toolname', 'Analysis_Tools')
             version = app_config.get('version', 'Unknown')
             
-            # Inject into metadata
-            self.data["metadata"]["toolname"] = toolname
-            self.data["metadata"]["version"] = version
-            self.data["metadata"]["config_loaded"] = True
+            # Set in consolidated_metadata (source of truth for metadata fields)
+            self.consolidated_metadata["toolname"] = toolname
+            self.consolidated_metadata["version"] = version
+            self.consolidated_metadata["config_loaded"] = True
             
             # Only log config file read once per session to avoid log spam
             # Don't log when using pre-loaded config (already logged elsewhere)
@@ -142,11 +141,10 @@ class UnifiedDashboardCollector:
                 
         except Exception as e:
             # GRACEFUL DEGRADATION: Dashboard metadata defaults for presentation layer
-            # Provides safe display values when config is unavailable (non-critical functionality)
-            self.data["metadata"]["toolname"] = "Analysis_Tools"
-            self.data["metadata"]["version"] = "Unknown"
-            self.data["metadata"]["config_loaded"] = False
-            self.data["metadata"]["config_error"] = str(e)
+            self.consolidated_metadata["toolname"] = "Analysis_Tools"
+            self.consolidated_metadata["version"] = "Unknown"
+            self.consolidated_metadata["config_loaded"] = False
+            self.consolidated_metadata["config_error"] = str(e)
             
             if logger:
                 logger.warning(f"Could not load config for injection: {e}", group="INIT")
@@ -1104,12 +1102,6 @@ class UnifiedDashboardCollector:
             self._save_counter = 0
             self._last_save_time = now
             
-            
-            # Calculate file_stats from detailed_files to avoid double counting
-            detailed_files = self.data["file_stats"]["detailed_files"]
-            self.data["file_stats"]["files_generated"] = len(detailed_files)
-            self.data["file_stats"]["total_file_size"] = sum(f.get("file_size", 0) for f in detailed_files)
-            
             # Set processing.files_generated to match file_stats for consistency
             self.data["processing"]["files_generated"] = self.data["file_stats"]["files_generated"]
             
@@ -1439,22 +1431,29 @@ def initialize_dataset_contents_report(logs_directory: str, source_uuid: str = N
         
         # Resolve source UUID to organization name
         try:
-            from ..storage.nvd_source_manager import get_source_name
-            organization_name = get_source_name(source_uuid)
-            if organization_name:
-                collector.consolidated_metadata['organization_name'] = organization_name
+            from ..storage.nvd_source_manager import get_global_source_manager
+            source_manager = get_global_source_manager()
+            
+            # Only attempt to get source name if manager is already initialized
+            if source_manager.is_initialized():
+                organization_name = source_manager.get_source_name(source_uuid)
+                if organization_name:
+                    collector.consolidated_metadata['organization_name'] = organization_name
+                else:
+                    if logger:
+                        logger.warning(f"Source name not found for UUID {source_uuid} - source manager may not be fully initialized", group="INIT")
+                    collector.consolidated_metadata['organization_name'] = f"UUID_{source_uuid[:8]}"
             else:
-                if logger:
-                    logger.warning(f"Source name not found for UUID {source_uuid} - source manager may not be fully initialized", group="INIT")
+                # Source manager not initialized yet - will be resolved later during processing
                 collector.consolidated_metadata['organization_name'] = f"UUID_{source_uuid[:8]}"
         except ImportError as e:
             if logger:
                 logger.error(f"Failed to import source manager: {e} - organization name will not be resolved", group="INIT")
             collector.consolidated_metadata['organization_name'] = f"UUID_{source_uuid[:8]}"
-        except RuntimeError as e:
-            if logger:
-                logger.warning(f"Source manager not initialized yet: {e} - organization name will be resolved during processing", group="INIT")
-            collector.consolidated_metadata['organization_name'] = f"UUID_{source_uuid[:8]}"
+    else:
+        # Non-UUID run (e.g., --last-n-days, --cve-id) - set generic organization name
+        collector.consolidated_metadata['organization_name'] = 'General CVE Dataset'
+        collector.consolidated_metadata['run_type'] = 'general'
     
     # Initialize the output file
     init_result = collector.initialize_output_file(logs_directory)
@@ -1509,6 +1508,38 @@ def initialize_dataset_contents_report(logs_directory: str, source_uuid: str = N
                 logger.debug(f"Could not update parent harvest index (non-critical): {harvest_update_error}", group="INIT")
     
     return init_result
+
+def resolve_organization_name_if_needed():
+    """
+    Resolve organization name from source UUID after source manager is initialized.
+    Call this after source manager initialization to update temp UUID_* placeholder.
+    """
+    collector = get_dataset_contents_collector()
+    source_uuid = collector.consolidated_metadata.get('source_uuid')
+    current_org_name = collector.consolidated_metadata.get('organization_name', '')
+    
+    # Only resolve if we have a UUID and the current name is a placeholder
+    if source_uuid and current_org_name.startswith('UUID_'):
+        try:
+            from ..storage.nvd_source_manager import get_global_source_manager
+            source_manager = get_global_source_manager()
+            
+            if source_manager.is_initialized():
+                organization_name = source_manager.get_source_name(source_uuid)
+                if organization_name and organization_name != source_uuid:
+                    # Update both consolidated_metadata and data.metadata
+                    collector.consolidated_metadata['organization_name'] = organization_name
+                    collector.data['metadata']['organization_name'] = organization_name
+                    
+                    if logger:
+                        logger.debug(f"Resolved organization name: {organization_name}", group="INIT")
+                    
+                    # Force an auto-save to persist the resolved name
+                    collector._auto_save(force=True)
+        except Exception as e:
+            # Non-critical - keep placeholder name
+            if logger:
+                logger.debug(f"Could not resolve organization name: {e}", group="INIT")
 
 def start_collection_phase(phase_name: str, data_source: str = "nvd_api"):
     """Initialize dataset collection for a new phase."""

@@ -185,7 +185,7 @@ class ModularRulesTestSuite:
             'versionChanges': ['changes', 'version-change'],
             'inverseStatus': ['inverse', 'unaffected'],
             'mixedStatus': ['mixed', 'both-affected'],
-            'gapProcessing': ['gap', 'range'],
+            'gapProcessing': ['gap', 'range', 'infer'],
             'specialVersionTypes': ['beta', 'rc', 'dev', 'alpha'],
             'updatePatterns': ['update', 'patch'],
             'multipleBranches': ['branch', 'multiple']

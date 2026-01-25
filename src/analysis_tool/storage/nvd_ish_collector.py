@@ -71,7 +71,7 @@ class NVDishCollector:
             'nvd_base': False,
             'cve_list_v5': False,
             'sdc_report': False,
-            'cpe_suggestions': False,
+            'cpe_determination': False,
             'cpe_as_generation': False,
             'tool_execution_metadata': False
         }
@@ -79,7 +79,7 @@ class NVDishCollector:
         # Enhanced record structure building
         self.enriched_record_data = {
             'toolExecutionMetadata': {},
-            'cpeSuggestionMetadata': [],
+            'cpeDeterminationMetadata': [],
             'cveListV5AffectedEntries': []
         }
         
@@ -199,11 +199,11 @@ class NVDishCollector:
         uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
         return bool(re.match(uuid_pattern, identifier, re.IGNORECASE))
     
-    def _create_complete_cpe_suggestions_structure(self, affected_entry_data: Dict = None, cvelistv5_affected_entry_index: str = None) -> Dict:
+    def _create_complete_cpe_determination_structure(self, affected_entry_data: Dict = None, cvelistv5_affected_entry_index: str = None) -> Dict:
         """
-        Create a complete cpeSuggestions structure with all required fields.
+        Create a complete cpeDetermination structure with all required fields.
         
-        This ensures consistent structure across all cpeSuggestions objects from initial creation,
+        This ensures consistent structure across all cpeDetermination objects from initial creation,
         preventing the need for retroactive structure normalization.
         
         Args:
@@ -211,7 +211,7 @@ class NVDishCollector:
             cvelistv5_affected_entry_index: Optional affected entry index
             
         Returns:
-            Complete cpeSuggestions structure with all required fields
+            Complete cpeDetermination structure with all required fields
         """
         # Get tool identification information
         tool_name = self.config.get('tool_name', 'Hashmire/Analysis_Tools')
@@ -224,10 +224,20 @@ class NVDishCollector:
         elif cvelistv5_affected_entry_index is None:
             cvelistv5_affected_entry_index = 'unknown'
         
+        # Populate confirmed mappings if affected entry data is available
+        confirmed_mappings = []
+        if affected_entry_data:
+            try:
+                from ..core.processData import extract_confirmed_mappings_for_affected_entry
+                confirmed_mappings = extract_confirmed_mappings_for_affected_entry(affected_entry_data)
+            except Exception as e:
+                if logger:
+                    logger.warning(f"Failed to extract confirmed mappings: {e}", group="data_processing")
+        
         return {
             'sourceId': source_id,
             'cvelistv5AffectedEntryIndex': cvelistv5_affected_entry_index,
-            'confirmedMappings': [],
+            'confirmedMappings': confirmed_mappings,
             'cpeMatchStringsSearched': [],
             'cpeMatchStringsCulled': [],
             'top10SuggestedCPEBaseStrings': []
@@ -261,7 +271,7 @@ class NVDishCollector:
         existing_tool_metadata = self._load_existing_tool_metadata(cve_id)
         self.enriched_record_data = {
             'toolExecutionMetadata': existing_tool_metadata or {},
-            'cpeSuggestionMetadata': [],
+            'cpeDeterminationMetadata': [],
             'cveListV5AffectedEntries': []
         }
         
@@ -454,6 +464,7 @@ class NVDishCollector:
                     
                     # Build Section II.C: CVE List V5 Affected Entries Analysis per documented format
                     # Each affected entry becomes a complete analysis object with all sub-sections
+                    # ORDER: originAffectedEntry → sourceDataConcerns → aliasExtraction → cpeDetermination → cpeAsGeneration
                     for affected_entry in affected_data:
                         analysis_entry = {
                             # II.C.1. Original Affected Entry
@@ -462,20 +473,21 @@ class NVDishCollector:
                                 'cvelistv5AffectedEntryIndex': f'cve.containers.{affected_entry.get("container_type", "unknown")}.affected.[{affected_entry.get("entry_index", 0)}]',
                                 'vendor': affected_entry.get('vendor'),
                                 'product': affected_entry.get('product'),
+                                'defaultStatus': affected_entry.get('defaultStatus'),  # Preserve defaultStatus for CPE-AS generator
                                 'versions': affected_entry.get('versions', []),
                                 'platforms': affected_entry.get('platforms', []),
                                 'cpes': affected_entry.get('cpes', [])
                             },
-                            # II.C.2. Source Data Concerns (placeholder for SDC integration)
+                            # II.C.2. Source Data Concerns (placeholder - populated by collect_source_data_concerns_from_registry)
                             'sourceDataConcerns': {},
-                            # II.C.3. Alias Extraction (placeholder for alias integration)
+                            # II.C.3. Alias Extraction (placeholder - populated by collect_alias_extraction_from_registry)
                             'aliasExtraction': {},
-                            # II.C.4. CPE Suggestions (complete structure from initialization)
-                            'cpeSuggestions': self._create_complete_cpe_suggestions_structure(
+                            # II.C.4. CPE Determination (complete structure - populated by collect_cpe_determination_from_registry)
+                            'cpeDetermination': self._create_complete_cpe_determination_structure(
                                 affected_entry_data=affected_entry,
                                 cvelistv5_affected_entry_index=f'cve.containers.{affected_entry.get("container_type", "unknown")}.affected.[{affected_entry.get("entry_index", 0)}]'
                             ),
-                            # II.C.5. CPE-AS Generation (placeholder for CPE-AS integration)
+                            # II.C.5. CPE-AS Generation (placeholder - populated AFTER cpeDetermination by _generate_all_cpe_as)
                             'cpeAsGeneration': {}
                         }
                         
@@ -514,6 +526,157 @@ class NVDishCollector:
                 logger.error(f"Failed to integrate CVE List V5 data for {self.current_cve_id}: {e}", group="data_processing")
             # Fail fast as requested
             raise RuntimeError(f"CVE List V5 integration failed: {e}")
+    
+    def _generate_all_cpe_as(self) -> None:
+        """
+        Generate CPE-AS data for ALL affected entries AFTER cpeDetermination have been collected.
+        This follows the documented order: cpeDetermination MUST be populated before cpeAsGeneration.
+        Supports multiple confirmed CPE base strings per affected entry.
+        """
+        if not self.enriched_record_data or 'cveListV5AffectedEntries' not in self.enriched_record_data:
+            if logger:
+                logger.debug("No affected entries available for CPE-AS generation", group="data_processing")
+            return
+        
+        from ..core.cpe_as_generator import generate_cpe_as
+        
+        for entry_index, analysis_entry in enumerate(self.enriched_record_data['cveListV5AffectedEntries']):
+            # Get the origin affected entry and convert it to the format expected by generate_cpe_as
+            origin_entry = analysis_entry.get('originAffectedEntry', {})
+            
+            # Build affected_entry in the format expected by cpe_as_generator
+            # cpe_as_generator expects CVE List V5 format, not our internal originAffectedEntry format
+            affected_entry = {
+                'vendor': origin_entry.get('vendor'),
+                'product': origin_entry.get('product'),
+                'versions': origin_entry.get('versions', []),
+                'platforms': origin_entry.get('platforms', []),
+                'defaultStatus': origin_entry.get('defaultStatus', 'unknown')
+            }
+            
+            cpe_determination = analysis_entry.get('cpeDetermination', {})
+            confirmed_mappings = cpe_determination.get('confirmedMappings', [])
+            
+            cpe_as_data = {
+                'sourceId': self.config.get('tool_name', 'Hashmire/Analysis_Tools') + ' v' + self.config.get('tool_version', '0.2.0'),
+                'cvelistv5AffectedEntryIndex': cpe_determination.get('cvelistv5AffectedEntryIndex', 'unknown'),
+                'cpeMatchObjects': []
+            }
+            
+            # Process EACH confirmed CPE base string (if any)
+            # When no confirmed mappings exist, generate_cpe_as() will handle metadata-only generation
+            if confirmed_mappings:
+                # Confirmed mappings take priority - generate full CPE-AS with criteria
+                for mapping in confirmed_mappings:
+                    cpe_base_string = mapping.get('cpeBaseString')
+                    if not cpe_base_string:
+                        if logger:
+                            logger.warning(f"Confirmed mapping missing cpeBaseString at entry {entry_index}", group="data_processing")
+                        continue
+                    
+                    # Generate CPE-AS for this specific CPE base string
+                    cpe_as_result = generate_cpe_as(
+                        affected_entry=affected_entry,
+                        cpe_base_string=cpe_base_string,
+                        has_confirmed_mapping=True,
+                        cpe_suggestion_context=cpe_determination
+                    )
+                    
+                    # Add all cpeMatch objects from this CPE to the collection
+                    if cpe_as_result and isinstance(cpe_as_result, list):
+                        # Convert OrderedDict to dict for JSON serialization
+                        cpe_as_data['cpeMatchObjects'].extend([dict(cm) for cm in cpe_as_result])
+            else:
+                # No confirmed mappings - generate metadata-only cpeMatch without criteria
+                # Use wildcard CPE string for internal processing (safest - no vendor/product assumptions)
+                # The has_confirmed_mapping=False flag ensures no criteria field in output
+                cpe_base_string = "cpe:2.3:*:*:*:*:*:*:*:*:*:*"
+                
+                # Generate metadata-only CPE-AS (no criteria, only concerns)
+                cpe_as_result = generate_cpe_as(
+                    affected_entry=affected_entry,
+                    cpe_base_string=cpe_base_string,
+                    has_confirmed_mapping=False,
+                    cpe_suggestion_context=cpe_determination
+                )
+                
+                # Add metadata-only cpeMatch objects
+                if cpe_as_result and isinstance(cpe_as_result, list):
+                    # Convert OrderedDict to dict for JSON serialization
+                    cpe_as_data['cpeMatchObjects'].extend([dict(cm) for cm in cpe_as_result])
+            
+            # Store the generated CPE-AS data
+            analysis_entry['cpeAsGeneration'] = cpe_as_data
+
+    
+    def _generate_cpe_as_for_entry_DEPRECATED(self, affected_entry: Dict, cpe_determination: Dict) -> Dict:
+        """
+        Generate CPE Applicability Statements directly for an affected entry.
+        Used in nvd-ish-only mode where badge system isn't invoked.
+        
+        Args:
+            affected_entry: The affected entry data
+            cpe_determination: The cpeDetermination structure with confirmedMappings and top10 suggestions
+            
+        Returns:
+            Dict with cpeMatches or empty dict if generation fails
+        """
+        try:
+            from ..core import cpe_as_generator
+            from ..core.processData import formatFor23CPE
+            
+            vendor = affected_entry.get('vendor')
+            product = affected_entry.get('product')
+            
+            if not vendor or not product:
+                return {}
+            
+            # Determine if we have confirmed CPE mappings
+            confirmed_mappings = cpe_determination.get('confirmedMappings', [])
+            has_confirmed_mapping = len(confirmed_mappings) > 0
+            
+            # Create CPE determination context for the generator
+            cpe_determination_context = {
+                'top10SuggestedCPEBaseStrings': cpe_determination.get('top10SuggestedCPEBaseStrings', [])
+            }
+            
+            # Build raw platform data structure expected by cpe_as_generator
+            raw_platform_data = {
+                'vendor': vendor,
+                'product': product,
+                'defaultStatus': affected_entry.get('defaultStatus', 'unknown'),
+                'versions': affected_entry.get('versions', [])
+            }
+            
+            # Use confirmed CPE if available, otherwise use wildcard (no assumptions)
+            if has_confirmed_mapping:
+                cpe_base_string = confirmed_mappings[0]  # Use first confirmed mapping
+            else:
+                # Use wildcard CPE for metadata-only generation (no vendor/product assumptions)
+                cpe_base_string = "cpe:2.3:*:*:*:*:*:*:*:*:*:*"
+            
+            # Generate CPE-AS with confirmation context
+            cpe_matches = cpe_as_generator.generate_cpe_as(
+                raw_platform_data,
+                cpe_base_string,
+                has_confirmed_mapping=has_confirmed_mapping,
+                cpe_suggestion_context=cpe_determination_context
+            )
+            
+            if not cpe_matches:
+                return {}
+            
+            # Convert OrderedDict to regular dict for JSON serialization
+            cpe_matches_serializable = [dict(cm) for cm in cpe_matches]
+            
+            # Return only the CPE-AS data (cpeMatches array)
+            # No implementation metadata - just the actual CPE Applicability Statements
+            return cpe_matches_serializable
+            
+        except Exception as e:
+            if logger:
+                logger.debug(f"CPE-AS generation failed for affected entry: {e}", group="CPE_AS_GEN")
+            return {}
     
     def collect_source_data_concerns_from_registry(self, registry_instance=None) -> None:
         """
@@ -666,74 +829,74 @@ class NVDishCollector:
                 logger.error(f"Failed to integrate SDC report for {self.current_cve_id}: {e}", group="data_processing")
             # Continue processing other data as requested
     
-    def collect_cpe_suggestions_data(self, cpe_suggestions_data: Dict) -> None:
+    def collect_cpe_determination_data(self, cpe_determination_data: Dict) -> None:
         """
-        Integrate CPE suggestions data with proper attribution.
+        Integrate CPE determination data with proper attribution.
         
         Args:
-            cpe_suggestions_data: CPE suggestions and NVD API results
+            cpe_determination_data: CPE determination and NVD API results
         """
         if not self.current_cve_id or not self.config.get('enabled', True):
             return
         
         if not self.current_record:
             if logger:
-                logger.warning(f"No base record available for CPE suggestions integration: {self.current_cve_id}", group="data_processing")
+                logger.warning(f"No base record available for CPE determination integration: {self.current_cve_id}", group="data_processing")
             return
         
         try:
-            if cpe_suggestions_data and 'vulnerabilities' in self.current_record:
+            if cpe_determination_data and 'vulnerabilities' in self.current_record:
                 cve_node = self.current_record['vulnerabilities'][0]['cve']
                 
                 if 'enhanced_data' not in cve_node:
                     cve_node['enhanced_data'] = {}
                 
-                # Store in Section II.B: CPE Suggestion Metadata per documented format
-                if isinstance(cpe_suggestions_data, list):
-                    # If it's already formatted as cpeSuggestionMetadata array
-                    self.enriched_record_data['cpeSuggestionMetadata'] = cpe_suggestions_data
-                elif isinstance(cpe_suggestions_data, dict) and 'cpeSuggestionMetadata' in cpe_suggestions_data:
+                # Store in Section II.B: CPE Determination Metadata per documented format
+                if isinstance(cpe_determination_data, list):
+                    # If it's already formatted as cpeDeterminationMetadata array
+                    self.enriched_record_data['cpeDeterminationMetadata'] = cpe_determination_data
+                elif isinstance(cpe_determination_data, dict) and 'cpeDeterminationMetadata' in cpe_determination_data:
                     # If wrapped in container
-                    self.enriched_record_data['cpeSuggestionMetadata'] = cpe_suggestions_data['cpeSuggestionMetadata']
+                    self.enriched_record_data['cpeDeterminationMetadata'] = cpe_determination_data['cpeDeterminationMetadata']
                 else:
                     # Transform generic CPE data to documented format
                     # This will need specific implementation based on actual data structure
-                    self.enriched_record_data['cpeSuggestionMetadata'] = []
+                    self.enriched_record_data['cpeDeterminationMetadata'] = []
                 
                 # Store legacy data temporarily for transition
                 cve_node['enhanced_data']['cpe_enhancements'] = {
                     'source': self.attribution_source,
-                    'attribution': 'analysis_tools.cpe_suggestions',
+                    'attribution': 'analysis_tools.cpe_determination',
                     'timestamp': datetime.now(timezone.utc).isoformat(),
-                    'data': cpe_suggestions_data
+                    'data': cpe_determination_data
                 }
                 
                 # Track extension application
                 self.processing_metadata['extensionsApplied'].append('cpe_enhancements')
                 self.processing_metadata['dataSources'].append({
-                    'type': 'cpe_suggestions',
+                    'type': 'cpe_determination',
                     'source': self.attribution_source,
                     'timestamp': datetime.now(timezone.utc).isoformat(),
-                    'description': 'CPE suggestions and NVD API results'
+                    'description': 'CPE determination and NVD API results'
                 })
                 
-                self.data_collected['cpe_suggestions'] = True
+                self.data_collected['cpe_determination'] = True
                 
                 if logger:
-                    logger.debug(f"Integrated CPE suggestions data for {self.current_cve_id}", group="data_processing")
+                    logger.debug(f"Integrated CPE determination data for {self.current_cve_id}", group="data_processing")
         
         except Exception as e:
             if logger:
-                logger.error(f"Failed to integrate CPE suggestions for {self.current_cve_id}: {e}", group="data_processing")
+                logger.error(f"Failed to integrate CPE determination for {self.current_cve_id}: {e}", group="data_processing")
             # Continue processing other data as requested
 
-    def collect_cpe_suggestions_from_registry(self, registry_instance=None) -> None:
+    def collect_cpe_determination_from_registry(self, registry_instance=None) -> None:
         """
-        Integrate CPE suggestions data from Platform Entry Notification Registry.
+        Integrate CPE determination data from Platform Entry Notification Registry.
         
-        This method extracts CPE suggestions data stored in the cpeBaseStringSearches
+        This method extracts CPE determination data stored in the cpeBaseStringSearches
         section of the Platform Entry Notification Registry and populates the
-        II.C.4 CPE Suggestions structure in affected entries.
+        II.C.4 CPE Determination structure in affected entries.
         
         Args:
             registry_instance: Optional registry instance to use instead of the imported one
@@ -741,10 +904,10 @@ class NVDishCollector:
         if not self.current_cve_id or not self.config.get('enabled', True):
             return
         
-        # Registry instance is required for CPE suggestions integration
+        # Registry instance is required for CPE determination integration
         if registry_instance is None:
             if logger:
-                logger.warning(f"No registry instance provided - skipping CPE suggestions integration for {self.current_cve_id}", group="data_processing")
+                logger.warning(f"No registry instance provided - skipping CPE determination integration for {self.current_cve_id}", group="data_processing")
             return
         
         registry = registry_instance
@@ -764,7 +927,7 @@ class NVDishCollector:
             
             if not cpe_searches_registry and not cpe_culled_registry and not top10_cpe_registry:
                 if logger:
-                    logger.debug(f"No CPE data available in registry for CPE suggestions - {self.current_cve_id}", group="data_processing")
+                    logger.debug(f"No CPE data available in registry for CPE determination - {self.current_cve_id}", group="data_processing")
                 return
             
             # Process each affected entry to extract CPE suggestions from separate registries
@@ -778,16 +941,16 @@ class NVDishCollector:
                 if 'cveListV5AffectedEntries' in self.enriched_record_data:
                     for entry in self.enriched_record_data['cveListV5AffectedEntries']:
                         if self._matches_table_index(entry, table_index):
-                            # Ensure complete cpeSuggestions structure exists
-                            if 'cpeSuggestions' not in entry:
-                                entry['cpeSuggestions'] = self._create_complete_cpe_suggestions_structure(
+                            # Ensure complete cpeDetermination structure exists
+                            if 'cpeDetermination' not in entry:
+                                entry['cpeDetermination'] = self._create_complete_cpe_determination_structure(
                                     affected_entry_data=entry.get('originAffectedEntry', {}),
                                     cvelistv5_affected_entry_index=entry.get('originAffectedEntry', {}).get('cvelistv5AffectedEntryIndex', 'unknown')
                                 )
                             
                             # Update CPE match strings searched directly
                             used_strings = cpe_search_data.get('used_strings', [])
-                            entry['cpeSuggestions']['cpeMatchStringsSearched'].extend(used_strings)
+                            entry['cpeDetermination']['cpeMatchStringsSearched'].extend(used_strings)
                             affected_entries_updated += 1
                             break
             
@@ -799,9 +962,9 @@ class NVDishCollector:
                 if 'cveListV5AffectedEntries' in self.enriched_record_data:
                     for entry in self.enriched_record_data['cveListV5AffectedEntries']:
                         if self._matches_table_index(entry, table_index):
-                            # Ensure complete cpeSuggestions structure exists
-                            if 'cpeSuggestions' not in entry:
-                                entry['cpeSuggestions'] = self._create_complete_cpe_suggestions_structure(
+                            # Ensure complete cpeDetermination structure exists
+                            if 'cpeDetermination' not in entry:
+                                entry['cpeDetermination'] = self._create_complete_cpe_determination_structure(
                                     affected_entry_data=entry.get('originAffectedEntry', {}),
                                     cvelistv5_affected_entry_index=entry.get('originAffectedEntry', {}).get('cvelistv5AffectedEntryIndex', 'unknown')
                                 )
@@ -845,7 +1008,7 @@ class NVDishCollector:
                                         'cpeString': cpe_string,
                                         'reason': mapped_reason
                                     }
-                                    entry['cpeSuggestions']['cpeMatchStringsCulled'].append(culled_entry)
+                                    entry['cpeDetermination']['cpeMatchStringsCulled'].append(culled_entry)
                             break
             
             # Process top 10 CPE suggestions registry separately
@@ -856,9 +1019,9 @@ class NVDishCollector:
                 if 'cveListV5AffectedEntries' in self.enriched_record_data:
                     for entry in self.enriched_record_data['cveListV5AffectedEntries']:
                         if self._matches_table_index(entry, table_index):
-                            # Ensure complete cpeSuggestions structure exists
-                            if 'cpeSuggestions' not in entry:
-                                entry['cpeSuggestions'] = self._create_complete_cpe_suggestions_structure(
+                            # Ensure complete cpeDetermination structure exists
+                            if 'cpeDetermination' not in entry:
+                                entry['cpeDetermination'] = self._create_complete_cpe_determination_structure(
                                     affected_entry_data=entry.get('originAffectedEntry', {}),
                                     cvelistv5_affected_entry_index=entry.get('originAffectedEntry', {}).get('cvelistv5AffectedEntryIndex', 'unknown')
                                 )
@@ -867,8 +1030,8 @@ class NVDishCollector:
                             top10_suggestions = top10_data.get('top10SuggestedCPEBaseStrings', [])
                             
                             # Initialize top10SuggestedCPEBaseStrings if not present
-                            if 'top10SuggestedCPEBaseStrings' not in entry['cpeSuggestions']:
-                                entry['cpeSuggestions']['top10SuggestedCPEBaseStrings'] = []
+                            if 'top10SuggestedCPEBaseStrings' not in entry['cpeDetermination']:
+                                entry['cpeDetermination']['top10SuggestedCPEBaseStrings'] = []
                             
                             for suggestion in top10_suggestions:
                                 if isinstance(suggestion, dict):
@@ -876,7 +1039,7 @@ class NVDishCollector:
                                     rank = suggestion.get('rank', 0)
                                     
                                     if cpe_string:
-                                        entry['cpeSuggestions']['top10SuggestedCPEBaseStrings'].append({
+                                        entry['cpeDetermination']['top10SuggestedCPEBaseStrings'].append({
                                             'cpeBaseString': cpe_string,
                                             'rank': rank
                                         })
@@ -885,7 +1048,7 @@ class NVDishCollector:
                             break
                     
             if affected_entries_updated > 0:
-                self.data_collected['cpe_suggestions'] = True
+                self.data_collected['cpe_determination'] = True
                 
                 # Track extension application
                 if 'cpe_enhancements' not in self.processing_metadata.get('extensionsApplied', []):
@@ -893,7 +1056,7 @@ class NVDishCollector:
                 
                 # Add data source tracking
                 self.processing_metadata['dataSources'].append({
-                    'type': 'cpe_suggestions_registry',
+                    'type': 'cpe_determination_registry',
                     'source': self.attribution_source,
                     'timestamp': datetime.now(timezone.utc).isoformat(),
                     'description': f'CPE suggestions from Platform Entry Notification Registry ({affected_entries_updated} entries)'
@@ -1042,7 +1205,7 @@ class NVDishCollector:
                     if affected_entry.get('index') == table_index:
                         top10_suggestions = affected_entry.get('top10Suggestions', [])
                         
-                        # Add top10SuggestedCPEBaseStrings to cpeSuggestions following documented format
+                        # Add top10SuggestedCPEBaseStrings to cpeDetermination following documented format
                         cpe_suggestions['top10SuggestedCPEBaseStrings'] = []
                         
                         for suggestion in top10_suggestions:
@@ -1079,7 +1242,7 @@ class NVDishCollector:
         
         This method extracts confirmed mappings data from the confirmedMappings
         section of the Platform Entry Notification Registry and populates the
-        confirmedMappings arrays in the cpeSuggestions structure.
+        confirmedMappings arrays in the cpeDetermination structure.
         
         Args:
             registry_instance: Optional registry instance to use instead of the imported one
@@ -1121,15 +1284,17 @@ class NVDishCollector:
                         for entry in self.enriched_record_data['cveListV5AffectedEntries']:
                             # Match by table index 
                             if self._matches_table_index(entry, table_index):
-                                # Ensure complete cpeSuggestions structure exists
-                                if 'cpeSuggestions' not in entry:
-                                    entry['cpeSuggestions'] = self._create_complete_cpe_suggestions_structure(
+                                # Ensure complete cpeDetermination structure exists
+                                if 'cpeDetermination' not in entry:
+                                    entry['cpeDetermination'] = self._create_complete_cpe_determination_structure(
                                         affected_entry_data=entry.get('originAffectedEntry', {}),
                                         cvelistv5_affected_entry_index=confirmed_mappings_data.get('cvelistv5AffectedEntryIndex', 'unknown')
                                     )
                                 
-                                # Add confirmed mappings (just the CPE base string list)
-                                entry['cpeSuggestions']['confirmedMappings'] = confirmed_mappings_data['confirmedMappings']
+                                # Add confirmed mappings from registry (only if registry has data, don't overwrite with empty)
+                                if confirmed_mappings_data.get('confirmedMappings'):
+                                    entry['cpeDetermination']['confirmedMappings'] = confirmed_mappings_data['confirmedMappings']
+                                
                                 affected_entries_updated += 1
                                 break
             
@@ -1393,6 +1558,95 @@ class NVDishCollector:
                 logger.error(f"Failed to integrate alias extraction from registry for {self.current_cve_id}: {e}", group="data_processing")
             # Continue processing - this is not a critical failure
 
+    def collect_cpe_as_generation_from_registry(self, registry_instance=None) -> None:
+        """
+        Integrate CPE Applicability Statement generation from PLATFORM_ENTRY_NOTIFICATION_REGISTRY.
+        
+        This method extracts CPE-AS data that was generated by badge_modal_system during
+        platform entry processing and integrates it into the enrichedCVEv5Affected entries.
+        
+        Args:
+            registry_instance: Registry instance (used for compatibility but not primary source)
+        """
+        if logger:
+            logger.debug(f"Starting collect_cpe_as_generation_from_registry for {self.current_cve_id}", group="data_processing")
+            
+        if not self.current_cve_id or not self.config.get('enabled', True):
+            return
+
+        try:
+            # Import badge_modal_system to access PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+            from ..core.badge_modal_system import PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+            
+            # Get CPE-AS generation data from registry
+            cpe_as_registry = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('cpeAsGeneration', {})
+            
+            if not cpe_as_registry:
+                if logger:
+                    logger.debug(f"No CPE-AS generation data in registry for {self.current_cve_id}", group="data_processing")
+                return
+            
+            if logger:
+                logger.debug(f"Found {len(cpe_as_registry)} CPE-AS generation entries in registry", group="CPE_AS_GEN")
+            
+            # Process each affected entry to match with CPE-AS data
+            affected_entries_updated = 0
+            
+            if 'cveListV5AffectedEntries' in self.enriched_record_data:
+                for entry_index, entry in enumerate(self.enriched_record_data['cveListV5AffectedEntries']):
+                    # Use the enumerated position as the table_index
+                    table_index = entry_index
+                    
+                    if logger:
+                        origin_entry = entry.get('originAffectedEntry', {})
+                        vendor = origin_entry.get('vendor', 'Unknown')
+                        product = origin_entry.get('product', 'Unknown')
+                        logger.debug(f"Processing entry {entry_index} ({vendor}/{product}) for CPE-AS matching", group="CPE_AS_GEN")
+                    
+                    # Find matching CPE-AS data from registry
+                    if table_index in cpe_as_registry:
+                        cpe_as_data = cpe_as_registry[table_index]
+                        
+                        # Integrate CPE-AS data into entry
+                        if 'cpeAsGeneration' not in entry:
+                            entry['cpeAsGeneration'] = {}
+                        
+                        # Get the original cvelistv5AffectedEntryIndex from the entry
+                        origin_entry = entry.get('originAffectedEntry', {})
+                        entry_index_path = origin_entry.get('cvelistv5AffectedEntryIndex', f'unknown_index_{entry_index}')
+                        
+                        # Add CPE-AS data with proper attribution
+                        entry['cpeAsGeneration'] = {
+                            'cpeMatches': cpe_as_data.get('cpeMatches', []),
+                            'cpeBaseString': cpe_as_data.get('cpeBaseString', ''),
+                            'totalMatches': cpe_as_data.get('totalMatches', 0),
+                            'toolExecutionMetadata': {
+                                'tool': 'analysis_tools',
+                                'component': 'cpe_as_generator',
+                                'version': '0.3.0',
+                                'timestamp': datetime.now(timezone.utc).isoformat(),
+                                'sourceAffectedEntry': entry_index_path,
+                                'vendor': cpe_as_data.get('vendor', ''),
+                                'product': cpe_as_data.get('product', '')
+                            }
+                        }
+                        
+                        affected_entries_updated += 1
+                        
+                        if logger:
+                            logger.debug(f"Integrated CPE-AS data for entry {entry_index}: {cpe_as_data.get('totalMatches', 0)} cpeMatch objects", group="CPE_AS_GEN")
+                
+                if logger:
+                    logger.info(f"Successfully integrated CPE-AS generation from registry for {self.current_cve_id}: {affected_entries_updated} entries updated", group="CPE_AS_GEN")
+            else:
+                if logger:
+                    logger.debug(f"No CPE-AS data found for any affected entries in {self.current_cve_id}", group="CPE_AS_GEN")
+        
+        except Exception as e:
+            if logger:
+                logger.error(f"Failed to integrate CPE-AS generation from registry for {self.current_cve_id}: {e}", group="CPE_AS_GEN")
+            # Continue processing - this is not a critical failure
+
     def _filter_badge_collector_alias_data(self, alias_data: Dict) -> Optional[Dict]:
         """
         Filter alias data from badge contents collector format for nvd-ish records.
@@ -1490,8 +1744,8 @@ class NVDishCollector:
             
             # Add/update per-argument timestamps if provided
             timestamp_fields = [
-                'sourceDataConcerns', 'cpeSuggestions', 'cpeAsGeneration',
-                'cpeSuggestionMetadata', 'aliasExtraction'
+                'sourceDataConcerns', 'cpeDetermination', 'cpeAsGeneration',
+                'cpeDeterminationMetadata', 'aliasExtraction'
             ]
             
             new_timestamps_added = 0
@@ -1523,6 +1777,8 @@ class NVDishCollector:
             True if save successful, False otherwise
         """
         if not self.current_cve_id or not self.config.get('enabled', True):
+            if logger:
+                logger.debug(f"Skipping complete_cve_processing: current_cve_id={self.current_cve_id}, enabled={self.config.get('enabled', True)}", group="data_processing")
             return False
         
         if not self.current_record:
@@ -1533,6 +1789,9 @@ class NVDishCollector:
         # VALIDATION: Enhanced records require BOTH data sources
         has_nvd_data = self.data_collected.get('nvd_base', False)
         has_cve_list_data = self.data_collected.get('cve_list_v5', False)
+        
+        if logger:
+            logger.debug(f"Data collection status for {self.current_cve_id}: nvd_base={has_nvd_data}, cve_list_v5={has_cve_list_data}", group="data_processing")
         
         if not (has_nvd_data and has_cve_list_data):
             missing_sources = []
@@ -1836,14 +2095,14 @@ def collect_sdc_report(sdc_concerns_data: Dict, affected_entry_mapping: Optional
     get_nvd_ish_collector().collect_sdc_report_data(sdc_concerns_data, affected_entry_mapping)
 
 
-def collect_cpe_suggestions(cpe_suggestions_data: Dict) -> None:
-    """Collect CPE suggestions data"""
-    get_nvd_ish_collector().collect_cpe_suggestions_data(cpe_suggestions_data)
+def collect_cpe_determination(cpe_determination_data: Dict) -> None:
+    """Collect CPE determination data"""
+    get_nvd_ish_collector().collect_cpe_determination_data(cpe_determination_data)
 
 
-def collect_cpe_suggestions_from_registry(registry_instance=None) -> None:
-    """Collect CPE suggestions data from Platform Entry Notification Registry"""
-    get_nvd_ish_collector().collect_cpe_suggestions_from_registry(registry_instance)
+def collect_cpe_determination_from_registry(registry_instance=None) -> None:
+    """Collect CPE determination data from Platform Entry Notification Registry"""
+    get_nvd_ish_collector().collect_cpe_determination_from_registry(registry_instance)
 
 
 def collect_confirmed_mappings_from_registry(registry_instance=None) -> None:
@@ -1854,6 +2113,11 @@ def collect_confirmed_mappings_from_registry(registry_instance=None) -> None:
 def collect_alias_extraction_from_registry(registry_instance=None) -> None:
     """Collect alias extraction data from Platform Entry Notification Registry"""
     get_nvd_ish_collector().collect_alias_extraction_from_registry(registry_instance)
+
+
+def collect_cpe_as_generation_from_registry(registry_instance=None) -> None:
+    """Collect CPE-AS generation data from Platform Entry Notification Registry"""
+    get_nvd_ish_collector().collect_cpe_as_generation_from_registry(registry_instance)
 
 
 def collect_cpe_as_generation(cpe_as_data: Dict) -> None:

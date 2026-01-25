@@ -13,7 +13,7 @@ This suite focuses on fundamental collector behavior. Other features have
 dedicated test suites:
 - test_sdc_integration.py: Source Data Concerns detection and integration
 - test_confirmed_mappings.py: Confirmed CPE mapping functionality
-- test_cpe_suggestions.py: CPE suggestions workflow and components
+- test_cpe_determination.py: CPE determination workflow and components
 - test_cpe_culling.py: CPE quality control and filtering
 - test_alias_extraction.py: Alias extraction and placeholder filtering
 
@@ -348,7 +348,7 @@ class NVDishCollectorTestSuite:
                 cmd.extend(additional_args)
             
             # Always add all output parameters for comprehensive testing
-            required_params = ["--sdc-report", "--cpe-suggestions", "--alias-report", "--cpe-as-generator"]
+            required_params = ["--sdc-report", "--cpe-determination", "--alias-report", "--cpe-as-generator"]
             for param in required_params:
                 if param not in cmd:
                     cmd.append(param)
@@ -663,7 +663,7 @@ class NVDishCollectorTestSuite:
             if len(entries) > 0:
                 entry = entries[0]
                 required_entry_sections = ["originAffectedEntry", "sourceDataConcerns", "aliasExtraction", 
-                                         "cpeSuggestions", "cpeAsGeneration"]
+                                         "cpeDetermination", "cpeAsGeneration"]
                 missing_entry_sections = [section for section in required_entry_sections if section not in entry]
                 if missing_entry_sections:
                     print(f"❌ FAIL: Missing required entry sections: {missing_entry_sections}")
@@ -912,15 +912,15 @@ class NVDishCollectorTestSuite:
             print(f"❌ FAIL: Error validating detection groups: {e}")
             return False
 
-    def test_cpe_suggestions_timestamp_tracking(self) -> bool:
-        """Test CPE suggestions timestamp tracking and integration."""
-        print(f"\n=== Test 11: CPE Suggestions Timestamp Tracking ===")
+    def test_cpe_determination_timestamp_tracking(self) -> bool:
+        """Test CPE determination timestamp tracking and integration."""
+        print(f"\n=== Test 11: CPE Determination Timestamp Tracking ===")
         
-        # Run with CPE suggestions enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-suggestions"])
+        # Run with CPE determination enabled
+        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-determination"])
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE suggestions")
+            print(f"❌ FAIL: Analysis tool failed with CPE determination")
             if stderr:
                 print(f"Error: {stderr[:200]}...")
             return False
@@ -938,72 +938,72 @@ class NVDishCollectorTestSuite:
             
             tool_metadata = data.get("enrichedCVEv5Affected", {}).get("toolExecutionMetadata", {})
             
-            # Check for CPE suggestions timestamps
-            cpe_suggestions_timestamp = tool_metadata.get("cpeSuggestions")
-            cpe_metadata_timestamp = tool_metadata.get("cpeSuggestionMetadata")
+            # Check for CPE determination timestamps
+            cpe_determination_timestamp = tool_metadata.get("cpeDetermination")
+            cpe_metadata_timestamp = tool_metadata.get("cpeDeterminationMetadata")
             
-            if not cpe_suggestions_timestamp:
-                print(f"❌ FAIL: cpeSuggestions timestamp missing from tool execution metadata")
+            if not cpe_determination_timestamp:
+                print(f"❌ FAIL: cpeDetermination timestamp missing from tool execution metadata")
                 return False
             
             if not cpe_metadata_timestamp:
-                print(f"❌ FAIL: cpeSuggestionMetadata timestamp missing from tool execution metadata")
+                print(f"❌ FAIL: cpeDeterminationMetadata timestamp missing from tool execution metadata")
                 return False
             
             # Validate timestamp format (ISO 8601 with Z suffix)
             import re
             timestamp_pattern = r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$'
             
-            if not re.match(timestamp_pattern, cpe_suggestions_timestamp):
-                print(f"❌ FAIL: cpeSuggestions timestamp format invalid: {cpe_suggestions_timestamp}")
+            if not re.match(timestamp_pattern, cpe_determination_timestamp):
+                print(f"❌ FAIL: cpeDetermination timestamp format invalid: {cpe_determination_timestamp}")
                 return False
             
             if not re.match(timestamp_pattern, cpe_metadata_timestamp):
-                print(f"❌ FAIL: cpeSuggestionMetadata timestamp format invalid: {cpe_metadata_timestamp}")
+                print(f"❌ FAIL: cpeDeterminationMetadata timestamp format invalid: {cpe_metadata_timestamp}")
                 return False
             
             # Check that both timestamps are the same (set at the same time in code)
-            if cpe_suggestions_timestamp != cpe_metadata_timestamp:
-                print(f"❌ FAIL: CPE timestamp mismatch - suggestions: {cpe_suggestions_timestamp}, metadata: {cpe_metadata_timestamp}")
+            if cpe_determination_timestamp != cpe_metadata_timestamp:
+                print(f"❌ FAIL: CPE timestamp mismatch - suggestions: {cpe_determination_timestamp}, metadata: {cpe_metadata_timestamp}")
                 return False
             
-            # Check for CPE Suggestions data in affected entries (II.C.4)
+            # Check for CPE Determination data in affected entries (II.C.4)
             cve_list_entries = data.get("enrichedCVEv5Affected", {}).get("cveListV5AffectedEntries", [])
             
             cpe_entries_found = 0
             for entry in cve_list_entries:
-                cpe_suggestions = entry.get("cpeSuggestions", {})
-                if cpe_suggestions:
+                cpe_determination = entry.get("cpeDetermination", {})
+                if cpe_determination:
                     cpe_entries_found += 1
                     
-                    # Validate CPE suggestions structure per documentation
+                    # Validate CPE determination structure per documentation
                     required_keys = ['confirmedMappings', 'cpeMatchStringsSearched', 'cpeMatchStringsCulled']
                     for key in required_keys:
-                        if key not in cpe_suggestions:
-                            print(f"❌ FAIL: CPE suggestions missing required key: {key}")
+                        if key not in cpe_determination:
+                            print(f"❌ FAIL: CPE determination missing required key: {key}")
                             return False
             
-            print(f"✅ PASS: CPE suggestions timestamps tracked correctly")
-            print(f"  ✓ cpeSuggestions timestamp: {cpe_suggestions_timestamp}")
-            print(f"  ✓ cpeSuggestionMetadata timestamp: {cpe_metadata_timestamp}")
+            print(f"✅ PASS: CPE determination timestamps tracked correctly")
+            print(f"  ✓ cpeDetermination timestamp: {cpe_determination_timestamp}")
+            print(f"  ✓ cpeDeterminationMetadata timestamp: {cpe_metadata_timestamp}")
             print(f"  ✓ Timestamp format valid (ISO 8601 with Z suffix)")
-            print(f"  ✓ CPE suggestions data integrated in {cpe_entries_found} affected entries")
+            print(f"  ✓ CPE determination data integrated in {cpe_entries_found} affected entries")
             
             return True
             
         except Exception as e:
-            print(f"❌ FAIL: Error validating CPE suggestions timestamps: {e}")
+            print(f"❌ FAIL: Error validating CPE determination timestamps: {e}")
             return False
     
     def test_enhanced_cpe_mapping_data_extraction(self) -> bool:
         """Test enhanced CPE mapping data extraction infrastructure and format validation."""
         print(f"\n=== Test 12: Enhanced CPE Mapping Data Extraction ===")
         
-        # Run with CPE suggestions enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-suggestions"])
+        # Run with CPE determination enabled
+        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-determination"])
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE suggestions")
+            print(f"❌ FAIL: Analysis tool failed with CPE determination")
             if stderr:
                 print(f"Error: {stderr[:200]}...")
             return False
@@ -1019,40 +1019,40 @@ class NVDishCollectorTestSuite:
             with open(output_path, 'r') as f:
                 data = json.load(f)
             
-            # Check for CPE suggestions metadata timestamp (should be present in toolExecutionMetadata)
+            # Check for CPE determination metadata timestamp (should be present in toolExecutionMetadata)
             tool_metadata = data.get("enrichedCVEv5Affected", {}).get("toolExecutionMetadata", {})
             
-            cpe_suggestion_metadata_timestamp = tool_metadata.get("cpeSuggestionMetadata")
-            if not cpe_suggestion_metadata_timestamp:
-                print(f"❌ FAIL: CPE suggestion metadata timestamp not found in tool execution metadata")
+            cpe_determination_metadata_timestamp = tool_metadata.get("cpeDeterminationMetadata")
+            if not cpe_determination_metadata_timestamp:
+                print(f"❌ FAIL: CPE determination metadata timestamp not found in tool execution metadata")
                 return False
             
             # Check timestamp format
-            timestamp = cpe_suggestion_metadata_timestamp
+            timestamp = cpe_determination_metadata_timestamp
             if not timestamp:
-                print(f"❌ FAIL: CPE suggestion metadata missing timestamp")
+                print(f"❌ FAIL: CPE determination metadata missing timestamp")
                 return False
             
             # Validate timestamp format (ISO 8601 with Z suffix)
             if not timestamp.endswith('Z') or 'T' not in timestamp:
-                print(f"❌ FAIL: Invalid CPE suggestion metadata timestamp format: {timestamp}")
+                print(f"❌ FAIL: Invalid CPE determination metadata timestamp format: {timestamp}")
                 return False
             
-            # Find affected entries and check for CPE suggestions infrastructure
+            # Find affected entries and check for CPE determination infrastructure
             cve_list_entries = data.get("enrichedCVEv5Affected", {}).get("cveListV5AffectedEntries", [])
             
             enhanced_cpe_found = False
             validation_errors = []
             
             for entry in cve_list_entries:
-                cpe_suggestions = entry.get("cpeSuggestions", {})
-                if not cpe_suggestions:
+                cpe_determination = entry.get("cpeDetermination", {})
+                if not cpe_determination:
                     continue
                 
                 enhanced_cpe_found = True
                 
                 # Validate CPE match strings searched structure (should be array of strings per documentation)
-                cpe_match_strings_searched = cpe_suggestions.get('cpeMatchStringsSearched', [])
+                cpe_match_strings_searched = cpe_determination.get('cpeMatchStringsSearched', [])
                 for suggestion in cpe_match_strings_searched:
                     if not isinstance(suggestion, str):
                         validation_errors.append(f"CPE match string searched should be string, got: {type(suggestion)}")
@@ -1062,11 +1062,11 @@ class NVDishCollectorTestSuite:
                 # Validate required top-level fields per documentation
                 required_top_fields = ['sourceId', 'cvelistv5AffectedEntryIndex']
                 for field in required_top_fields:
-                    if field not in cpe_suggestions:
+                    if field not in cpe_determination:
                         validation_errors.append(f"Missing required field: {field}")
                 
                 # Validate confirmed mappings structure (should be array of strings per documentation)
-                confirmed_mappings = cpe_suggestions.get('confirmedMappings', [])
+                confirmed_mappings = cpe_determination.get('confirmedMappings', [])
                 for mapping in confirmed_mappings:
                     if not isinstance(mapping, str):
                         validation_errors.append(f"Confirmed mapping should be string, got: {type(mapping)}")
@@ -1074,7 +1074,7 @@ class NVDishCollectorTestSuite:
                         validation_errors.append(f"Invalid CPE format in confirmed mapping: {mapping}")
                 
                 # Validate CPE match strings culled structure per documentation
-                cpe_match_strings_culled = cpe_suggestions.get('cpeMatchStringsCulled', [])
+                cpe_match_strings_culled = cpe_determination.get('cpeMatchStringsCulled', [])
                 for culled in cpe_match_strings_culled:
                     if not isinstance(culled, dict):
                         validation_errors.append(f"CPE match string culled should be object, got: {type(culled)}")
@@ -1085,9 +1085,9 @@ class NVDishCollectorTestSuite:
                             validation_errors.append(f"CPE match string culled missing fields: {missing_fields}")
             
             if not enhanced_cpe_found:
-                # CPE suggestions infrastructure is working (metadata exists) but no actual data generated for test case
-                print(f"✅ PASS: CPE suggestions infrastructure validated")
-                print(f"  ✓ CPE suggestion metadata exists with proper timestamp")
+                # CPE determination infrastructure is working (metadata exists) but no actual data generated for test case
+                print(f"✅ PASS: CPE determination infrastructure validated")
+                print(f"  ✓ CPE determination metadata exists with proper timestamp")
                 print(f"  ✓ Total CVE List V5 affected entries: {len(cve_list_entries)}")
                 print(f"  ✓ Integration ready for real CPE data when generated")
                 print(f"  ✓ Format complies with NVD-ish documentation (II.C.4)")
@@ -1100,11 +1100,11 @@ class NVDishCollectorTestSuite:
                 return False
             
             print(f"✅ PASS: Enhanced CPE mapping data extraction validated successfully")
-            print(f"  ✓ CPE suggestions structure follows documented format")
+            print(f"  ✓ CPE determination structure follows documented format")
             print(f"  ✓ CPE match strings searched as array of CPE strings")
             print(f"  ✓ Confirmed mappings as array of CPE strings")
             print(f"  ✓ CPE match strings culled with proper cpeString/reason structure")
-            print(f"  ✓ CPE suggestion metadata timestamp tracking works")
+            print(f"  ✓ CPE determination metadata timestamp tracking works")
             
             return True
             
@@ -1153,7 +1153,7 @@ class NVDishCollectorTestSuite:
             return False
         
         # Run with CPE suggestions enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-suggestions"])
+        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-determination"])
         
         if not success:
             print(f"❌ FAIL: Analysis tool failed with CPE suggestions")
@@ -1168,10 +1168,10 @@ class NVDishCollectorTestSuite:
             cpe_match_strings_searched_found = False
             
             for entry in cve_list_entries:
-                cpe_suggestions = entry.get("cpeSuggestions", {})
-                if cpe_suggestions and cpe_suggestions.get('cpeMatchStringsSearched'):
+                cpe_determination = entry.get("cpeDetermination", {})
+                if cpe_determination and cpe_determination.get('cpeMatchStringsSearched'):
                     cpe_match_strings_searched_found = True
-                    cpe_match_strings_searched = cpe_suggestions['cpeMatchStringsSearched']
+                    cpe_match_strings_searched = cpe_determination['cpeMatchStringsSearched']
                     
                     # Validate structure
                     if not isinstance(cpe_match_strings_searched, list):
@@ -1203,11 +1203,11 @@ class NVDishCollectorTestSuite:
         
         print(f"  ✓ Using CVE-1337-2001 comprehensive test data (specificity culling focus)")
         
-        # Run with CPE suggestions enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001", additional_args=["--cpe-suggestions"])
+        # Run with CPE determination enabled
+        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001", additional_args=["--cpe-determination"])
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE suggestions")
+            print(f"❌ FAIL: Analysis tool failed with CPE determination")
             return False
         
         # Validate CPE match strings culled in output - check EXACT expected counts and values
@@ -1230,13 +1230,13 @@ class NVDishCollectorTestSuite:
                 return False
                 
             target_entry = cve_list_entries[expected_entry_index]
-            cpe_suggestions = target_entry.get("cpeSuggestions", {})
+            cpe_determination = target_entry.get("cpeDetermination", {})
             
-            if not cpe_suggestions:
-                print(f"❌ FAIL: Entry {expected_entry_index} missing cpeSuggestions")
+            if not cpe_determination:
+                print(f"❌ FAIL: Entry {expected_entry_index} missing cpeDetermination")
                 return False
                 
-            culled_strings = cpe_suggestions.get('cpeMatchStringsCulled', [])
+            culled_strings = cpe_determination.get('cpeMatchStringsCulled', [])
             
             # Validate structure
             if not isinstance(culled_strings, list):
@@ -1290,11 +1290,11 @@ class NVDishCollectorTestSuite:
         
         print(f"  ✓ Using CVE-1337-2001 comprehensive test data (NVD API compatibility focus)")
         
-        # Run with CPE suggestions enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001", additional_args=["--cpe-suggestions"])
+        # Run with CPE determination enabled
+        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001", additional_args=["--cpe-determination"])
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE suggestions")
+            print(f"❌ FAIL: Analysis tool failed with CPE determination")
             return False
         
         # Validate NVD API CPE match strings culled in output - check EXACT expected counts and values
@@ -1335,13 +1335,13 @@ class NVDishCollectorTestSuite:
                     return False
                     
                 target_entry = cve_list_entries[entry_index]
-                cpe_suggestions = target_entry.get("cpeSuggestions", {})
+                cpe_determination = target_entry.get("cpeDetermination", {})
                 
-                if not cpe_suggestions:
-                    print(f"❌ FAIL: Entry {entry_index} ({description}) missing cpeSuggestions")
+                if not cpe_determination:
+                    print(f"❌ FAIL: Entry {entry_index} ({description}) missing cpeDetermination")
                     return False
                     
-                culled_strings = cpe_suggestions.get('cpeMatchStringsCulled', [])
+                culled_strings = cpe_determination.get('cpeMatchStringsCulled', [])
                 
                 # Count NVD API incompatible strings in this entry
                 nvd_api_culled_in_entry = 0
@@ -1491,8 +1491,8 @@ class NVDishCollectorTestSuite:
         except Exception as e:
             print(f"  🔍 Debug: Could not check registry: {e}")
 
-        # Step 1: Run analysis tool with CPE suggestions to trigger the full pipeline
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-suggestions"])
+        # Step 1: Run analysis tool with CPE determination to trigger the full pipeline
+        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-determination"])
         
         if not success:
             print(f"❌ FAIL: Analysis tool execution failed")
@@ -1536,12 +1536,12 @@ class NVDishCollectorTestSuite:
         target_entry = None
         
         for entry in cve_list_entries:
-            cpe_suggestions = entry.get("cpeSuggestions", {})
-            if not cpe_suggestions:
+            cpe_determination = entry.get("cpeDetermination", {})
+            if not cpe_determination:
                 continue
             
             # Check if this is the entry we registered data for (index 0)
-            entry_index = cpe_suggestions.get('cvelistv5AffectedEntryIndex', '')
+            entry_index = cpe_determination.get('cvelistv5AffectedEntryIndex', '')
             if 'affected.[0]' in entry_index:
                 target_entry = entry
                 break
@@ -1550,11 +1550,11 @@ class NVDishCollectorTestSuite:
             print(f"❌ FAIL: Could not find target entry with index 0 registry data")
             return False
         
-        cpe_suggestions = target_entry.get("cpeSuggestions", {})
+        cpe_determination = target_entry.get("cpeDetermination", {})
         # Check for all three CPE suggestion components
-        confirmed_mappings = cpe_suggestions.get('confirmedMappings', [])
-        cpe_match_strings_searched = cpe_suggestions.get('cpeMatchStringsSearched', [])
-        culled_strings = cpe_suggestions.get('cpeMatchStringsCulled', [])
+        confirmed_mappings = cpe_determination.get('confirmedMappings', [])
+        cpe_match_strings_searched = cpe_determination.get('cpeMatchStringsSearched', [])
+        culled_strings = cpe_determination.get('cpeMatchStringsCulled', [])
         
         # Validate confirmed mappings from registry (may be empty for Windows 10 test data)
         if confirmed_mappings:
@@ -1630,24 +1630,24 @@ class NVDishCollectorTestSuite:
         
         # Step 5: Validate tool execution metadata shows CPE processing occurred
         tool_metadata = enriched_data.get("toolExecutionMetadata", {})
-        if not tool_metadata.get("cpeSuggestions"):
-            print(f"❌ FAIL: Missing CPE suggestions timestamp in tool metadata")
+        if not tool_metadata.get("cpeDetermination"):
+            print(f"❌ FAIL: Missing CPE determination timestamp in tool metadata")
             return False
         
         print(f"  ✓ Tool execution metadata validated with CPE processing timestamp")
         
         print(f"✅ PASS: Complete Platform Registry → NVD-ish Record data flow validated")
         print(f"  ✅ Registry data properly extracted and transformed")
-        print(f"  ✅ All CPE suggestion components populated in cached record")
+        print(f"  ✅ All CPE determination components populated in cached record")
         print(f"  ✅ Culled strings with proper reason mapping confirmed")
         
         return True
 
-    def test_cpe_suggestions_complete_workflow(self) -> bool:
-        """Test complete CPE suggestions workflow with all components."""
-        print(f"\n=== Test 18: CPE Suggestions Complete Workflow ===")
+    def test_cpe_determination_complete_workflow(self) -> bool:
+        """Test complete CPE determination workflow with all components."""
+        print(f"\n=== Test 18: CPE Determination Complete Workflow ===")
         
-        # Create comprehensive test data with all CPE suggestions components
+        # Create comprehensive test data with all CPE determination components
         try:
             import sys
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -1703,28 +1703,28 @@ class NVDishCollectorTestSuite:
             
             # Register for first affected entry
             register_platform_notification_data(0, 'supportingInformation', test_supporting_info)
-            print(f"  ✓ Populated comprehensive CPE suggestions test data")
+            print(f"  ✓ Populated comprehensive CPE determination test data")
             
         except Exception as e:
             print(f"❌ FAIL: Could not setup comprehensive CPE test data: {e}")
             return False
         
-        # Run with CPE suggestions enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-suggestions"])
+        # Run with CPE determination enabled
+        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-determination"])
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE suggestions")
+            print(f"❌ FAIL: Analysis tool failed with CPE determination")
             return False
         
-        # Validate complete CPE suggestions workflow
+        # Validate complete CPE determination workflow
         try:
             with open(output_path, 'r') as f:
                 data = json.load(f)
             
             # Check metadata timestamps
             tool_metadata = data.get("enrichedCVEv5Affected", {}).get("toolExecutionMetadata", {})
-            if not tool_metadata.get("cpeSuggestionMetadata"):
-                print(f"❌ FAIL: Missing CPE suggestion metadata timestamp")
+            if not tool_metadata.get("cpeDeterminationMetadata"):
+                print(f"❌ FAIL: Missing CPE determination metadata timestamp")
                 return False
             
             # Check affected entries
@@ -1738,21 +1738,21 @@ class NVDishCollectorTestSuite:
             }
             
             for entry in cve_list_entries:
-                cpe_suggestions = entry.get("cpeSuggestions", {})
-                if cpe_suggestions:
+                cpe_determination = entry.get("cpeDetermination", {})
+                if cpe_determination:
                     workflow_validation['structure_valid'] = True
                     
                     # Check required fields
                     required_fields = ['sourceId', 'cvelistv5AffectedEntryIndex', 'confirmedMappings', 'cpeMatchStringsSearched', 'cpeMatchStringsCulled']
-                    if all(field in cpe_suggestions for field in required_fields):
+                    if all(field in cpe_determination for field in required_fields):
                         
-                        if cpe_suggestions.get('confirmedMappings'):
+                        if cpe_determination.get('confirmedMappings'):
                             workflow_validation['confirmed_mappings'] = True
                         
-                        if cpe_suggestions.get('cpeMatchStringsSearched'):
+                        if cpe_determination.get('cpeMatchStringsSearched'):
                             workflow_validation['cpe_match_strings_searched'] = True
                         
-                        if cpe_suggestions.get('cpeMatchStringsCulled'):
+                        if cpe_determination.get('cpeMatchStringsCulled'):
                             workflow_validation['cpe_match_strings_culled'] = True
                     
                     break
@@ -1774,7 +1774,7 @@ class NVDishCollectorTestSuite:
             print(f"❌ FAIL: Error validating complete workflow: {e}")
             return False
 
-    def test_top10_cpe_suggestions_validation(self) -> bool:
+    def test_top10_cpe_determination_validation(self) -> bool:
         """Test top 10 CPE suggestions are correctly populated in enriched records.
         
         NOTE: POTENTIALLY FLAKY TEST
@@ -1829,13 +1829,13 @@ class NVDishCollectorTestSuite:
             entries_with_potential_suggestions = []
             
             for entry_index, entry in enumerate(cve_list_entries):
-                cpe_suggestions = entry.get("cpeSuggestions", {})
+                cpe_determination = entry.get("cpeDetermination", {})
                 
-                if not cpe_suggestions:
+                if not cpe_determination:
                     continue
                 
                 # Check for top10SuggestedCPEBaseStrings field
-                top10_suggestions = cpe_suggestions.get("top10SuggestedCPEBaseStrings", [])
+                top10_suggestions = cpe_determination.get("top10SuggestedCPEBaseStrings", [])
                 
                 if top10_suggestions:
                     # This entry has top 10 suggestions - validate structure
@@ -1902,13 +1902,13 @@ class NVDishCollectorTestSuite:
                 print(f"  Checking if this is a data issue or implementation issue...")
                 
                 # Check if ANY CPE suggestions exist (not just top 10)
-                any_cpe_suggestions = False
+                any_cpe_determination = False
                 for entry in cve_list_entries:
-                    if entry.get("cpeSuggestions", {}):
-                        any_cpe_suggestions = True
+                    if entry.get("cpeDetermination", {}):
+                        any_cpe_determination = True
                         break
                 
-                if any_cpe_suggestions:
+                if any_cpe_determination:
                     print(f"  ✓ CPE suggestions are being generated (implementation working)")
                     print(f"  ❌ FAIL: Top 10 processing may have issues (no top10SuggestedCPEBaseStrings found)")
                     return False
@@ -2517,8 +2517,8 @@ class NVDishCollectorTestSuite:
             
             for test_case in test_cases:
                 entry = entries[test_case["index"]]
-                cpe_suggestions = entry.get("cpeSuggestions", {})
-                cpe_match_strings = cpe_suggestions.get("cpeMatchStringsSearched", [])
+                cpe_determination = entry.get("cpeDetermination", {})
+                cpe_match_strings = cpe_determination.get("cpeMatchStringsSearched", [])
                 
                 if not isinstance(cpe_match_strings, list):
                     print(f"  ❌ FAIL: Entry {test_case['index']} ({test_case['name']}) - cpeMatchStringsSearched is not a list")
@@ -2651,7 +2651,7 @@ class NVDishCollectorTestSuite:
             # NOTE: Other tests moved to focused suites:
             # - test_sdc_integration.py (4 tests)
             # - test_confirmed_mappings.py (2 tests)
-            # - test_cpe_suggestions.py (7 tests)
+            # - test_cpe_determination.py (7 tests)
             # - test_cpe_culling.py (2 tests)
             # - test_alias_extraction.py (2 tests)
             tests = [

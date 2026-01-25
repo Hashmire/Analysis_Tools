@@ -98,8 +98,8 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True,
     # Add feature flags (only add flags that are true)
     if kwargs['sdc_report']:
         cmd.extend(["--sdc-report"])
-    if kwargs['cpe_suggestions']:
-        cmd.extend(["--cpe-suggestions"])
+    if kwargs['cpe_determination']:
+        cmd.extend(["--cpe-determination"])
     if kwargs['alias_report']:
         cmd.extend(["--alias-report"])
     if kwargs['cpe_as_generator']:
@@ -235,7 +235,7 @@ def main():
         help="Generate Source Data Concerns report (default: false, true if flag provided without value)"
     )
     output_group.add_argument(
-        "--cpe-suggestions",
+        "--cpe-determination",
         nargs='?',
         const='true', 
         choices=['true', 'false'],
@@ -316,7 +316,7 @@ def main():
     
     # === FEATURE FLAG VALIDATION ===
     # Ensure at least one tool output feature is enabled (or nvd-ish-only mode)
-    feature_flags = ['sdc_report', 'cpe_suggestions', 'alias_report', 'cpe_as_generator', 'nvd_ish_only']
+    feature_flags = ['sdc_report', 'cpe_determination', 'alias_report', 'cpe_as_generator', 'nvd_ish_only']
     enabled_features = []
     
     for flag in feature_flags:
@@ -328,14 +328,14 @@ def main():
         logger.error("At least one feature must be enabled for harvest processing!", group="HARVEST")
         logger.info("Available features:", group="HARVEST")
         logger.info("  --sdc-report               : Generate Source Data Concerns report", group="HARVEST")
-        logger.info("  --cpe-suggestions          : Generate CPE suggestions via NVD CPE API calls", group="HARVEST")
+        logger.info("  --cpe-determination          : Generate CPE suggestions via NVD CPE API calls", group="HARVEST")
         logger.info("  --alias-report             : Generate alias report via curator features", group="HARVEST")
         logger.info("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages", group="HARVEST")
         logger.info("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files or HTML", group="HARVEST")
         logger.info("", group="HARVEST")
         logger.info("Example usage:", group="HARVEST")
         logger.info("  python harvest_and_process_sources.py --sdc-report", group="HARVEST")
-        logger.info("  python harvest_and_process_sources.py --cpe-suggestions --cpe-as-generator", group="HARVEST")
+        logger.info("  python harvest_and_process_sources.py --cpe-determination --cpe-as-generator", group="HARVEST")
         logger.info("  python harvest_and_process_sources.py --nvd-ish-only", group="HARVEST")
         logger.stop_file_logging()
         sys.exit(1)
@@ -346,7 +346,7 @@ def main():
     processed_params = {}
     
     # Handle boolean flags - convert to explicit true/false
-    for flag in ['sdc_report', 'cpe_suggestions', 'alias_report', 'cpe_as_generator', 'nvd_ish_only']:
+    for flag in ['sdc_report', 'cpe_determination', 'alias_report', 'cpe_as_generator', 'nvd_ish_only']:
         flag_value = getattr(args, flag, None)
         if flag_value is not None:
             # Parameter provided - convert to boolean and pass with explicit value
@@ -356,19 +356,19 @@ def main():
             processed_params[flag] = False
     
     # Validate that at least one feature is enabled (including nvd-ish-only)
-    feature_enabled = any(processed_params[flag] for flag in ['sdc_report', 'cpe_suggestions', 'alias_report', 'cpe_as_generator', 'nvd_ish_only'])
+    feature_enabled = any(processed_params[flag] for flag in ['sdc_report', 'cpe_determination', 'alias_report', 'cpe_as_generator', 'nvd_ish_only'])
     if not feature_enabled:
         logger.error("At least one feature must be enabled for harvest processing!", group="HARVEST")
         logger.info("Available features:", group="HARVEST")
         logger.info("  --sdc-report               : Generate Source Data Concerns report", group="HARVEST")
-        logger.info("  --cpe-suggestions          : Generate CPE suggestions via NVD CPE API calls", group="HARVEST")
+        logger.info("  --cpe-determination          : Generate CPE suggestions via NVD CPE API calls", group="HARVEST")
         logger.info("  --alias-report             : Generate alias report via curator features", group="HARVEST")
         logger.info("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages", group="HARVEST")
         logger.info("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files or HTML", group="HARVEST")
         logger.info("", group="HARVEST")
         logger.info("Example usage:", group="HARVEST")
         logger.info("  python harvest_and_process_sources.py --sdc-report", group="HARVEST")
-        logger.info("  python harvest_and_process_sources.py --cpe-suggestions --cpe-as-generator", group="HARVEST")
+        logger.info("  python harvest_and_process_sources.py --cpe-determination --cpe-as-generator", group="HARVEST")
         logger.info("  python harvest_and_process_sources.py --nvd-ish-only", group="HARVEST")
         logger.stop_file_logging()
         sys.exit(1)

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Unified Test Runner for Analysis Tools CVE Analysis System
 
@@ -44,6 +45,12 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 from typing import List, Dict, Tuple
+
+# Force UTF-8 output encoding for Windows compatibility with Unicode test output
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'replace')
 
 
 def create_consolidated_test_run() -> Tuple[Path, str, Dict]:
@@ -248,29 +255,39 @@ class TestSuiteRunner:
                 'name': 'Platform Badges',
                 'command': ['python', 'test_suites\\\\other_badges\\\\test_platform_badges.py']
             },
+            # === NVD-ish Record Processing Flow (Ordered by Execution) ===
+            # Step 1: Core record collection and structure
+            {
+                'name': 'NVD-ish Collector (Core)',
+                'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_nvd_ish_collector.py']
+            },
+            # Step 2: Source Data Concerns analysis
+            {
+                'name': 'NVD-ish SDC Integration',
+                'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_sdc_integration.py']
+            },
+            # Step 3: Alias Extraction (extracts vendor/product aliases from source data)
+            {
+                'name': 'NVD-ish Alias Extraction',
+                'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_alias_extraction.py']
+            },
+            # Step 4: CPE Determination (includes confirmed mappings pre-loading and culling)
             {
                 'name': 'NVD-ish Confirmed Mappings',
                 'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_confirmed_mappings.py']
             },
             {
-                'name': 'NVD-ish Collector (Core)',
-                'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_nvd_ish_collector.py']
-            },
-            {
-                'name': 'NVD-ish SDC Integration',
-                'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_sdc_integration.py']
-            },
-            {
-                'name': 'NVD-ish CPE Suggestions',
-                'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_cpe_suggestions.py']
+                'name': 'NVD-ish CPE Determination',
+                'command': ['python', 'test_suites\\nvd-ish_collector\\test_cpe_determination.py']
             },
             {
                 'name': 'NVD-ish CPE Culling',
                 'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_cpe_culling.py']
             },
+            # Step 5: CPE-AS Generation (Final enrichment step)
             {
-                'name': 'NVD-ish Alias Extraction',
-                'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_alias_extraction.py']
+                'name': 'NVD-ish CPE-AS Integration',
+                'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_cpe_as_integration.py']
             }
         ]
 
@@ -304,7 +321,7 @@ class TestSuiteRunner:
         
     def run_test_suite(self, suite: Dict) -> Dict:
         """Run a single test suite and return results."""
-        print(f"Running {suite['name']}...")
+        print(f"Running {suite['name']}...", flush=True)
         
         start_time = time.time()
         
@@ -400,17 +417,17 @@ class TestSuiteRunner:
         
     def run_all_tests(self) -> bool:
         """Run all test suites and return overall success."""
-        print("Running All Test Suites")
-        print("=" * 50)
-        print("Browser auto-opening disabled for unified test execution")
-        print("   (run individual test suites directly to enable browser opening)")
-        print()
+        print("Running All Test Suites", flush=True)
+        print("=" * 50, flush=True)
+        print("Browser auto-opening disabled for unified test execution", flush=True)
+        print("   (run individual test suites directly to enable browser opening)", flush=True)
+        print(flush=True)
         
         # Create consolidated test run directory
         consolidated_run_path, consolidated_run_id, test_env_info = create_consolidated_test_run()
-        print(f"Created consolidated test run: {consolidated_run_id}")
-        print(f"Test artifacts will be consolidated in: {consolidated_run_path}")
-        print()
+        print(f"Created consolidated test run: {consolidated_run_id}", flush=True)
+        print(f"Test artifacts will be consolidated in: {consolidated_run_path}", flush=True)
+        print(flush=True)
         
         # Set up test environment for consolidation
         setup_test_environment(consolidated_run_path, test_env_info)
@@ -424,49 +441,49 @@ class TestSuiteRunner:
             
             status = "PASS" if result['success'] else "FAIL"
             test_info = f" ({result['tests_passed']}/{result['tests_total']} tests)"
-            print(f"{status} {result['name']} ({result['execution_time']:.1f}s){test_info}")
+            print(f"{status} {result['name']} ({result['execution_time']:.1f}s){test_info}", flush=True)
             
             if not result['success']:
                 overall_success = False
-                print(f"   {result['summary']}")
+                print(f"   {result['summary']}", flush=True)
         
         total_time = time.time() - total_start_time
         
         # Print detailed summary
-        print("\n" + "=" * 50)
-        print("TEST SUITE SUMMARY")
-        print("=" * 50)
+        print("\n" + "=" * 50, flush=True)
+        print("TEST SUITE SUMMARY", flush=True)
+        print("=" * 50, flush=True)
         
         passed_suites = sum(1 for r in self.results if r['success'])
         total_suites = len(self.results)
         
-        print(f"Test Suites: {passed_suites}/{total_suites} passed")
-        print(f"Execution Time: {total_time:.1f} seconds")
+        print(f"Test Suites: {passed_suites}/{total_suites} passed", flush=True)
+        print(f"Execution Time: {total_time:.1f} seconds", flush=True)
         
         # Show test details for each suite
-        print("\nTest Details:")
+        print("\nTest Details:", flush=True)
         for result in self.results:
             status_icon = "PASS" if result['success'] else "FAIL"
-            print(f"  {status_icon} {result['name']}: {result['summary']}")
+            print(f"  {status_icon} {result['name']}: {result['summary']}", flush=True)
         
         # Calculate total test counts
         total_tests_run = sum(result['tests_total'] for result in self.results)
         total_tests_passed = sum(result['tests_passed'] for result in self.results)
         
-        print(f"\nIndividual Test Summary:")
-        print(f"  Total Individual Tests: {total_tests_passed}/{total_tests_run} passed")
+        print(f"\nIndividual Test Summary:", flush=True)
+        print(f"  Total Individual Tests: {total_tests_passed}/{total_tests_run} passed", flush=True)
         
         if overall_success:
-            print("\nALL TEST SUITES PASSED!")
+            print("\nALL TEST SUITES PASSED!", flush=True)
         else:
             failed_count = total_suites - passed_suites
-            print(f"\n{failed_count} TEST SUITE(S) FAILED")
-            print("\nFailed suites:")
+            print(f"\n{failed_count} TEST SUITE(S) FAILED", flush=True)
+            print("\nFailed suites:", flush=True)
             for result in self.results:
                 if not result['success']:
-                    print(f"  - {result['name']} (return code: {result['return_code']})")
+                    print(f"  - {result['name']} (return code: {result['return_code']})", flush=True)
         
-        print("=" * 50)
+        print("=" * 50, flush=True)
         
         # Finalize consolidated test run
         finalize_consolidated_test_run(consolidated_run_path, test_env_info, self.results)
@@ -489,4 +506,7 @@ def main():
     sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
+    # Enable unbuffered output for real-time display
+    import os
+    os.environ['PYTHONUNBUFFERED'] = '1'
     main()

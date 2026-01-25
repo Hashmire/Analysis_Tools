@@ -144,7 +144,7 @@ class CPECullingTestSuite:
             sys.executable, "-m", "src.analysis_tool.core.analysis_tool",
             "--cve", cve_id,
             "--nvd-ish-only",
-            "--cpe-suggestions"
+            "--cpe-determination"
         ]
         
         if additional_args:
@@ -179,11 +179,11 @@ class CPECullingTestSuite:
         
         print(f"  ✓ Using CVE-1337-2001 comprehensive test data (specificity culling focus)")
         
-        # Run with CPE suggestions enabled
+        # Run with CPE determination enabled
         success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE suggestions")
+            print(f"❌ FAIL: Analysis tool failed with CPE determination")
             if stderr:
                 print(f"  Error output: {stderr[:1000]}")
             if stdout:
@@ -212,13 +212,13 @@ class CPECullingTestSuite:
                 return False
                 
             target_entry = cve_list_entries[expected_entry_index]
-            cpe_suggestions = target_entry.get("cpeSuggestions", {})
+            cpe_determination = target_entry.get("cpeDetermination", {})
             
-            if not cpe_suggestions:
-                print(f"❌ FAIL: Entry {expected_entry_index} missing cpeSuggestions")
+            if not cpe_determination:
+                print(f"❌ FAIL: Entry {expected_entry_index} missing cpeDetermination")
                 return False
                 
-            culled_strings = cpe_suggestions.get('cpeMatchStringsCulled', [])
+            culled_strings = cpe_determination.get('cpeMatchStringsCulled', [])
             
             # Validate structure
             if not isinstance(culled_strings, list):
@@ -283,11 +283,11 @@ class CPECullingTestSuite:
         
         print(f"  ✓ Using CVE-1337-2001 comprehensive test data (NVD API compatibility focus)")
         
-        # Run with CPE suggestions enabled
+        # Run with CPE determination enabled
         success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE suggestions")
+            print(f"❌ FAIL: Analysis tool failed with CPE determination")
             if stderr:
                 print(f"  Error output: {stderr[:1000]}")
             if stdout:
@@ -336,13 +336,13 @@ class CPECullingTestSuite:
                     return False
                     
                 target_entry = cve_list_entries[entry_index]
-                cpe_suggestions = target_entry.get("cpeSuggestions", {})
+                cpe_determination = target_entry.get("cpeDetermination", {})
                 
-                if not cpe_suggestions:
-                    print(f"❌ FAIL: Entry {entry_index} ({description}) missing cpeSuggestions")
+                if not cpe_determination:
+                    print(f"❌ FAIL: Entry {entry_index} ({description}) missing cpeDetermination")
                     return False
                     
-                culled_strings = cpe_suggestions.get('cpeMatchStringsCulled', [])
+                culled_strings = cpe_determination.get('cpeMatchStringsCulled', [])
                 
                 # Count NVD API incompatible strings in this entry
                 nvd_api_culled_in_entry = 0
@@ -427,11 +427,11 @@ class CPECullingTestSuite:
         
         print(f"  ✓ Using CVE-1337-2001 comprehensive test data (asterisk removal focus)")
         
-        # Run with CPE suggestions enabled
+        # Run with CPE determination enabled
         success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE suggestions")
+            print(f"❌ FAIL: Analysis tool failed with CPE determination")
             if stderr:
                 print(f"  Error output: {stderr[:1000]}")
             if stdout:
@@ -484,15 +484,15 @@ class CPECullingTestSuite:
                     continue
                     
                 target_entry = cve_list_entries[entry_index]
-                cpe_suggestions = target_entry.get("cpeSuggestions", {})
+                cpe_determination = target_entry.get("cpeDetermination", {})
                 
-                if not cpe_suggestions:
-                    validation_errors.append(f"Entry {entry_index} ({description}): Missing cpeSuggestions")
+                if not cpe_determination:
+                    validation_errors.append(f"Entry {entry_index} ({description}): Missing cpeDetermination")
                     continue
                 
                 # Check that CPEs were generated successfully (not culled due to asterisks)
-                searched_strings = cpe_suggestions.get('cpeMatchStringsSearched', [])
-                culled_strings = cpe_suggestions.get('cpeMatchStringsCulled', [])
+                searched_strings = cpe_determination.get('cpeMatchStringsSearched', [])
+                culled_strings = cpe_determination.get('cpeMatchStringsCulled', [])
                 
                 if not searched_strings:
                     validation_errors.append(f"Entry {entry_index} ({description}): No CPE match strings searched - asterisks may have broken generation")
@@ -610,11 +610,11 @@ class CPECullingTestSuite:
         
         print(f"  ✓ Using CVE-1337-2001 comprehensive test data (colon removal focus)")
         
-        # Run with CPE suggestions enabled
+        # Run with CPE determination enabled
         success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE suggestions")
+            print(f"❌ FAIL: Analysis tool failed with CPE determination")
             if stderr:
                 print(f"  Error output: {stderr[:1000]}")
             if stdout:
@@ -667,15 +667,15 @@ class CPECullingTestSuite:
                     continue
                     
                 target_entry = cve_list_entries[entry_index]
-                cpe_suggestions = target_entry.get("cpeSuggestions", {})
+                cpe_determination = target_entry.get("cpeDetermination", {})
                 
-                if not cpe_suggestions:
-                    validation_errors.append(f"Entry {entry_index} ({description}): Missing cpeSuggestions")
+                if not cpe_determination:
+                    validation_errors.append(f"Entry {entry_index} ({description}): Missing cpeDetermination")
                     continue
                 
                 # Check that CPEs were generated successfully
-                searched_strings = cpe_suggestions.get('cpeMatchStringsSearched', [])
-                culled_strings = cpe_suggestions.get('cpeMatchStringsCulled', [])
+                searched_strings = cpe_determination.get('cpeMatchStringsSearched', [])
+                culled_strings = cpe_determination.get('cpeMatchStringsCulled', [])
                 
                 if not searched_strings:
                     validation_errors.append(f"Entry {entry_index} ({description}): No CPE match strings searched - colons may have broken generation")

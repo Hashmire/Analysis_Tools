@@ -173,23 +173,28 @@ def find_confirmed_mappings(raw_platform_data: dict, source_id: str) -> List[str
     
     return filtered_cpe_bases, culled_mappings
 
-def extract_confirmed_mappings_for_affected_entry(affected_entry: dict) -> List[str]:
+def extract_confirmed_mappings_for_affected_entry(affected_entry: dict) -> List[Dict[str, str]]:
     """
     Extract confirmed CPE mappings for a single CVE List V5 affected entry.
     
     This function is designed for NVD-ish collector integration to populate
-    confirmedMappings arrays with just the cpeBaseString values.
+    confirmedMappings arrays during initial record creation.
     
     Args:
         affected_entry: A single affected entry from CVE List V5 data with source attribution
         
     Returns:
-        List of cpeBaseString values that match the affected entry's alias data
+        List of mapping objects with 'cpeBaseString' key for CPE-AS generation
+        Format: [{'cpeBaseString': 'cpe:2.3:a:vendor:product:*:*:*:*:*:*:*:*'}, ...]
     """
     config = load_config()
     
     # Check if confirmed mappings are enabled
     if not config.get('confirmed_mappings', {}).get('enabled', True):
+        return []
+    
+    # Validate input - must be a dictionary with required fields
+    if not isinstance(affected_entry, dict):
         return []
     
     # Extract source ID from affected entry
@@ -202,10 +207,8 @@ def extract_confirmed_mappings_for_affected_entry(affected_entry: dict) -> List[
     
     mapping_manager = get_global_mapping_manager()
     if not mapping_manager.is_initialized():
-        raise RuntimeError(
-            "Confirmed mapping manager not initialized - must call initialize() before processing. "
-            "Check that manager initialization occurs in entry point before confirmed mapping operations."
-        )
+        # Initialize lazily on first use
+        mapping_manager.initialize()
     
     confirmed_mappings = mapping_manager.get_mappings_for_source(source_id)
     
@@ -249,7 +252,11 @@ def extract_confirmed_mappings_for_affected_entry(affected_entry: dict) -> List[
         source_id = affected_entry.get('source', affected_entry.get('sourceId', 'unknown'))
         logger.debug(f"NVD-ish record generation: Filtered out {len(culled_mappings)} less specific CPE base string(s) for source '{source_id}': {culled_mappings}", group="nvd_ish_integration")
     
-    return filtered_cpe_bases
+    # Convert CPE base strings to the format expected by CPE-AS generation
+    # CPE-AS generator expects list of dicts with 'cpeBaseString' key
+    confirmed_mappings_objects = [{'cpeBaseString': cpe} for cpe in filtered_cpe_bases]
+    
+    return confirmed_mappings_objects
 
 def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
     """Process confirmed mappings for all rows in the dataset"""
@@ -681,8 +688,12 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                 # Get platformFormatType from platformEntryMetadata
                 platform_metadata = row.get('platformEntryMetadata', {})
                 platform_format_type = platform_metadata.get('platformFormatType', '')
-                # Check if platformFormatType is cveAffectsVersionSingle or cveAffectsVersionRange
-                if platform_format_type in ['cveAffectsVersionSingle', 'cveAffectsVersionRange', 'cveAffectsVersionMix']:
+                
+                # CPE base string generation does not require version data - it only needs vendor, product, 
+                # platforms, and packageName to generate CPE match strings for NVD API queries.
+                # Version handling is performed separately by badge_modal_system.py and cpe_as_generator.py.
+                # All platformFormatType values are now processed including 'cveAffectsNoVersions'.
+                if platform_format_type in ['cveAffectsVersionSingle', 'cveAffectsVersionRange', 'cveAffectsVersionMix', 'cveAffectsNoVersions']:
                     
                     # Get source information for issue tracking
                     source_role = row.get('sourceRole', 'Unknown')
@@ -831,38 +842,32 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                                 curation_tracking["platform"] = []
                             curation_tracking["platform"].extend(platform_curations)
                         
-                        # At the end of processing platforms, check if we had platforms but couldn't recognize any
-                        # This will catch cases like "Unknown" platforms
-                        if platform_found_but_not_recognized and not platform_values_searched:
-                            # Track unexpected platform issue
-                            unrecognized_platforms = [p for p in platform_data['platforms'] if p]
-                            for unrecognized_platform in unrecognized_platforms:
-                                issues['unexpected_platforms'].append((index, source_role, unrecognized_platform))
-                                logger.warning(f"Unsupported platform value detected: '{unrecognized_platform}' in {source_role} (Row {index}). Platform not recognized by current mapping logic.", group="DATA_PROC")
-                                
-                                # Record in dataset contents collector for reporting
-                                collector = get_dataset_contents_collector()
-                                if collector:
-                                    collector.record_cve_warning(f"Unrecognized platform '{unrecognized_platform}' in {source_role} (Row {index})", "platform_processing")
-                        
-                        # Log unmapped platforms as warnings
+                        # Track and log unmapped platforms (consolidated check)
+                        # This combines recognition check with mapping validation
                         if platform_data['platforms'] and not all_platforms_mapped:
                             # Track unmapped platforms that were not placeholders
+                            tracked_platforms = set()  # Avoid duplicate warnings
                             for platform_item in platform_data['platforms']:
                                 if platform_item and isinstance(platform_item, str):
                                     platform_lower = platform_item.lower().strip()
                                     is_placeholder = platform_lower in [v.lower() for v in GENERAL_PLACEHOLDER_VALUES]
                                     
-                                    if not is_placeholder:
-                                        curated_sw, curated_hw, was_mapped = curateCPEAttributes('platform', platform_item, None)
-                                        if not was_mapped:
-                                            issues['unexpected_platforms'].append((index, source_role, platform_item))
-                                            logger.warning(f"Unsupported platform value detected: '{platform_item}' in {source_role} (Row {index}). Platform could not be mapped via curateCPEAttributes.", group="DATA_PROC")
-                                            
-                                            # Record in dataset contents collector for reporting
-                                            collector = get_dataset_contents_collector()
-                                            if collector:
-                                                collector.record_cve_warning(f"Unmapped platform '{platform_item}' in {source_role} (Row {index})", "platform_processing")
+                                    # Skip if already tracked or is placeholder
+                                    if is_placeholder or platform_item in tracked_platforms:
+                                        continue
+                                    
+                                    # Verify mapping status
+                                    curated_sw, curated_hw, was_mapped = curateCPEAttributes('platform', platform_item, None)
+                                    if not was_mapped:
+                                        tracked_platforms.add(platform_item)
+                                        issues['unexpected_platforms'].append((index, source_role, platform_item))
+                                        
+                                        # Single consolidated warning for unmapped platform
+                                        warning_message = f"Unrecognized platform '{platform_item}' in {source_role} (Row {index})"
+                                        logger.warning(
+                                            f"{warning_message}. Platform not recognized by current mapping logic.",
+                                            group="DATA_PROC"
+                                        )
 
                     # Generate product-only CPE base strings (after platforms are collected)
                     if curated_product_for_cpe_generation:

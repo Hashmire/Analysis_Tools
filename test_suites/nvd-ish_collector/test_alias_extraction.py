@@ -43,7 +43,7 @@ class AliasExtractionTestSuite:
     
     def __init__(self):
         self.passed = 0
-        self.total = 2
+        self.total = 3  # Added test for isolated nvd-ish-only mode
         
     def setup_test_environment(self):
         """Set up test environment by copying test files to INPUT cache locations."""
@@ -97,8 +97,14 @@ class AliasExtractionTestSuite:
         
         print(f"  * Cleaned up {len(copied_files)} test files")
     
-    def run_analysis_tool(self, cve_id: str, additional_args: list = None) -> Tuple[bool, Optional[Path], str, str]:
-        """Run the analysis tool and return success status, output path, stdout, stderr."""
+    def run_analysis_tool(self, cve_id: str, additional_args: list = None, use_nvd_ish_only: bool = True) -> Tuple[bool, Optional[Path], str, str]:
+        """Run the analysis tool and return success status, output path, stdout, stderr.
+        
+        Args:
+            cve_id: CVE ID to process
+            additional_args: Additional command-line arguments
+            use_nvd_ish_only: If True, use --nvd-ish-only flag; otherwise use specific feature flags
+        """
         
         # Construct output path based on CVE ID
         year = cve_id.split('-')[1]
@@ -113,10 +119,12 @@ class AliasExtractionTestSuite:
         # Build command
         cmd = [
             sys.executable, "-m", "src.analysis_tool.core.analysis_tool",
-            "--cve", cve_id,
-            "--nvd-ish-only",
-            "--alias-report"
+            "--cve", cve_id
         ]
+        
+        # Add mode-specific flags
+        if use_nvd_ish_only:
+            cmd.append("--nvd-ish-only")
         
         if additional_args:
             cmd.extend(additional_args)
@@ -140,11 +148,15 @@ class AliasExtractionTestSuite:
             return False, None, "", str(e)
     
     def test_alias_extraction_integration(self) -> bool:
-        """Test alias extraction integration from Platform Entry Notification Registry."""
-        print(f"\n=== Test 1: Alias Extraction Integration ===")
+        """Test alias extraction integration with isolated --alias-report flag."""
+        print(f"\n=== Test 1: Alias Extraction Integration (--alias-report isolated) ===")
         
-        # Run with alias report enabled (this should trigger alias extraction integration)
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--source-uuid", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"])
+        # Run with ONLY --alias-report flag (requires --source-uuid)
+        success, output_path, stdout, stderr = self.run_analysis_tool(
+            "CVE-1337-0001", 
+            additional_args=["--alias-report", "--source-uuid", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"],
+            use_nvd_ish_only=False
+        )
         
         if not success:
             print(f"❌ FAIL: Analysis tool failed with alias extraction")
@@ -280,6 +292,69 @@ class AliasExtractionTestSuite:
             traceback.print_exc()
             return False
     
+    def test_nvd_ish_only_enables_alias_extraction(self) -> bool:
+        """Test that --nvd-ish-only flag alone enables alias extraction (regression test)."""
+        print(f"\n=== Test 2: NVD-ish Only Mode Enables Alias Extraction ===")
+        
+        # Run with ONLY --nvd-ish-only flag (no --alias-report, no --source-uuid)
+        # This is the regression test for the bug where alias extraction wasn't enabled
+        success, output_path, stdout, stderr = self.run_analysis_tool(
+            "CVE-1337-0001",
+            use_nvd_ish_only=True  # Only nvd-ish-only, no other flags
+        )
+        
+        if not success:
+            print(f"❌ FAIL: Analysis tool failed in nvd-ish-only mode")
+            if stderr:
+                print(f"Error: {stderr[:200]}...")
+            return False
+        
+        if not output_path.exists():
+            print(f"❌ FAIL: Enhanced record not created")
+            return False
+        
+        # Verify alias extraction data is populated
+        try:
+            with open(output_path, 'r') as f:
+                data = json.load(f)
+            
+            # Check for alias extraction data in affected entries
+            cve_list_entries = data.get("enrichedCVEv5Affected", {}).get("cveListV5AffectedEntries", [])
+            
+            if not cve_list_entries:
+                print(f"❌ FAIL: No CVE List V5 affected entries found")
+                return False
+            
+            # Check that at least one entry has alias extraction
+            has_alias_extraction = False
+            for entry_index, entry in enumerate(cve_list_entries):
+                alias_extraction = entry.get("aliasExtraction", {})
+                if alias_extraction and alias_extraction.get("aliases"):
+                    has_alias_extraction = True
+                    break
+            
+            if not has_alias_extraction:
+                print(f"❌ FAIL: No alias extraction data found in nvd-ish-only mode")
+                print(f"This indicates --nvd-ish-only is not properly enabling alias extraction")
+                return False
+            
+            # Verify tool execution metadata includes aliasExtraction timestamp
+            tool_metadata = data.get("enrichedCVEv5Affected", {}).get("toolExecutionMetadata", {})
+            if "aliasExtraction" not in tool_metadata:
+                print(f"❌ FAIL: aliasExtraction timestamp missing from tool execution metadata")
+                return False
+            
+            print(f"✅ PASS: --nvd-ish-only mode correctly enables alias extraction")
+            print(f"  ✓ Alias extraction data populated in affected entries")
+            print(f"  ✓ Tool execution metadata includes aliasExtraction timestamp")
+            return True
+            
+        except Exception as e:
+            print(f"❌ FAIL: Exception during validation: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
     def test_alias_extraction_placeholder_filtering(self) -> bool:
         """Test alias extraction placeholder filtering unit tests."""
         print(f"\n=== Test 2: Alias Extraction Placeholder Filtering ===")
@@ -411,7 +486,8 @@ class AliasExtractionTestSuite:
         
         try:
             tests = [
-                ("Alias Extraction Integration", self.test_alias_extraction_integration),
+                ("Alias Extraction Integration (isolated --alias-report)", self.test_alias_extraction_integration),
+                ("NVD-ish Only Enables Alias Extraction", self.test_nvd_ish_only_enables_alias_extraction),
                 ("Alias Extraction Placeholder Filtering", self.test_alias_extraction_placeholder_filtering),
             ]
             

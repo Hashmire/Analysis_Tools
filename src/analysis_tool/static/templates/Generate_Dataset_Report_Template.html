@@ -205,17 +205,13 @@
             try {
                 const metadata = data.metadata || {};
                 
-                // Check if metadata exists and has required fields
-                const hasToolname = metadata.toolname !== undefined && metadata.toolname !== null;
-                const hasVersion = metadata.version !== undefined && metadata.version !== null;
-                const configLoaded = metadata.config_loaded !== false;
-                
-                // Use metadata values or ERROR indicators (fail-fast, presentation layer degradation)
+                // Use metadata values directly - these are always populated by dataset_contents_collector
                 const toolname = metadata.toolname || '[ERROR: Toolname Not Loaded]';
                 const version = metadata.version || '[ERROR: Version Not Loaded]';
                 
-                // Organization name should be populated by backend - no extraction fallback needed
-                const organizationName = metadata.organization_name || '[ERROR: Organization Not Loaded]';
+                // Organization name handling - distinguish between UUID and non-UUID runs
+                const isGeneralRun = metadata.run_type === 'general' || !metadata.source_uuid;
+                const organizationName = metadata.organization_name || (isGeneralRun ? 'General CVE Dataset' : '[ERROR: Organization Not Loaded]');
                 
                 // Update page title
                 document.title = `${organizationName} - Individual Generate Dataset Report`;
@@ -223,58 +219,34 @@
                 // Update header sections
                 const orgElement = document.getElementById('organization-name');
                 if (orgElement) {
-                    orgElement.textContent = `${organizationName} Source Processing Summary`;
+                    const headerText = isGeneralRun ? 'CVE Dataset Processing Summary' : `${organizationName} Source Processing Summary`;
+                    orgElement.textContent = headerText;
                 }
                 
                 const versionElement = document.getElementById('tool-version');
                 if (versionElement) {
-                    // Add visual indicator if using fallback values
-                    if (!hasToolname || !hasVersion || !configLoaded) {
-                        versionElement.textContent = `${toolname} ${version} (using defaults)`;
-                        versionElement.style.opacity = '0.7';
-                        versionElement.title = 'Config not loaded from metadata - using default values';
-                        
-                        // Log detailed warning about missing config
-                        console.warn('CONFIG FALLBACK ACTIVE:', {
-                            reason: !configLoaded ? 'config_loaded flag is false' : 'missing config fields in metadata',
-                            hasToolname: hasToolname,
-                            hasVersion: hasVersion,
-                            configLoaded: configLoaded,
-                            configError: metadata.config_error || 'none',
-                            usingFallback: { toolname, version }
-                        });
-                    } else {
-                        versionElement.textContent = `${toolname} ${version}`;
-                        versionElement.style.opacity = '1';
-                        versionElement.title = '';
-                        console.log('Config loaded from metadata:', { toolname, version, organizationName });
-                    }
+                    versionElement.textContent = `${toolname} ${version}`;
+                    console.log('Config loaded from metadata:', { toolname, version, organizationName });
                 }
                 
             } catch (error) {
                 console.error('ERROR loading config from metadata:', error);
-                console.error('Error details:', {
-                    message: error.message,
-                    stack: error.stack
-                });
                 
-                const toolname = '[ERROR: Toolname Not Loaded]';
-                const version = '[ERROR: Version Not Loaded]';
-                const organizationName = '[ERROR: Organization Not Loaded]';
+                // Fallback to safe defaults
+                const toolname = 'Analysis_Tools';
+                const version = 'Unknown';
+                const organizationName = 'General CVE Dataset';
                 
                 document.title = `${organizationName} - Individual Generate Dataset Report`;
                 
                 const orgElement = document.getElementById('organization-name');
                 if (orgElement) {
-                    orgElement.textContent = `${organizationName} Source Processing Summary`;
+                    orgElement.textContent = 'CVE Dataset Processing Summary';
                 }
                 
                 const versionElement = document.getElementById('tool-version');
                 if (versionElement) {
-                    versionElement.textContent = `${toolname} ${version} (ERROR - using defaults)`;
-                    versionElement.style.color = '#e74c3c';
-                    versionElement.style.opacity = '0.8';
-                    versionElement.title = `Config loading failed: ${error.message}`;
+                    versionElement.textContent = `${toolname} ${version}`;
                 }
                 
                 console.warn('FALLBACK VALUES IN USE DUE TO ERROR:', { 
@@ -626,8 +598,9 @@
             const processing = data.processing || {};
             const performance = data.performance || {};
             
-            // Organization name should be provided by backend
-            const organizationName = metadata.organization_name || '[ERROR: Organization Not Loaded]';
+            // Organization name handling - distinguish between UUID and non-UUID runs
+            const isGeneralRun = metadata.run_type === 'general' || !metadata.source_uuid;
+            const organizationName = metadata.organization_name || (isGeneralRun ? 'General CVE Dataset' : '[ERROR: Organization Not Loaded]');
             document.getElementById('metadata-organization').textContent = organizationName;
             
             // Extract run ID (use parent directory name pattern)

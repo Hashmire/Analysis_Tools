@@ -762,7 +762,7 @@ def main():
                              help="Generate complete NVD-ish enriched records without report files or HTML (ignores other output flags)")
     output_group.add_argument('--sdc-report', nargs='?', const='true', choices=['true', 'false'], default='false',
                              help='Generate Source Data Concerns report (default: false, true if flag provided without value)')
-    output_group.add_argument('--cpe-suggestions', nargs='?', const='true', choices=['true', 'false'], default='false', 
+    output_group.add_argument('--cpe-determination', nargs='?', const='true', choices=['true', 'false'], default='false', 
                              help='Generate CPE suggestions via NVD CPE API calls (default: false, true if flag provided without value)')
     output_group.add_argument('--alias-report', nargs='?', const='true', choices=['true', 'false'], default='false',
                              help='Generate alias report via curator features (default: false, true if flag provided without value)')
@@ -845,7 +845,7 @@ def main():
     
     # Convert string boolean arguments to actual booleans
     sdc_report = args.sdc_report.lower() == 'true'
-    cpe_suggestions = args.cpe_suggestions.lower() == 'true'
+    cpe_determination = args.cpe_determination.lower() == 'true'
     alias_report = args.alias_report.lower() == 'true'
     cpe_as_generator = args.cpe_as_generator.lower() == 'true'
     nvd_ish_only = args.nvd_ish_only.lower() == 'true'
@@ -855,7 +855,7 @@ def main():
     if nvd_ish_only:
         # Override other output flags (ignore their values)
         sdc_report = False
-        cpe_suggestions = False
+        cpe_determination = False
         alias_report = False
         cpe_as_generator = False
         
@@ -870,18 +870,18 @@ def main():
         return
     
     # Validate that at least one feature is enabled (or nvd-ish-only mode)
-    if not any([sdc_report, cpe_suggestions, alias_report, cpe_as_generator, nvd_ish_only]):
+    if not any([sdc_report, cpe_determination, alias_report, cpe_as_generator, nvd_ish_only]):
         print("ERROR: At least one feature must be enabled for dataset generation!")
         print("Available features:")
         print("  --sdc-report               : Generate Source Data Concerns report")
-        print("  --cpe-suggestions          : Generate CPE suggestions via NVD CPE API calls")
+        print("  --cpe-determination        : Generate CPE determination via NVD CPE API calls")
         print("  --alias-report             : Generate alias report via curator features")
         print("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages")
         print("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files or HTML")
         print("")
         print("Example usage:")
         print("  python generate_dataset.py --last-days 7 --sdc-report")
-        print("  python generate_dataset.py --last-days 7 --cpe-suggestions --cpe-as-generator")
+        print("  python generate_dataset.py --last-days 7 --cpe-determination --cpe-as-generator")
         return 1
     
     # Generate initial run context with source shortname resolution
@@ -928,7 +928,7 @@ def main():
         tool_flags['nvd-ish'] = True
     if sdc_report:
         tool_flags['sdc'] = True
-    if cpe_suggestions:
+    if cpe_determination:
         tool_flags['cpe-sug'] = True
     if alias_report:
         tool_flags['alias'] = True
@@ -966,7 +966,9 @@ def main():
     logger.start_file_logging("cve_dataset")
     
     # Initialize dataset contents report immediately for periodic updates
-    from src.analysis_tool.reporting.dataset_contents_collector import initialize_dataset_contents_report
+    from src.analysis_tool.reporting.dataset_contents_collector import initialize_dataset_contents_report, get_dataset_contents_collector
+    # Pre-initialize collector with config before calling initialize_dataset_contents_report
+    get_dataset_contents_collector(config_dict=config)
     initialize_dataset_contents_report(str(logs_dir), source_uuid=args.source_uuid, run_id=run_id)
     logger.info("Dataset contents report initialized", group="DATASET")
     
@@ -1019,7 +1021,7 @@ def main():
             cve_count = 0
         
         # Run analysis tool with existing run context
-        success = run_analysis_tool(output_file, resolved_api_key, run_directory, run_id, external_assets, sdc_report, cpe_suggestions, alias_report, cpe_as_generator, nvd_ish_only, args.source_uuid)
+        success = run_analysis_tool(output_file, resolved_api_key, run_directory, run_id, external_assets, sdc_report, cpe_determination, alias_report, cpe_as_generator, nvd_ish_only, args.source_uuid)
         if not success:
             logger.error("Analysis tool execution failed", group="data_processing")
             return 1
@@ -1030,7 +1032,7 @@ def main():
     return 0
 
 
-def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=None, external_assets=False, sdc_report=False, cpe_suggestions=False, alias_report=False, cpe_as_generator=False, nvd_ish_only=False, source_uuid=None):
+def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=None, external_assets=False, sdc_report=False, cpe_determination=False, alias_report=False, cpe_as_generator=False, nvd_ish_only=False, source_uuid=None):
     """Run the analysis tool on the generated dataset within an existing run context (direct integration)"""
     
     try:
@@ -1058,8 +1060,8 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
         else:
             if sdc_report:
                 enabled_features.append("Source Data Concerns")
-            if cpe_suggestions:
-                enabled_features.append("CPE Suggestions")
+            if cpe_determination:
+                enabled_features.append("CPE Determination")
             if alias_report:
                 enabled_features.append("Alias Report")
             if cpe_as_generator:
@@ -1097,7 +1099,7 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
             # Add feature flags
             sys.argv.extend(["--nvd-ish-only", "true" if nvd_ish_only else "false"])
             sys.argv.extend(["--sdc-report", "true" if sdc_report else "false"])
-            sys.argv.extend(["--cpe-suggestions", "true" if cpe_suggestions else "false"])
+            sys.argv.extend(["--cpe-determination", "true" if cpe_determination else "false"])
             sys.argv.extend(["--alias-report", "true" if alias_report else "false"])
             sys.argv.extend(["--cpe-as-generator", "true" if cpe_as_generator else "false"])
             

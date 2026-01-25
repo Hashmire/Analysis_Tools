@@ -112,8 +112,9 @@ VERSION_PLACEHOLDER_VALUES = [
     'na', 'nil', 'tbd', 'to be determined', 'pending',
     'not specified', 'not determined', 'not known', 'not listed',
     'not provided', 'missing', 'empty', 'null', '-', 'multiple versions',
-    'see references', 'see advisory', 'check', 'noted'
-    # Note: 'all' is NOT included here as it may be legitimate in version contexts
+    'see references', 'see advisory', 'check', 'noted', 'all'
+    # Note: 'all' included per requirements - observed in real CVE data as wildcard indicator
+    # Note: "0" is NOT a placeholder - treated as literal version value
 ]
 
 # Define comparator patterns used for detecting comparison operators in data fields
@@ -152,6 +153,28 @@ ALL_VERSION_VALUES = [
 BLOAT_TEXT_VALUES = [
     'version', 'versions', 'ver'
 ]
+
+# ===== UTILITY FUNCTIONS FOR CPE-AS GENERATION =====
+
+def determine_vulnerability_from_status(status: str) -> bool:
+    """
+    Centralized vulnerability determination logic for CPE Applicability Statements.
+    
+    Args:
+        status: Status value from CVE 5.0 data ('affected', 'unaffected', 'unknown')
+    
+    Returns:
+        Boolean indicating vulnerability status (True if affected, False otherwise)
+    
+    Examples:
+        >>> determine_vulnerability_from_status('affected')
+        True
+        >>> determine_vulnerability_from_status('unaffected')
+        False
+        >>> determine_vulnerability_from_status('unknown')
+        False
+    """
+    return status == 'affected'
 
 # ===== REGISTRY MANAGEMENT FUNCTIONS =====
 
@@ -859,7 +882,7 @@ def get_consolidated_platform_notification_script() -> str:
         return ""
     
     script_content = ""
-    all_data_types = ['wildcardGeneration', 'updatePatterns', 'jsonGenerationRules', 'supportingInformation', 'sourceDataConcerns', 'aliasExtraction', 'cpeBaseStringSearches', 'cpeMatchStringsCulled']
+    all_data_types = ['wildcardGeneration', 'updatePatterns', 'jsonGenerationRules', 'supportingInformation', 'sourceDataConcerns', 'aliasExtraction', 'cpeBaseStringSearches', 'cpeMatchStringsCulled', 'cpeAsGeneration']
     
     # Process each platform data type
     for data_type in all_data_types:
@@ -1272,7 +1295,7 @@ def analyze_version_characteristics(raw_platform_data):
             'has_inverse_status': False,
             'has_multiple_branches': False,
             'has_mixed_status': False,
-            'needs_gap_processing': False,
+            'needs_infer_affected_ranges': False,
             'has_update_patterns': False,  
             'wildcard_patterns': [],
             'special_version_types': [],
@@ -1292,7 +1315,7 @@ def analyze_version_characteristics(raw_platform_data):
         'has_inverse_status': False,
         'has_multiple_branches': False,
         'has_mixed_status': False,
-        'needs_gap_processing': False,
+        'needs_infer_affected_ranges': False,
         'has_update_patterns': False, 
         'wildcard_patterns': [],
         'special_version_types': [],
@@ -1458,7 +1481,7 @@ def analyze_data_for_smart_defaults(raw_platform_data):
         'enableInverseStatus': characteristics['has_inverse_status'],
         'enableMultipleBranches': enable_multiple_branches,
         'enableMixedStatus': characteristics['has_mixed_status'],
-        'enableGapProcessing': characteristics['needs_gap_processing'],
+        'enableGapProcessing': characteristics['needs_infer_affected_ranges'],
         'enableUpdatePatterns': enable_update_patterns,
         'enableCpeBaseGeneration': enable_cpe_base_generation
     }
@@ -2069,6 +2092,94 @@ def analyze_cpe_base_string_generation(raw_platform_data: Dict) -> Dict:
     
     return cpe_base_info
 
+
+def generate_and_register_cpe_as(table_index: int, raw_platform_data: Dict) -> Optional[Dict]:
+    """
+    Generate CPE Applicability Statements and register them for NVD-ish integration.
+    
+    This function is called during badge_modal_system processing to generate CPE-AS
+    data that will be collected by nvd_ish_collector via the registry pattern.
+    
+    Args:
+        table_index: The table index for this platform entry
+        raw_platform_data: The raw CVE 5.0 affected[] entry
+    
+    Returns:
+        Dict with CPE-AS generation results, or None if generation failed
+    """
+    try:
+        from src.analysis_tool.core import cpe_as_generator
+        from src.analysis_tool.core.processData import formatFor23CPE
+        
+        # Get vendor and product for CPE base string
+        vendor = raw_platform_data.get('vendor', '')
+        product = raw_platform_data.get('product', '')
+        
+        if not vendor or not product:
+            logger.debug(f"Skipping CPE-AS generation for table {table_index}: missing vendor or product", group="CPE_AS_GEN")
+            return None
+        
+        # Check if this table_index has confirmed mappings in registry
+        has_confirmed_mapping = False
+        cpe_base_string = None
+        
+        registry_data = get_platform_notification_data(table_index, 'confirmedMappings')
+        if registry_data and registry_data.get('confirmedMappings'):
+            has_confirmed_mapping = len(registry_data['confirmedMappings']) > 0
+            if has_confirmed_mapping:
+                # Use first confirmed mapping for CPE base string
+                cpe_base_string = registry_data['confirmedMappings'][0].get('cpeBaseString')
+        
+        # If no confirmed mapping, use wildcard CPE (no vendor/product assumptions)
+        if not cpe_base_string:
+            cpe_base_string = "cpe:2.3:*:*:*:*:*:*:*:*:*:*"
+        
+        # Get CPE suggestion context for concern determination
+        cpe_suggestions = get_platform_notification_data(table_index, 'top10CPESuggestions')
+        cpe_suggestion_context = None
+        if cpe_suggestions:
+            cpe_suggestion_context = {
+                'top10SuggestedCPEBaseStrings': cpe_suggestions.get('top10SuggestedCPEBaseStrings', [])
+            }
+        
+        # Generate CPE-AS for this affected entry with confirmation status
+        cpe_matches = cpe_as_generator.generate_cpe_as(
+            raw_platform_data,
+            cpe_base_string,
+            has_confirmed_mapping=has_confirmed_mapping,
+            cpe_suggestion_context=cpe_suggestion_context
+        )
+        
+        if not cpe_matches:
+            logger.debug(f"CPE-AS generation produced no matches for table {table_index}", group="CPE_AS_GEN")
+            return None
+        
+        # Convert OrderedDict to regular dict for JSON serialization
+        cpe_matches_serializable = [dict(cm) for cm in cpe_matches]
+        
+        # Create CPE-AS data structure
+        cpe_as_data = {
+            'cpeMatches': cpe_matches_serializable,
+            'cpeBaseString': cpe_base_string,
+            'totalMatches': len(cpe_matches),
+            'vendor': vendor,
+            'product': product
+        }
+        
+        # Register CPE-AS data for this platform entry
+        # This will be collected by nvd_ish_collector via registry pattern
+        register_platform_notification_data(table_index, 'cpeAsGeneration', cpe_as_data)
+        
+        confirmed_status = "confirmed" if has_confirmed_mapping else "unconfirmed"
+        logger.debug(f"Generated and registered {len(cpe_matches)} CPE-AS match objects for {vendor}/{product} (table {table_index}, CPE {confirmed_status})", group="CPE_AS_GEN")
+        
+        return cpe_as_data
+        
+    except Exception as e:
+        logger.warning(f"CPE-AS generation failed for table {table_index}: {e}", group="CPE_AS_GEN")
+        return None
+
+
 # ===== BADGE CREATION FUNCTIONS =====
 
 def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict, vendor: str, product: str, row: Dict) -> Optional[str]:
@@ -2090,6 +2201,9 @@ def create_json_generation_rules_badge(table_index: int, raw_platform_data: Dict
     Returns:
         HTML string for the badge, or None if no applicable rules detected
     """
+    # NOTE: CPE-AS generation now happens AFTER cpeDetermination in nvd_ish_collector
+    # This allows access to confirmedMappings data and supports multiple CPE base strings per entry
+    
     # STEP 1: Check for modal-only cases - include them in All Versions modal
     if is_modal_only_case(raw_platform_data):
         logger.debug(f"Modal-only case detected for table {table_index} - creating All Versions badge with modal content only", group="BADGE_GEN")

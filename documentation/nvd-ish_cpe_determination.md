@@ -1,6 +1,6 @@
-# CPE Suggestions Workflow Process
+# CPE Determination Workflow Process
 
-- [CPE Suggestions Workflow Process](#cpe-suggestions-workflow-process)
+- [CPE Determination Workflow Process](#cpe-determination-workflow-process)
   - [Overview](#overview)
   - [Architecture Flow](#architecture-flow)
   - [Stage 1: Platform Entry Creation](#stage-1-platform-entry-creation)
@@ -44,11 +44,11 @@
       - [5.1.4 CPE Base String Specificity Filtering](#514-cpe-base-string-specificity-filtering)
   - [Stage 6: NVD-ish Record Integration](#stage-6-nvd-ish-record-integration)
     - [6.1 Data Collection and Assembly](#61-data-collection-and-assembly)
-  - [Final Output: Complete cpeSuggestions Structure](#final-output-complete-cpesuggestions-structure)
+  - [Final Output: Complete cpeDetermination Structure](#final-output-complete-cpedetermination-structure)
 
 ## Overview
 
-This document details the complete workflow process that transforms CVE List V5 affected array data into the cpeSuggestions content in NVD-ish records. The process involves multiple transformation stages, API queries, and data consolidation steps.
+This document details the complete workflow process that transforms CVE List V5 affected array data into the cpeDetermination content in NVD-ish records. The process involves multiple transformation stages, API queries, and data consolidation steps.
 
 ## Architecture Flow
 
@@ -67,7 +67,7 @@ CVE List V5 Affected Entry
     ↓
 6. NVD-ish Record Integration
     ↓
-Final cpeSuggestions Structure
+Final cpeDetermination Structure
 ```
 
 ---
@@ -141,7 +141,7 @@ Final cpeSuggestions Structure
 | `packageName` | vendor/product | Scoped package parsing | `"@angular/core"` → `"angular"` + `"core"` |
 | `cpes` | vendor/product/etc | CPE string parsing | `"cpe:2.3:a:apache:kafka:2.8.0:*:*:*:*:*:*:*"` → Multiple search variants |
 
-**Note**: `collectionURL` and `repo` fields are **not currently supported** in the CPE suggestions process. While these fields are collected in platform data, they are not processed for CPE generation. Future enhancement could add URL parsing to extract vendor/product components from repository URLs.
+**Note**: `collectionURL` and `repo` fields are **not currently supported** in the CPE determination process. While these fields are collected in platform data, they are not processed for CPE generation. Future enhancement could add URL parsing to extract vendor/product components from repository URLs.
 
 #### Supported Field Processing
 
@@ -554,8 +554,8 @@ row_query_mapping = {
 #### 3.3.4 Output Data Structure
 
 > **Notes**:  
-> The `query_analysis_results` structure shown below represents the internal processing format with `base_strings` as a container object. This will be transformed into the final NVD-ish `cpeSuggestionMetadata` array format where each CPE base string becomes a separate object with `cpeBaseString` as a property.  
-> This metadata provides transparency into the analysis process, data quality metrics and contextually relevant data for each CPE suggestion. See [II.B. CPE Suggestion Metadata (NVD /cpes/ API Query Results)](nvd-ish_record_example.md#iib-cpe-suggestion-metadata-nvd-cpes-api-query-results).
+> The `query_analysis_results` structure shown below represents the internal processing format with `base_strings` as a container object. This will be transformed into the final NVD-ish `cpeDeterminationMetadata` array format where each CPE base string becomes a separate object with `cpeBaseString` as a property.  
+> This metadata provides transparency into the analysis process, data quality metrics and contextually relevant data for each CPE determination. See [II.B. CPE Determination Metadata (NVD /cpes/ API Query Results)](nvd-ish_record_example.md#iib-cpe-determination-metadata-nvd-cpes-api-query-results).
 
 
 
@@ -606,7 +606,7 @@ row_specific_results = {
 
 **Function**: `consolidateBaseStrings()`
 
-**Purpose**: Transform per-query analysis results from Stage 3 into consolidated CPE suggestion metadata for each affected entry (dataframe row), preparing data for ranking and final selection.
+**Purpose**: Transform per-query analysis results from Stage 3 into consolidated CPE determination metadata for each affected entry (dataframe row), preparing data for ranking and final selection.
 
 #### 4.1.1 Per-Affected-Entry Processing
 
@@ -643,7 +643,7 @@ row_data = {
 **Consolidation Process**:
 
 1. **Cross-Query Deduplication**  
-   **Confidence Measurement through Search Source Diversity**: Count how many different CPE base string search queries returned the same result (`searchCount`) as a confidence indicator. When multiple independent search strategies discover the same CPE base string, it increases confidence the suggestion is relevant.
+   **Confidence Measurement through Search Source Diversity**: Count how many different CPE base string search queries returned the same result (`searchCount`) as a confidence indicator. When multiple independent search strategies discover the same CPE base string, it increases confidence the determination is relevant.
    
    ```python
    # Example: Same base string discovered through multiple independent searches
@@ -654,7 +654,7 @@ row_data = {
    ```
 
 2. **Search Source Value Tracking**  
-   **Confidence Measurement through Search Source Specificity**: Identify the searchSource categories that returned analysis results. When results are available from a search source that is considered more valuable (e.g., `cpes` array data vs raw vendor extraction), it increases confidence the suggestion is relevant.
+   **Confidence Measurement through Search Source Specificity**: Identify the searchSource categories that returned analysis results. When results are available from a search source that is considered more valuable (e.g., `cpes` array data vs raw vendor extraction), it increases confidence the determination is relevant.
    
    **Search Source Hierarchy Examples** (ranked by value/specificity):
    - `searchSourcecveAffectedCPEsArray` --> (explicit CVE `cpes` arrays)  
@@ -671,7 +671,7 @@ row_data = {
    
    **Function**: `compare_versions()`
    
-   **Purpose**: **Validate and refine** the existing `versionsFoundContent` data that was populated during Stage 3 (`analyzeBaseStrings()`). This consolidation step ensures version match consistency across merged base strings and deduplicates version matches. Version matches between the affected entry content and the CPE Names increases confidence the suggestion is relevant.
+   **Purpose**: **Validate and refine** the existing `versionsFoundContent` data that was populated during Stage 3 (`analyzeBaseStrings()`). This consolidation step ensures version match consistency across merged base strings and deduplicates version matches. Version matches between the affected entry content and the CPE Names increases confidence the determination is relevant.
 
 #### 4.1.3 Statistical Aggregation
 
@@ -718,7 +718,7 @@ unique_base_strings = {
 
 **Function**: `sort_base_strings()`
 
-**Purpose**: Sort consolidated CPE base strings to identify the Top 10 most relevant suggestions for each affected entry.
+**Purpose**: Sort consolidated CPE base strings to identify the Top 10 most relevant determinations for each affected entry.
 
 #### 4.2.1 Sorting Process
 
@@ -759,7 +759,7 @@ sort_key = (
 )
 ```
 
-**Output**: Top 10 entries from sorted results become the final CPE suggestions.
+**Output**: Top 10 entries from sorted results become the final CPE determinations.
 
 ---
 
@@ -769,7 +769,7 @@ sort_key = (
 
 **Purpose**: Detect and validate authoritative, human-verified CPE mappings for affected entries using external mapping files and alias matching logic.
 
-This stage operates as an independent feature within the `--cpe-suggestions` processing pipeline, providing confirmed CPE base strings that represent verified mappings for specific vendor/product combinations.
+This stage operates as an independent feature within the `--cpe-determination` processing pipeline, providing confirmed CPE base strings that represent verified mappings for specific vendor/product combinations.
 
 ### 5.1 Confirmed Mappings Processing Pipeline
 
@@ -819,19 +819,19 @@ Extract alias data from CVE List V5 affected entry fields into `raw_platform_dat
 
 **Location**: `src/analysis_tool/storage/nvd_ish_collector.py`
 
-**Purpose**: Convert all CPE suggestion processing results (Top 10, confirmed mappings, searched/culled strings) into the final NVD-ish record structure.
+**Purpose**: Convert all CPE determination processing results (Top 10, confirmed mappings, searched/culled strings) into the final NVD-ish record structure.
 
 ### 6.1 Data Collection and Assembly
 
-The collector integrates multiple data sources into the final `cpeSuggestions` structure:
+The collector integrates multiple data sources into the final `cpeDetermination` structure:
 
 ---
 
-## Final Output: Complete cpeSuggestions Structure
+## Final Output: Complete cpeDetermination Structure
 
 ```json
 {
-  "cpeSuggestions": {
+  "cpeDetermination": {
     "sourceId": "Hashmire/Analysis_Tools v0.2.0",
     "cvelistv5AffectedEntryIndex": "cve.containers.cna.affected.[0]",
     "top10SuggestedCPEBaseStrings": [

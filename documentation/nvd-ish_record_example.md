@@ -12,13 +12,13 @@ Enhanced CVE Record Architecture
 ├── I. NVD 2.0 CVE Record (Foundation)
 └── II. Analysis_Tools Enhanced Structure
     ├── II.A. Tool Execution Metadata
-    ├── II.B. CPE Suggestion Metadata (Large Dataset, Not Implemented Yet)
+    ├── II.B. CPE Determination Metadata (Large Dataset, Not Implemented Yet)
     └── II.C. CVE List V5 Affected Entries Analysis
         ├── II.C.1. Original Affected Entry
         ├── II.C.2. Source Data Concerns
         ├── II.C.3. Alias Extraction
-        ├── II.C.4. CPE Suggestions
-        └── II.C.5. CPE-AS Generation Rules (Not Implemented Yet)
+        ├── II.C.4. CPE Determination
+        └── II.C.5. CPE-AS Generation
 ```
 
 ---
@@ -156,9 +156,9 @@ Enhanced CVE Record Architecture
             "toolName": "Hashmire/Analysis_Tools",  # From config.json
             "toolVersion": "0.2.0",                  # From config.json
             "sourceDataConcerns": "2025-10-31T15:30:45Z",
-            "cpeSuggestions": "2025-10-31T15:30:45Z", 
-            "cpeAsGenerationRules": "2025-10-31T15:28:12Z",
-            "cpeSuggestionMetadata": "2025-10-31T15:30:45Z",
+            "cpeDetermination": "2025-10-31T15:30:45Z", 
+            "cpeAsGeneration": "2025-10-31T15:28:12Z",
+            "cpeDeterminationMetadata": "2025-10-31T15:30:45Z",
             "aliasExtraction": "2025-10-31T15:30:45Z"
         },
 ```
@@ -166,14 +166,10 @@ Enhanced CVE Record Architecture
 </details>
 
 <details>
-<summary><strong>│ ├── II.B. CPE Suggestion Metadata</strong> <em>(NVD /cpes/ API Query Results)</em></summary>
+<summary><strong>│ ├── II.B. CPE Determination Metadata</strong> <em>(NVD /cpes/ API Query Results)</em></summary>
 
 ```python
-        # NVD 2.0 /cpes/ API query results keyed by CPE base string  
-        # This section can get very large. These map to the cpeSuggestions cpeBaseString values
-
-```python
-        "cpeSuggestionMetadata": [
+        "cpeDeterminationMetadata": [
             {
                 "cpeBaseString": "cpe:2.3:a:example_vendor:example_product:*:*:*:*:*:*:*:*",
                 "depTrueCount": 12,       # Deprecated CPE entries
@@ -365,11 +361,11 @@ Enhanced CVE Record Architecture
 </details>
 
 <details>
-<summary><strong>│ │ ├── II.C.4. CPE Suggestions</strong> <em>(Generated Base Strings)</em></summary>
+<summary><strong>│ │ ├── II.C.4. CPE Determination</strong> <em>(Generated Base Strings)</em></summary>
 
 ```python
-                # === II.C.4. CPE SUGGESTIONS ===
-                "cpeSuggestions": {
+                # === II.C.4. CPE DETERMINATION ===
+                "cpeDetermination": {
                     "sourceId": "Hashmire/Analysis_Tools v0.2.0",  # Tool name + version
                     "cvelistv5AffectedEntryIndex": 'cve.containers.cna.affected.[0]',
 
@@ -421,53 +417,57 @@ Enhanced CVE Record Architecture
 </details>
 
 <details>
-<summary><strong>│ │ ├── II.C.5. CPE-AS Generation Rules</strong> <em>(Transformation Logic & Settings)</em></summary>
+<summary><strong>│ │ ├── II.C.5. CPE-AS Generation</strong> <em>(Generated CPE Match Objects) ✅ IMPLEMENTED</em></summary>
+
+**Implementation Status:** Fully implemented in `src/analysis_tool/core/cpe_as_generator.py` with comprehensive test coverage.
 
 ```python
-                # === II.C.5. CPE-AS GENERATION RULES ===
-                # Minimal registry data from PLATFORM_ENTRY_NOTIFICATION_REGISTRY['cpeAsGenerationRules'][table_index]
-                "cpeAsGenerationRules": {
-                    "sourceId": "Hashmire/Analysis_Tools v0.2.0",  # Tool name + version
+                # === II.C.5. CPE-AS GENERATION ===
+                # Generated CPE Applicability Statement match objects with pattern traceability
+                "cpeAsGeneration": {
+                    "sourceId": "Hashmire/Analysis_Tools v0.4.0",  # Tool name + version
                     "cvelistv5AffectedEntryIndex": 'cve.containers.cna.affected.[0]',
-                    "wildcardTransformations": [
+                    "generatedCpeMatch": [
                         {
-                            "field": "lessThanOrEqual",
-                            "original": "2.4.*", 
-                            "start_version": "2.0.0",
-                            "end_version": "2.5.0"
-                        }
-                    ],
-                    "updatePatternTransformations": [
+                            "vulnerable": true,
+                            "criteria": "cpe:2.3:a:example_vendor:example_product:1.0:*:*:*:*:*:*:*",
+                            "appliedPattern": "exact.single",
+                            "versionsEntryIndex": 0
+                        },
                         {
-                            "field": "version",
-                            "original": "4.2.1a-beta",
-                            "base_version": "4.2.1",
-                            "update_component": "a-beta",
-                            "transformed_version": "4.2.1:a-beta",
-                            "pattern_type": "complex_suffix",
-                            "blocked_by_ranges": false
+                            "vulnerable": true,
+                            "criteria": "cpe:2.3:a:example_vendor:example_product:*:*:*:*:*:*:*:*",
+                            "versionStartIncluding": "2.0",
+                            "versionEndExcluding": "2.5",
+                            "appliedPattern": "range.lessThan",
+                            "versionsEntryIndex": 1
+                        },
+                        {
+                            "vulnerable": true,
+                            "criteria": "cpe:2.3:a:example_vendor:example_product:*:*:*:*:*:*:*:*",
+                            "versionStartIncluding": "3.0",
+                            "versionEndExcluding": "3.2.1",
+                            "appliedPattern": "range.changesFixed",
+                            "versionsEntryIndex": 1
+                        },
+                        {
+                            "vulnerable": true,
+                            "criteria": "cpe:2.3:a:example_vendor:example_product:4.2.1:a-beta:*:*:*:*:*:*",
+                            "appliedPattern": "exact.single",
+                            "versionsEntryIndex": 3,
+                            "updatePattern": [
+                                {
+                                    "field": "version",
+                                    "input": "4.2.1a-beta",
+                                    "output": {
+                                        "version": "4.2.1",
+                                        "update": "a-beta"
+                                    },
+                                    "pattern_type": "alpha"
+                                }
+                            ]
                         }
-                    ],
-                    "allVersionsTransformations": [],
-                    "gapProcessingTransformations": [],
-                    "inverseStatusTransformations": [],
-                    "mixedStatusTransformations": [],
-                    "versionChangesTransformations": [],
-                    "multipleBranchesTransformations": [],
-                    "specialVersionTypesTransformations": [],
-                    
-                    # Intelligent modular rule pre-configuration based on data analysis
-                    "intelligentSettings": {
-                        "enableWildcardExpansion": true,
-                        "enableVersionChanges": false,
-                        "enableSpecialVersionTypes": true,
-                        "enableInverseStatus": false,
-                        "enableMultipleBranches": false,
-                        "enableMixedStatus": false,
-                        "enableGapProcessing": true,
-                        "enableUpdatePatterns": true,
-                        "enableCpeBaseGeneration": false
-                    }
+                    ]
                 }
             }
         ]
@@ -486,9 +486,9 @@ Enhanced CVE Record Architecture
 **II.A. Tool Execution Metadata:**
 
 - `toolName`, `toolVersion`: From `config.json` application settings
-- Execution timestamps: Per-feature completion times (sourceDataConcerns, cpeSuggestions, etc.)
+- Execution timestamps: Per-feature completion times (sourceDataConcerns, cpeDetermination, etc.)
 
-**II.B. CPE Suggestion Metadata:** (Not Implemented Yet)  
+**II.B. CPE Determination Metadata:** (Not Implemented Yet)  
 
 - NVD /cpes/ API response statistics: `depTrueCount`, `depFalseCount`, `versionsFound`
 - CPE search provenance: Dynamic `searchSource*` fields tracking data origins
@@ -510,9 +510,9 @@ Enhanced CVE Record Architecture
 - `aliases`: Alias enumeration groupings based on affected entry data
 - Processing function: `_filter_badge_collector_alias_data()` in `storage/nvd_ish_collector.py`
 
-**II.C.4. CPE Suggestions:**
+**II.C.4. CPE Determination:**
 
-- `top10SuggestedCPEBaseStrings`: Ranked CPE Base Strings based on analysis of CPE Suggestion Metadata
+- `top10SuggestedCPEBaseStrings`: Ranked CPE Base Strings based on analysis of CPE Determination Metadata
 - `confirmedMappings`: Validated CPE base strings from mapping files
 - `cpeMatchStringsSearched`: Enumerated CPE Match Strings used for NVD API queries
 - `cpeMatchStringsCulled`: Rejected CPE Match Strings with validation failure reasons
@@ -520,7 +520,7 @@ Enhanced CVE Record Architecture
 
 **II.C.5. CPE-AS Generation Rules:** (Not Implemented Yet)  
 
-- JSON generation transformation rules: `wildcardTransformations`, `updatePatternTransformations`, etc.
+- JSON generation transformation rules: Pattern-based CPE-AS generation with traceability metadata
 - Intelligent settings configuration: Rule enablement flags based on data analysis
 - Processing functions: Python detection logic in `badge_modal_system.py`, JavaScript generation in `cpe_json_handler.js`, `modular_rules.js`
 

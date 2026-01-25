@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Confirmed Mappings Test Suite (Isolated)
 
@@ -34,8 +35,8 @@ from typing import Optional, Dict, Any, List
 # Force UTF-8 output encoding for Windows compatibility
 if sys.platform == 'win32':
     import codecs
-    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
-    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'replace')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'replace')
 
 # Test configuration
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -104,16 +105,21 @@ class ConfirmedMappingsTestSuite:
                     source_data = json.load(f)
                 
                 # Add test source entries if not already present
+                # CRITICAL: These must be added BEFORE the source manager singleton initializes
                 test_sources = [
                     {
                         "name": "Test Organization",
                         "contactEmail": "test@example.com",
-                        "sourceIdentifiers": ["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "test@example.com", "testorg"]
+                        "sourceIdentifiers": ["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "test@example.com", "testorg"],
+                        "lastModified": "2024-01-01T00:00:00.000",
+                        "created": "2024-01-01T00:00:00.000"
                     },
                     {
                         "name": "TestOrg",
                         "contactEmail": "testorg@example.com",
-                        "sourceIdentifiers": ["bbbbbbbb-cccc-dddd-eeee-ffffffffffff", "testorg@example.com", "testorg"]
+                        "sourceIdentifiers": ["bbbbbbbb-cccc-dddd-eeee-ffffffffffff", "testorg@example.com", "testorg"],
+                        "lastModified": "2024-01-01T00:00:00.000",
+                        "created": "2024-01-01T00:00:00.000"
                     }
                 ]
                 
@@ -131,7 +137,8 @@ class ConfirmedMappingsTestSuite:
                 with open(source_cache_path, 'w', encoding='utf-8') as f:
                     json.dump(source_data, f, indent=2)
                 
-                print(f"  * Injected test source data into NVD source cache")
+                sources_added = len([s for s in test_sources if not any(ident in existing_identifiers for ident in s['sourceIdentifiers'])])
+                print(f"  * Injected test source data into NVD source cache ({sources_added} new sources)")
             except Exception as e:
                 print(f"  ⚠️  Failed to inject test source data: {e}")
         
@@ -190,13 +197,14 @@ class ConfirmedMappingsTestSuite:
             except Exception as e:
                 print(f"  ⚠️  Failed to remove test source data: {e}")
         
-        # Clean up test CVE files from caches
+        # Clean up test CVE files from INPUT caches (preserve OUTPUT cache for validation)
         cache_dirs = [
             CACHE_DIR / "cve_list_v5" / "1337" / "2xxx",
             CACHE_DIR / "cve_list_v5" / "1337" / "3xxx",
             CACHE_DIR / "nvd_2.0_cves" / "1337" / "2xxx",
             CACHE_DIR / "nvd_2.0_cves" / "1337" / "3xxx"
         ]
+        # NOTE: We do NOT clean nvd-ish_2.0_cves output cache - tests validate that
         
         for cache_dir in cache_dirs:
             if cache_dir.exists():
@@ -298,7 +306,7 @@ class ConfirmedMappingsTestSuite:
         # EXECUTE
         success, output_path, stdout, stderr = self.run_analysis_tool(
             "CVE-1337-2001",
-            additional_args=["--sdc-report", "--cpe-suggestions", "--alias-report", "--cpe-as-generator", "--source-uuid", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"]
+            additional_args=["--sdc-report", "--cpe-determination", "--alias-report", "--cpe-as-generator", "--source-uuid", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"]
         )
         
         # TEARDOWN
@@ -312,13 +320,22 @@ class ConfirmedMappingsTestSuite:
         
         if not success:
             print(f"❌ FAIL: Analysis tool failed")
-            print(f"STDERR: {stderr}")
+            print(f"STDOUT (last 50 lines):")
+            for line in stdout.split('\n')[-50:]:
+                print(f"  {line}")
+            print(f"STDERR (last 20 lines):")
+            for line in stderr.split('\n')[-20:]:
+                print(f"  {line}")
             return False
         
         if output_path is None:
             print(f"❌ FAIL: Could not extract output path from analysis tool output")
-            print(f"STDOUT:\n{stdout}")
-            print(f"STDERR:\n{stderr}")
+            print(f"STDOUT (last 50 lines):")
+            for line in stdout.split('\n')[-50:]:
+                print(f"  {line}")
+            print(f"STDERR (last 20 lines):")
+            for line in stderr.split('\n')[-20:]:
+                print(f"  {line}")
             return False
         
         # VALIDATE
@@ -347,8 +364,8 @@ class ConfirmedMappingsTestSuite:
                     return False
                     
                 target_entry = cve_list_entries[entry_index]
-                cpe_suggestions = target_entry.get("cpeSuggestions", {})
-                confirmed_mappings = cpe_suggestions.get('confirmedMappings', [])
+                cpe_determination = target_entry.get("cpeDetermination", {})
+                confirmed_mappings = cpe_determination.get('confirmedMappings', [])
                 
                 if len(confirmed_mappings) != len(expected_mappings):
                     print(f"❌ FAIL: Entry {entry_index} expected {len(expected_mappings)} confirmed mappings, got {len(confirmed_mappings)}")
@@ -357,8 +374,12 @@ class ConfirmedMappingsTestSuite:
                     return False
                 
                 for expected_mapping in expected_mappings:
-                    if expected_mapping not in confirmed_mappings:
+                    # Extract cpeBaseString from each confirmed mapping dict
+                    actual_cpe_bases = [m.get('cpeBaseString') for m in confirmed_mappings if isinstance(m, dict)]
+                    if expected_mapping not in actual_cpe_bases:
                         print(f"❌ FAIL: Entry {entry_index} missing expected mapping: {expected_mapping}")
+                        print(f"  Expected: {expected_mappings}")
+                        print(f"  Actual CPE bases: {actual_cpe_bases}")
                         return False
                 
                 validated_entries += 1
@@ -429,7 +450,7 @@ class ConfirmedMappingsTestSuite:
         # EXECUTE
         success, output_path, stdout, stderr = self.run_analysis_tool(
             "CVE-1337-3002",
-            additional_args=["--sdc-report", "--cpe-suggestions", "--alias-report", "--cpe-as-generator", "--source-uuid", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"]
+            additional_args=["--sdc-report", "--cpe-determination", "--alias-report", "--cpe-as-generator", "--source-uuid", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"]
         )
         
         # TEARDOWN
@@ -464,14 +485,16 @@ class ConfirmedMappingsTestSuite:
             
             # Entry 2: validvendor/validproduct - should have confirmed mapping
             entry_2 = cve_list_entries[2]
-            confirmed_mappings = entry_2.get("cpeSuggestions", {}).get("confirmedMappings", [])
+            confirmed_mappings = entry_2.get("cpeDetermination", {}).get("confirmedMappings", [])
             
             if len(confirmed_mappings) == 1:
                 expected_mapping = "cpe:2.3:a:validvendor:validproduct:*:*:*:*:*:*:*:*"
-                if confirmed_mappings[0] == expected_mapping:
-                    print(f"  * Entry 2 correctly has confirmed mapping: {confirmed_mappings[0]}")
+                # Extract cpeBaseString from dict structure
+                actual_mapping = confirmed_mappings[0].get('cpeBaseString') if isinstance(confirmed_mappings[0], dict) else confirmed_mappings[0]
+                if actual_mapping == expected_mapping:
+                    print(f"  * Entry 2 correctly has confirmed mapping: {actual_mapping}")
                 else:
-                    print(f"FAIL: Entry 2 mapping mismatch. Expected: {expected_mapping}, Found: {confirmed_mappings[0]}")
+                    print(f"FAIL: Entry 2 mapping mismatch. Expected: {expected_mapping}, Found: {actual_mapping}")
                     return False
             else:
                 print(f"FAIL: Entry 2 (validvendor/validproduct) expected 1 confirmed mapping, found {len(confirmed_mappings)}")
@@ -480,7 +503,7 @@ class ConfirmedMappingsTestSuite:
             # Entries 0, 1, 3 should NOT have confirmed mappings (placeholder filtering)
             for i in [0, 1, 3]:
                 entry = cve_list_entries[i]
-                mappings = entry.get("cpeSuggestions", {}).get("confirmedMappings", [])
+                mappings = entry.get("cpeDetermination", {}).get("confirmedMappings", [])
                 if len(mappings) > 0:
                     print(f"FAIL: Entry {i} should have no mappings due to placeholder filtering, found {len(mappings)}")
                     return False

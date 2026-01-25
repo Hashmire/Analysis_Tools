@@ -239,14 +239,14 @@ def set_global_source_uuid(source_uuid):
     if source_uuid:
         logger.info(f"Global source UUID set for filtering: {source_uuid}", group="initialization")
 
-def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, alias_report=False, cpe_as_generator=False, nvd_ish_only=False):
+def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, alias_report=False, cpe_as_generator=False, nvd_ish_only=False):
     """Process a single CVE using the analysis tool functionality.
     
     Args:
         cve_id: The CVE ID to process
-        nvd_api_key: NVD API key for CPE queries (ignored if cpe_suggestions=False)
+        nvd_api_key: NVD API key for CPE queries (ignored if cpe_determination=False)
         sdc_report: If True, generate Source Data Concerns report
-        cpe_suggestions: If True, perform NVD CPE API calls and generate suggestions
+        cpe_determination: If True, perform NVD CPE API calls and generate CPE determination
         alias_report: If True, generate alias report via curator features
         cpe_as_generator: If True, generate CPE Applicability Statements as interactive HTML pages
         nvd_ish_only: If True, generate only NVD-ish enriched records without report files or HTML
@@ -328,12 +328,12 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         primaryDataframe = processData.processNVDRecordData(primaryDataframe, nvdRecordData)
 
         # Platform Data Processing and CPE Generation
-        if cpe_suggestions:
+        if cpe_determination:
             # Full CPE processing: platform data + CPE generation + API calls
-            # Use same timestamp for both cpeSuggestions and cpeSuggestionMetadata (set at same execution point)
+            # Use same timestamp for both cpeDetermination and cpeDeterminationMetadata (set at same execution point)
             cpe_timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-            tool_execution_timestamps['cpeSuggestions'] = cpe_timestamp
-            tool_execution_timestamps['cpeSuggestionMetadata'] = cpe_timestamp
+            tool_execution_timestamps['cpeDetermination'] = cpe_timestamp
+            tool_execution_timestamps['cpeDeterminationMetadata'] = cpe_timestamp
             try:
                 primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1, 
                                                             alias_report=alias_report, cpe_as_generator=cpe_as_generator)
@@ -493,7 +493,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         
         
         # Confirmed Mappings Processing
-        if cpe_suggestions or alias_report or cpe_as_generator:
+        if cpe_determination or alias_report or cpe_as_generator:
             try:
                 # Import confirmed mapping functions
                 from .processData import extract_confirmed_mappings_for_affected_entry
@@ -564,17 +564,27 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
             # Integrate source data concerns from Platform Entry Notification Registry
             nvd_ish_collector.collect_source_data_concerns_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
             
-            # Integrate CPE suggestions data from Platform Entry Notification Registry 
-            if cpe_suggestions or nvd_ish_only:
-                nvd_ish_collector.collect_cpe_suggestions_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
-            
             # Integrate alias extraction data from Platform Entry Notification Registry
-            if alias_report or nvd_ish_only:
+            if alias_report:
                 nvd_ish_collector.collect_alias_extraction_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
             
+            # Integrate CPE suggestions data from Platform Entry Notification Registry 
+            if cpe_determination or nvd_ish_only:
+                nvd_ish_collector.collect_cpe_determination_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
+            
             # Integrate confirmed mappings data from Platform Entry Notification Registry
-            if cpe_suggestions or alias_report or cpe_as_generator or nvd_ish_only:
+            if cpe_determination or alias_report or cpe_as_generator or nvd_ish_only:
                 nvd_ish_collector.collect_confirmed_mappings_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
+            
+            # Generate CPE-AS data AFTER cpeDetermination and confirmed mappings are populated
+            # This follows documented order: originAffectedEntry → sourceDataConcerns → aliasExtraction → cpeDetermination → cpeAsGeneration
+            if cpe_as_generator or nvd_ish_only:
+                nvd_ish_collector._generate_all_cpe_as()
+            
+            # Integrate CPE-AS generation data from Platform Entry Notification Registry (badge system path)
+            # Note: In nvd-ish-only mode, CPE-AS is generated directly above, not from registry
+            if cpe_as_generator and not nvd_ish_only:
+                nvd_ish_collector.collect_cpe_as_generation_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
             
             # Collect tool execution metadata with timestamps
             if tool_execution_timestamps:
@@ -583,8 +593,15 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
             nvd_ish_collector.complete_cve_processing()
             
             logger.info(f"NVD-ish enhanced record collection completed for {cve_id}", group="data_processing")
+        except RuntimeError as runtime_error:
+            # Catch dual-source validation failures specifically
+            logger.error(f"NVD-ish record generation failed for {cve_id} - {runtime_error}", group="data_processing")
+            import traceback
+            logger.debug(f"RuntimeError traceback:\n{traceback.format_exc()}", group="data_processing")
         except Exception as collection_error:
+            import traceback
             logger.error(f"Failed to complete NVD-ish collection for {cve_id}: {collection_error}", group="data_processing")
+            logger.error(f"Full traceback:\n{traceback.format_exc()}", group="data_processing")
 
         # HTML generation decision based on feature flags
         # Only generate HTML when cpe_as_generator is enabled (the only feature that needs interactive HTML pages)
@@ -603,7 +620,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
             return {
                 'success': True,
                 'sdc_report': sdc_report,
-                'cpe_suggestions': cpe_suggestions,
+                'cpe_suggestions': cpe_determination,
                 'alias_report': alias_report,
                 'cve_as_generator': cpe_as_generator,
                 'nvd_ish_only': nvd_ish_only,
@@ -712,7 +729,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_suggestions=False, al
         success_result = {
             'success': True,
             'sdc_report': sdc_report,
-            'cpe_suggestions': cpe_suggestions,
+            'cpe_suggestions': cpe_determination,
             'alias_report': alias_report,
             'cve_as_generator': cpe_as_generator,
             'cve_id': cve_id,
@@ -914,8 +931,8 @@ def main():
                              help="Generate complete NVD-ish enriched records without report files or HTML (ignores other output flags)")
     output_group.add_argument("--sdc-report", nargs='?', const='true', choices=['true', 'false'], default='false',
                              help="Generate Source Data Concerns report (default: false, true if flag provided without value)")
-    output_group.add_argument("--cpe-suggestions", nargs='?', const='true', choices=['true', 'false'], default='false', 
-                             help="Generate CPE suggestions via NVD CPE API calls (default: false, true if flag provided without value)")
+    output_group.add_argument("--cpe-determination", nargs='?', const='true', choices=['true', 'false'], default='false', 
+                             help="Generate CPE determination via NVD CPE API calls (default: false, true if flag provided without value)")
     output_group.add_argument("--alias-report", nargs='?', const='true', choices=['true', 'false'], default='false',
                              help="Generate alias report via curator features (default: false, true if flag provided without value)")
     output_group.add_argument("--cpe-as-generator", nargs='?', const='true', choices=['true', 'false'], default='false',
@@ -941,7 +958,7 @@ def main():
     
     # Convert string boolean arguments to actual booleans
     sdc_report = args.sdc_report.lower() == 'true'
-    cpe_suggestions = args.cpe_suggestions.lower() == 'true'
+    cpe_determination = args.cpe_determination.lower() == 'true'
     alias_report = args.alias_report.lower() == 'true'
     cpe_as_generator = args.cpe_as_generator.lower() == 'true'
     nvd_ish_only = args.nvd_ish_only.lower() == 'true'
@@ -952,31 +969,31 @@ def main():
     if nvd_ish_only:
         # Enable ALL analysis processes for complete enrichment
         sdc_report = True
-        cpe_suggestions = True
-        # Only enable alias_report if source_uuid is provided (it requires UUID)
-        alias_report = True if args.source_uuid else False
+        cpe_determination = True
+        alias_report = True  # Always enable for nvd-ish records (uses default curator mappings if no source_uuid)
         cpe_as_generator = True
     
     # Validate feature combinations
-    if alias_report and not args.source_uuid:
+    # Note: nvd-ish-only mode doesn't require source-uuid because it extracts all aliases without filtering
+    if alias_report and not args.source_uuid and not nvd_ish_only:
         print("ERROR: --alias-report requires --source-uuid to determine the appropriate confirmed mappings file")
         print("Example usage:")
         print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-XXXX --alias-report --source-uuid your-uuid-here")
         return
     
     # Validate that at least one feature is enabled (or nvd-ish-only mode)
-    if not any([sdc_report, cpe_suggestions, alias_report, cpe_as_generator, nvd_ish_only]):
+    if not any([sdc_report, cpe_determination, alias_report, cpe_as_generator, nvd_ish_only]):
         print("ERROR: At least one feature must be enabled!")
         print("Available features:")
         print("  --sdc-report               : Generate Source Data Concerns report")
-        print("  --cpe-suggestions          : Generate CPE suggestions via NVD CPE API calls")
+        print("  --cpe-determination        : Generate CPE determination via NVD CPE API calls")
         print("  --alias-report             : Generate alias report via curator features (COMING SOON)")
         print("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages")
         print("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files or HTML")
         print("")
         print("Example usage:")
         print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-20515 --sdc-report")
-        print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-20515 --cpe-suggestions --cpe-as-generator")
+        print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-20515 --cpe-determination --cpe-as-generator")
         print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-20515 --nvd-ish-only --source-uuid your-uuid")
         return 1
     
@@ -989,8 +1006,8 @@ def main():
         enabled_features.append("NVD-ish Enriched Records")
     if sdc_report:
         enabled_features.append("Source Data Concerns")
-    if cpe_suggestions:
-        enabled_features.append("CPE Suggestions")
+    if cpe_determination:
+        enabled_features.append("CPE Determination")
     if alias_report:
         enabled_features.append("Alias Report")
     if cpe_as_generator:
@@ -1002,7 +1019,7 @@ def main():
         logger.info("No optional features enabled", group="initialization")
     
     # Automatically enable appropriate flags when CPE features are disabled
-    if not cpe_suggestions and not cpe_as_generator:
+    if not cpe_determination and not cpe_as_generator:
         args.no_cache = True
         logger.info("CPE features disabled - enabling optimizations (--no-cache)", group="initialization")
     
@@ -1074,6 +1091,10 @@ def main():
     # Get global NVD source manager (uses cache or refreshes as needed)
     from ..storage.nvd_source_manager import get_or_refresh_source_manager
     source_manager = get_or_refresh_source_manager(nvd_api_key, log_group="initialization")
+    
+    # Resolve organization name now that source manager is initialized
+    from ..reporting.dataset_contents_collector import resolve_organization_name_if_needed
+    resolve_organization_name_if_needed()
     
     # Initialize unified source manager
     from .unified_source_manager import get_unified_source_manager
@@ -1232,7 +1253,7 @@ def main():
         tool_flags = {}
         if sdc_report:
             tool_flags['sdc'] = True
-        if cpe_suggestions:
+        if cpe_determination:
             tool_flags['cpe-sug'] = True
         if alias_report:
             tool_flags['alias'] = True
@@ -1330,14 +1351,17 @@ def main():
         configure_nvd_ish_only_mode(True)  # Logs at DEBUG level internally
     
     # Initialize real-time dashboard collector
+    from ..reporting.dataset_contents_collector import get_dataset_contents_collector
+    get_dataset_contents_collector(config_dict=config)
+    
     # Determine processing mode for dashboard tracking
-    processing_mode = "sdc-only" if (sdc_report and not cpe_suggestions and not alias_report and not cpe_as_generator) else ("test" if args.test_file else "full")
+    processing_mode = "sdc-only" if (sdc_report and not cpe_determination and not alias_report and not cpe_as_generator) else ("test" if args.test_file else "full")
     
     # Determine cache disable reason
     cache_disabled = args.no_cache
     cache_disable_reason = None
     if cache_disabled:
-        if sdc_report and not cpe_suggestions and not alias_report and not cpe_as_generator:
+        if sdc_report and not cpe_determination and not alias_report and not cpe_as_generator:
             cache_disable_reason = "sdc-only"
         elif args.test_file:
             cache_disable_reason = "test-file"
@@ -1463,7 +1487,7 @@ def main():
                 end_audit("Checkpoint audit complete")
             
             # Process the CVE
-            result = process_cve(cve, nvd_api_key, sdc_report, cpe_suggestions, alias_report, cpe_as_generator, nvd_ish_only)
+            result = process_cve(cve, nvd_api_key, sdc_report, cpe_determination, alias_report, cpe_as_generator, nvd_ish_only)
             
             # Handle results: successful processing, skipped CVEs, or failures
             if result:
