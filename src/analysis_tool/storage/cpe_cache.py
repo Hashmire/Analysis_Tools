@@ -51,8 +51,13 @@ class CPECache:
             'misses': 0,
             'expired': 0,
             'new_entries': 0,
-            'api_calls_saved': 0
+            'api_calls_saved': 0,
+            'auto_saves': 0
         }
+        
+        # Auto-save configuration
+        self.auto_save_threshold = config.get('auto_save_threshold', 50)  # Save every N new entries
+        self.unsaved_changes = 0
         
         # Ensure cache directory exists
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -97,6 +102,13 @@ class CPECache:
             logger.warning(f"Cache load error: {e} - starting with empty cache", group="cpe_queries")
             self.cache_data = {}
             
+    def _auto_save(self):
+        """Perform automatic incremental save"""
+        self.session_stats['auto_saves'] += 1
+        logger.debug(f"CPE cache auto-save triggered ({self.unsaved_changes} new entries)", group="cpe_queries")
+        self._save_cache()
+        self.unsaved_changes = 0
+    
     def _save_cache(self):
         """Save cache data to disk with optimized performance using orjson"""
         if not self.config.get('enabled', True):
@@ -119,27 +131,27 @@ class CPECache:
                 # orjson is faster - write as binary with human-readable formatting
                 with open(self.cache_file, 'wb') as f:
                     f.write(orjson.dumps(self.cache_data, option=orjson.OPT_INDENT_2))
-                    
-            # Update unified metadata file with CPE cache section
-            unified_metadata = {}
-            if self.metadata_file.exists():
-                try:
-                    with open(self.metadata_file, 'rb') as f:
-                        unified_metadata = orjson.loads(f.read())
-                except:
-                    pass
-            
-            # Ensure proper structure and update CPE cache data
-            if 'datasets' not in unified_metadata:
-                unified_metadata['datasets'] = {}
-            unified_metadata['datasets']['cpe_cache'] = self.cpe_metadata
-            unified_metadata['last_updated'] = datetime.now(timezone.utc).isoformat()
-            
-            # Save updated unified metadata
-            with open(self.metadata_file, 'wb') as f:
-                f.write(orjson.dumps(unified_metadata, option=orjson.OPT_INDENT_2))
-            
-            save_time = time.time() - start_time
+                        
+                # Update unified metadata file with CPE cache section
+                unified_metadata = {}
+                if self.metadata_file.exists():
+                    try:
+                        with open(self.metadata_file, 'rb') as f:
+                            unified_metadata = orjson.loads(f.read())
+                    except:
+                        pass
+                
+                # Ensure proper structure and update CPE cache data
+                if 'datasets' not in unified_metadata:
+                    unified_metadata['datasets'] = {}
+                unified_metadata['datasets']['cpe_cache'] = self.cpe_metadata
+                unified_metadata['last_updated'] = datetime.now(timezone.utc).isoformat()
+                
+                # Save updated unified metadata
+                with open(self.metadata_file, 'wb') as f:
+                    f.write(orjson.dumps(unified_metadata, option=orjson.OPT_INDENT_2))
+                
+                save_time = time.time() - start_time
             
             logger.debug(f"CPE Base String Cache saved: {len(self.cache_data)} entries in {save_time:.2f}s", group="cpe_queries")
             
@@ -156,7 +168,6 @@ class CPECache:
             
         except Exception as e:
             logger.error(f"CPE Base String Cache save error: {e}", group="cpe_queries")
-            
     def get(self, cpe_string: str) -> Tuple[Optional[Dict[str, Any]], str]:
         """
         Retrieve cached CPE data for a given CPE string
@@ -218,7 +229,7 @@ class CPECache:
         
     def put(self, cpe_string: str, api_response: Dict[str, Any]):
         """
-        Store CPE API response in cache
+        Store CPE API response in cache with automatic incremental saves
         
         Args:
             cpe_string: The CPE match string used as key
@@ -235,13 +246,19 @@ class CPECache:
         }
         
         # Update existing entry or create new one
-        if cpe_string in self.cache_data:
+        is_new = cpe_string not in self.cache_data
+        if is_new:
+            self.session_stats['new_entries'] += 1
+            self.unsaved_changes += 1
+        else:
             existing = self.cache_data[cpe_string]
             entry['query_count'] = existing.get('query_count', 0) + 1
-        else:
-            self.session_stats['new_entries'] += 1
             
         self.cache_data[cpe_string] = entry
+        
+        # Auto-save if threshold reached
+        if self.auto_save_threshold > 0 and self.unsaved_changes >= self.auto_save_threshold:
+            self._auto_save()
         
     def _get_entry_timestamp(self, entry: Dict[str, Any]) -> datetime:
         """Get timestamp from entry using configured field path"""
@@ -281,13 +298,15 @@ class CPECache:
             logger.info(f"Cache cleanup: removed {len(expired_keys)} entries older than 12 hours", group="cpe_queries")
             
     def get_stats(self) -> Dict[str, Any]:
-        """Get cache statistics"""        
+        """Get cache statistics"""
         return {
             'total_entries': len(self.cache_data),
             'session_hits': self.session_stats['hits'],
             'session_misses': self.session_stats['misses'],
             'session_expired': self.session_stats['expired'],
             'session_new_entries': self.session_stats['new_entries'],
+            'session_auto_saves': self.session_stats['auto_saves'],
+            'unsaved_changes': self.unsaved_changes,
             'session_api_calls_saved': self.session_stats['api_calls_saved'],
             'cache_created': self.cpe_metadata['created'],
             'last_updated': self.cpe_metadata['last_updated']
@@ -315,7 +334,8 @@ class CPECache:
             f"{stats['session_misses']} misses, "
             f"{stats['session_expired']} expired, "
             f"{round(session_hit_rate, 1)}% hit rate, "
-            f"{stats['session_new_entries']} new entries",
+            f"{stats['session_new_entries']} new entries, "
+            f"{stats['session_auto_saves']} auto-saves",
             group="cpe_queries"
         )
         
@@ -325,15 +345,17 @@ class CPECache:
                 f"Cache session saved {stats['session_api_calls_saved']} API calls this run",
                 group="cpe_queries"
             )
-        
+    
     def flush(self):
-        """Save cache to disk"""
+        """Save cache to disk and reset unsaved counter"""
         self._save_cache()
-        
+        self.unsaved_changes = 0
+    
     def clear(self):
         """Clear all cache data"""
         self.cache_data = {}
-        self.session_stats = {'hits': 0, 'misses': 0, 'expired': 0, 'new_entries': 0, 'api_calls_saved': 0}
+        self.session_stats = {'hits': 0, 'misses': 0, 'expired': 0, 'new_entries': 0, 'api_calls_saved': 0, 'auto_saves': 0}
+        self.unsaved_changes = 0
         logger.info("Cache cleared", group="cpe_queries")
         
     def __enter__(self):
@@ -360,9 +382,29 @@ class GlobalCPECacheManager:
         if self._cache_instance is None:
             logger.info("Initializing CPE Base String cache (once per session, large files may load slowly)", group="cpe_queries")
             self._config = config
-            self._cache_instance = CPECache(config)
-            # Force load the cache data
-            self._cache_instance.__enter__()  # Initialize the cache
+            
+            # ONLY USE SHARDED CACHE - Monolithic cache deprecated and disabled
+            # Sharding is now mandatory for all cache operations
+            from .sharded_cpe_cache import ShardedCPECache
+            num_shards = config.get('sharding', {}).get('num_shards', 16)
+            self._cache_instance = ShardedCPECache(config, num_shards=num_shards)
+            logger.info(f"Using sharded CPE cache with {num_shards} shards", group="cpe_queries")
+            
+            # DEPRECATED: Monolithic cache implementation removed to prevent regression
+            # Legacy code commented out - DO NOT RE-ENABLE without comprehensive testing
+            # if config.get('sharding', {}).get('enabled', False):
+            #     # Use sharded cache implementation
+            #     from .sharded_cpe_cache import ShardedCPECache
+            #     num_shards = config.get('sharding', {}).get('num_shards', 16)
+            #     self._cache_instance = ShardedCPECache(config, num_shards=num_shards)
+            #     logger.info(f"Using sharded CPE cache with {num_shards} shards", group="cpe_queries")
+            # else:
+            #     # Use monolithic cache implementation (DEPRECATED - DO NOT USE)
+            #     self._cache_instance = CPECache(config)
+            #     logger.info("Using monolithic CPE cache", group="cpe_queries")
+            
+            # Initialize the cache
+            self._cache_instance.__enter__()
         return self._cache_instance
     
     def get_cache(self):
@@ -385,6 +427,38 @@ class GlobalCPECacheManager:
                 logger.warning(f"Error during cache cleanup: {e}", group="cpe_queries")
             finally:
                 self._cache_instance = None
+    
+    def save_all_shards(self):
+        """
+        Save all loaded shards to disk (for sharded cache).
+        For monolithic cache, this calls flush().
+        """
+        if self._cache_instance:
+            try:
+                if hasattr(self._cache_instance, 'save_all_shards'):
+                    # Sharded cache
+                    self._cache_instance.save_all_shards()
+                else:
+                    # Monolithic cache
+                    self._cache_instance.flush()
+            except Exception as e:
+                logger.warning(f"Error during cache save: {e}", group="cpe_queries")
+    
+    def evict_all_shards(self):
+        """
+        Evict all shards from memory (for sharded cache).
+        For monolithic cache, this is a no-op.
+        """
+        if self._cache_instance:
+            try:
+                if hasattr(self._cache_instance, 'evict_all_shards'):
+                    # Sharded cache
+                    self._cache_instance.evict_all_shards()
+                else:
+                    # Monolithic cache - no-op
+                    logger.debug("Eviction not supported for monolithic cache", group="cpe_queries")
+            except Exception as e:
+                logger.warning(f"Error during cache eviction: {e}", group="cpe_queries")
 
 def get_global_cache_manager():
     """Get the global cache manager instance"""

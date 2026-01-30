@@ -1171,6 +1171,25 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
             logger.debug("Cache batches flushed during final cleanup", group="CACHE_MANAGEMENT")
         except Exception as cleanup_error:
             logger.warning(f"Failed to flush cache batches during final cleanup: {cleanup_error}", group="CACHE_MANAGEMENT")
+        
+        # CPE cache run-boundary eviction: Save and evict loaded shards to free memory
+        try:
+            from src.analysis_tool.storage.cpe_cache import get_global_cache_manager
+            cpe_cache_manager = get_global_cache_manager()
+            
+            if cpe_cache_manager.is_initialized():
+                # Save all loaded CPE cache shards to disk
+                cpe_cache_manager.save_all_shards()
+                
+                # Clear loaded CPE cache shard data from memory (keeps singleton alive)
+                cpe_cache_manager.evict_all_shards()
+                
+                logger.info(
+                    "CPE base string cache shards saved and evicted - memory cleared for next run",
+                    group="CACHE_MANAGEMENT"
+                )
+        except Exception as cpe_eviction_error:
+            logger.warning(f"CPE cache shard eviction failed: {cpe_eviction_error}", group="CACHE_MANAGEMENT")
 
 if __name__ == "__main__":
     sys.exit(main())

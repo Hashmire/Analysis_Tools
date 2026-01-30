@@ -1190,17 +1190,34 @@ class CPEASIntegrationTestSuite:
         1. Vendor-only: cpe:2.3:*:vendor:*:*:*:*:*:*:*:*:*
         2. Product-only: cpe:2.3:*:*:*product*:*:*:*:*:*:*:*:*
         3. Vendor+product: cpe:2.3:a:vendor:product:*:*:*:*:*:*:*:*
+        
+        NOTE: Updated to inject into SHARDED cache files instead of monolithic cache.
+        Uses MD5 hash-based distribution to determine correct shard for each CPE string.
         """
         import datetime
+        import hashlib
         
-        cpe_cache_path = CACHE_DIR / "cpe_base_string_cache.json"
+        # Sharded cache configuration
+        cache_shards_dir = CACHE_DIR / "cpe_shards"
+        cache_shards_dir.mkdir(parents=True, exist_ok=True)
+        num_shards = 16
         
-        # Load existing cache or create new one
-        if cpe_cache_path.exists():
-            with open(cpe_cache_path, 'r', encoding='utf-8') as f:
-                cache_data = json.load(f)
-        else:
-            cache_data = {}
+        # Helper function to determine shard index (matches ShardedCPECache implementation)
+        def get_shard_index(cpe_string: str) -> int:
+            hash_digest = hashlib.md5(cpe_string.encode('utf-8')).hexdigest()
+            return int(hash_digest[:8], 16) % num_shards
+        
+        # Load all existing shards
+        shard_data = {}
+        for shard_index in range(num_shards):
+            shard_filename = f"cpe_cache_shard_{shard_index:02d}.json"
+            shard_path = cache_shards_dir / shard_filename
+            
+            if shard_path.exists():
+                with open(shard_path, 'r', encoding='utf-8') as f:
+                    shard_data[shard_index] = json.load(f)
+            else:
+                shard_data[shard_index] = {}
         
         # Test data: vendor/product combinations for each test CVE
         test_combinations = [
@@ -1252,24 +1269,30 @@ class CPEASIntegrationTestSuite:
             # Inject all three search patterns the tool uses
             # Pattern 1: Vendor-only
             vendor_only_key = f"cpe:2.3:*:{vendor}:*:*:*:*:*:*:*:*:*"
-            cache_data[vendor_only_key] = cache_entry.copy()
+            shard_index = get_shard_index(vendor_only_key)
+            shard_data[shard_index][vendor_only_key] = cache_entry.copy()
             injection_count += 1
             
             # Pattern 2: Product-only (with wildcard prefix)
             product_only_key = f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:*:*"
-            cache_data[product_only_key] = cache_entry.copy()
+            shard_index = get_shard_index(product_only_key)
+            shard_data[shard_index][product_only_key] = cache_entry.copy()
             injection_count += 1
             
             # Pattern 3: Vendor+product combined
             vendor_product_key = f"cpe:2.3:a:{vendor}:{product}:*:*:*:*:*:*:*:*"
-            cache_data[vendor_product_key] = cache_entry.copy()
+            shard_index = get_shard_index(vendor_product_key)
+            shard_data[shard_index][vendor_product_key] = cache_entry.copy()
             injection_count += 1
         
-        # Save updated cache
-        with open(cpe_cache_path, 'w', encoding='utf-8') as f:
-            json.dump(cache_data, f, indent=2)
+        # Save all modified shards
+        for shard_index, data in shard_data.items():
+            shard_filename = f"cpe_cache_shard_{shard_index:02d}.json"
+            shard_path = cache_shards_dir / shard_filename
+            with open(shard_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
         
-        print(f"  * Injected {injection_count} CPE cache entries for test data")  # Should be 27 (9 products × 3 patterns)
+        print(f"  * Injected {injection_count} CPE cache entries across {num_shards} shards")  # Should be 36 (12 products × 3 patterns)
     
     def cleanup_test_environment(self, copied_files: List[str]):
         """Clean up test environment by removing copied test files."""

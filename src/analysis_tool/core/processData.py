@@ -14,7 +14,7 @@ import json
 from . import gatherData
 from . import generateHTML
 from .badge_modal_system import GENERAL_PLACEHOLDER_VALUES, PLATFORM_ENTRY_NOTIFICATION_REGISTRY, register_platform_notification_data, create_cpe_processing_registry_entry, create_top10_cpe_suggestions_registry_entry
-from ..storage.cpe_cache import CPECache, get_global_cache_manager
+from ..storage.cpe_cache import get_global_cache_manager  # CPECache class removed - sharded cache only
 from ..storage.nvd_source_manager import get_source_name, get_source_info, get_all_sources_for_cve
 
 # Import the new logging system

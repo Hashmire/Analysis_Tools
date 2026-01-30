@@ -244,6 +244,10 @@ class TestSuiteRunner:
                 'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_confirmed_mapping_manager.py']
             },
             {
+                'name': 'CPE Cache',
+                'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_cpe_cache.py']
+            },
+            {
                 'name': 'Source Data Concern Badge Data Collector JSON',
                 'command': ['python', 'test_suites\\\\\\\\source_data_concerns\\\\\\\\test_source_data_concern_badge_data_collector_json.py']
             },

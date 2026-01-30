@@ -13,7 +13,13 @@
             "enabled": true,
             "filename": "cpe_base_string_cache.json",
             "compression": false,
+            "auto_save_threshold": 50,
             "description": "NVD CPE API responses with per-entry expiration",
+            "sharding": {
+                "enabled": true,
+                "num_shards": 16,
+                "description": "Hash-based sharding for improved memory management and scalability (MANDATORY - monolithic cache deprecated)"
+            },
             "refresh_strategy": {
                 "field_path": "$.*.last_queried",
                 "notify_age_hours": 100
