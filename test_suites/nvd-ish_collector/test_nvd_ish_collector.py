@@ -183,7 +183,7 @@ class NVDishCollectorTestSuite:
             copied_files.append(str(test_mapping_target))
             print(f"  * Copied test mapping file for confirmed mappings test")
         else:
-            print(f"  ⚠️  Test mapping file not found: {test_mapping_source}")
+            print(f"  [WARNING] Test mapping file not found: {test_mapping_source}")
         
         # Copy test mapping file for Test 22: Placeholder Filtering Integration (CVE-1337-3002)
         test_mapping_source_3002 = TEST_FILES_DIR / "CVE-1337-3002-confirmed-mappings.json"
@@ -197,7 +197,7 @@ class NVDishCollectorTestSuite:
             copied_files.append(str(test_mapping_target_3002))
             print(f"  * Copied test mapping file for placeholder filtering test (CVE-1337-3002)")
         else:
-            print(f"  ⚠️  Test mapping file not found: {test_mapping_source_3002}")
+            print(f"  [WARNING] Test mapping file not found: {test_mapping_source_3002}")
         
         # Inject test source data into NVD source cache for confirmed mapping validation
         source_cache_path = PROJECT_ROOT / "cache" / "nvd_source_data.json"
@@ -237,7 +237,7 @@ class NVDishCollectorTestSuite:
                 
                 print(f"  * Injected test source data into NVD source cache")
             except Exception as e:
-                print(f"  ⚠️  Failed to inject test source data: {e}")
+                print(f"  [WARNING] Failed to inject test source data: {e}")
         
         print(f"Setup complete. Copied {len(copied_files)} test files.")
         return copied_files
@@ -285,12 +285,12 @@ class NVDishCollectorTestSuite:
         if test_mapping_active.exists():
             test_mapping_active.unlink()
             removed_count += 1
-            print(f"  ✓ Removed test mapping file: {test_mapping_active.name}")
+            print(f"  [OK] Removed test mapping file: {test_mapping_active.name}")
         
         if test_mapping_3002.exists():
             test_mapping_3002.unlink()
             removed_count += 1
-            print(f"  ✓ Removed test mapping file: {test_mapping_3002.name}")
+            print(f"  [OK] Removed test mapping file: {test_mapping_3002.name}")
         
         # Remove test source data from NVD source cache
         source_cache_path = PROJECT_ROOT / "cache" / "nvd_source_data.json"
@@ -319,16 +319,16 @@ class NVDishCollectorTestSuite:
                 if removed > 0:
                     with open(source_cache_path, 'w', encoding='utf-8') as f:
                         json.dump(source_data, f, indent=2)
-                    print(f"  ✓ Removed {removed} test source entries from NVD source cache")
+                    print(f"  [OK] Removed {removed} test source entries from NVD source cache")
             except Exception as e:
-                print(f"  ⚠️  Failed to clean test source data: {e}")
+                print(f"  [WARNING] Failed to clean test source data: {e}")
         
         # Also clean up any other leftover active mapping files (in case of test failures)
         if mappings_dir.exists():
             for active_mapping in mappings_dir.glob("*_active.json"):
                 active_mapping.unlink()
                 removed_count += 1
-                print(f"  ✓ Removed leftover mapping file: {active_mapping.name}")
+                print(f"  [OK] Removed leftover mapping file: {active_mapping.name}")
         
         print(f"Cleanup complete. Removed {removed_count} test files.")
     
@@ -473,24 +473,24 @@ class NVDishCollectorTestSuite:
         success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed")
+            print(f"[FAIL]: Analysis tool failed")
             return False
         
         validation = self.validate_enhanced_record(output_path)
         
         if not validation["exists"]:
-            print(f"❌ FAIL: Enhanced record not created")
+            print(f"[FAIL]: Enhanced record not created")
             return False
             
         if not validation["has_enriched_affected"]:
-            print(f"❌ FAIL: Missing enrichedCVEv5Affected")
+            print(f"[FAIL]: Missing enrichedCVEv5Affected")
             return False
         
         if validation["entry_count"] == 0:
-            print(f"❌ FAIL: No enriched entries found")
+            print(f"[FAIL]: No enriched entries found")
             return False
         
-        print(f"✅ PASS: Enhanced record created with {validation['entry_count']} entries ({validation['file_size']} bytes)")
+        print(f"[PASS]: Enhanced record created with {validation['entry_count']} entries ({validation['file_size']} bytes)")
         return True
     
     def test_single_source_fail_fast(self) -> bool:
@@ -503,10 +503,10 @@ class NVDishCollectorTestSuite:
         
         # Should succeed but NOT create enhanced record (single source)
         if validation["exists"] and validation["has_enriched_affected"]:
-            print(f"❌ FAIL: Enhanced record created with single source (should fail-fast)")
+            print(f"[FAIL]: Enhanced record created with single source (should fail-fast)")
             return False
         
-        print(f"✅ PASS: Single-source correctly failed fast (no enhanced record)")
+        print(f"[PASS]: Single-source correctly failed fast (no enhanced record)")
         return True
     
     def test_cache_structure(self) -> bool:

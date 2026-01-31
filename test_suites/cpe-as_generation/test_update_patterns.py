@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 COMPREHENSIVE UPDATE PATTERN TEST SUITE
 
@@ -26,7 +27,7 @@ Terms covered (19 total):
 18. CANDIDATE
 19. DEVELOPMENT
 
-Note: KB (Knowledge Base) patterns are excluded by design     print(f"\n  📝 KB Exclusion Patterns - Complete Coverage:")s they     print(f"\n  📝 Exclusion Patterns - Complete Coverage:")re 
+Note: KB (Knowledge Base) patterns are excluded by design     print(f"\n   KB Exclusion Patterns - Complete Coverage:")s they     print(f"\n   Exclusion Patterns - Complete Coverage:")re 
 documentation references, not version patterns.
 
 SCENARIO COVERAGE (for each term):
@@ -40,6 +41,12 @@ import sys
 import os
 import logging
 from pathlib import Path
+
+# Fix Windows console encoding for Unicode output
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
@@ -90,7 +97,7 @@ def get_transformed_version(input_version):
 def test_pattern_verbose(input_version, expected, test_category):
     """Test pattern with detailed verbose output."""
     transformed = get_transformed_version(input_version)
-    status = "✓" if transformed == expected else "✗"
+    status = "PASS" if transformed == expected else "FAIL"
     print(f"    {status} {test_category}: '{input_version}' → '{transformed}' (expected: '{expected}')")
     return transformed == expected
 
@@ -98,7 +105,7 @@ def test_pattern_verbose(input_version, expected, test_category):
 
 def test_patch_term_group():
     """Test PATCH term group - complete scenario coverage."""
-    print(f"\n  📝 PATCH Term Group - Complete Coverage:")
+    print(f"\n   PATCH Term Group - Complete Coverage:")
     
     test_cases = [
         # Specific notation patterns
@@ -127,7 +134,7 @@ def test_patch_term_group():
 
 def test_service_pack_term_group():
     """Test SERVICE_PACK term group - complete scenario coverage."""
-    print(f"\n  📝 SERVICE_PACK Term Group - Complete Coverage:")
+    print(f"\n   SERVICE_PACK Term Group - Complete Coverage:")
     
     test_cases = [
         # Specific notation patterns
@@ -156,7 +163,7 @@ def test_service_pack_term_group():
 
 def test_application_pack_term_group():
     """Test APPLICATION_PACK term group - complete scenario coverage."""
-    print(f"\n  📝 APPLICATION_PACK Term Group - Complete Coverage:")
+    print(f"\n   APPLICATION_PACK Term Group - Complete Coverage:")
     
     test_cases = [
         # Specific notation patterns
@@ -185,7 +192,7 @@ def test_application_pack_term_group():
 
 def test_hotfix_term_group():
     """Test HOTFIX term group - complete scenario coverage."""
-    print(f"\n  📝 HOTFIX Term Group - Complete Coverage:")
+    print(f"\n   HOTFIX Term Group - Complete Coverage:")
     
     test_cases = [
         # Space-separated patterns
@@ -214,7 +221,7 @@ def test_hotfix_term_group():
 
 def test_cumulative_update_term_group():
     """Test CUMULATIVE_UPDATE term group - complete scenario coverage."""
-    print(f"\n  📝 CUMULATIVE_UPDATE Term Group - Complete Coverage:")
+    print(f"\n   CUMULATIVE_UPDATE Term Group - Complete Coverage:")
     
     test_cases = [
         # Space-separated patterns
@@ -243,7 +250,7 @@ def test_cumulative_update_term_group():
 
 def test_update_term_group():
     """Test UPDATE term group - complete scenario coverage."""
-    print(f"\n  📝 UPDATE Term Group - Complete Coverage:")
+    print(f"\n   UPDATE Term Group - Complete Coverage:")
     
     test_cases = [
         # Space-separated patterns
@@ -269,26 +276,32 @@ def test_update_term_group():
     return all_passed
 
 def test_beta_term_group():
-    """Test BETA term group - complete scenario coverage."""
-    print(f"\n  📝 BETA Term Group - Complete Coverage:")
+    """Test BETA term group - complete scenario coverage including numberless patterns."""
+    print(f"\n   BETA Term Group - Complete Coverage:")
     
     test_cases = [
-        # Space-separated patterns
+        # Space-separated patterns (numbered)
         ('1.0.0 beta 1', '1.0.0:beta1'),  # Full form lowercase
         ('1.0.0 Beta 1', '1.0.0:beta1'),  # Full form capitalized
         ('1.0.0 b1', '1.0.0:beta1'),  # Short form
         
-        # Direct concatenation patterns
+        # Direct concatenation patterns (numbered)
         ('4.0.0beta1', '4.0.0:beta1'),  # Direct concat full
         ('4.0.0b1', '4.0.0:beta1'),  # Direct concat short
         
-        # Specific notation patterns
+        # Specific notation patterns (numbered)
         ('1.0.0-beta.1', '1.0.0:beta1'),  # Dash-dot notation
         
-        # Flexible separator patterns
+        # Flexible separator patterns (numbered)
         ('1.0.0_beta_1', '1.0.0:beta1'),  # Underscore full
         ('1.0.0-beta-1', '1.0.0:beta1'),  # Dash full
         ('1.0.0.beta.1', '1.0.0:beta1'),  # Dot separated full
+        
+        # Numberless patterns (prerelease identifiers without version numbers)
+        ('2.0.0-beta', '2.0.0:beta'),  # Dash separator (npm semver style)
+        ('2.0.0.beta', '2.0.0:beta'),  # Dot separator
+        ('2.0.0_beta', '2.0.0:beta'),  # Underscore separator
+        ('1.0 beta', '1.0:beta'),  # Space separator
     ]
     
     all_passed = True
@@ -298,26 +311,32 @@ def test_beta_term_group():
     return all_passed
 
 def test_alpha_term_group():
-    """Test ALPHA term group - complete scenario coverage."""
-    print(f"\n  📝 ALPHA Term Group - Complete Coverage:")
+    """Test ALPHA term group - complete scenario coverage including numberless patterns."""
+    print(f"\n   ALPHA Term Group - Complete Coverage:")
     
     test_cases = [
-        # Space-separated patterns
+        # Space-separated patterns (numbered)
         ('1.0.0 alpha 1', '1.0.0:alpha1'),  # Full form lowercase
         ('1.0.0 Alpha 1', '1.0.0:alpha1'),  # Full form capitalized
         ('1.0.0 a1', '1.0.0:alpha1'),  # Short form
         
-        # Direct concatenation patterns
+        # Direct concatenation patterns (numbered)
         ('2.0.0alpha1', '2.0.0:alpha1'),  # Direct concat full
         ('2.0.0a1', '2.0.0:alpha1'),  # Direct concat short
         
-        # Specific notation patterns
+        # Specific notation patterns (numbered)
         ('1.0.0-alpha.1', '1.0.0:alpha1'),  # Dash-dot notation
         
-        # Flexible separator patterns
+        # Flexible separator patterns (numbered)
         ('3.0.0_alpha_2', '3.0.0:alpha2'),  # Underscore full
         ('3.0.0-alpha-2', '3.0.0:alpha2'),  # Dash full
         ('4.0.0_a_3', '4.0.0:alpha3'),  # Underscore short
+        
+        # Numberless patterns (prerelease identifiers without version numbers)
+        ('2.0.0-alpha', '2.0.0:alpha'),  # Dash separator
+        ('2.0.0.alpha', '2.0.0:alpha'),  # Dot separator
+        ('2.0.0_alpha', '2.0.0:alpha'),  # Underscore separator
+        ('1.0 alpha', '1.0:alpha'),  # Space separator
     ]
     
     all_passed = True
@@ -327,26 +346,32 @@ def test_alpha_term_group():
     return all_passed
 
 def test_release_candidate_term_group():
-    """Test RELEASE_CANDIDATE term group - complete scenario coverage."""
-    print(f"\n  📝 RELEASE_CANDIDATE Term Group - Complete Coverage:")
+    """Test RELEASE_CANDIDATE term group - complete scenario coverage including numberless patterns."""
+    print(f"\n   RELEASE_CANDIDATE Term Group - Complete Coverage:")
     
     test_cases = [
-        # Space-separated patterns
+        # Space-separated patterns (numbered)
         ('1.0.0 rc 1', '1.0.0:rc1'),  # Short form lowercase
         ('1.0.0 RC 1', '1.0.0:rc1'),  # Short form uppercase
         ('1.0.0 release candidate 1', '1.0.0:rc1'),  # Full form lowercase
         ('1.0.0 Release Candidate 1', '1.0.0:rc1'),  # Full form capitalized
         
-        # Direct concatenation patterns
+        # Direct concatenation patterns (numbered)
         ('3.0.0rc1', '3.0.0:rc1'),  # Direct concat
         
-        # Specific notation patterns
+        # Specific notation patterns (numbered)
         ('1.0.0-rc.1', '1.0.0:rc1'),  # Dash-dot notation
         
-        # Flexible separator patterns
+        # Flexible separator patterns (numbered)
         ('2.0.0_rc_2', '2.0.0:rc2'),  # Underscore short
         ('2.0.0-rc-2', '2.0.0:rc2'),  # Dash short
         ('3.0.0_rc_3', '3.0.0:rc3'),  # Additional underscore short variation
+        
+        # Numberless patterns (prerelease identifiers without version numbers)
+        ('2.0.0-rc', '2.0.0:rc'),  # Dash separator
+        ('2.0.0.rc', '2.0.0:rc'),  # Dot separator
+        ('2.0.0_rc', '2.0.0:rc'),  # Underscore separator
+        ('1.0 rc', '1.0:rc'),  # Space separator
     ]
     
     all_passed = True
@@ -357,7 +382,7 @@ def test_release_candidate_term_group():
 
 def test_fix_term_group():
     """Test FIX term group - complete scenario coverage."""
-    print(f"\n  📝 FIX Term Group - Complete Coverage:")
+    print(f"\n   FIX Term Group - Complete Coverage:")
     
     test_cases = [
         # Space-separated patterns
@@ -387,7 +412,7 @@ def test_fix_term_group():
 
 def test_revision_term_group():
     """Test REVISION term group - complete scenario coverage."""
-    print(f"\n  📝 REVISION Term Group - Complete Coverage:")
+    print(f"\n   REVISION Term Group - Complete Coverage:")
     
     test_cases = [
         # Space-separated patterns
@@ -414,7 +439,7 @@ def test_revision_term_group():
 
 def test_maintenance_release_term_group():
     """Test MAINTENANCE_RELEASE term group - complete scenario coverage."""
-    print(f"\n  📝 MAINTENANCE_RELEASE Term Group - Complete Coverage:")
+    print(f"\n   MAINTENANCE_RELEASE Term Group - Complete Coverage:")
     
     test_cases = [
         # Space-separated patterns
@@ -443,7 +468,7 @@ def test_maintenance_release_term_group():
 
 def test_build_term_group():
     """Test BUILD term group - complete scenario coverage."""
-    print(f"\n  📝 BUILD Term Group - Complete Coverage:")
+    print(f"\n   BUILD Term Group - Complete Coverage:")
     
     test_cases = [
         # Space-separated patterns
@@ -472,7 +497,7 @@ def test_build_term_group():
 
 def test_release_term_group():
     """Test RELEASE term group - complete scenario coverage."""
-    print(f"\n  📝 RELEASE Term Group - Complete Coverage:")
+    print(f"\n   RELEASE Term Group - Complete Coverage:")
     
     test_cases = [
         # Space-separated patterns
@@ -501,7 +526,7 @@ def test_release_term_group():
 
 def test_milestone_term_group():
     """Test MILESTONE term group - complete scenario coverage."""
-    print(f"\n  📝 MILESTONE Term Group - Complete Coverage:")
+    print(f"\n   MILESTONE Term Group - Complete Coverage:")
     
     test_cases = [
         # Space-separated patterns
@@ -530,7 +555,7 @@ def test_milestone_term_group():
 
 def test_snapshot_term_group():
     """Test SNAPSHOT term group - complete scenario coverage."""
-    print(f"\n  📝 SNAPSHOT Term Group - Complete Coverage:")
+    print(f"\n   SNAPSHOT Term Group - Complete Coverage:")
     
     test_cases = [
         # Space-separated patterns
@@ -559,7 +584,7 @@ def test_snapshot_term_group():
 
 def test_preview_term_group():
     """Test PREVIEW term group - complete scenario coverage."""
-    print(f"\n  📝 PREVIEW Term Group - Complete Coverage:")
+    print(f"\n   PREVIEW Term Group - Complete Coverage:")
     
     test_cases = [
         # Space-separated patterns
@@ -588,7 +613,7 @@ def test_preview_term_group():
 
 def test_candidate_term_group():
     """Test CANDIDATE term group - complete scenario coverage."""
-    print(f"\n  📝 CANDIDATE Term Group - Complete Coverage:")
+    print(f"\n   CANDIDATE Term Group - Complete Coverage:")
     
     test_cases = [
         # Space-separated patterns
@@ -617,7 +642,7 @@ def test_candidate_term_group():
 
 def test_development_term_group():
     """Test DEVELOPMENT term group - complete scenario coverage."""
-    print(f"\n  📝 DEVELOPMENT Term Group - Complete Coverage:")
+    print(f"\n   DEVELOPMENT Term Group - Complete Coverage:")
     
     test_cases = [
         # Space-separated patterns
@@ -646,7 +671,7 @@ def test_development_term_group():
 
 def test_device_pack_term_group():
     """Test DEVICE_PACK term group - complete scenario coverage."""
-    print(f"\n  📝 DEVICE_PACK Term Group - Complete Coverage:")
+    print(f"\n   DEVICE_PACK Term Group - Complete Coverage:")
     
     test_cases = [
         # Space-separated patterns
@@ -698,7 +723,7 @@ def test_kb_exclusion_patterns():
     
 def test_kb_exclusion_patterns():
     """Test that KB (Knowledge Base) patterns are properly excluded from transformation."""
-    print(f"\n  📝 KB Exclusion Patterns - Complete Coverage:")
+    print(f"\n   KB Exclusion Patterns - Complete Coverage:")
     
     # Test cases that should be EXCLUDED (return None)
     exclusion_test_cases = [
@@ -730,18 +755,18 @@ def test_kb_exclusion_patterns():
         # Format the result display with logging indicator
         if result is None and expected == "EXCLUDED":
             kb_patterns_detected += 1
-            print(f"    ✓ KB_EXCLUSION: '{test_case}' → EXCLUDED 📝 (expected: EXCLUDED)")
+            print(f"    PASS KB_EXCLUSION: '{test_case}' → EXCLUDED  (expected: EXCLUDED)")
         else:
             all_excluded = False
             actual = result if result is not None else "EXCLUDED"
-            print(f"    ❌ KB_EXCLUSION: '{test_case}' → {actual} ❌ (expected: {expected})")
+            print(f"    FAIL KB_EXCLUSION: '{test_case}' → {actual} FAIL (expected: {expected})")
     
     # Restore warning logs
     restore_warnings()
     
     # Summary of exclusion verification
-    print(f"    📝 Exclusion verification: {kb_patterns_detected}/{len(exclusion_test_cases)} KB patterns properly excluded")
-    print(f"    📝 Warning logs: Generated for each excluded pattern (suppressed for clean output)")
+    print(f"     Exclusion verification: {kb_patterns_detected}/{len(exclusion_test_cases)} KB patterns properly excluded")
+    print(f"     Warning logs: Generated for each excluded pattern (suppressed for clean output)")
     
     return all_excluded
 
@@ -761,22 +786,13 @@ def test_exclusion_patterns():
 
 def validate_test_coverage_consistency():
     """Validate that all term groups have consistent test scenario coverage."""
-    print(f"\n🔍 Test Coverage Consistency")
+    print(f"\n Test Coverage Consistency")
     
-    # Define the expected scenario types for each term group
-    expected_scenarios = {
-        'space_separated_full': 1,      # e.g., '2.0.0 service pack 1'
-        'space_separated_short': 1,     # e.g., '2.0.0 sp1'
-        'space_separated_case_variants': 1,  # Uppercase variants
-        'direct_concatenation': 1,      # e.g., '1.0.0sp1'
-        'specific_notation': 1,         # e.g., '1.0.0-sp.1' (where applicable)
-        'flexible_separators': 3        # underscore, dash, dot combinations
-    }
-    
-    # For true consistency, all term groups should have the same number of test cases
-    # Based on our comprehensive standardization, ALL term groups now have exactly 9 test cases
-    expected_test_cases = 9  # Standardized comprehensive coverage
-    tolerance = 0  # No variance allowed - all should be exactly 9
+    # Define expected test case counts per term category
+    # Prerelease terms have additional numberless pattern tests
+    prerelease_terms = {"BETA", "ALPHA", "RELEASE_CANDIDATE"}
+    expected_standard = 9  # Standard terms: 9 test cases
+    expected_prerelease = 13  # Prerelease terms: 9 numbered + 4 numberless = 13
     
     # Define all term groups to validate
     term_groups = [
@@ -788,36 +804,53 @@ def validate_test_coverage_consistency():
     ]
     
     coverage_issues = []
-    all_test_counts = []
+    standard_test_counts = []
+    prerelease_test_counts = []
     
     for term_group in term_groups:
         case_count = get_test_case_count_for_term(term_group)
-        all_test_counts.append(case_count)
+        expected_count = expected_prerelease if term_group in prerelease_terms else expected_standard
         
-        if abs(case_count - expected_test_cases) > tolerance:
-            coverage_issues.append(f"❌ {term_group}: {case_count} test cases (expected: {expected_test_cases}±{tolerance})")
+        if term_group in prerelease_terms:
+            prerelease_test_counts.append(case_count)
         else:
-            print(f"    ✓ {term_group}: {case_count} test cases (consistent)")
+            standard_test_counts.append(case_count)
+        
+        if case_count != expected_count:
+            coverage_issues.append(f"FAIL {term_group}: {case_count} test cases (expected: {expected_count})")
+        else:
+            term_type = "prerelease" if term_group in prerelease_terms else "standard"
+            print(f"    PASS {term_group}: {case_count} test cases ({term_type})")
     
-    # Check for overall consistency across all groups
-    if len(set(all_test_counts)) > 1:  # Should all be exactly 9
-        min_count = min(all_test_counts)
-        max_count = max(all_test_counts)
-        coverage_issues.append(f"❌ INCONSISTENT COVERAGE: Test case counts vary from {min_count} to {max_count}")
-        coverage_issues.append(f"   All term groups should have exactly {expected_test_cases} test cases")
+    # Check for consistency within each category
+    if standard_test_counts and len(set(standard_test_counts)) > 1:
+        min_count = min(standard_test_counts)
+        max_count = max(standard_test_counts)
+        coverage_issues.append(f"FAIL INCONSISTENT STANDARD TERMS: Test case counts vary from {min_count} to {max_count}")
+    
+    if prerelease_test_counts and len(set(prerelease_test_counts)) > 1:
+        min_count = min(prerelease_test_counts)
+        max_count = max(prerelease_test_counts)
+        coverage_issues.append(f"FAIL INCONSISTENT PRERELEASE TERMS: Test case counts vary from {min_count} to {max_count}")
     
     if coverage_issues:
-        print(f"\n  🚨 Coverage Issues Found:")
+        print(f"\n   Coverage Issues Found:")
         for issue in coverage_issues:
             print(f"    {issue}")
-        print(f"\n  📋 Current Test Case Distribution:")
+        print(f"\n   Current Test Case Distribution:")
         for term_group in term_groups:
             count = get_test_case_count_for_term(term_group)
-            status = "✓" if count == expected_test_cases else "❌"
-            print(f"    {status} {term_group}: {count} cases")
+            if term_group in prerelease_terms:
+                status = "PASS" if count == expected_prerelease else "FAIL"
+                print(f"    {status} {term_group}: {count} cases (prerelease)")
+            else:
+                status = "PASS" if count == expected_standard else "FAIL"
+                print(f"    {status} {term_group}: {count} cases (standard)")
         return False
     else:
-        print(f"    ✅ All {len(term_groups)} term groups have consistent test coverage ({expected_test_cases} cases each)")
+        print(f"    PASS All {len(term_groups)} term groups have consistent test coverage")
+        print(f"    PASS Standard terms: {expected_standard} cases each")
+        print(f"    PASS Prerelease terms: {expected_prerelease} cases each (includes numberless support)")
         return True
 
 def get_test_case_count_for_term(term_group):
@@ -873,7 +906,7 @@ def get_test_case_count_for_term(term_group):
 
 def validate_implementation_consistency():
     """Validate that the actual implementation has consistent patterns for each term group."""
-    print(f"\n🔍 Implementation Pattern Consistency")
+    print(f"\n Implementation Pattern Consistency")
     
     try:
         # Read the badge_modal_system.py file to analyze implementation patterns
@@ -926,9 +959,9 @@ def validate_implementation_consistency():
             all_pattern_counts.append(pattern_count)
             
             if pattern_count == 0:
-                implementation_issues.append(f"❌ {term_group}: No patterns found in implementation")
+                implementation_issues.append(f"FAIL {term_group}: No patterns found in implementation")
             else:
-                print(f"    • {term_group}: {pattern_count} patterns implemented")
+                print(f"    - {term_group}: {pattern_count} patterns implemented")
         
         # For true consistency, all terms should have identical pattern counts
         if all_pattern_counts:
@@ -936,54 +969,74 @@ def validate_implementation_consistency():
             min_patterns = min(all_pattern_counts)
             avg_patterns = sum(all_pattern_counts) / len(all_pattern_counts)
             
-            # Flag ANY inconsistency - all should be exactly the same
-            if max_patterns != min_patterns:
-                implementation_issues.append(f"❌ INCONSISTENT IMPLEMENTATION: Pattern counts vary from {min_patterns} to {max_patterns}")
-                implementation_issues.append(f"   All term groups should have exactly {max_patterns} patterns for true standardization")
+            # Check for intentional pattern count differences (prerelease terms have numberless patterns)
+            prerelease_terms = ["BETA", "ALPHA", "RELEASE_CANDIDATE"]
+            standard_patterns = [count for term, count in pattern_counts.items() if term not in prerelease_terms]
+            prerelease_patterns = [count for term, count in pattern_counts.items() if term in prerelease_terms]
             
-            # Flag individual terms that don't match the expected standard
-            expected_patterns = max_patterns  # Should be the standardized count
+            # Validate standard terms have consistent counts
+            if standard_patterns and len(set(standard_patterns)) > 1:
+                implementation_issues.append(f"FAIL INCONSISTENT STANDARD TERMS: Pattern counts vary ({min(standard_patterns)} to {max(standard_patterns)})")
+            
+            # Validate prerelease terms have consistent counts (should be higher than standard)
+            if prerelease_patterns and len(set(prerelease_patterns)) > 1:
+                implementation_issues.append(f"FAIL INCONSISTENT PRERELEASE TERMS: Pattern counts vary ({min(prerelease_patterns)} to {max(prerelease_patterns)})")
+            
+            # Validate prerelease terms have more patterns than standard (due to numberless support)
+            expected_standard = standard_patterns[0] if standard_patterns else 0
+            expected_prerelease = prerelease_patterns[0] if prerelease_patterns else 0
+            
+            if expected_prerelease <= expected_standard:
+                implementation_issues.append(f"FAIL PRERELEASE PATTERN COUNT: Prerelease terms should have more patterns than standard terms (prerelease={expected_prerelease}, standard={expected_standard})")
+            
+            # Flag individual terms that don't match their category's expected count
             for term_group, count in pattern_counts.items():
-                if count != expected_patterns:
-                    implementation_issues.append(f"❌ {term_group}: {count} patterns (should be {expected_patterns})")
+                if term_group in prerelease_terms:
+                    if count != expected_prerelease:
+                        implementation_issues.append(f"FAIL {term_group}: {count} patterns (should be {expected_prerelease})")
+                else:
+                    if count != expected_standard:
+                        implementation_issues.append(f"FAIL {term_group}: {count} patterns (should be {expected_standard})")
             
             # Show distribution analysis
-            print(f"\n    📊 Pattern Distribution Analysis:")
-            print(f"    • Range: {min_patterns} to {max_patterns} patterns")
-            print(f"    • Average: {avg_patterns:.1f} patterns")
-            print(f"    • Variation: {max_patterns - min_patterns} pattern difference")
+            print(f"\n     Pattern Distribution Analysis:")
+            print(f"    - Standard terms: {expected_standard} patterns each")
+            print(f"    - Prerelease terms: {expected_prerelease} patterns each")
+            print(f"    - Difference: +{expected_prerelease - expected_standard} patterns for prerelease (numberless support)")
             
-            if max_patterns == min_patterns:
-                print(f"    ✅ Perfect consistency (no variation)")
+            if len(set(standard_patterns)) == 1 and len(set(prerelease_patterns)) == 1:
+                print(f"    PASS Consistent within categories (intentional difference for prerelease)")
             else:
-                print(f"    ❌ Inconsistent implementation ({max_patterns - min_patterns} pattern difference)")
+                print(f"    FAIL Inconsistent implementation within categories")
         
         if implementation_issues:
-            print(f"\n  🚨 Implementation Issues Found:")
+            print(f"\n   Implementation Issues Found:")
             for issue in implementation_issues:
                 print(f"    {issue}")
             
-            print(f"\n  📋 Current Implementation Pattern Distribution:")
-            max_patterns = max(all_pattern_counts) if all_pattern_counts else 0
+            print(f"\n   Current Implementation Pattern Distribution:")
             for term_group, count in pattern_counts.items():
-                if count == max_patterns:
-                    status = "✅" if max_patterns == min_patterns else "🎯"  # Target level
+                if term_group in prerelease_terms:
+                    status = "PASS" if count == expected_prerelease else "FAIL"
+                    print(f"    {status} {term_group}: {count} patterns (prerelease)")
                 else:
-                    status = "❌"  # Below standard
-                print(f"    {status} {term_group}: {count} patterns")
+                    status = "PASS" if count == expected_standard else "FAIL"
+                    print(f"    {status} {term_group}: {count} patterns (standard)")
             
             return False
         else:
-            print(f"    ✅ All {len(term_groups)} term groups have identical implementation patterns ({max_patterns} each)")
+            print(f"    PASS All {len(term_groups)} term groups have consistent patterns")
+            print(f"    PASS Standard terms: {expected_standard} patterns each")
+            print(f"    PASS Prerelease terms: {expected_prerelease} patterns each (includes numberless support)")
             return True
             
     except Exception as e:
-        print(f"    ❌ Failed to analyze implementation: {e}")
+        print(f"    FAIL Failed to analyze implementation: {e}")
         return False
 
 def validate_excluded_patterns_not_in_implementation():
     """Validate that KB patterns are properly excluded from implementation."""
-    print(f"\n🔍 Exclusion Pattern Implementation")
+    print(f"\n Exclusion Pattern Implementation")
     
     try:
         # Test a few KB patterns to verify they're properly excluded
@@ -996,23 +1049,23 @@ def validate_excluded_patterns_not_in_implementation():
         for pattern in test_kb_patterns:
             result = get_transformed_version(pattern)
             if result is not None:
-                print(f"    ❌ KB pattern '{pattern}' not properly excluded (returned: {result})")
+                print(f"    FAIL KB pattern '{pattern}' not properly excluded (returned: {result})")
                 all_excluded = False
         
         if all_excluded:
-            print(f"    ✅ All {len(test_kb_patterns)} KB test patterns properly excluded")
+            print(f"    PASS All {len(test_kb_patterns)} KB test patterns properly excluded")
             return True
         else:
-            print(f"    ❌ KB exclusion patterns not working correctly")
+            print(f"    FAIL KB exclusion patterns not working correctly")
             return False
         
     except Exception as e:
-        print(f"    ❌ Failed to analyze exclusion patterns: {e}")
+        print(f"    FAIL Failed to analyze exclusion patterns: {e}")
         return False
 
 def validate_javascript_python_synchronization():
     """Validate that JavaScript updatePatterns implementation mirrors Python exactly."""
-    print(f"    📋 JavaScript Pattern Synchronization Analysis")
+    print(f"     JavaScript Pattern Synchronization Analysis")
     
     try:
         # Read the JavaScript modular_rules.js file
@@ -1024,7 +1077,7 @@ def validate_javascript_python_synchronization():
         js_file_path = project_root / "src" / "analysis_tool" / "static" / "js" / "modular_rules.js"
         
         if not js_file_path.exists():
-            print(f"    ❌ JavaScript file not found at {js_file_path}")
+            print(f"    FAIL JavaScript file not found at {js_file_path}")
             return False
         
         with open(js_file_path, 'r', encoding='utf-8') as f:
@@ -1032,13 +1085,13 @@ def validate_javascript_python_synchronization():
         
         # Find the updatePatterns rule section
         if 'updatePatterns:' not in js_content:
-            print(f"    ❌ updatePatterns rule not found in JavaScript file")
+            print(f"    FAIL updatePatterns rule not found in JavaScript file")
             return False
         
         # Extract the patterns section from the JavaScript
         updatepatterns_start = js_content.find('updatePatterns:')
         if updatepatterns_start == -1:
-            print(f"    ❌ updatePatterns rule start not found")
+            print(f"    FAIL updatePatterns rule start not found")
             return False
         
         # Find the patterns array in the JavaScript
@@ -1047,7 +1100,7 @@ def validate_javascript_python_synchronization():
             # Try alternative pattern array syntax
             patterns_start = js_content.find('updatePatterns = [', updatepatterns_start)
             if patterns_start == -1:
-                print(f"    ❌ JavaScript patterns array not found")
+                print(f"    FAIL JavaScript patterns array not found")
                 return False
         
         # Test critical synchronization points by running key test cases
@@ -1084,7 +1137,7 @@ def validate_javascript_python_synchronization():
         sync_issues = []
         patterns_analyzed = 0
         
-        print(f"    🔧 Testing {len(sync_test_cases)} critical synchronization points...")
+        print(f"     Testing {len(sync_test_cases)} critical synchronization points...")
         
         for input_version, expected_output in sync_test_cases:
             patterns_analyzed += 1
@@ -1140,25 +1193,25 @@ def validate_javascript_python_synchronization():
         total_issues = len(sync_issues) + len(js_coverage_issues)
         
         if sync_issues:
-            print(f"    ❌ Python Implementation Issues:")
+            print(f"    FAIL Python Implementation Issues:")
             for issue in sync_issues:
-                print(f"        • {issue['input']} → Python: '{issue['python_actual']}' (expected: '{issue['expected']}')")
+                print(f"        - {issue['input']} → Python: '{issue['python_actual']}' (expected: '{issue['expected']}')")
         
         if js_coverage_issues:
-            print(f"    ❌ JavaScript Coverage Issues:")
+            print(f"    FAIL JavaScript Coverage Issues:")
             for issue in js_coverage_issues:
-                print(f"        • {issue}")
+                print(f"        - {issue}")
         
         if total_issues == 0:
-            print(f"    ✅ All {patterns_analyzed} sync points validated successfully")
-            print(f"    ✅ JavaScript pattern coverage confirmed for all {len(js_pattern_indicators)} term types")
+            print(f"    PASS All {patterns_analyzed} sync points validated successfully")
+            print(f"    PASS JavaScript pattern coverage confirmed for all {len(js_pattern_indicators)} term types")
             return True
         else:
-            print(f"    ❌ Found {total_issues} synchronization issues")
+            print(f"    FAIL Found {total_issues} synchronization issues")
             return False
         
     except Exception as e:
-        print(f"    ❌ Failed to validate JavaScript-Python synchronization: {e}")
+        print(f"    FAIL Failed to validate JavaScript-Python synchronization: {e}")
         return False
 
 # =================== MAIN TEST RUNNER ===================
@@ -1178,55 +1231,60 @@ def main():
     print("=" * 80)
     
     # Define all term group tests
+    # Define term tests with their test case counts
+    prerelease_terms = {"BETA", "ALPHA", "RELEASE_CANDIDATE"}  # Have numberless patterns
     term_tests = [
-        ("PATCH", test_patch_term_group),
-        ("SERVICE_PACK", test_service_pack_term_group),
-        ("APPLICATION_PACK", test_application_pack_term_group),
-        ("HOTFIX", test_hotfix_term_group),
-        ("CUMULATIVE_UPDATE", test_cumulative_update_term_group),
-        ("UPDATE", test_update_term_group),
-        ("BETA", test_beta_term_group),
-        ("ALPHA", test_alpha_term_group),
-        ("RELEASE_CANDIDATE", test_release_candidate_term_group),
-        ("FIX", test_fix_term_group),
-        ("REVISION", test_revision_term_group),
-        ("MAINTENANCE_RELEASE", test_maintenance_release_term_group),
-        ("BUILD", test_build_term_group),
-        ("RELEASE", test_release_term_group),
-        ("MILESTONE", test_milestone_term_group),
-        ("SNAPSHOT", test_snapshot_term_group),
-        ("PREVIEW", test_preview_term_group),
-        ("CANDIDATE", test_candidate_term_group),
-        ("DEVELOPMENT", test_development_term_group),
-        ("DEVICE_PACK", test_device_pack_term_group),
+        ("PATCH", test_patch_term_group, 9),
+        ("SERVICE_PACK", test_service_pack_term_group, 9),
+        ("APPLICATION_PACK", test_application_pack_term_group, 9),
+        ("HOTFIX", test_hotfix_term_group, 9),
+        ("CUMULATIVE_UPDATE", test_cumulative_update_term_group, 9),
+        ("UPDATE", test_update_term_group, 9),
+        ("BETA", test_beta_term_group, 13),  # 9 numbered + 4 numberless
+        ("ALPHA", test_alpha_term_group, 13),  # 9 numbered + 4 numberless
+        ("RELEASE_CANDIDATE", test_release_candidate_term_group, 13),  # 9 numbered + 4 numberless
+        ("FIX", test_fix_term_group, 9),
+        ("REVISION", test_revision_term_group, 9),
+        ("MAINTENANCE_RELEASE", test_maintenance_release_term_group, 9),
+        ("BUILD", test_build_term_group, 9),
+        ("RELEASE", test_release_term_group, 9),
+        ("MILESTONE", test_milestone_term_group, 9),
+        ("SNAPSHOT", test_snapshot_term_group, 9),
+        ("PREVIEW", test_preview_term_group, 9),
+        ("CANDIDATE", test_candidate_term_group, 9),
+        ("DEVELOPMENT", test_development_term_group, 9),
+        ("DEVICE_PACK", test_device_pack_term_group, 9),
     ]
     
     all_tests_passed = True
     passed_groups = 0
     total_groups = len(term_tests)
+    total_individual_tests = sum(count for _, _, count in term_tests)
+    passed_individual_tests = 0
     
     # Run each term group test
-    for term_name, test_func in term_tests:
-        print(f"\n🔧 {term_name} TERM GROUP")
+    for term_name, test_func, test_count in term_tests:
+        print(f"\n {term_name} TERM GROUP")
         group_passed = test_func()
         if group_passed:
             passed_groups += 1
-            print(f"   ✅ {term_name} - PASSED")
+            passed_individual_tests += test_count
+            print(f"   PASS {term_name} - PASSED ({test_count}/{test_count} tests)")
         else:
             all_tests_passed = False
-            print(f"   ❌ {term_name} - FAILED")
+            print(f"   FAIL {term_name} - FAILED (check output above for failures)")
     
     # Run exclusion pattern tests
-    print(f"\n🚫 EXCLUSION_PATTERNS TERM GROUP")
+    print(f"\n EXCLUSION_PATTERNS TERM GROUP")
     exclusion_passed = test_exclusion_patterns()
     if exclusion_passed:
-        print(f"   ✅ EXCLUSION_PATTERNS - PASSED")
+        print(f"   PASS EXCLUSION_PATTERNS - PASSED")
     else:
         all_tests_passed = False
-        print(f"   ❌ EXCLUSION_PATTERNS - FAILED")
+        print(f"   FAIL EXCLUSION_PATTERNS - FAILED")
     
     # Run consistency validation tests
-    print(f"\n🔍 CONSISTENCY VALIDATION")
+    print(f"\n CONSISTENCY VALIDATION")
     
     test_coverage_passed = validate_test_coverage_consistency()
     implementation_passed = validate_implementation_consistency()
@@ -1236,55 +1294,51 @@ def main():
     
     print(f"\n   Overall Consistency Result:")
     if validation_passed:
-        print(f"   ✅ CONSISTENCY_VALIDATION - PASSED")
+        print(f"   PASS CONSISTENCY_VALIDATION - PASSED")
     else:
         all_tests_passed = False
-        print(f"   ❌ CONSISTENCY_VALIDATION - FAILED")
-        print(f"      • Test Coverage: {'✅ PASSED' if test_coverage_passed else '❌ FAILED'}")
-        print(f"      • Implementation Patterns: {'✅ PASSED' if implementation_passed else '❌ FAILED'}")
-        print(f"      • Exclusion Patterns: {'✅ PASSED' if exclusion_passed else '❌ FAILED'}")
+        print(f"   FAIL CONSISTENCY_VALIDATION - FAILED")
+        print(f"      - Test Coverage: {'PASS PASSED' if test_coverage_passed else 'FAIL FAILED'}")
+        print(f"      - Implementation Patterns: {'PASS PASSED' if implementation_passed else 'FAIL FAILED'}")
+        print(f"      - Exclusion Patterns: {'PASS PASSED' if exclusion_passed else 'FAIL FAILED'}")
     
     # Run JavaScript-Python synchronization validation
-    print(f"\n🔗 JAVASCRIPT-PYTHON SYNCHRONIZATION")
+    print(f"\n JAVASCRIPT-PYTHON SYNCHRONIZATION")
     
     js_sync_passed = validate_javascript_python_synchronization()
     
     if js_sync_passed:
-        print(f"   ✅ JAVASCRIPT_SYNC - PASSED")
+        print(f"   PASS JAVASCRIPT_SYNC - PASSED")
     else:
         all_tests_passed = False
-        print(f"   ❌ JAVASCRIPT_SYNC - FAILED")
+        print(f"   FAIL JAVASCRIPT_SYNC - FAILED")
     
     # Final summary
     print("\n" + "=" * 80)
     print("COMPREHENSIVE TEST SUMMARY")
     print("=" * 80)
     print(f"Term Groups: {passed_groups}/{total_groups} passed")
-    print(f"Exclusion Tests: {'✅ PASSED' if exclusion_passed else '❌ FAILED'}")
-    print(f"Consistency Validation: {'✅ PASSED' if validation_passed else '❌ FAILED'}")
-    print(f"JavaScript Synchronization: {'✅ PASSED' if js_sync_passed else '❌ FAILED'}")
+    print(f"Exclusion Tests: {'PASS PASSED' if exclusion_passed else 'FAIL FAILED'}")
+    print(f"Consistency Validation: {'PASS PASSED' if validation_passed else 'FAIL FAILED'}")
+    print(f"JavaScript Synchronization: {'PASS PASSED' if js_sync_passed else 'FAIL FAILED'}")
     overall_passed = passed_groups + (1 if exclusion_passed else 0) + (1 if validation_passed else 0) + (1 if js_sync_passed else 0)
     overall_total = total_groups + 3
     print(f"Overall: {overall_passed}/{overall_total} test sections passed")
     print(f"Success Rate: {(overall_passed/overall_total*100):.1f}%")
     
     if all_tests_passed:
-        print("🎉 ALL COMPREHENSIVE TESTS PASSED!")
-        print("• All 20 term groups working correctly")
-        print("• KB exclusion patterns working correctly")
-        print("• Test coverage and implementation consistency validated")
-        print("• JavaScript-Python synchronization confirmed")
+        print(" ALL COMPREHENSIVE TESTS PASSED!")
+        print("- All 20 term groups working correctly")
+        print("- KB exclusion patterns working correctly")
+        print("- Test coverage and implementation consistency validated")
+        print("- JavaScript-Python synchronization confirmed")
         # Output standardized test results format
-        total_tests = passed_groups * 9  # 19 term groups with 9 test cases each = 171 tests
-        print(f'TEST_RESULTS: PASSED={total_tests} TOTAL={total_tests} SUITE="Update Patterns"')
+        print(f'TEST_RESULTS: PASSED={total_individual_tests} TOTAL={total_individual_tests} SUITE="Update Patterns"')
         return True
     else:
-        print("❌ SOME TESTS FAILED - SEE DETAILS ABOVE")
-        # Count individual test failures for accurate reporting
-        total_tests = total_groups * 9  # Each term group should have 9 test cases
-        failed_tests = (total_groups - passed_groups) * 9
-        passed_tests = total_tests - failed_tests
-        print(f'TEST_RESULTS: PASSED={passed_tests} TOTAL={total_tests} SUITE="Update Patterns"')
+        print("FAIL SOME TESTS FAILED - SEE DETAILS ABOVE")
+        # Report accurate individual test counts
+        print(f'TEST_RESULTS: PASSED={passed_individual_tests} TOTAL={total_individual_tests} SUITE="Update Patterns"')
         return False
 
 if __name__ == "__main__":

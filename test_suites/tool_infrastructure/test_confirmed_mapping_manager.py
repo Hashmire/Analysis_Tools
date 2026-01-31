@@ -40,9 +40,9 @@ class TestConfirmedMappingManager:
         self.tests_total += 1
         if passed:
             self.tests_passed += 1
-            status = "✅ PASS"
+            status = "[PASS]"
         else:
-            status = "❌ FAIL"
+            status = "[FAIL]"
         
         result = f"{status} - {test_name}"
         if message:

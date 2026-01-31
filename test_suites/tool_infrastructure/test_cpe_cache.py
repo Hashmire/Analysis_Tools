@@ -41,8 +41,7 @@ from datetime import datetime, timedelta, timezone
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.analysis_tool.storage.cpe_cache import get_global_cache_manager, GlobalCPECacheManager
-from src.analysis_tool.storage.sharded_cpe_cache import ShardedCPECache
+from src.analysis_tool.storage.cpe_cache import get_global_cache_manager, GlobalCPECacheManager, ShardedCPECache
 
 def load_config():
     """Load configuration from config.json"""
@@ -67,7 +66,7 @@ def test_hash_distribution():
         }
         
         cache = ShardedCPECache(config, num_shards=16)
-        cache.cache_dir = Path(tmpdir) / "cpe_shards"
+        cache.cache_dir = Path(tmpdir) / "cpe_base_strings"
         cache.cache_dir.mkdir(parents=True, exist_ok=True)
         cache.metadata_file = Path(tmpdir) / 'cache_metadata.json'
         
@@ -90,7 +89,7 @@ def test_hash_distribution():
         # Hash distribution should be reasonably balanced (imbalance < 3.0 for small samples)
         assert imbalance < 3.0, f"Poor distribution - imbalance factor: {imbalance}"
         
-        print(f"✓ Hash distribution works - {num_loaded_shards} shards loaded with imbalance {imbalance:.2f}")
+        print(f"[OK] Hash distribution works - {num_loaded_shards} shards loaded with imbalance {imbalance:.2f}")
     return True
 
 def test_lazy_loading():
@@ -107,7 +106,7 @@ def test_lazy_loading():
         
         # First instance - create data in specific shards
         cache1 = ShardedCPECache(config, num_shards=16)
-        cache1.cache_dir = Path(tmpdir) / "cpe_shards"
+        cache1.cache_dir = Path(tmpdir) / "cpe_base_strings"
         cache1.cache_dir.mkdir(parents=True, exist_ok=True)
         cache1.metadata_file = Path(tmpdir) / 'cache_metadata.json'
         
@@ -121,7 +120,7 @@ def test_lazy_loading():
         
         # Second instance - only access one CPE
         cache2 = ShardedCPECache(config, num_shards=16)
-        cache2.cache_dir = Path(tmpdir) / "cpe_shards"
+        cache2.cache_dir = Path(tmpdir) / "cpe_base_strings"
         cache2.metadata_file = Path(tmpdir) / 'cache_metadata.json'
         
         # Access single CPE - should only load 1 shard
@@ -129,7 +128,7 @@ def test_lazy_loading():
         assert status == 'hit', "Entry should be found"
         assert len(cache2.loaded_shards) == 1, f"Expected 1 shard loaded, got {len(cache2.loaded_shards)}"
         
-        print(f"✓ Lazy loading works - {shards_created} shards exist, only 1 loaded on access")
+        print(f"[OK] Lazy loading works - {shards_created} shards exist, only 1 loaded on access")
     return True
 
 def test_eviction_and_persistence():
@@ -145,7 +144,7 @@ def test_eviction_and_persistence():
         }
         
         cache = ShardedCPECache(config, num_shards=16)
-        cache.cache_dir = Path(tmpdir) / "cpe_shards"
+        cache.cache_dir = Path(tmpdir) / "cpe_base_strings"
         cache.cache_dir.mkdir(parents=True, exist_ok=True)
         cache.metadata_file = Path(tmpdir) / 'cache_metadata.json'
         
@@ -170,7 +169,7 @@ def test_eviction_and_persistence():
         assert retrieved['totalResults'] == 42, "Data should match"
         assert len(cache.loaded_shards) == 1, "Should have reloaded 1 shard"
         
-        print(f"✓ Eviction works - {shards_before_evict} shards cleared, data persisted")
+        print(f"[OK] Eviction works - {shards_before_evict} shards cleared, data persisted")
     return True
 
 def test_api_compatibility():
@@ -186,7 +185,7 @@ def test_api_compatibility():
         }
         
         cache = ShardedCPECache(config, num_shards=16)
-        cache.cache_dir = Path(tmpdir) / "cpe_shards"
+        cache.cache_dir = Path(tmpdir) / "cpe_base_strings"
         cache.cache_dir.mkdir(parents=True, exist_ok=True)
         cache.metadata_file = Path(tmpdir) / 'cache_metadata.json'
         
@@ -232,7 +231,7 @@ def test_api_compatibility():
         with cache:
             cache.put("cpe:2.3:a:context:test:1.0", {'totalResults': 1})
         
-        print("✓ API compatibility verified - all methods work correctly")
+        print("[OK] API compatibility verified - all methods work correctly")
     return True
 
 def test_auto_save():
@@ -248,7 +247,7 @@ def test_auto_save():
         }
         
         cache = ShardedCPECache(config, num_shards=16)
-        cache.cache_dir = Path(tmpdir) / "cpe_shards"
+        cache.cache_dir = Path(tmpdir) / "cpe_base_strings"
         cache.cache_dir.mkdir(parents=True, exist_ok=True)
         cache.metadata_file = Path(tmpdir) / 'cache_metadata.json'
         
@@ -267,7 +266,7 @@ def test_auto_save():
         shard_files = list(cache.cache_dir.glob("cpe_cache_shard_*.json"))
         assert len(shard_files) > 0, "Shard files should exist after auto-save"
         
-        print("✓ Auto-save works correctly with sharded cache")
+        print("[OK] Auto-save works correctly with sharded cache")
     return True
 
 def test_global_manager_with_sharding():
@@ -291,7 +290,7 @@ def test_global_manager_with_sharding():
         cache = manager.initialize(config)
         
         # Override paths for test
-        cache.cache_dir = Path(tmpdir) / "cpe_shards"
+        cache.cache_dir = Path(tmpdir) / "cpe_base_strings"
         cache.cache_dir.mkdir(parents=True, exist_ok=True)
         cache.metadata_file = Path(tmpdir) / 'cache_metadata.json'
         
@@ -311,7 +310,7 @@ def test_global_manager_with_sharding():
         # Cleanup
         manager.save_and_cleanup()
         
-        print("✓ GlobalCPECacheManager works correctly with sharding")
+        print("[OK] GlobalCPECacheManager works correctly with sharding")
     return True
 
 def test_compact_json_storage():
@@ -327,7 +326,7 @@ def test_compact_json_storage():
         }
         
         cache = ShardedCPECache(config, num_shards=16)
-        cache.cache_dir = Path(tmpdir) / "cpe_shards"
+        cache.cache_dir = Path(tmpdir) / "cpe_base_strings"
         cache.cache_dir.mkdir(parents=True, exist_ok=True)
         cache.metadata_file = Path(tmpdir) / 'cache_metadata.json'
         
@@ -352,7 +351,7 @@ def test_compact_json_storage():
         newline_count = content.count('\n')
         assert newline_count <= 2, f"Compact JSON should have <=2 newlines, got {newline_count}"
         
-        print("✓ Compact JSON storage verified - minimal whitespace")
+        print("[OK] Compact JSON storage verified - minimal whitespace")
     return True
 
 # =============================================================================
@@ -367,7 +366,7 @@ def test_cache_miss_workflow():
     cache_config = config.get('cache_settings', {}).get('cpe_cache', {})
     
     if not cache_config.get('enabled', True):
-        print("  ⚠ Cache disabled in config - skipping test")
+        print("  [WARNING] Cache disabled in config - skipping test")
         return True
     
     cache_manager = get_global_cache_manager()
@@ -402,7 +401,7 @@ def test_cache_miss_workflow():
     assert stats['session_misses'] >= 1, "Should have at least 1 miss"
     assert stats['session_hits'] >= 1, "Should have at least 1 hit"
     
-    print("✓ Cache MISS workflow validated")
+    print("[OK] Cache MISS workflow validated")
     return True
 
 def test_cache_expiration_workflow():
@@ -416,7 +415,7 @@ def test_cache_expiration_workflow():
     
     with tempfile.TemporaryDirectory() as tmpdir:
         cache = ShardedCPECache(cache_config, num_shards=16)
-        cache.cache_dir = Path(tmpdir) / "cpe_shards"
+        cache.cache_dir = Path(tmpdir) / "cpe_base_strings"
         cache.cache_dir.mkdir(parents=True, exist_ok=True)
         cache.metadata_file = Path(tmpdir) / 'cache_metadata.json'
         
@@ -439,7 +438,7 @@ def test_cache_expiration_workflow():
         stats = cache.get_stats()
         assert stats['session_expired'] >= 1, "Should have at least 1 expired entry"
     
-    print("✓ Cache EXPIRATION workflow validated")
+    print("[OK] Cache EXPIRATION workflow validated")
     return True
 
 def test_cache_disabled_workflow():
@@ -464,7 +463,7 @@ def test_cache_disabled_workflow():
     assert status == 'disabled', f"Expected 'disabled' status, got {status}"
     assert result is None, "Disabled cache should return None"
     
-    print("✓ Cache DISABLED workflow validated")
+    print("[OK] Cache DISABLED workflow validated")
     return True
 
 def test_cache_corruption_recovery():
@@ -481,7 +480,7 @@ def test_cache_corruption_recovery():
         }
         
         cache = ShardedCPECache(cache_config, num_shards=16)
-        cache.cache_dir = Path(tmpdir) / "cpe_shards"
+        cache.cache_dir = Path(tmpdir) / "cpe_base_strings"
         cache.cache_dir.mkdir(parents=True, exist_ok=True)
         cache.metadata_file = Path(tmpdir) / 'cache_metadata.json'
         
@@ -496,7 +495,7 @@ def test_cache_corruption_recovery():
             assert isinstance(shard_data, dict), "Should return dict even with corruption"
             corruption_handled = True
         except Exception as e:
-            print(f"  ⚠ Corruption not handled gracefully: {e}")
+            print(f"  [WARNING] Corruption not handled gracefully: {e}")
             corruption_handled = False
         
         # Verify operations continue
@@ -506,7 +505,7 @@ def test_cache_corruption_recovery():
         
         operations_work = status == 'hit' and result is not None
         
-        print("✓ Cache CORRUPTION recovery validated")
+        print("[OK] Cache CORRUPTION recovery validated")
         print(f"  - Corruption handled: {corruption_handled}")
         print(f"  - Operations continue: {operations_work}")
     
@@ -523,10 +522,10 @@ def test_cache_mode_compatibility():
     sharding_enabled = cache_config.get('sharding', {}).get('enabled', True)
     
     # Verify shard files exist
-    shard_dir = project_root / 'cache' / 'cpe_shards'
+    shard_dir = project_root / 'cache' / 'cpe_base_strings'
     shards_exist = shard_dir.exists() and len(list(shard_dir.glob('*.json'))) > 0
     
-    print("✓ Sharded cache mode compatibility validated")
+    print("[OK] Sharded cache mode compatibility validated")
     print(f"  - Sharding enabled: {sharding_enabled}")
     print(f"  - Shard files exist: {shards_exist}")
     
@@ -569,7 +568,7 @@ def test_cache_persistence_across_runs():
     
     success = status == 'hit' and retrieved == test_data
     
-    print("✓ Cache persistence validated")
+    print("[OK] Cache persistence validated")
     print(f"  - After eviction: {shards_in_memory} shards in memory")
     print(f"  - Data persisted: {success}")
     

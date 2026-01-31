@@ -64,7 +64,7 @@ def get_shard_filename(shard_index: int) -> str:
 **File Structure**:
 ```
 cache/
-  cpe_shards/
+  cpe_base_strings/
     cpe_cache_shard_00.json  (~32 MB, ~1,292 entries, compact JSON)
     cpe_cache_shard_01.json  (~32 MB, ~1,292 entries, compact JSON)
     ...
@@ -140,7 +140,7 @@ class ShardedCPECache:
     """Hash-based sharded CPE cache with lazy loading and eviction"""
     
     def __init__(self, cache_dir: Path, num_shards: int = 16):
-        self.cache_dir = cache_dir / "cpe_shards"
+        self.cache_dir = cache_dir / "cpe_base_strings"
         self.cache_dir.mkdir(exist_ok=True)
         self.num_shards = num_shards
         self.loaded_shards = {}  # {shard_index: cache_data}

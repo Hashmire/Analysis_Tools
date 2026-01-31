@@ -19,3 +19,4 @@ src/analysis_tool/reporting/__pycache__/*
 src/analysis_tool/mappings/__pycache__/*
 test_suites/__pycache__/*
 test_suites/nvd-ish_collector/__pycache__/*
+test_suites/cpe-as_generation/__pycache__/*

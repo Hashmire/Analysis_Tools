@@ -30,7 +30,7 @@ def run_test_and_get_report():
         # Run the tool using the standard command line interface
         cmd = [sys.executable, "-m", "src.analysis_tool.core.analysis_tool", "--test-file", TEST_FILE, "--no-cache", "--sdc-report", "true"]
         
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent.parent)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', cwd=Path(__file__).parent.parent.parent)
         
         if result.returncode != 0:
             print(f"[ERROR] Tool execution failed with return code {result.returncode}")
@@ -136,12 +136,9 @@ def get_test_cases():
             "expected_detected_values": ["\u0018", "\u0019", "\u001A", "\u001B", "\u001C"]
         },
         {
-            "description": "Space character in version field (should be flagged by regex)",
+            "description": "Space character in version field with prerelease identifier (now valid after numberless pattern support)",
             "table_index": 13,
-            "expected_concerns": 1,
-            "expected_field": "version",
-            "expected_source_value": "1.0 beta",
-            "expected_detected_value": " "
+            "expected_concerns": 0  # Changed: "1.0 beta" is now valid as numberless prerelease pattern
         },
         {
             "description": "Forward slash in version field (should be flagged by regex)",
@@ -345,7 +342,7 @@ def validate_test_case(report_data, test_case):
             value_match = False
     
     # Generate detailed output (similar to placeholder and whitespace detection)
-    status = "✅ PASS" if count_match and structure_match and value_match else "❌ FAIL"
+    status = "[PASS]" if count_match and structure_match and value_match else "[FAIL]"
     show_details = not os.environ.get('UNIFIED_TEST_RUNNER')
     
     if show_details:
@@ -392,19 +389,19 @@ def validate_test_case(report_data, test_case):
         
         # Detailed validation results
         if count_match:
-            print(f"✅ COUNT: {len(concerns)} concerns - (matches expected)")
+            print(f"[PASS] COUNT: {len(concerns)} concerns - (matches expected)")
         else:
-            print(f"❌ COUNT: {len(concerns)} concerns - (expected {test_case['expected_concerns']})")
+            print(f"[FAIL] COUNT: {len(concerns)} concerns - (expected {test_case['expected_concerns']})")
         
         if structure_match:
-            print(f"✅ STRUCTURE: field/sourceValue/detectedPattern.detectedValue - (matches expected)")
+            print(f"[PASS] STRUCTURE: field/sourceValue/detectedPattern.detectedValue - (matches expected)")
         else:
-            print(f"❌ STRUCTURE: Missing or invalid structure - (expected field/sourceValue/detectedPattern.detectedValue)")
+            print(f"[FAIL] STRUCTURE: Missing or invalid structure - (expected field/sourceValue/detectedPattern.detectedValue)")
         
         if value_match:
-            print(f"✅ VALUES: All values match expected - (matches expected)")
+            print(f"[PASS] VALUES: All values match expected - (matches expected)")
         else:
-            print(f"❌ VALUES: Value validation failed - (values do not match expected)")
+            print(f"[FAIL] VALUES: Value validation failed - (values do not match expected)")
         
         print()
     

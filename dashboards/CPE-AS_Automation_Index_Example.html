@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Tools - CPE-AS Automation Success Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- CPE-AS Automation Dashboard Styles -->
+    <link href="../src/analysis_tool/static/css/cpeas_automation_dashboard.css" rel="stylesheet">
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+    <div id="main_container_01" class="container-fluid">
+        <!-- Page Header Section -->
+        <div id="ph_section_01" class="header">
+            <h1 class="dashboard-title">CVE List v5.X CPE-AS Automation Success Dashboard</h1>
+            <p id="ph_subtitle_01">
+                Platform Identification Readiness Overview<br />
+                Hashmire/Analysis_Tools 0.3.0
+            </p>
+        </div>
+
+        <!-- Report Status and Documentation Section -->
+        <div id="rl_section_01" class="context-bar">            
+            <!-- Status Bar -->
+            <div id="rl_content_01" class="context-input-container">
+                <div class="status-bar-wrapper">
+                    <div class="status-bar" id="status-bar" style="display: block;">
+                        <div class="status-filename" id="status-filename">--</div>
+                        <div class="status-details">
+                            <div class="status-item">
+                                <span>Generated: <span id="generation-time">--</span></span>
+                            </div>
+                            <div class="status-item">
+                                <span id="file-size">-- KB</span> • <span>Loaded <span id="load-time">--</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Documentation Toggle - Right Aligned -->
+                <div class="doc-toggle" onclick="toggleDocumentation()">
+                    <div class="doc-header">
+                        <div class="doc-header-content">
+                            <div class="doc-icon">ℹ️</div>
+                            <div>
+                                <h3 class="doc-title">What am I looking at?</h3>
+                                <p class="doc-subtitle">Click to learn how to use this dashboard</p>
+                            </div>
+                        </div>
+                        <div class="doc-chevron" id="doc-chevron">▼</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Documentation Content Section -->
+        <div class="documentation-content" id="documentation-content">
+            <div class="doc-intro">
+                <strong>Overview:</strong>
+                <p>
+                    The CPE-AS Automation Success Dashboard provides strategic visibility into platform identification 
+                    automation readiness across the CVE List v5.X ecosystem. This dashboard combines multiple data 
+                    quality signals to assess how well CVE records support automated CPE base string determination 
+                    and CPE applicability statement generation.
+                </p>
+                <strong>Goals:</strong>
+                <p>
+                    Track progress toward comprehensive CPE-AS automation across the CVE List ecosystem. <br />
+                    Identify sources and patterns that enable or inhibit successful platform automation.
+                </p>
+                <strong>Feedback:</strong>
+                <p>
+                    For technical issues, feature requests, or questions; please visit the <a href="https://github.com/Hashmire/Analysis_Tools/issues" target="_blank">Repository Issues page</a>. <br />
+                    Community feedback and contributions to improve the dashboard's functionality and user experience are always encouraged!
+                </p>
+            </div>
+
+            <div class="doc-sections">
+                <div class="doc-section">
+                    <h4>🎯 How to Use</h4>
+                    <ul>
+                        <li><strong>Review Summary</strong> - Examine aggregate statistics across the ecosystem</li>
+                        <li><strong>Browse Sources</strong> - Scan the table for source-specific performance</li>
+                        <li><strong>Open Source Report</strong> - Review detailed automation metrics for a specific source</li>
+                    </ul>
+                </div>
+
+                <div class="doc-section">
+                    <h4>📊 Understanding Metrics</h4>
+                    <ul>
+                        <li><strong>Total CVEs</strong> - Number of CVE records processed for this source</li>
+                        <li><strong>Additional metrics</strong> - Will be defined based on extracted data patterns</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-content">
+            <!-- Summary Statistics -->
+            <div class="section" style="margin-top: 0;">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">Ecosystem Summary</h2>
+                        <p class="section-subtitle">Aggregate automation metrics across all sources</p>
+                    </div>
+                </div>
+                <div class="section-content">
+                    <div class="summary-grid" id="summary-grid">
+                        <div class="loading">No data loaded</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Source Performance Table -->
+            <div class="section">
+                <div class="section-header">
+                    <div>
+                        <h2 class="section-title">Source Performance</h2>
+                        <p class="section-subtitle">Per-source automation readiness metrics</p>
+                    </div>
+                    <div style="flex: 1; display: flex; justify-content: flex-end; align-items: center;">
+                        <input 
+                            type="text" 
+                            id="source-filter" 
+                            placeholder="Filter sources..." 
+                            style="padding: 8px 12px; border: 1px solid #D1D5DB; border-radius: 6px; width: 300px; font-size: 14px;"
+                            oninput="filterSourceTable()"
+                        />
+                    </div>
+                </div>
+                <div class="section-content">
+                    <div id="sources-table-container">
+                        <div class="loading">No data loaded</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // CPE-AS Automation Index Data - Injected during HTML generation
+        // This structure is generated by CPEASAutomationReportBuilder.finalize()
+        let dashboardData = {
+            "metadata": {
+                "run_id": "2026-01-26_14-30-00_cpe-as_automation_report",
+                "generated_at": "2026-01-26T14:30:00.000Z",
+                "cache_source": "nvd-ish_2.0_cves",
+                "tool_version": "0.3.0",
+                "run_started_at": "2026-01-26T14:28:00.000Z",
+                "run_completed_at": "2026-01-26T14:30:00.000Z",
+                "total_sources": 8,
+                "total_cves_processed": 12847,
+                "status": "completed"
+            },
+            "sources": [
+                {
+                    "source_id": "af854a3a-2127-422b-91ae-364da2661108",
+                    "source_name": "Adobe",
+                    "total_cves": 3421,
+                    "automation_level_stats": {
+                        "full_count": 1447,
+                        "partial_count": 1067,
+                        "none_count": 907
+                    },
+                    "cpe_determination_stats": {
+                        "confirmed_mapping_count": 1567,
+                        "top10_suggestion_count": 975,
+                        "nothing_count": 879
+                    },
+                    "version_stats": {
+                        "complete_count": 1752,
+                        "partial_count": 1089,
+                        "none_count": 580
+                    },
+                    "report_file": "cpeAsAutomationReport_Adobe_af854a3a.html"
+                },
+                {
+                    "source_id": "078d4b87-f00e-4f46-a693-e8b5a2d35fe0",
+                    "source_name": "Microsoft",
+                    "total_cves": 4892,
+                    "automation_level_stats": {
+                        "full_count": 3317,
+                        "partial_count": 1047,
+                        "none_count": 528
+                    },
+                    "cpe_determination_stats": {
+                        "confirmed_mapping_count": 3537,
+                        "top10_suggestion_count": 924,
+                        "nothing_count": 431
+                    },
+                    "version_stats": {
+                        "complete_count": 3401,
+                        "partial_count": 1156,
+                        "none_count": 335
+                    },
+                    "report_file": "cpeAsAutomationReport_Microsoft_078d4b87.html"
+                },
+                {
+                    "source_id": "c2c6313b-2c69-4c7e-ab39-e97e56d4e00e",
+                    "source_name": "Cisco",
+                    "total_cves": 2156,
+                    "automation_level_stats": {
+                        "full_count": 834,
+                        "partial_count": 767,
+                        "none_count": 555
+                    },
+                    "cpe_determination_stats": {
+                        "confirmed_mapping_count": 888,
+                        "top10_suggestion_count": 735,
+                        "nothing_count": 533
+                    },
+                    "version_stats": {
+                        "complete_count": 977,
+                        "partial_count": 821,
+                        "none_count": 358
+                    },
+                    "report_file": "cpeAsAutomationReport_Cisco_c2c6313b.html"
+                },
+                {
+                    "source_id": "f71e2c17-42d5-4da7-ba75-5c4e2da0353d",
+                    "source_name": "Oracle",
+                    "total_cves": 1234,
+                    "automation_level_stats": {
+                        "full_count": 643,
+                        "partial_count": 354,
+                        "none_count": 237
+                    },
+                    "cpe_determination_stats": {
+                        "confirmed_mapping_count": 696,
+                        "top10_suggestion_count": 312,
+                        "nothing_count": 226
+                    },
+                    "version_stats": {
+                        "complete_count": 727,
+                        "partial_count": 371,
+                        "none_count": 136
+                    },
+                    "report_file": "cpeAsAutomationReport_Oracle_f71e2c17.html"
+                },
+                {
+                    "source_id": "d4f76b1e-9e3a-4c2d-8f5b-1a3c7e9d2b4f",
+                    "source_name": "Google",
+                    "total_cves": 567,
+                    "automation_level_stats": {
+                        "full_count": 405,
+                        "partial_count": 101,
+                        "none_count": 61
+                    },
+                    "cpe_determination_stats": {
+                        "confirmed_mapping_count": 423,
+                        "top10_suggestion_count": 86,
+                        "nothing_count": 58
+                    },
+                    "version_stats": {
+                        "complete_count": 415,
+                        "partial_count": 118,
+                        "none_count": 34
+                    },
+                    "report_file": "cpeAsAutomationReport_Google_d4f76b1e.html"
+                },
+                {
+                    "source_id": "b8e2f4a1-3c9d-4e7a-9f6b-2d8c1e5a3f7b",
+                    "source_name": "Apple",
+                    "total_cves": 298,
+                    "automation_level_stats": {
+                        "full_count": 242,
+                        "partial_count": 37,
+                        "none_count": 19
+                    },
+                    "cpe_determination_stats": {
+                        "confirmed_mapping_count": 253,
+                        "top10_suggestion_count": 29,
+                        "nothing_count": 16
+                    },
+                    "version_stats": {
+                        "complete_count": 246,
+                        "partial_count": 42,
+                        "none_count": 10
+                    },
+                    "report_file": "cpeAsAutomationReport_Apple_b8e2f4a1.html"
+                },
+                {
+                    "source_id": "a1c3e5d7-9f2b-4e6a-8d1c-3f5b7e9a2c4d",
+                    "source_name": "IBM",
+                    "total_cves": 189,
+                    "automation_level_stats": {
+                        "full_count": 86,
+                        "partial_count": 63,
+                        "none_count": 40
+                    },
+                    "cpe_determination_stats": {
+                        "confirmed_mapping_count": 92,
+                        "top10_suggestion_count": 59,
+                        "nothing_count": 38
+                    },
+                    "version_stats": {
+                        "complete_count": 96,
+                        "partial_count": 67,
+                        "none_count": 26
+                    },
+                    "report_file": "cpeAsAutomationReport_IBM_a1c3e5d7.html"
+                },
+                {
+                    "source_id": "e9f1b3d5-7a2c-4e8f-6b1d-9c3a5e7f2b4a",
+                    "source_name": "RedHat",
+                    "total_cves": 90,
+                    "automation_level_stats": {
+                        "full_count": 31,
+                        "partial_count": 38,
+                        "none_count": 21
+                    },
+                    "cpe_determination_stats": {
+                        "confirmed_mapping_count": 34,
+                        "top10_suggestion_count": 36,
+                        "nothing_count": 20
+                    },
+                    "version_stats": {
+                        "complete_count": 36,
+                        "partial_count": 42,
+                        "none_count": 12
+                    },
+                    "report_file": "cpeAsAutomationReport_RedHat_e9f1b3d5.html"
+                }
+            ]
+        };
+
+        // Toggle documentation panel
+        function toggleDocumentation() {
+            const content = document.getElementById('documentation-content');
+            const chevron = document.getElementById('doc-chevron');
+            
+            if (content.style.display === 'none' || content.style.display === '') {
+                content.style.display = 'block';
+                chevron.textContent = '▲';
+            } else {
+                content.style.display = 'none';
+                chevron.textContent = '▼';
+            }
+        }
+
+        // Filter source table
+        function filterSourceTable() {
+            const filterValue = document.getElementById('source-filter').value.toLowerCase();
+            const rows = document.querySelectorAll('#sources-table-container tbody tr');
+            
+            rows.forEach(row => {
+                const sourceName = row.cells[0].textContent.toLowerCase();
+                row.style.display = sourceName.includes(filterValue) ? '' : 'none';
+            });
+        }
+
+        // Main rendering function
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!dashboardData) {
+                console.error('No dashboard data available');
+                return;
+            }
+
+            renderDashboard(dashboardData);
+        });
+
+        function renderDashboard(data) {
+            // Update status bar
+            const metadata = data.metadata || {};
+            document.getElementById('status-filename').textContent = 'CPE-AS Automation Report';
+            document.getElementById('generation-time').textContent = 
+                metadata.generated_at ? new Date(metadata.generated_at).toLocaleString() : '--';
+            
+            const fileSize = JSON.stringify(data).length / 1024;
+            document.getElementById('file-size').textContent = fileSize.toFixed(1) + ' KB';
+            document.getElementById('load-time').textContent = new Date().toLocaleTimeString();
+            
+            // Render summary grid (pass full data, not global_summary)
+            renderSummaryGrid(data);
+            
+            // Render source table
+            renderSourceTable(data.sources || []);
+        }
+
+        function renderSummaryGrid(data) {
+            const grid = document.getElementById('summary-grid');
+            
+            // Calculate ecosystem-wide aggregates
+            const sources = data.sources || [];
+            const totalCves = data.metadata.total_cves_processed || 0;
+            const totalSources = sources.length;
+            
+            // Calculate weighted averages based on CVE counts
+            let totalWeight = 0;
+            let weightedFullAutomation = 0;
+            let weightedConfirmedMapping = 0;
+            let weightedCompleteCpeAs = 0;
+            
+            sources.forEach(s => {
+                const weight = s.total_cves || 0;
+                totalWeight += weight;
+                
+                const automation = s.automation_level_stats || {};
+                const cpe = s.cpe_determination_stats || {};
+                const version = s.version_stats || {};
+                
+                const fullRate = automation.full_count ? (automation.full_count / s.total_cves) * 100 : 0;
+                const confirmedRate = cpe.confirmed_mapping_count ? (cpe.confirmed_mapping_count / (cpe.confirmed_mapping_count + cpe.top10_suggestion_count + cpe.nothing_count)) * 100 : 0;
+                const completeRate = version.complete_count ? (version.complete_count / (version.complete_count + version.partial_count + version.none_count)) * 100 : 0;
+                
+                weightedFullAutomation += fullRate * weight;
+                weightedConfirmedMapping += confirmedRate * weight;
+                weightedCompleteCpeAs += completeRate * weight;
+            });
+            
+            const avgFullAutomation = totalWeight > 0 ? weightedFullAutomation / totalWeight : 0;
+            const avgConfirmedMapping = totalWeight > 0 ? weightedConfirmedMapping / totalWeight : 0;
+            const avgCompleteCpeAs = totalWeight > 0 ? weightedCompleteCpeAs / totalWeight : 0;
+            
+            // Build summary cards
+            const html = `
+                <div class="summary-card">
+                    <div class="summary-label">Total CVEs Analyzed</div>
+                    <div class="summary-value">${totalCves.toLocaleString()}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Sources Tracked</div>
+                    <div class="summary-value">${totalSources}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Avg Full Automation</div>
+                    <div class="summary-value">${avgFullAutomation.toFixed(1)}%</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Avg Confirmed Mapping</div>
+                    <div class="summary-value">${avgConfirmedMapping.toFixed(1)}%</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Avg Complete CPE-AS</div>
+                    <div class="summary-value">${avgCompleteCpeAs.toFixed(1)}%</div>
+                </div>
+            `;
+            
+            grid.innerHTML = html;
+        }
+
+        function renderSourceTable(sources) {
+            const container = document.getElementById('sources-table-container');
+            
+            if (!sources || sources.length === 0) {
+                container.innerHTML = '<div class="loading">No source data available</div>';
+                return;
+            }
+
+            // Build table
+            let html = `
+                <table class="sources-table">
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable(0)">Source Name ▼</th>
+                            <th onclick="sortTable(1)">Total CVEs ▼</th>
+                            <th title="Automation level calculated per CVE">CVE Automation ▼</th>
+                            <th title="CPE determination confidence per affected entry">CPE Determination ▼</th>
+                            <th title="CPE-AS generation status per version entry">CPE-AS Generation ▼</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            sources.forEach((source, idx) => {
+                const sourceId = source.source_id || `source-${idx}`;
+                html += `
+                    <tr>
+                        <td><strong>${escapeHtml(source.source_name || 'Unknown')}</strong></td>
+                        <td>${(source.total_cves || 0).toLocaleString()}</td>
+                        <td class="mini-chart-cell">
+                            <div class="mini-chart-container">
+                                <canvas id="chart-auto-${sourceId}"></canvas>
+                            </div>
+                        </td>
+                        <td class="mini-chart-cell">
+                            <div class="mini-chart-container">
+                                <canvas id="chart-cpe-${sourceId}"></canvas>
+                            </div>
+                        </td>
+                        <td class="mini-chart-cell">
+                            <div class="mini-chart-container">
+                                <canvas id="chart-ver-${sourceId}"></canvas>
+                            </div>
+                        </td>
+                        <td><a href="${escapeHtml(source.report_file || '#')}" class="btn-view">View Report</a></td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                    </tbody>
+                </table>
+            `;
+
+            container.innerHTML = html;
+            
+            // Render mini charts after DOM update
+            setTimeout(() => {
+                sources.forEach((source, idx) => {
+                    const sourceId = source.source_id || `source-${idx}`;
+                    renderMiniCharts(sourceId, source);
+                });
+            }, 0);
+        }
+        
+        function renderMiniCharts(sourceId, source) {
+            const automation = source.automation_level_stats || {};
+            const cpe = source.cpe_determination_stats || {};
+            const version = source.version_stats || {};
+            
+            // Automation Level Chart
+            const autoCanvas = document.getElementById(`chart-auto-${sourceId}`);
+            if (autoCanvas) {
+                new Chart(autoCanvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Full', 'Partial', 'None'],
+                        datasets: [{
+                            data: [
+                                automation.full_count || 0,
+                                automation.partial_count || 0,
+                                automation.none_count || 0
+                            ],
+                            backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        layout: {
+                            padding: 10
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                enabled: true,
+                                displayColors: false,
+                                position: 'nearest',
+                                yAlign: 'bottom',
+                                xAlign: 'center',
+                                callbacks: {
+                                    label: function(context) {
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : '0.0';
+                                        return `${context.label}: ${context.parsed} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        cutout: '60%'
+                    }
+                });
+            }
+            
+            // CPE Determination Chart
+            const cpeCanvas = document.getElementById(`chart-cpe-${sourceId}`);
+            if (cpeCanvas) {
+                new Chart(cpeCanvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Confirmed', 'Suggested', 'Nothing'],
+                        datasets: [{
+                            data: [
+                                cpe.confirmed_mapping_count || 0,
+                                cpe.top10_suggestion_count || 0,
+                                cpe.nothing_count || 0
+                            ],
+                            backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        layout: {
+                            padding: 10
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                enabled: true,
+                                displayColors: false,
+                                position: 'nearest',
+                                yAlign: 'bottom',
+                                xAlign: 'center',
+                                callbacks: {
+                                    label: function(context) {
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : '0.0';
+                                        return `${context.label}: ${context.parsed} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        cutout: '60%'
+                    }
+                });
+            }
+            
+            // Version/CPE-AS Chart
+            const verCanvas = document.getElementById(`chart-ver-${sourceId}`);
+            if (verCanvas) {
+                new Chart(verCanvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Complete', 'Partial', 'None'],
+                        datasets: [{
+                            data: [
+                                version.complete_count || 0,
+                                version.partial_count || 0,
+                                version.none_count || 0
+                            ],
+                            backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        layout: {
+                            padding: 10
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                enabled: true,
+                                displayColors: false,
+                                position: 'nearest',
+                                yAlign: 'bottom',
+                                xAlign: 'center',
+                                callbacks: {
+                                    label: function(context) {
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : '0.0';
+                                        return `${context.label}: ${context.parsed} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        },
+                        cutout: '60%'
+                    }
+                });
+            }
+        }
+
+        function formatLabel(key) {
+            return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function formatValue(value) {
+            if (typeof value === 'number') {
+                return value.toLocaleString();
+            }
+            return value;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function sortTable(columnIndex) {
+            // Table sorting implementation
+            const table = document.querySelector('.sources-table');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            
+            rows.sort((a, b) => {
+                const aText = a.cells[columnIndex].textContent.trim();
+                const bText = b.cells[columnIndex].textContent.trim();
+                
+                // Try numeric comparison
+                const aNum = parseFloat(aText.replace(/,/g, ''));
+                const bNum = parseFloat(bText.replace(/,/g, ''));
+                
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                    return bNum - aNum; // Descending
+                }
+                
+                return aText.localeCompare(bText);
+            });
+            
+            rows.forEach(row => tbody.appendChild(row));
+        }
+    </script>
+</body>
+</html>
+
+

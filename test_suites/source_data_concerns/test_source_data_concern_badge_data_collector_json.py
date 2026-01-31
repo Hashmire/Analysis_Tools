@@ -83,10 +83,10 @@ class SourceDataConcernJSONTestSuite:
     def assert_true(self, condition, test_name, details=""):
         """Assert that a condition is true."""
         if condition:
-            print(f"✓ PASS: {test_name}")
+            print(f"[PASS]: {test_name}")
             self.passed += 1
         else:
-            print(f"✗ FAIL: {test_name}")
+            print(f"[FAIL]: {test_name}")
             if details:
                 print(f"  Details: {details}")
             self.failed += 1
@@ -94,10 +94,10 @@ class SourceDataConcernJSONTestSuite:
     def assert_equals(self, actual, expected, test_name, details=""):
         """Assert that two values are equal."""
         if actual == expected:
-            print(f"✓ PASS: {test_name}")
+            print(f"[PASS]: {test_name}")
             self.passed += 1
         else:
-            print(f"✗ FAIL: {test_name}")
+            print(f"[FAIL]: {test_name}")
             print(f"  Expected: {expected}")
             print(f"  Actual: {actual}")
             if details:
@@ -107,10 +107,10 @@ class SourceDataConcernJSONTestSuite:
     def assert_contains(self, container, item, test_name, details=""):
         """Assert that container contains item."""
         if item in container:
-            print(f"✓ PASS: {test_name}")
+            print(f"[PASS]: {test_name}")
             self.passed += 1
         else:
-            print(f"✗ FAIL: {test_name}")
+            print(f"[FAIL]: {test_name}")
             print(f"  Container: {container}")
             print(f"  Missing item: {item}")
             if details:
@@ -1334,29 +1334,29 @@ class SourceDataConcernJSONTestSuite:
             print(f"   Platform entries: {metadata['total_platform_entries']}")
             print(f"   Entries with concerns: {metadata['entries_with_concerns']}")
             print(f"   Concern types covered: {coverage_count}/10")
-            print(f"\n🎯 Source Card Enumeration States Covered:")
-            print(f"   ✓ Sources with only concerns (high-concern-source)")
-            print(f"   ✓ Sources with only clean platforms (clean-source-*)")
-            print(f"   ✓ Sources with both concerns and clean platforms (mitre-corp, nvd-nist)")
-            print(f"   ✓ Sources with multiple CVEs (various)")
-            print(f"   ✓ High concern count sources (high-concern-source)")
-            print(f"   ✓ High clean platform count sources (clean-source-gamma)")
-            print(f"\n🔍 Concern Sub-Category Coverage:")
-            print(f"   ✓ Placeholder Data: vendor/product/single-dash placeholders")
-            print(f"   ✓ Version Text Patterns: range/bound indicators, approximations")
-            print(f"   ✓ CPE Array Concerns: empty arrays, format/structure issues")
-            print(f"   ✓ Version Granularity: granularity mismatches")
-            print(f"   ✓ Version Comparators: text comparators")
-            print(f"   ✓ Wildcard Branches: wildcard patterns")
-            print(f"   ✓ Duplicate Entries: row duplicates")
-            print(f"   ✓ Platform Data Concerns: unexpected data")
-            print(f"   ✓ Missing Affected Products: no affected status")
-            print(f"   ✓ Overlapping Ranges: version range overlaps")
-            print(f"\n🌐 Load this file in the Source Data Concern Dashboard:")
+            print(f"\n[Source Card Enumeration States Covered]")
+            print(f"   - Sources with only concerns (high-concern-source)")
+            print(f"   - Sources with only clean platforms (clean-source-*)")
+            print(f"   - Sources with both concerns and clean platforms (mitre-corp, nvd-nist)")
+            print(f"   - Sources with multiple CVEs (various)")
+            print(f"   - High concern count sources (high-concern-source)")
+            print(f"   - High clean platform count sources (clean-source-gamma)")
+            print(f"\n[Concern Sub-Category Coverage]")
+            print(f"   - Placeholder Data: vendor/product/single-dash placeholders")
+            print(f"   - Version Text Patterns: range/bound indicators, approximations")
+            print(f"   - CPE Array Concerns: empty arrays, format/structure issues")
+            print(f"   - Version Granularity: granularity mismatches")
+            print(f"   - Version Comparators: text comparators")
+            print(f"   - Wildcard Branches: wildcard patterns")
+            print(f"   - Duplicate Entries: row duplicates")
+            print(f"   - Platform Data Concerns: unexpected data")
+            print(f"   - Missing Affected Products: no affected status")
+            print(f"   - Overlapping Ranges: version range overlaps")
+            print(f"\n[Dashboard Link] Load this file in the Source Data Concern Dashboard:")
             print(f"   file://{get_analysis_tools_root()}/dashboards/sourceDataConcernDashboard.html")
             
         except Exception as e:
-            print(f"❌ FAIL: Failed to generate comprehensive dashboard file: {str(e)}")
+            print(f"[FAIL]: Failed to generate comprehensive dashboard file: {str(e)}")
             self.failed += 1
             return
         
@@ -1478,11 +1478,11 @@ class SourceDataConcernJSONTestSuite:
             print(f"   CVE records: {metadata['total_cves_processed']}")
             print(f"   Platform entries: {metadata['total_platform_entries']}")
             print(f"   Entries with concerns: {metadata['entries_with_concerns']}")
-            print(f"\n🌐 Load this file in the Source Data Concern Dashboard:")
+            print(f"\n[Dashboard Link] Load this file in the Source Data Concern Dashboard:")
             print(f"   file://{get_analysis_tools_root()}/dashboards/sourceDataConcernDashboard.html")
             
         except Exception as e:
-            print(f"❌ FAIL: Failed to generate persistent dashboard file: {str(e)}")
+            print(f"[FAIL]: Failed to generate persistent dashboard file: {str(e)}")
             self.failed += 1
             return
         
@@ -1552,10 +1552,10 @@ def main():
     
     success = test_suite.failed == 0
     if success:
-        print("\n🎉 ALL BADGE DATA COLLECTOR TESTS PASSED!")
+        print("\n[SUCCESS] ALL BADGE DATA COLLECTOR TESTS PASSED!")
         print("Source Data Concern badge data collection system is working correctly.")
     else:
-        print(f"\n❌ {test_suite.failed} BADGE DATA COLLECTOR TEST(S) FAILED")
+        print(f"\n[FAIL] {test_suite.failed} BADGE DATA COLLECTOR TEST(S) FAILED")
         print("Issues found in Source Data Concern badge data collection system.")
     
     # Print standardized test results format

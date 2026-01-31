@@ -32,7 +32,7 @@ def run_test_and_get_report():
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent.parent)
         
         if result.returncode != 0:
-            print(f"❌ Tool execution failed with return code {result.returncode}")
+            print(f"[FAIL] Tool execution failed with return code {result.returncode}")
             print(f"STDOUT: {result.stdout}")
             print(f"STDERR: {result.stderr}")
             return None
@@ -41,7 +41,7 @@ def run_test_and_get_report():
         return find_latest_test_run_report("sourceDataConcernReport.json")
         
     except Exception as e:
-        print(f"❌ Error running test: {e}")
+        print(f"[FAIL] Error running test: {e}")
         return None
 
 def extract_concerns_for_table(report_data, table_index):
@@ -259,7 +259,7 @@ def validate_test_case(test_case, report_data):
             value_match = actual_concerns == expected_concern_set
     
     # Generate output
-    status = "✅ PASS" if count_match and structure_match and value_match else "❌ FAIL"
+    status = "[PASS]" if count_match and structure_match and value_match else "[FAIL]"
     show_details = os.environ.get('UNIFIED_TEST_RUNNER') != '1'
     
     if show_details:
@@ -296,19 +296,19 @@ def validate_test_case(test_case, report_data):
         
         # Detailed validation results
         if count_match:
-            print(f"✅ COUNT: {len(concerns)} concerns - (matches expected)")
+            print(f"[PASS] COUNT: {len(concerns)} concerns - (matches expected)")
         else:
-            print(f"❌ COUNT: {len(concerns)} concerns - (expected {test_case['expected_concerns']})")
+            print(f"[FAIL] COUNT: {len(concerns)} concerns - (expected {test_case['expected_concerns']})")
         
         if structure_match:
-            print(f"✅ STRUCTURE: field/sourceValue/detectedPattern.detectedValue - (matches expected)")
+            print(f"[PASS] STRUCTURE: field/sourceValue/detectedPattern.detectedValue - (matches expected)")
         else:
-            print(f"❌ STRUCTURE: Missing or invalid structure - (expected field/sourceValue/detectedPattern.detectedValue)")
+            print(f"[FAIL] STRUCTURE: Missing or invalid structure - (expected field/sourceValue/detectedPattern.detectedValue)")
         
         if value_match:
-            print(f"✅ VALUES: All values match expected - (matches expected)")
+            print(f"[PASS] VALUES: All values match expected - (matches expected)")
         else:
-            print(f"❌ VALUES: Value validation failed - (values do not match expected)")
+            print(f"[FAIL] VALUES: Value validation failed - (values do not match expected)")
         
         print()
     

@@ -34,7 +34,7 @@ def run_test_and_get_report():
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent.parent, env=env)
         
         if result.returncode != 0:
-            print(f"❌ Tool execution failed with return code {result.returncode}")
+            print(f"[FAIL] Tool execution failed with return code {result.returncode}")
             print(f"STDOUT: {result.stdout}")
             print(f"STDERR: {result.stderr}")
             return None
@@ -43,7 +43,7 @@ def run_test_and_get_report():
         return find_latest_test_run_report("sourceDataConcernReport.json")
     
     except Exception as e:
-        print(f"❌ Error running test: {e}")
+        print(f"[FAIL] Error running test: {e}")
         return None
 
 
@@ -54,7 +54,7 @@ def extract_version_text_patterns(report_data):
     try:
         # Navigate through the report structure
         if 'cve_data' not in report_data:
-            print("❌ No cve_data found in report")
+            print("[FAIL] No cve_data found in report")
             return patterns
         
         for cve_entry in report_data['cve_data']:
@@ -94,7 +94,7 @@ def extract_version_text_patterns(report_data):
         
         return patterns
     except Exception as e:
-        print(f"❌ Error extracting version text patterns: {e}")
+        print(f"[FAIL] Error extracting version text patterns: {e}")
         return patterns
 
 
@@ -123,13 +123,13 @@ def validate_pattern_type_coverage(test_cases):
     extra_types = covered_pattern_types - expected_pattern_types
     
     if missing_types:
-        print(f"❌ COVERAGE ERROR: Missing test cases for pattern types: {missing_types}")
+        print(f"[FAIL] COVERAGE ERROR: Missing test cases for pattern types: {missing_types}")
         return False
     
     if extra_types:
-        print(f"⚠️  WARNING: Test cases for unexpected pattern types: {extra_types}")
+        print(f"[WARNING] Test cases for unexpected pattern types: {extra_types}")
     
-    print(f"✅ COVERAGE: All {len(expected_pattern_types)} pattern types have test coverage")
+    print(f"[OK] COVERAGE: All {len(expected_pattern_types)} pattern types have test coverage")
     return True
 
 def get_test_cases():
@@ -393,7 +393,7 @@ def validate_test_case(concerns, test_case):
             value_match = False
     
     # Generate output
-    status = "✅ PASS" if count_match and structure_match and value_match else "❌ FAIL"
+    status = "[PASS]" if count_match and structure_match and value_match else "[FAIL]"
     show_details = os.environ.get('UNIFIED_TEST_RUNNER') != '1'
     
     if show_details:
@@ -426,19 +426,19 @@ def validate_test_case(concerns, test_case):
         
         # Individual validation results
         if count_match:
-            print(f"✅ COUNT: {len(concerns)} concerns - (matches expected)")
+            print(f"[PASS] COUNT: {len(concerns)} concerns - (matches expected)")
         else:
-            print(f"❌ COUNT: {len(concerns)} concerns - (expected {test_case['expected_concerns']})")
+            print(f"[FAIL] COUNT: {len(concerns)} concerns - (expected {test_case['expected_concerns']})")
         
         if structure_match:
-            print(f"✅ STRUCTURE: field/sourceValue/detectedPattern.detectedValue - (matches expected)")
+            print(f"[PASS] STRUCTURE: field/sourceValue/detectedPattern.detectedValue - (matches expected)")
         else:
-            print(f"❌ STRUCTURE: Missing required fields - (structure mismatch)")
+            print(f"[FAIL] STRUCTURE: Missing required fields - (structure mismatch)")
         
         if value_match:
-            print(f"✅ VALUES: All values match expected - (matches expected)")
+            print(f"[PASS] VALUES: All values match expected - (matches expected)")
         else:
-            print(f"❌ VALUES: Value mismatch detected - (values don't match)")
+            print(f"[FAIL] VALUES: Value mismatch detected - (values don't match)")
         
         print()
     
@@ -456,14 +456,14 @@ def test_text_comparator_detection():
     # Run analysis and get report
     report_data = run_test_and_get_report()
     if not report_data:
-        print("❌ FAILED: Could not generate report data")
+        print("[FAIL]: Could not generate report data")
         return False
     
     # Extract text pattern concerns by platform entry
     version_text_patterns = extract_version_text_patterns(report_data)
     if not version_text_patterns:
         if show_details:
-            print("❌ FAILED: No text pattern concerns found")
+            print("[FAIL]: No text pattern concerns found")
         return False
     
 

@@ -202,18 +202,18 @@ class SDCIntegrationTestSuite:
         success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-1001", "--sdc-report")
         
         if not success:
-            print(f"❌ FAIL: SDC integration analysis failed")
+            print(f"[FAIL]: SDC integration analysis failed")
             return False
         
         validation = self.validate_enhanced_record(output_path)
         
         if not validation["has_enriched_affected"]:
-            print(f"❌ FAIL: No enhanced records for SDC integration")
+            print(f"[FAIL]: No enhanced records for SDC integration")
             return False
         
         # For basic integration, we just need to confirm SDC processing occurred
         # (doesn't require specific detections, just that the system integrated)
-        print(f"✅ PASS: SDC integration working with enhanced records")
+        print(f"[PASS]: SDC integration working with enhanced records")
         return True
     
     def test_sdc_registry_passing(self) -> bool:
@@ -223,16 +223,16 @@ class SDCIntegrationTestSuite:
         success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-1002", "--sdc-report")
         
         if not success:
-            print(f"❌ FAIL: Registry parameter passing failed")
+            print(f"[FAIL]: Registry parameter passing failed")
             return False
         
         validation = self.validate_enhanced_record(output_path)
         
         if not validation["has_tool_metadata"]:
-            print(f"❌ FAIL: No tool metadata found (registry passing issue)")
+            print(f"[FAIL]: No tool metadata found (registry passing issue)")
             return False
         
-        print(f"✅ PASS: SDC registry parameter passing validated")
+        print(f"[PASS]: SDC registry parameter passing validated")
         return True
     
     def test_sdc_metadata_placement(self) -> bool:
@@ -242,13 +242,13 @@ class SDCIntegrationTestSuite:
         success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-1003", "--sdc-report")
         
         if not success:
-            print(f"❌ FAIL: SDC metadata placement test failed")
+            print(f"[FAIL]: SDC metadata placement test failed")
             return False
         
         validation = self.validate_enhanced_record(output_path)
         
         if not validation["has_enriched_affected"]:
-            print(f"❌ FAIL: No enhanced records for metadata placement test")
+            print(f"[FAIL]: No enhanced records for metadata placement test")
             return False
         
         try:
@@ -263,14 +263,14 @@ class SDCIntegrationTestSuite:
                     break
             
             if not metadata_found:
-                print(f"❌ FAIL: toolExecutionMetadata not found in enriched entries")
+                print(f"[FAIL]: toolExecutionMetadata not found in enriched entries")
                 return False
             
-            print(f"✅ PASS: SDC metadata properly placed in enhanced records")
+            print(f"[PASS]: SDC metadata properly placed in enhanced records")
             return True
             
         except Exception as e:
-            print(f"❌ FAIL: Error checking metadata placement: {e}")
+            print(f"[FAIL]: Error checking metadata placement: {e}")
             return False
     
     def test_sdc_detection_sample(self) -> bool:

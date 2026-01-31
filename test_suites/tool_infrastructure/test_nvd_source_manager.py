@@ -163,7 +163,7 @@ class NVDSourceManagerIntegrationTestSuite:
 
     def test_badge_contents_collector_integration(self):
         """Test integration with badge contents collector."""
-        print("\n🏷️ Testing Badge Contents Collector Integration...")
+        print("\n[Badge Contents Collector Integration Test]...")
         
         try:
             # Import the actual badge contents collector
@@ -206,7 +206,7 @@ class NVDSourceManagerIntegrationTestSuite:
 
     def test_process_data_integration(self):
         """Test integration with process data module."""
-        print("\n⚙️ Testing Process Data Integration...")
+        print("\n[Process Data Integration Test]...")
         
         try:
             # Import process data module and check for source manager usage
@@ -544,7 +544,7 @@ class NVDSourceManagerIntegrationTestSuite:
 
     def test_nist_special_handling(self):
         """Test special NIST handling."""
-        print("\n🏛️ Testing NIST Special Handling...")
+        print("\n[NIST Special Handling Test]...")
         
         try:
             from analysis_tool.storage.nvd_source_manager import get_source_name
@@ -570,7 +570,7 @@ class NVDSourceManagerIntegrationTestSuite:
 
     def test_unified_source_architecture_compliance(self):
         """Test that JavaScript modules comply with unified source architecture."""
-        print("\n🏗️ Testing Unified Source Architecture Compliance...")
+        print("\n[Unified Source Architecture Compliance Test]...")
         
         # Get the project root directory
         project_root = Path(__file__).parent.parent.parent

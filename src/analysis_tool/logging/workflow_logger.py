@@ -378,13 +378,33 @@ class WorkflowLogger:
                 pass
     
     def _print_message(self, message: str):
-        """Print a message with proper encoding handling"""
+        """Print a message with proper encoding handling
+        
+        """
+        # Attempt stdout logging with multiple fallback strategies
         try:
             print(message, flush=True)
         except UnicodeEncodeError:
             # Handle Unicode encoding errors by replacing problematic characters
-            safe_message = message.encode('ascii', errors='replace').decode('ascii')
-            print(safe_message, flush=True)
+            try:
+                safe_message = message.encode('ascii', errors='replace').decode('ascii')
+                print(safe_message, flush=True)
+            except Exception:
+                # Last resort: print to stderr without flush
+                try:
+                    import sys
+                    print(f"[LOGGER DEGRADED] {message[:100]}...", file=sys.stderr)
+                except Exception:
+                    # Complete failure - silently continue (better than crashing)
+                    pass
+        except Exception:
+            # Catch ANY other print failures (file system errors, broken pipes, etc.)
+            try:
+                import sys
+                print(f"[LOGGER ERROR] Failed to log message", file=sys.stderr)
+            except Exception:
+                # Complete failure - silently continue
+                pass
         
         # Also write to log file if file logging is enabled
         if self.log_file:
@@ -393,9 +413,10 @@ class WorkflowLogger:
                 clean_message = self._strip_ansi_codes(message)
                 self.log_file.write(clean_message + '\n')
                 self.log_file.flush()
-            except Exception as e:
-                # Don't let file logging errors break the main functionality
-                print(f"Warning: Failed to write to log file: {e}")
+            except Exception:
+                # File logging failed - don't let it break the main functionality
+                # Don't even try to log this error, as logging itself may be broken
+                pass
     
     def _strip_ansi_codes(self, text: str) -> str:
         """Remove ANSI color codes from text for clean file output"""

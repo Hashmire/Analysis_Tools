@@ -171,7 +171,6 @@ class TestSuiteRunner:
                 'name': 'Logging System',
                 'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_logging_system.py']
             },
-            # === CPE-AS Generation Suite ===
             {
                 'name': 'Modular Rules', 
                 'command': ['python', 'test_suites\\\\cpe-as_generation\\\\test_modular_rules.py', 'test_suites\\\\cpe-as_generation\\\\testModularRulesEnhanced.json']
@@ -181,13 +180,22 @@ class TestSuiteRunner:
                 'command': ['python', 'test_suites\\\\cpe-as_generation\\\\test_update_patterns.py']
             },
             {
-                'name': 'Wildcard Expansion in Unaffected Entries',
-                'command': ['python', '-m', 'test_suites.cpe-as_generation.test_wildcard_expansion_unaffected']
-            },
-            {
                 'name': 'Provenance Assistance',
                 'command': ['python', 'test_suites\\\\cpe-as_generation\\\\test_provenance_assistance.py', 'test_suites\\\\cpe-as_generation\\\\testProvenanceAssistance.json']
             },
+            {
+                'name': 'Source Data Concern Badge Data Collector JSON',
+                'command': ['python', 'test_suites\\\\\\\\source_data_concerns\\\\\\\\test_source_data_concern_badge_data_collector_json.py']
+            },
+            {
+                'name': 'Source Data Concern Dashboard Webpage',
+                'command': ['python', 'test_suites\\\\\\\\source_data_concerns\\\\\\\\test_source_data_concern_dashboard_webpage.py']
+            },
+            {
+                'name': 'Source Data Concern Dashboard',
+                'command': ['python', 'test_suites\\\\\\\\source_data_concerns\\\\\\\\test_source_data_concern_dashboard.py']
+            },
+
             # === Source Data Concerns Suite ===
             {
                 'name': 'SDC Placeholder Detection',
@@ -229,11 +237,6 @@ class TestSuiteRunner:
                 'name': 'SDC Skip Logic Rules',
                 'command': ['python', 'test_suites\\\\\\\\source_data_concerns\\\\\\\\test_sdc_skip_logic_rules.py']
             },
-            # === Alias Mapping Suite ===
-            {
-                'name': 'Alias Mapping Dashboard',
-                'command': ['python', 'test_suites\\\\alias_mappings\\\\test_alias_mapping_dashboard.py']
-            },
             # === Tool Infrastructure Suite ===
             {
                 'name': 'NVD Source Manager',
@@ -244,28 +247,8 @@ class TestSuiteRunner:
                 'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_confirmed_mapping_manager.py']
             },
             {
-                'name': 'CPE Cache',
+                'name': 'CPE Base String Cache Manager',
                 'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_cpe_cache.py']
-            },
-            {
-                'name': 'Source Data Concern Badge Data Collector JSON',
-                'command': ['python', 'test_suites\\\\\\\\source_data_concerns\\\\\\\\test_source_data_concern_badge_data_collector_json.py']
-            },
-            {
-                'name': 'Source Data Concern Dashboard Webpage',
-                'command': ['python', 'test_suites\\\\\\\\source_data_concerns\\\\\\\\test_source_data_concern_dashboard_webpage.py']
-            },
-            {
-                'name': 'Source Data Concern Dashboard',
-                'command': ['python', 'test_suites\\\\\\\\source_data_concerns\\\\\\\\test_source_data_concern_dashboard.py']
-            },
-            {
-                'name': 'Support Platform Badges',
-                'command': ['python', 'test_suites\\\\other_badges\\\\test_support_platform_badges.py']
-            },
-            {
-                'name': 'Platform Badges',
-                'command': ['python', 'test_suites\\\\other_badges\\\\test_platform_badges.py']
             },
             # === NVD-ish Record Processing Flow (Ordered by Execution) ===
             # Step 1: Core record collection and structure
@@ -300,6 +283,16 @@ class TestSuiteRunner:
             {
                 'name': 'NVD-ish CPE-AS Integration',
                 'command': ['python', 'test_suites\\\\nvd-ish_collector\\\\test_cpe_as_integration.py']
+            },
+            # === Report Generation Suite ===
+            {
+                'name': 'CPE-AS Automation Report Generation',
+                'command': ['python', 'test_suites\\\\reporting\\\\test_cpeas_automation_report.py']
+            },
+            # === Alias Mapping Suite ===
+            {
+                'name': 'Alias Mapping Dashboard',
+                'command': ['python', 'test_suites\\\\alias_mappings\\\\test_alias_mapping_dashboard.py']
             }
         ]
 

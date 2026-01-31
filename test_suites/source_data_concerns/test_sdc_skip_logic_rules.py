@@ -34,7 +34,7 @@ def run_test_and_get_report():
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent.parent)
         
         if result.returncode != 0:
-            print(f"❌ Tool execution failed with return code {result.returncode}")
+            print(f"[FAIL] Tool execution failed with return code {result.returncode}")
             print(f"STDOUT: {result.stdout}")
             print(f"STDERR: {result.stderr}")
             return None
@@ -43,7 +43,7 @@ def run_test_and_get_report():
         return find_latest_test_run_report("sourceDataConcernReport.json")
             
     except Exception as e:
-        print(f"❌ Test execution failed: {e}")
+        print(f"[FAIL] Test execution failed: {e}")
         return None
 
 def extract_concerns_for_table(report_data, table_index):
@@ -323,7 +323,7 @@ def validate_test_case(test_case, all_concerns):
                     break
     
     # Generate output
-    status = "✅ PASS" if expected_present and forbidden_absent and forbidden_chars_absent else "❌ FAIL"
+    status = "[PASS]" if expected_present and forbidden_absent and forbidden_chars_absent else "[FAIL]"
     show_details = not os.environ.get('UNIFIED_TEST_RUNNER')
     
     if show_details:
@@ -355,19 +355,19 @@ def validate_test_case(test_case, all_concerns):
         
         # Validation results
         if expected_present:
-            print(f"✅ EXPECTED: All expected detections present with correct counts")
+            print(f"[PASS] EXPECTED: All expected detections present with correct counts")
         else:
-            print(f"❌ EXPECTED: Missing expected detections or incorrect counts")
+            print(f"[FAIL] EXPECTED: Missing expected detections or incorrect counts")
         
         if forbidden_absent:
-            print(f"✅ FORBIDDEN: No forbidden detections found")
+            print(f"[PASS] FORBIDDEN: No forbidden detections found")
         else:
-            print(f"❌ FORBIDDEN: Found forbidden detections")
+            print(f"[FAIL] FORBIDDEN: Found forbidden detections")
         
         if forbidden_chars_absent:
-            print(f"✅ SKIP LOGIC: Forbidden characters correctly excluded from invalid detection")
+            print(f"[PASS] SKIP LOGIC: Forbidden characters correctly excluded from invalid detection")
         else:
-            print(f"❌ SKIP LOGIC: Forbidden characters incorrectly included in invalid detection")
+            print(f"[FAIL] SKIP LOGIC: Forbidden characters incorrectly included in invalid detection")
         
         print(f"Rationale: {test_case['rationale']}")
         print()
@@ -389,11 +389,11 @@ def test_skip_logic_rules():
     # Get report data
     report_data = run_test_and_get_report()
     if not report_data:
-        print("❌ Failed to get test report")
+        print("[FAIL] Failed to get test report")
         return False
     
     if show_details:
-        print(f"✅ Report found: {find_latest_test_run_report('sourceDataConcernReport.json') or 'Unknown path'}")
+        print(f"[PASS] Report found: {find_latest_test_run_report('sourceDataConcernReport.json') or 'Unknown path'}")
     
     # Run test cases
     test_cases = get_test_cases()

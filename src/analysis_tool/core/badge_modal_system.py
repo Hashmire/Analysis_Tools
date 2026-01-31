@@ -1511,7 +1511,35 @@ def has_update_related_content(raw_platform_data):
 def get_update_patterns():
     """
     Get the comprehensive list of update transformation patterns.
-    This ensures consistency between detection and transformation functions.
+    
+    Returns a tuple of (update_patterns, kb_exclusion_patterns) where update_patterns is a list
+    of pattern dictionaries used for version string transformation.
+    
+    CRITICAL PATTERN ORDERING REQUIREMENTS:
+    ========================================
+    Pattern matching uses FIRST-MATCH semantics - the function returns as soon as a pattern matches.
+    
+    1. NUMBERED PATTERNS MUST COME BEFORE NUMBERLESS PATTERNS
+       - Numbered: '^(.+?)\\s+beta\\s*(\\d+)$' matches "2.0.0 beta 1" → base="2.0.0", update="beta1"
+       - Numberless: '^(.+?)\\s+beta$' matches "2.0.0 beta" → base="2.0.0", update="beta"
+       - If numberless comes first, it will incorrectly match "2.0.0 beta 1" as base="2.0.0 beta", update=""
+    
+    2. SPECIFIC PATTERNS BEFORE GENERAL PATTERNS
+       - More specific patterns (e.g., "cumulative update") must precede general patterns (e.g., "update")
+       - This prevents "14.0.0 cu 5" from matching as "update" instead of "cu"
+    
+    3. PRERELEASE PATTERN GROUPS (beta, alpha, rc) HAVE BOTH NUMBERED AND NUMBERLESS VARIANTS
+       - Numbered patterns handle: "2.0.0-beta.1", "2.0.0 beta 1", "2.0.0_beta_1"
+       - Numberless patterns handle: "2.0.0-beta", "2.0.0 beta", "2.0.0_beta"
+       - All separator types supported: dash (-), dot (.), underscore (_), space ( )
+       - Numberless patterns are common in package managers (npm, cargo, PyPI, etc.)
+    
+    4. OTHER PATTERN GROUPS TYPICALLY ONLY HAVE NUMBERED VARIANTS
+       - Patch, hotfix, update, etc. are rarely used without numeric components
+       - Having different pattern counts per group is intentional and reflects real-world usage
+    
+    This function ensures consistency between detection (transform_version_with_update_pattern)
+    and transformation logic across Python and JavaScript implementations.
     """
     # KB EXCLUSION PATTERNS - These patterns detect KB references and exclude them
     # KB patterns are documentation references, not version patterns
@@ -1648,60 +1676,81 @@ def get_update_patterns():
         
         
         # ===== BETA TERM GROUP =====
-        # 1. Space-separated patterns
+        # 1. Space-separated patterns (numbered - must come before numberless)
         {'pattern': r'^(.+?)\s+beta\s*(\d+)$', 'type': 'beta'},  # Handle "1.0.0 beta 1"
         {'pattern': r'^(.+?)\s+Beta\s*(\d+)$', 'type': 'beta'},  # Handle "1.0.0 Beta 1"
         {'pattern': r'^(.+?)\s+b\s*(\d+)$', 'type': 'beta'},  # Handle "1.0.0 b1"
         
-        # 2. Direct concatenation patterns
+        # 2. Direct concatenation patterns (numbered)
         {'pattern': r'^(.+?)(?<![a-zA-Z\.])beta(\d+)$', 'type': 'beta'},  # Handle "4.0.0beta1"
         {'pattern': r'^(.+?)(?<![a-zA-Z\.])b(\d+)$', 'type': 'beta'},  # Handle "4.0.0b1"
         
-        # 3. Dash-dot notation patterns
+        # 3. Dash-dot notation patterns (numbered)
         {'pattern': r'^(.+?)-beta\.(\d+)$', 'type': 'beta'},  # Handle "1.0.0-beta.1"
         
-        # 4. Flexible separator patterns
+        # 4. Flexible separator patterns (numbered)
         {'pattern': r'^(.+?)_beta_(\d+)$', 'type': 'beta'},  # Handle "1.0.0_beta_1"
         {'pattern': r'^(.+?)-beta-(\d+)$', 'type': 'beta'},  # Handle "1.0.0-beta-1"
         {'pattern': r'^(.+?)\.beta\.(\d+)$', 'type': 'beta'},  # Handle "1.0.0.beta.1"
         
+        # 0. Numberless patterns (prerelease identifiers without numeric component)
+        # MUST come after all numbered patterns to avoid false matches
+        {'pattern': r'^(.+?)-beta$', 'type': 'beta'},  # Handle "2.0.0-beta"
+        {'pattern': r'^(.+?)\.beta$', 'type': 'beta'},  # Handle "2.0.0.beta"
+        {'pattern': r'^(.+?)_beta$', 'type': 'beta'},  # Handle "2.0.0_beta"
+        {'pattern': r'^(.+?)\s+beta$', 'type': 'beta'},  # Handle "2.0.0 beta"
+        
         
         # ===== ALPHA TERM GROUP =====
-        # 1. Space-separated patterns
+        # 1. Space-separated patterns (numbered - must come before numberless)
         {'pattern': r'^(.+?)\s+alpha\s*(\d+)$', 'type': 'alpha'},  # Handle "1.0.0 alpha 1"
         {'pattern': r'^(.+?)\s+Alpha\s*(\d+)$', 'type': 'alpha'},  # Handle "1.0.0 Alpha 1"
         {'pattern': r'^(.+?)\s+a\s*(\d+)$', 'type': 'alpha'},  # Handle "1.0.0 a1"
         
-        # 2. Direct concatenation patterns
+        # 2. Direct concatenation patterns (numbered)
         {'pattern': r'^(.+?)(?<![a-zA-Z\.])alpha(\d+)$', 'type': 'alpha'},  # Handle "2.0.0alpha1"
         {'pattern': r'^(.+?)(?<![a-zA-Z\.])a(\d+)$', 'type': 'alpha'},  # Handle "2.0.0a1"
         
-        # 3. Dash-dot notation patterns
+        # 3. Dash-dot notation patterns (numbered)
         {'pattern': r'^(.+?)-alpha\.(\d+)$', 'type': 'alpha'},  # Handle "1.0.0-alpha.1"
         
-        # 4. Flexible separator patterns
+        # 4. Flexible separator patterns (numbered)
         {'pattern': r'^(.+?)_alpha_(\d+)$', 'type': 'alpha'},  # Handle "3.0.0_alpha_2"
         {'pattern': r'^(.+?)-alpha-(\d+)$', 'type': 'alpha'},  # Handle "3.0.0-alpha-2"
         {'pattern': r'^(.+?)_a_(\d+)$', 'type': 'alpha'},  # Handle "4.0.0_a_3"
         
+        # 0. Numberless patterns (prerelease identifiers without numeric component)
+        # MUST come after all numbered patterns to avoid false matches
+        {'pattern': r'^(.+?)-alpha$', 'type': 'alpha'},  # Handle "1.0.0-alpha"
+        {'pattern': r'^(.+?)\.alpha$', 'type': 'alpha'},  # Handle "1.0.0.alpha"
+        {'pattern': r'^(.+?)_alpha$', 'type': 'alpha'},  # Handle "1.0.0_alpha"
+        {'pattern': r'^(.+?)\s+alpha$', 'type': 'alpha'},  # Handle "1.0.0 alpha"
+        
         
         # ===== RELEASE_CANDIDATE TERM GROUP =====
-        # 1. Space-separated patterns
+        # 1. Space-separated patterns (numbered - must come before numberless)
         {'pattern': r'^(.+?)\s+rc\s*(\d+)$', 'type': 'rc'},  # Handle "1.0.0 rc 1"
         {'pattern': r'^(.+?)\s+RC\s*(\d+)$', 'type': 'rc'},  # Handle "1.0.0 RC 1"
         {'pattern': r'^(.+?)\s+release\s+candidate\s*(\d+)$', 'type': 'rc'},  # Handle "1.0.0 release candidate 1"
         {'pattern': r'^(.+?)\s+Release\s+Candidate\s*(\d+)$', 'type': 'rc'},  # Handle "1.0.0 Release Candidate 1"
         
-        # 2. Direct concatenation patterns
+        # 2. Direct concatenation patterns (numbered)
         {'pattern': r'^(.+?)(?<![a-zA-Z\.])rc(\d+)$', 'type': 'rc'},  # Handle "3.0.0rc1"
         
-        # 3. Dash-dot notation patterns
+        # 3. Dash-dot notation patterns (numbered)
         {'pattern': r'^(.+?)-rc\.(\d+)$', 'type': 'rc'},  # Handle "1.0.0-rc.1"
         
-        # 4. Flexible separator patterns
+        # 4. Flexible separator patterns (numbered)
         {'pattern': r'^(.+?)_rc_(\d+)$', 'type': 'rc'},  # Handle "2.0.0_rc_2"
         {'pattern': r'^(.+?)-rc-(\d+)$', 'type': 'rc'},  # Handle "2.0.0-rc-2"
         {'pattern': r'^(.+?)_release_candidate_(\d+)$', 'type': 'rc'},  # Handle "4.0.0_release_candidate_3"
+        
+        # 0. Numberless patterns (prerelease identifiers without numeric component)
+        # MUST come after all numbered patterns to avoid false matches
+        {'pattern': r'^(.+?)-rc$', 'type': 'rc'},  # Handle "3.0.0-rc"
+        {'pattern': r'^(.+?)\.rc$', 'type': 'rc'},  # Handle "3.0.0.rc"
+        {'pattern': r'^(.+?)_rc$', 'type': 'rc'},  # Handle "3.0.0_rc"
+        {'pattern': r'^(.+?)\s+rc$', 'type': 'rc'},  # Handle "3.0.0 rc"
         
         
         # ===== FIX TERM GROUP =====
@@ -1895,7 +1944,6 @@ def get_update_patterns():
         
         
         # ===== DEVICE_PACK TERM GROUP =====
-        # NOTE: Order matters! Specific patterns must come before general patterns
         
         # 1. Specific notation patterns (most specific first - must come before general patterns)
         {'pattern': r'^([^_]+)_DP(\d+)$', 'type': 'dp'},  # Handle "3.4_DP1" (original case) - exclude underscore from base

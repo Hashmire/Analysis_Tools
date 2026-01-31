@@ -32,12 +32,12 @@ def test_origin_affected_entry_alias_fields():
     """Test that originAffectedEntry preserves alias-related fields from CVE List V5"""
     
     # Create test affected entry with alias fields (simulating CVE List V5 extraction)
+    # CNA entry: vendor/product not present (schema allows this for package managers)
     test_affected_entry_cna = {
         'source': 'patrick@puiterwijk.org',
         'container_type': 'cna',
         'entry_index': 0,
-        'vendor': None,
-        'product': None,
+        # vendor and product intentionally omitted (valid per CVE List V5 schema)
         'collectionURL': 'https://github.com/moodle/moodle',
         'packageName': 'moodle',
         'defaultStatus': 'unaffected',
@@ -73,18 +73,20 @@ def test_origin_affected_entry_alias_fields():
         'cpes': ['cpe:2.3:a:moodle:moodle:-:*:*:*:*:*:*:*']
     }
     
-    # Test the logic that builds originAffectedEntry (from lines 470-485 in nvd_ish_collector.py)
-    # Test Case 1: CNA entry with collectionURL and packageName
+    # Test the logic that builds originAffectedEntry (from lines 468-487 in nvd_ish_collector.py)
+    # Test Case 1: CNA entry with collectionURL and packageName (no vendor/product)
     origin_cna = {
         'sourceId': test_affected_entry_cna.get('source', 'unknown_source'),
         'cvelistv5AffectedEntryIndex': f'cve.containers.{test_affected_entry_cna.get("container_type", "unknown")}.affected.[{test_affected_entry_cna.get("entry_index", 0)}]',
-        'vendor': test_affected_entry_cna.get('vendor'),
-        'product': test_affected_entry_cna.get('product'),
-        'defaultStatus': test_affected_entry_cna.get('defaultStatus'),
         'versions': test_affected_entry_cna.get('versions', []),
         'platforms': test_affected_entry_cna.get('platforms', []),
         'cpes': test_affected_entry_cna.get('cpes', [])
     }
+    
+    # Copy optional fields only if present in source (don't add null values)
+    for field in ['vendor', 'product', 'defaultStatus']:
+        if field in test_affected_entry_cna:
+            origin_cna[field] = test_affected_entry_cna[field]
     
     # Copy alias-related fields if present (THIS IS THE CODE WE'RE TESTING)
     for field in ['collectionURL', 'packageName', 'repo', 'modules', 'programRoutines', 'programFiles']:
@@ -107,28 +109,30 @@ def test_origin_affected_entry_alias_fields():
         print(f"FAIL: packageName value incorrect: {origin_cna.get('packageName')}")
         return False
     
-    # Verify vendor/product are null
-    if origin_cna.get('vendor') is not None:
-        print(f"FAIL: vendor should be None, got: {origin_cna.get('vendor')}")
+    # Verify vendor/product NOT present when not in source (schema allows omission)
+    if 'vendor' in origin_cna:
+        print(f"FAIL: vendor should not be present when not in source, but found: {origin_cna['vendor']}")
         return False
     
-    if origin_cna.get('product') is not None:
-        print(f"FAIL: product should be None, got: {origin_cna.get('product')}")
+    if 'product' in origin_cna:
+        print(f"FAIL: product should not be present when not in source, but found: {origin_cna['product']}")
         return False
     
-    print("PASS: CNA entry - collectionURL and packageName preserved correctly")
+    print("PASS: CNA entry - collectionURL and packageName preserved, vendor/product omitted correctly")
     
-    # Test Case 2: ADP entry with repo field
+    # Test Case 2: ADP entry with repo field and vendor/product present
     origin_adp = {
         'sourceId': test_affected_entry_adp.get('source', 'unknown_source'),
         'cvelistv5AffectedEntryIndex': f'cve.containers.{test_affected_entry_adp.get("container_type", "unknown")}.affected.[{test_affected_entry_adp.get("entry_index", 0)}]',
-        'vendor': test_affected_entry_adp.get('vendor'),
-        'product': test_affected_entry_adp.get('product'),
-        'defaultStatus': test_affected_entry_adp.get('defaultStatus'),
         'versions': test_affected_entry_adp.get('versions', []),
         'platforms': test_affected_entry_adp.get('platforms', []),
         'cpes': test_affected_entry_adp.get('cpes', [])
     }
+    
+    # Copy optional fields only if present in source (don't add null values)
+    for field in ['vendor', 'product', 'defaultStatus']:
+        if field in test_affected_entry_adp:
+            origin_adp[field] = test_affected_entry_adp[field]
     
     # Copy alias-related fields if present (THIS IS THE CODE WE'RE TESTING)
     for field in ['collectionURL', 'packageName', 'repo', 'modules', 'programRoutines', 'programFiles']:

@@ -45,7 +45,7 @@ def run_test_and_get_report():
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent.parent, env=env)
         
         if result.returncode != 0:
-            print(f"❌ Tool execution failed with return code {result.returncode}")
+            print(f"[FAIL] Tool execution failed with return code {result.returncode}")
             print(f"STDOUT: {result.stdout}")
             print(f"STDERR: {result.stderr}")
             return None
@@ -54,7 +54,7 @@ def run_test_and_get_report():
         return find_latest_test_run_report("sourceDataConcernReport.json")
     
     except Exception as e:
-        print(f"❌ Error running test: {e}")
+        print(f"[FAIL] Error running test: {e}")
         return None
 
 
@@ -65,7 +65,7 @@ def extract_all_versions_patterns(report_data):
     try:
         # Navigate through the report structure
         if 'cve_data' not in report_data:
-            print("❌ No cve_data found in report")
+            print("[FAIL] No cve_data found in report")
             return patterns
         
         for cve_entry in report_data['cve_data']:
@@ -100,7 +100,7 @@ def extract_all_versions_patterns(report_data):
                                 patterns.append(pattern_info)
     
     except Exception as e:
-        print(f"❌ Error extracting patterns: {e}")
+        print(f"[FAIL] Error extracting patterns: {e}")
     
     return patterns
 
@@ -261,7 +261,7 @@ def main():
     # Run test and get report
     report_data = run_test_and_get_report()
     if not report_data:
-        print("❌ FAILED: Could not generate report data")
+        print("[FAIL]: Could not generate report data")
         print(f"TEST_RESULTS: PASSED=0 TOTAL=8 SUITE=\"SDC All Versions Pattern Detection\"")
         return False
     
@@ -289,10 +289,10 @@ def main():
         test_passed = validation['count_match'] and validation['structure_match'] and validation['value_match']
         
         if test_passed:
-            print(f"✅ PASS - Test: {test_case['description']}")
+            print(f"[PASS] - Test: {test_case['description']}")
             passed += 1
         else:
-            print(f"❌ FAIL - Test: {test_case['description']}")
+            print(f"[FAIL] - Test: {test_case['description']}")
         
         # Show detailed check results
         checks_performed = []
@@ -317,9 +317,9 @@ def main():
                 print(f"Found: 0 concerns | No matching concerns found")
         
         # Individual validation results
-        count_status = "✅" if validation['count_match'] else "❌"
-        structure_status = "✅" if validation['structure_match'] else "❌"  
-        value_status = "✅" if validation['value_match'] else "❌"
+        count_status = "[PASS]" if validation['count_match'] else "[FAIL]"
+        structure_status = "[PASS]" if validation['structure_match'] else "[FAIL]"  
+        value_status = "[PASS]" if validation['value_match'] else "[FAIL]"
         
         print(f"{count_status} COUNT: {len(test_concerns)} concerns - ({'matches expected' if validation['count_match'] else 'does not match expected'})")
         print(f"{structure_status} STRUCTURE: field/sourceValue/detectedPattern.detectedValue - ({'matches expected' if validation['structure_match'] else 'does not match expected'})")

@@ -790,6 +790,143 @@ class TestPattern3_5_MultipleRanges(unittest.TestCase):
 
 
 # ============================================================================
+# UNIT TESTS: Wildcard Expansion in Unaffected Entries
+# ============================================================================
+
+class TestWildcardExpansionUnaffected(unittest.TestCase):
+    """Test wildcard expansion detection in unaffected entries."""
+    
+    def test_unaffected_with_wildcard_in_lessThanOrEqual(self):
+        """Unaffected entries with wildcards in lessThanOrEqual get wildcard concern."""
+        from src.analysis_tool.core.cpe_as_generator import handle_pattern_3_4
+        
+        affected_entry = {
+            "vendor": "Linux",
+            "product": "Linux",
+            "defaultStatus": "affected",
+        }
+        
+        cpe_base_string = "cpe:2.3:o:linux:linux_kernel:*:*:*:*:*:*:*:*"
+        
+        versions = [
+            {
+                "version": "6.12.67",
+                "lessThanOrEqual": "6.12.*",
+                "status": "unaffected",
+                "versionType": "semver"
+            },
+            {
+                "version": "6.18.7",
+                "lessThanOrEqual": "6.18.*",
+                "status": "unaffected",
+                "versionType": "semver"
+            }
+        ]
+        
+        results = handle_pattern_3_4(
+            affected_entry=affected_entry,
+            cpe_base_string=cpe_base_string,
+            versions=versions,
+            has_confirmed_mapping=True
+        )
+        
+        self.assertEqual(len(results), 2)
+        
+        for idx, result in enumerate(results):
+            concerns = result.get('concerns', [])
+            
+            # Verify both concerns present
+            self.assertIn('statusUnaffected', concerns, 
+                         f"Entry {idx}: Missing 'statusUnaffected' in concerns")
+            self.assertIn('inferredAffectedFromWildcardExpansion', concerns,
+                         f"Entry {idx}: Missing 'inferredAffectedFromWildcardExpansion' in concerns")
+            
+            # Verify vulnerable=False for unaffected entries
+            self.assertEqual(result.get('vulnerable'), False,
+                           f"Entry {idx}: Expected vulnerable=False")
+    
+    def test_affected_with_wildcard_regression(self):
+        """Affected entries with wildcards still work correctly (regression check)."""
+        from src.analysis_tool.core.cpe_as_generator import handle_pattern_3_4
+        
+        affected_entry = {
+            "vendor": "Example",
+            "product": "Product",
+            "defaultStatus": "affected",
+        }
+        
+        cpe_base_string = "cpe:2.3:a:example:product:*:*:*:*:*:*:*:*"
+        
+        versions = [
+            {
+                "version": "1.0",
+                "lessThanOrEqual": "1.2.*",
+                "status": "affected",
+                "versionType": "semver"
+            }
+        ]
+        
+        results = handle_pattern_3_4(
+            affected_entry=affected_entry,
+            cpe_base_string=cpe_base_string,
+            versions=versions,
+            has_confirmed_mapping=True
+        )
+        
+        result = results[0]
+        concerns = result.get('concerns', [])
+        
+        # Should have wildcard concern
+        self.assertIn('inferredAffectedFromWildcardExpansion', concerns,
+                     "Missing wildcard concern for affected entry")
+        
+        # Should NOT have statusUnaffected
+        self.assertNotIn('statusUnaffected', concerns,
+                        "Affected entry should not have statusUnaffected")
+        
+        # Should be vulnerable
+        self.assertEqual(result.get('vulnerable'), True)
+        
+        # Should have criteria
+        self.assertIn('criteria', result)
+    
+    def test_unaffected_without_wildcard_regression(self):
+        """Unaffected entries without wildcards only have statusUnaffected concern."""
+        from src.analysis_tool.core.cpe_as_generator import handle_pattern_3_4
+        
+        affected_entry = {
+            "vendor": "Example",
+            "product": "Product",
+            "defaultStatus": "affected",
+        }
+        
+        cpe_base_string = "cpe:2.3:a:example:product:*:*:*:*:*:*:*:*"
+        
+        versions = [
+            {
+                "version": "2.0",
+                "lessThanOrEqual": "3.0",
+                "status": "unaffected",
+                "versionType": "semver"
+            }
+        ]
+        
+        results = handle_pattern_3_4(
+            affected_entry=affected_entry,
+            cpe_base_string=cpe_base_string,
+            versions=versions,
+            has_confirmed_mapping=True
+        )
+        
+        result = results[0]
+        concerns = result.get('concerns', [])
+        
+        # Should only have statusUnaffected
+        self.assertEqual(concerns, ['statusUnaffected'],
+                        "Expected only statusUnaffected concern for non-wildcard unaffected entry")
+
+
+# ============================================================================
 # UNIT TESTS: versionType="git" Handling (Section 6.1)
 # ============================================================================
 
@@ -1198,7 +1335,7 @@ class CPEASIntegrationTestSuite:
         import hashlib
         
         # Sharded cache configuration
-        cache_shards_dir = CACHE_DIR / "cpe_shards"
+        cache_shards_dir = CACHE_DIR / "cpe_base_strings"
         cache_shards_dir.mkdir(parents=True, exist_ok=True)
         num_shards = 16
         
@@ -2230,6 +2367,7 @@ if __name__ == "__main__":
     unit_suite.addTests(loader.loadTestsFromTestCase(TestPattern3_3_ExactVersions))
     unit_suite.addTests(loader.loadTestsFromTestCase(TestPattern3_4_SingleRangePerEntry))
     unit_suite.addTests(loader.loadTestsFromTestCase(TestPattern3_5_MultipleRanges))
+    unit_suite.addTests(loader.loadTestsFromTestCase(TestWildcardExpansionUnaffected))
     unit_suite.addTests(loader.loadTestsFromTestCase(TestVersionTypeGit))
     unit_suite.addTests(loader.loadTestsFromTestCase(TestSection4_2_UpdateFieldSpecificity))
     unit_suite.addTests(loader.loadTestsFromTestCase(TestPatternUnsupported))

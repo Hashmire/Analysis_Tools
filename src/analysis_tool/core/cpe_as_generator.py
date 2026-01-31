@@ -49,15 +49,15 @@ from typing import Dict, List, Any, Optional, Tuple
 import re
 
 # Import existing utilities from other modules
-from src.analysis_tool.core.badge_modal_system import (
+from .badge_modal_system import (
     VERSION_PLACEHOLDER_VALUES,
     GENERAL_PLACEHOLDER_VALUES,
     determine_vulnerability_from_status,
     analyze_update_patterns,
     transform_version_with_update_pattern
 )
-from src.analysis_tool.core.processData import formatFor23CPE
-from src.analysis_tool.logging.workflow_logger import get_logger
+from .processData import formatFor23CPE
+from ..logging.workflow_logger import get_logger
 
 # Initialize logger
 logger = get_logger()

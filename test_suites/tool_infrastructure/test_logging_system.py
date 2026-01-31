@@ -1085,7 +1085,7 @@ class TestAuditSystemConfiguration(LoggingSystemTestSuite):
 
 def run_logging_tests():
     """Run the complete logging system test suite."""
-    print("🧪 Running Logging System Test Suite")
+    print("Running Logging System Test Suite")
     print("=" * 60)
     
     # Create test suite

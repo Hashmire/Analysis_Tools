@@ -466,20 +466,19 @@ class NVDishCollector:
                     # Each affected entry becomes a complete analysis object with all sub-sections
                     # ORDER: originAffectedEntry → sourceDataConcerns → aliasExtraction → cpeDetermination → cpeAsGeneration
                     for affected_entry in affected_data:
-                        # Build originAffectedEntry with all fields from CVE List V5
+                        # Build originAffectedEntry from CVE List V5 affected entry
                         origin_entry = {
+                            # Tool-generated mandatory fields
                             'sourceId': affected_entry.get('source', 'unknown_source'),
                             'cvelistv5AffectedEntryIndex': f'cve.containers.{affected_entry.get("container_type", "unknown")}.affected.[{affected_entry.get("entry_index", 0)}]',
-                            'vendor': affected_entry.get('vendor'),
-                            'product': affected_entry.get('product'),
-                            'defaultStatus': affected_entry.get('defaultStatus'),  # Preserve defaultStatus for CPE-AS generator
+                            # Core version/status data (always present with defaults)
                             'versions': affected_entry.get('versions', []),
-                            'platforms': affected_entry.get('platforms', []),
-                            'cpes': affected_entry.get('cpes', [])
+                            'defaultStatus': affected_entry.get('defaultStatus')
                         }
                         
-                        # Copy alias-related fields if present
-                        for field in ['collectionURL', 'packageName', 'repo', 'modules', 'programRoutines', 'programFiles']:
+                        # Copy all alias-related fields if present
+                        for field in ['vendor', 'product', 'repo', 'collectionURL', 'packageName',
+                                      'platforms', 'modules', 'programRoutines', 'programFiles', 'cpes']:
                             if field in affected_entry:
                                 origin_entry[field] = affected_entry[field]
                         
