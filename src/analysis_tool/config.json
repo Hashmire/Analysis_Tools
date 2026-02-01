@@ -156,7 +156,8 @@
             "cve_list": "https://cveawg.mitre.org/api/cve/",
             "nvd_cves": "https://services.nvd.nist.gov/rest/json/cves/2.0/",
             "nvd_sources": "https://services.nvd.nist.gov/rest/json/source/2.0/",
-            "nvd_cpes": "https://services.nvd.nist.gov/rest/json/cpes/2.0"
+            "nvd_cpes": "https://services.nvd.nist.gov/rest/json/cpes/2.0",
+            "nvd_cpematch": "https://services.nvd.nist.gov/rest/json/cpematch/2.0"
         },
         "external_assets": {
             "enabled": false,

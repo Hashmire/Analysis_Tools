@@ -105,6 +105,50 @@ class ShardedCPECache:
         """Get filename for specific shard."""
         return f"cpe_cache_shard_{shard_index:02d}.json"
     
+    @staticmethod
+    def load_shard_from_disk(shard_path: Path) -> Dict[str, Any]:
+        """Load a shard file from disk (static utility for external use).
+        
+        Args:
+            shard_path: Path to shard file
+            
+        Returns:
+            Dict of cache entries, or empty dict if file doesn't exist
+            
+        Raises:
+            RuntimeError: If shard file exists but cannot be loaded (prevents data loss)
+        """
+        if not shard_path.exists():
+            return {}
+        
+        try:
+            with open(shard_path, 'rb') as f:
+                return orjson.loads(f.read())
+        except Exception as e:
+            # CRITICAL: Do not return empty dict when file exists but fails to load
+            # Returning {} would cause save_all_shards() to overwrite existing data
+            error_msg = f"CRITICAL: Shard file exists but failed to load: {shard_path.name} - {e}"
+            logger.error(error_msg, group="cpe_queries")
+            raise RuntimeError(error_msg) from e
+    
+    @staticmethod
+    def save_shard_to_disk(shard_path: Path, shard_data: Dict[str, Any]) -> None:
+        """Save a shard file to disk using compact JSON (static utility for external use).
+        
+        Args:
+            shard_path: Path to shard file
+            shard_data: Dict of cache entries to save
+            
+        Note:
+            Logs warning on failure but does not raise - allows cache to continue
+            building in memory and retry save on next attempt.
+        """
+        try:
+            with open(shard_path, 'wb') as f:
+                f.write(orjson.dumps(shard_data))
+        except Exception as e:
+            logger.warning(f"Failed to save shard {shard_path.name}: {e} - will retry on next save", group="cpe_queries")
+    
     def _load_shard(self, shard_index: int) -> Dict[str, Any]:
         """Lazy load a single shard into memory."""
         if shard_index in self.loaded_shards:
@@ -112,21 +156,16 @@ class ShardedCPECache:
         
         shard_path = self.cache_dir / self._get_shard_filename(shard_index)
         
-        if shard_path.exists():
-            start_time = time.time()
-            try:
-                with open(shard_path, 'rb') as f:
-                    self.loaded_shards[shard_index] = orjson.loads(f.read())
-                load_time = time.time() - start_time
-                logger.debug(
-                    f"Loaded shard {shard_index}: {len(self.loaded_shards[shard_index])} entries in {load_time:.3f}s",
-                    group="cpe_queries"
-                )
-            except Exception as e:
-                logger.warning(f"Failed to load shard {shard_index}: {e} - starting with empty shard", group="cpe_queries")
-                self.loaded_shards[shard_index] = {}
+        start_time = time.time()
+        self.loaded_shards[shard_index] = self.load_shard_from_disk(shard_path)
+        
+        if self.loaded_shards[shard_index]:
+            load_time = time.time() - start_time
+            logger.debug(
+                f"Loaded shard {shard_index}: {len(self.loaded_shards[shard_index])} entries in {load_time:.3f}s",
+                group="cpe_queries"
+            )
         else:
-            self.loaded_shards[shard_index] = {}
             logger.debug(f"Shard {shard_index} does not exist - created empty shard", group="cpe_queries")
         
         return self.loaded_shards[shard_index]
@@ -140,17 +179,12 @@ class ShardedCPECache:
         shard_data = self.loaded_shards[shard_index]
         
         start_time = time.time()
-        try:
-            with open(shard_path, 'wb') as f:
-                # Use compact JSON (no OPT_INDENT_2) to save ~76% file size
-                f.write(orjson.dumps(shard_data))
-            save_time = time.time() - start_time
-            logger.debug(
-                f"Saved shard {shard_index}: {len(shard_data)} entries in {save_time:.3f}s",
-                group="cpe_queries"
-            )
-        except Exception as e:
-            logger.error(f"Failed to save shard {shard_index}: {e}", group="cpe_queries")
+        self.save_shard_to_disk(shard_path, shard_data)
+        save_time = time.time() - start_time
+        logger.debug(
+            f"Saved shard {shard_index}: {len(shard_data)} entries in {save_time:.3f}s",
+            group="cpe_queries"
+        )
     
     def _load_metadata(self) -> None:
         """Load cache metadata from unified metadata file."""
@@ -179,8 +213,10 @@ class ShardedCPECache:
                 try:
                     with open(self.metadata_file, 'rb') as f:
                         unified_metadata = orjson.loads(f.read())
-                except:
-                    pass
+                except Exception as e:
+                    # Metadata file exists but can't be loaded - log but continue with empty dict
+                    # This is non-critical (only affects statistics, not actual cache data)
+                    logger.warning(f"Metadata file exists but failed to load: {e} - using empty metadata", group="cpe_queries")
             
             # Update CPE cache section
             if 'datasets' not in unified_metadata:
@@ -196,8 +232,16 @@ class ShardedCPECache:
         except Exception as e:
             logger.error(f"Failed to save cache metadata: {e}", group="cpe_queries")
     
-    def _get_entry_timestamp(self, entry: Dict[str, Any]) -> datetime:
-        """Get timestamp from cache entry."""
+    @staticmethod
+    def parse_cache_entry_timestamp(entry: Dict[str, Any]) -> datetime:
+        """Parse timestamp from cache entry (static utility for external use).
+        
+        Args:
+            entry: Cache entry dict with 'last_queried' field
+            
+        Returns:
+            Timezone-aware datetime object
+        """
         timestamp_str = entry.get('last_queried')
         parsed_timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
         
@@ -206,6 +250,10 @@ class ShardedCPECache:
             parsed_timestamp = parsed_timestamp.replace(tzinfo=timezone.utc)
         
         return parsed_timestamp
+    
+    def _get_entry_timestamp(self, entry: Dict[str, Any]) -> datetime:
+        """Get timestamp from cache entry (delegates to static method)."""
+        return self.parse_cache_entry_timestamp(entry)
     
     def _is_expired(self, entry: Dict[str, Any]) -> bool:
         """Check if a cache entry has expired."""
@@ -490,8 +538,8 @@ class ShardedCPECache:
             self.log_session_stats()
             self.flush()
         except Exception as e:
-            logger.error(f"Failed to save cache during context manager exit: {e}", group="cpe_queries")
-            # Don't raise - allow cleanup to complete gracefully
+            logger.warning(f"Failed to save cache during context manager exit: {e}", group="cpe_queries")
+            # Don't raise - cache remains in memory for retry on next save
             return False
 
 # Global cache manager instance

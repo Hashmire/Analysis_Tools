@@ -2226,22 +2226,29 @@ def curateCPEAttributes(case, attributeString1, attributeString2):
                     '32-bit',
                     '32 bit',
                     'x32',
+                    'i386',
+                    'i686',
                     'x86-based systems',
                     '32-bit systems'
                 },
                 'x64': {
                     'x86_64',
                     'x64',
+                    'amd64',
                     '64-bit',
                     '64 bit',
+                    'x86-64',
                     'x64-based systems'
                 },
                 'arm': {
-                    'arm'
+                    'arm',
+                    'armv7',
+                    'armv7l'
                 },
                 'arm64': {
                     'arm64',
                     'aarch64',
+                    'armv8',
                     'arm64-based systems'
                 }
             }
@@ -2609,6 +2616,7 @@ def is_nvd_api_compatible(cpe_string):
        (90 characters when including wildcards at start/end like *value*)
     3. Rejects total CPE string length > 375 characters
     4. Rejects complex escaped comma patterns when string is long
+    5. Rejects percent signs (%) in vendor/product fields
     
     Note: This is NOT a full CPE 2.3 specification validator - it only checks for known NVD API issues.
     """
@@ -2660,6 +2668,10 @@ def is_nvd_api_compatible(cpe_string):
             if any(ord(char) > 127 for char in value):
                 non_ascii_chars = [char for char in value if ord(char) > 127]
                 return False, f"Field {field_name} contains non-ASCII characters ({non_ascii_chars}) - will cause NVD API rejection"
+            
+            # Check for percent signs in vendor/product fields (NVD API rejects these)
+            if field_name in ['vendor', 'product'] and '%' in value:
+                return False, f"Field {field_name} contains percent sign (%) - NVD API rejects this character even when URL-encoded"
             
             # Empirically observed: NVD API rejects vendor/product names longer than 88 characters
             # (90 characters when including wildcards at start/end like *value*)

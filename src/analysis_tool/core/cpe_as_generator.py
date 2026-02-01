@@ -489,22 +489,27 @@ def classify_pattern(
     has_multiple_ranges = False
     
     for version_entry in versions:
+        # Skip git versionType - these are metadata-only
+        version_type = version_entry.get('versionType')
+        if version_type and version_type.lower() == 'git':
+            continue
+            
         # Check for range operators
         has_less_than = 'lessThan' in version_entry or 'lessThanOrEqual' in version_entry
         
-        # Check for changes array
+        # Check for changes array - but count VALID changes only (non-placeholder values)
         changes = version_entry.get('changes', [])
-        has_changes = len(changes) > 0
+        valid_changes = [
+            c for c in changes 
+            if c.get('at') and not is_version_placeholder(c.get('at'))
+        ]
+        has_changes = len(valid_changes) > 0
         
         if has_less_than or has_changes:
             has_ranges = True
             
-            # Check if this entry would produce multiple ranges (Pattern 3.5)
-            if has_changes and len(changes) > 1:
-                # Multiple status transitions → Pattern 3.5
-                has_multiple_ranges = True
-            elif has_less_than and has_changes:
-                # Changes combined with range bounds → Pattern 3.5
+            # Pattern 3.5: Multiple status transitions or lessThan + changes create multiple ranges
+            if len(valid_changes) > 1 or (has_less_than and len(valid_changes) >= 1):
                 has_multiple_ranges = True
     
     if has_multiple_ranges:
@@ -748,6 +753,18 @@ def handle_pattern_3_3(
     default_status = affected_entry.get('defaultStatus', 'unknown')
     results = []
     
+    # PRE-SCAN: Check if ANY version in this entry's versions array has wildcard expansion pattern
+    # If detected, this concern applies to ALL versions in this affected entry
+    entry_has_wildcard_expansion = False
+    for version_entry in versions:
+        version_value = version_entry.get('version')
+        if isinstance(version_value, str) and has_wildcard_expansion_pattern(version_value):
+            entry_has_wildcard_expansion = True
+            logger.debug(
+                f"Pattern 3.3: Wildcard expansion detected in entry - will apply to all versions"
+            )
+            break
+    
     # Process each version entry independently (1:1 transformation)
     for index, version_entry in enumerate(versions):
         version_value = version_entry.get('version')
@@ -772,13 +789,10 @@ def handle_pattern_3_3(
         # Determine status (version.status overrides defaultStatus)
         status = version_entry.get('status', default_status)
         
-        # Check for wildcard expansion patterns in version value
+        # Initialize concerns with entry-level wildcard detection
         concerns = []
-        if isinstance(version_value, str) and has_wildcard_expansion_pattern(version_value):
+        if entry_has_wildcard_expansion:
             concerns.append("inferredAffectedFromWildcardExpansion")
-            logger.debug(
-                f"Pattern 3.3: Wildcard expansion pattern detected in version '{version_value}' at index {index}"
-            )
         
         # Handle different status values
         if status == 'affected':
@@ -921,6 +935,24 @@ def handle_pattern_3_4(
     default_status = affected_entry.get('defaultStatus', 'unknown')
     results = []
     
+    # PRE-SCAN: Check if ANY version in this entry's versions array has wildcard expansion pattern
+    # If detected, this concern applies to ALL versions in this affected entry
+    # Check in: version, lessThan, lessThanOrEqual fields
+    entry_has_wildcard_expansion = False
+    for version_entry in versions:
+        version_value = version_entry.get('version')
+        less_than = version_entry.get('lessThan')
+        less_than_or_equal = version_entry.get('lessThanOrEqual')
+        
+        if (version_value and isinstance(version_value, str) and has_wildcard_expansion_pattern(version_value)) or \
+           (less_than and isinstance(less_than, str) and has_wildcard_expansion_pattern(less_than)) or \
+           (less_than_or_equal and isinstance(less_than_or_equal, str) and has_wildcard_expansion_pattern(less_than_or_equal)):
+            entry_has_wildcard_expansion = True
+            logger.debug(
+                f"Pattern 3.4: Wildcard expansion detected in entry - will apply to all versions"
+            )
+            break
+    
     # Process each version entry independently (1:1 transformation)
     for index, version_entry in enumerate(versions):
         version_value = version_entry.get('version')
@@ -947,35 +979,13 @@ def handle_pattern_3_4(
         
         # Get changes array early to check for inverse changes (unaffected→affected)
         changes = version_entry.get('changes', [])
-        
-        # EARLY WILDCARD DETECTION: Check for wildcards in any range fields BEFORE status filtering
-        # This ensures unaffected/unknown entries also get wildcard expansion concerns
-        early_wildcard_concerns = []
         less_than = version_entry.get('lessThan')
         less_than_or_equal = version_entry.get('lessThanOrEqual')
         
-        # Check version field for wildcard expansion patterns
-        if version_value and isinstance(version_value, str) and has_wildcard_expansion_pattern(version_value):
+        # Initialize wildcard concerns from entry-level detection
+        early_wildcard_concerns = []
+        if entry_has_wildcard_expansion:
             early_wildcard_concerns.append("inferredAffectedFromWildcardExpansion")
-            logger.debug(
-                f"Pattern 3.4: Wildcard expansion pattern detected in version '{version_value}' at index {index}"
-            )
-        
-        # Check lessThan field for wildcard expansion patterns
-        if less_than and isinstance(less_than, str) and has_wildcard_expansion_pattern(less_than):
-            if "inferredAffectedFromWildcardExpansion" not in early_wildcard_concerns:
-                early_wildcard_concerns.append("inferredAffectedFromWildcardExpansion")
-            logger.debug(
-                f"Pattern 3.4: Wildcard expansion pattern detected in lessThan '{less_than}' at index {index}"
-            )
-        
-        # Check lessThanOrEqual field for wildcard expansion patterns
-        if less_than_or_equal and isinstance(less_than_or_equal, str) and has_wildcard_expansion_pattern(less_than_or_equal):
-            if "inferredAffectedFromWildcardExpansion" not in early_wildcard_concerns:
-                early_wildcard_concerns.append("inferredAffectedFromWildcardExpansion")
-            logger.debug(
-                f"Pattern 3.4: Wildcard expansion pattern detected in lessThanOrEqual '{less_than_or_equal}' at index {index}"
-            )
         
         # Check for inverse change (Pattern E: unaffected→affected)
         # This must be checked BEFORE the unaffected status check
@@ -1298,7 +1308,7 @@ def handle_pattern_3_5(
         less_than_or_equal = version_entry.get('lessThanOrEqual')
         version_type = version_entry.get('versionType')
         
-        # Skip if versionType is 'git' - already handled in Pattern 3.3/3.4
+        # Skip if versionType is 'git' - generate metadata-only cpeMatch
         if version_type and version_type.lower() == 'git':
             if has_confirmed_mapping:
                 cpe_match = create_ordered_cpe_match(
@@ -1312,13 +1322,19 @@ def handle_pattern_3_5(
                 logger.debug(f"Pattern 3.5: Git version at index {index} → metadata-only cpeMatch")
             continue
         
-        # Skip entries without multiple transitions
-        if len(changes) <= 1 and not (changes and (less_than or less_than_or_equal)):
-            # Not actually Pattern 3.5 - should have been classified as 3.3 or 3.4
-            # Generate metadata-only cpeMatch with patternUnsupported concern
+        # Validate that this entry actually has multiple valid transitions
+        # (Classifier should have caught this, but double-check for data integrity)
+        valid_changes = [c for c in changes if c.get('at') and not is_version_placeholder(c.get('at'))]
+        
+        if len(valid_changes) <= 1 and not (valid_changes and (less_than or less_than_or_equal)):
+            # Classification mismatch - this should be Pattern 3.3 or 3.4, not 3.5
+            # This indicates either:
+            # 1. Data changed between classification and handling (very rare)
+            # 2. Bug in classifier (should be fixed if this occurs frequently)
             logger.warning(
-                f"Pattern 3.5: Entry at index {index} doesn't have multiple ranges, "
-                f"expected Pattern 3.3 or 3.4 | Generating metadata-only cpeMatch"
+                f"Pattern 3.5: Entry at index {index} doesn't have multiple valid ranges "
+                f"(only {len(valid_changes)} valid changes) | "
+                f"Classification mismatch - generating metadata-only cpeMatch"
             )
             
             concern_type = _determine_cpe_confirmation_concern(cpe_suggestion_context) if not has_confirmed_mapping else None

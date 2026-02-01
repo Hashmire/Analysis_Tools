@@ -1080,43 +1080,30 @@ class TestPatternUnsupported(unittest.TestCase):
         self.assertIn('patternUnsupported', result[0].get('concerns', []))
         self.assertNotIn('criteria', result[0])
     
-    def test_pattern_3_5_insufficient_ranges(self):
-        """Pattern 3.5: Generate patternUnsupported when entry doesn't have multiple ranges."""
-        from src.analysis_tool.core.cpe_as_generator import handle_pattern_3_5
+    def test_pattern_classification_single_change(self):
+        """Pattern Classification: lessThan + single change → Pattern 3.5 (multiple ranges)."""
+        from src.analysis_tool.core.cpe_as_generator import classify_pattern
         
         affected_entry = {
             'vendor': 'test',
             'product': 'app',
-            'defaultStatus': 'affected',
+            'defaultStatus': 'unaffected',
             'versions': [
                 {
-                    'version': '1.0',
+                    'version': '2.0',
+                    'lessThan': '2.5',
                     'status': 'affected',
                     'changes': [
-                        {'at': '1.5', 'status': 'unaffected'}
+                        {'at': '2.3.1', 'status': 'unaffected'}
                     ]
-                    # Only one change, no lessThan/lessThanOrEqual - not actually Pattern 3.5
                 }
             ]
         }
         
-        cpe_base_string = 'cpe:2.3:a:test:app:*:*:*:*:*:*:*:*'
-        versions = affected_entry['versions']
+        pattern = classify_pattern(affected_entry, affected_entry['versions'])
         
-        result = handle_pattern_3_5(
-            affected_entry, 
-            cpe_base_string, 
-            versions,
-            has_confirmed_mapping=True
-        )
-        
-        # Should generate metadata-only cpeMatch with patternUnsupported concern
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0].get('versionsEntryIndex'), 0)
-        self.assertEqual(result[0].get('vulnerable'), False)
-        self.assertIn('patternUnsupported', result[0].get('concerns', []))
-        self.assertNotIn('criteria', result[0])
-        self.assertIsNone(result[0].get('appliedPattern'))
+        self.assertEqual(pattern, "3.5", 
+            "lessThan + single change creates multiple ranges")
     
     def test_pattern_3_4_mixed_exact_and_ranges(self):
         """Pattern 3.4: Handle mixed entry with both exact versions and ranges (Linux kernel pattern)."""
