@@ -466,6 +466,57 @@ def test_cache_disabled_workflow():
     print("[OK] Cache DISABLED workflow validated")
     return True
 
+def test_atomic_write_safety():
+    """Integration test: Verify atomic writes prevent corruption"""
+    print("Testing ATOMIC write safety...")
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        shard_path = Path(tmpdir) / "test_shard.json"
+        
+        # Test 1: Normal write succeeds
+        test_data = {"cpe:2.3:a:test:prod": {"totalResults": 5, "last_queried": "2026-01-01T00:00:00Z"}}
+        ShardedCPECache.save_shard_to_disk(shard_path, test_data)
+        
+        assert shard_path.exists(), "Shard file should exist after save"
+        loaded = ShardedCPECache.load_shard_from_disk(shard_path)
+        assert loaded == test_data, "Loaded data should match saved data"
+        
+        # Test 2: Verify no temp files remain
+        temp_files = list(Path(tmpdir).glob(".tmp_*"))
+        assert len(temp_files) == 0, f"No temp files should remain, found {len(temp_files)}"
+        
+        # Test 3: Concurrent write simulation (second write should not corrupt)
+        data_v1 = {"cpe:2.3:a:v1:prod": {"totalResults": 1}}
+        data_v2 = {"cpe:2.3:a:v2:prod": {"totalResults": 2}}
+        
+        ShardedCPECache.save_shard_to_disk(shard_path, data_v1)
+        ShardedCPECache.save_shard_to_disk(shard_path, data_v2)
+        
+        final_data = ShardedCPECache.load_shard_from_disk(shard_path)
+        assert final_data == data_v2, "Final write should replace previous"
+        
+        # Test 4: Large data doesn't cause partial writes
+        large_data = {
+            f"cpe:2.3:a:large:test_{i}": {
+                "totalResults": i,
+                "products": [f"product_{j}" for j in range(100)],
+                "last_queried": "2026-01-01T00:00:00Z"
+            }
+            for i in range(100)
+        }
+        
+        ShardedCPECache.save_shard_to_disk(shard_path, large_data)
+        loaded_large = ShardedCPECache.load_shard_from_disk(shard_path)
+        assert len(loaded_large) == 100, "All entries should be saved"
+        
+        print("[OK] ATOMIC write safety validated")
+        print(f"  - Normal writes: OK")
+        print(f"  - No temp file leaks: OK")
+        print(f"  - Overwrite safety: OK")
+        print(f"  - Large data integrity: OK")
+    
+    return True
+
 def test_cache_corruption_recovery():
     """Integration test: Verify system handles corrupted cache gracefully (RECOVERY workflow)"""
     print("Testing cache CORRUPTION recovery...")
@@ -479,35 +530,64 @@ def test_cache_corruption_recovery():
             'refresh_strategy': {'notify_age_hours': 100}
         }
         
-        cache = ShardedCPECache(cache_config, num_shards=16)
-        cache.cache_dir = Path(tmpdir) / "cpe_base_strings"
-        cache.cache_dir.mkdir(parents=True, exist_ok=True)
-        cache.metadata_file = Path(tmpdir) / 'cache_metadata.json'
+        # Create cache instance
+        cache_dir = Path(tmpdir) / "cache_dir"
+        cache_dir.mkdir()
         
-        # Create corrupted shard file
-        corrupt_shard = cache.cache_dir / "cpe_cache_shard_00.json"
-        with open(corrupt_shard, 'w') as f:
-            f.write("{ this is not valid json }")
-        
-        # Try to load corrupted shard - should handle gracefully
-        try:
-            shard_data = cache._load_shard(0)
-            assert isinstance(shard_data, dict), "Should return dict even with corruption"
-            corruption_handled = True
-        except Exception as e:
-            print(f"  [WARNING] Corruption not handled gracefully: {e}")
-            corruption_handled = False
-        
-        # Verify operations continue
-        test_cpe = "cpe:2.3:a:recovery_test:product"
-        cache.put(test_cpe, {'totalResults': 1})
-        result, status = cache.get(test_cpe)
-        
-        operations_work = status == 'hit' and result is not None
-        
-        print("[OK] Cache CORRUPTION recovery validated")
-        print(f"  - Corruption handled: {corruption_handled}")
-        print(f"  - Operations continue: {operations_work}")
+        with ShardedCPECache(cache_config, num_shards=16, cache_dir=cache_dir) as cache:
+            # Test 1: PREVENTION - Corrupt data is rejected at put() time
+            print("  Testing corrupt data PREVENTION...")
+            corrupt_response = {
+                "totalResults": 1,
+                "products": [
+                    {
+                        "cpeName": "cpe:2.3:a:test:product",
+                        "bad_field": "\udced\udca0\udc80"  # UTF-8 surrogate that will fail serialization
+                    }
+                ]
+            }
+            
+            # Attempt to cache corrupt data - should be rejected
+            initial_stats = cache.get_stats().copy()
+            cache.put("cpe:2.3:a:corrupt:test", corrupt_response)
+            
+            # Verify data was NOT cached
+            result, status = cache.get("cpe:2.3:a:corrupt:test")
+            assert status == "miss", "Corrupt data should not be cached - get() should return miss"
+            assert result is None, "Corrupt data should not be retrievable"
+            print("    ✓ Corrupt data rejected (not cached)")
+            
+            # Test 2: RECOVERY - Pre-existing corrupted shard files are recovered
+            print("  Testing corrupted shard file RECOVERY...")
+            
+            # Manually create a corrupted shard file (simulates old corruption)
+            shard_path = cache_dir / "cpe_cache_shard_05.json"
+            with open(shard_path, 'wb') as f:
+                f.write(b'{"test": "\xed\xa0\x80"}')  # Invalid UTF-8 surrogate bytes
+            
+            # Attempt to load corrupted shard - should recover gracefully
+            recovered_data = cache._load_shard(5)
+            assert isinstance(recovered_data, dict), "Corrupted shard should return dict"
+            assert len(recovered_data) == 0, "Corrupted shard should return empty dict for rebuild"
+            print("    ✓ Corrupted shard file recovered (empty dict returned)")
+            
+            # Verify backup was created
+            backup_files = list(cache_dir.glob("*.corrupted*"))
+            assert len(backup_files) > 0, "Corrupted shard should create backup"
+            print(f"    ✓ Backup created: {backup_files[0].name}")
+            
+            # Verify cache continues to function after recovery
+            clean_response = {"totalResults": 5, "products": []}
+            cache.put("cpe:2.3:a:clean:test", clean_response)
+            result, status = cache.get("cpe:2.3:a:clean:test")
+            assert status == "hit", "Cache should work after recovery"
+            assert result == clean_response, "Clean data should be cached successfully"
+            print("    ✓ Cache functional after recovery")
+    
+    print("[OK] Corruption prevention and recovery validated")
+    print("  - Corrupt data rejected at cache entry: OK")
+    print("  - Corrupted shards recovered: OK")
+    print("  - Cache continues after corruption: OK")
     
     return True
 
@@ -595,6 +675,7 @@ def run_all_tests():
         ("Cache Miss Workflow", test_cache_miss_workflow),
         ("Cache Expiration Workflow", test_cache_expiration_workflow),
         ("Cache Disabled Workflow", test_cache_disabled_workflow),
+        ("Atomic Write Safety", test_atomic_write_safety),
         ("Cache Corruption Recovery", test_cache_corruption_recovery),
         ("Cache Mode Compatibility", test_cache_mode_compatibility),
         ("Cache Persistence Across Runs", test_cache_persistence_across_runs),

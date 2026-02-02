@@ -15,6 +15,8 @@ Key Features:
 
 import hashlib
 import time
+import tempfile
+import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
@@ -107,16 +109,20 @@ class ShardedCPECache:
     
     @staticmethod
     def load_shard_from_disk(shard_path: Path) -> Dict[str, Any]:
-        """Load a shard file from disk (static utility for external use).
+        """Load a shard file from disk with automatic corruption recovery.
+        
+        Handles all load failures gracefully by creating backups and rebuilding.
+        Supported recovery scenarios:
+        - JSON parse errors (malformed JSON, truncated files)
+        - UTF-8 encoding errors (surrogates, invalid byte sequences from API)
+        - File system errors (permissions, disk issues)
         
         Args:
             shard_path: Path to shard file
             
         Returns:
-            Dict of cache entries, or empty dict if file doesn't exist
-            
-        Raises:
-            RuntimeError: If shard file exists but cannot be loaded (prevents data loss)
+            Dict of cache entries, or empty dict if file doesn't exist or is corrupted.
+            Never raises exceptions - always returns dict to allow continued operation.
         """
         if not shard_path.exists():
             return {}
@@ -124,16 +130,71 @@ class ShardedCPECache:
         try:
             with open(shard_path, 'rb') as f:
                 return orjson.loads(f.read())
+        except (orjson.JSONDecodeError, ValueError, UnicodeDecodeError) as e:
+            # Expected corruption types (JSON, UTF-8, encoding)
+            error_type = type(e).__name__
+            error_msg = str(e)[:200]
+            
+            logger.warning(
+                f"CPE cache shard corrupted - automatic recovery initiated:",
+                group="cpe_queries"
+            )
+            logger.warning(
+                f"  Shard: {shard_path.name}",
+                group="cpe_queries"
+            )
+            logger.warning(
+                f"  Error: {error_type} - {error_msg}",
+                group="cpe_queries"
+            )
         except Exception as e:
-            # CRITICAL: Do not return empty dict when file exists but fails to load
-            # Returning {} would cause save_all_shards() to overwrite existing data
-            error_msg = f"CRITICAL: Shard file exists but failed to load: {shard_path.name} - {e}"
-            logger.error(error_msg, group="cpe_queries")
-            raise RuntimeError(error_msg) from e
+            # Unexpected error type (filesystem, permissions, etc.)
+            error_type = type(e).__name__
+            error_msg = str(e)[:200]
+            
+            logger.warning(
+                f"CPE cache shard load failed - attempting recovery:",
+                group="cpe_queries"
+            )
+            logger.warning(
+                f"  Shard: {shard_path.name}",
+                group="cpe_queries"
+            )
+            logger.warning(
+                f"  Error: {error_type} - {error_msg}",
+                group="cpe_queries"
+            )
+        
+        # Corruption recovery for all failure types
+        try:
+            # Create timestamped backup
+            from datetime import datetime
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_name = f"{shard_path.stem}_{timestamp}.corrupted"
+            backup_path = shard_path.parent / backup_name
+            
+            shutil.copy2(shard_path, backup_path)
+            logger.info(f"Corrupted shard backed up: {backup_name}", group="cpe_queries")
+            
+            # Delete corrupted file
+            shard_path.unlink()
+            logger.info(f"Rebuilding cache shard from API: {shard_path.name}", group="cpe_queries")
+            
+        except Exception as recovery_error:
+            # Recovery failed but continue anyway
+            logger.warning(
+                f"Backup failed for {shard_path.name}: {recovery_error} - continuing without backup",
+                group="cpe_queries"
+            )
+        
+        return {}  # Always return empty dict for rebuild
     
     @staticmethod
     def save_shard_to_disk(shard_path: Path, shard_data: Dict[str, Any]) -> None:
-        """Save a shard file to disk using compact JSON (static utility for external use).
+        """Save a shard file to disk using atomic write with compact JSON.
+        
+        Uses atomic write pattern (temp file + rename) to prevent corruption from
+        partial writes. Handles UTF-8 surrogates in API responses.
         
         Args:
             shard_path: Path to shard file
@@ -144,10 +205,58 @@ class ShardedCPECache:
             building in memory and retry save on next attempt.
         """
         try:
-            with open(shard_path, 'wb') as f:
-                f.write(orjson.dumps(shard_data))
+            # Ensure parent directory exists
+            shard_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Serialize with strict UTF-8 (validation in put() ensures this will succeed)
+            # Data has been pre-validated, so serialization should never fail here
+            try:
+                json_bytes = orjson.dumps(shard_data)
+            except orjson.JSONEncodeError as e:
+                # This should never happen due to put() validation, but handle defensively
+                logger.error(
+                    f"UNEXPECTED: Shard serialization failed despite validation: {shard_path.name} - {e}",
+                    group="cpe_queries"
+                )
+                logger.error(
+                    f"This indicates validation bypass or data mutation after caching. Skipping save to prevent corruption.",
+                    group="cpe_queries"
+                )
+                # Do not write corrupt data - better to skip save and rebuild from API
+                return
+            
+            # Atomic write: temp file in same directory + rename
+            # Using same directory ensures atomic rename on same filesystem
+            temp_fd, temp_path = tempfile.mkstemp(
+                dir=shard_path.parent,
+                prefix=f".tmp_{shard_path.name}_",
+                suffix=".json"
+            )
+            
+            try:
+                # Write to temp file
+                with open(temp_fd, 'wb') as f:
+                    f.write(json_bytes)
+                    f.flush()  # Ensure data written to OS buffer
+                    # os.fsync(temp_fd) could be added here for extra safety
+                
+                # Atomic rename (replaces existing file if present)
+                temp_path_obj = Path(temp_path)
+                temp_path_obj.replace(shard_path)
+                
+            except Exception as write_error:
+                # Cleanup temp file on failure
+                try:
+                    Path(temp_path).unlink(missing_ok=True)
+                except:
+                    pass
+                raise write_error
+                
         except Exception as e:
-            logger.warning(f"Failed to save shard {shard_path.name}: {e} - will retry on next save", group="cpe_queries")
+            logger.warning(
+                f"Failed to save shard {shard_path.name}: {e} - will retry on next save",
+                group="cpe_queries"
+            )
     
     def _load_shard(self, shard_index: int) -> Dict[str, Any]:
         """Lazy load a single shard into memory."""
@@ -340,9 +449,11 @@ class ShardedCPECache:
     
     def put(self, cpe_string: str, api_response: Dict[str, Any]) -> None:
         """
-        Store CPE API response in cache.
+        Store CPE API response in cache with data validation.
         
-        Automatically routes to appropriate shard and triggers auto-save if needed.
+        Validates that response data can be serialized before caching to prevent
+        corruption. Rejects responses containing invalid UTF-8 surrogates or
+        other non-serializable data from NVD API.
         
         Args:
             cpe_string: The CPE match string used as key
@@ -350,8 +461,42 @@ class ShardedCPECache:
         """
         if self.disabled or not self.config.get('enabled', True):
             return
-        
-        # Determine which shard should contain this CPE
+                # VALIDATION: Ensure data is serializable before caching to prevent corruption
+        # Test serialization with strict UTF-8 enforcement
+        try:
+            test_serialization = orjson.dumps(api_response)
+            # Successfully serialized - data is clean
+        except (orjson.JSONEncodeError, TypeError, ValueError) as e:
+            # Data contains invalid UTF-8 surrogates or non-serializable types
+            error_type = type(e).__name__
+            error_msg = str(e)[:200]  # Capture more context
+            
+            logger.warning(
+                f"CPE cache rejection - corrupt NVD API response detected:",
+                group="cpe_queries"
+            )
+            logger.warning(
+                f"  CPE: {cpe_string}",
+                group="cpe_queries"
+            )
+            logger.warning(
+                f"  Error: {error_type} - {error_msg}",
+                group="cpe_queries"
+            )
+            logger.info(
+                f"Data not cached - future queries for this CPE will retry the API call",
+                group="cpe_queries"
+            )
+            
+            # Track rejection statistics
+            if not hasattr(self, '_rejection_stats'):
+                self._rejection_stats = {'count': 0, 'cpes': []}
+            self._rejection_stats['count'] += 1
+            self._rejection_stats['cpes'].append(cpe_string)
+            
+            # Do not cache - let future queries retry the API call instead
+            return
+                # Determine which shard should contain this CPE
         shard_index = self._get_shard_index(cpe_string)
         shard_data = self._load_shard(shard_index)
         
@@ -470,7 +615,7 @@ class ShardedCPECache:
     
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
-        return {
+        stats = {
             'total_entries': self._get_total_entries(),
             'loaded_shards': len(self.loaded_shards),
             'session_hits': self.session_stats['hits'],
@@ -485,6 +630,13 @@ class ShardedCPECache:
             'sharding_enabled': True,
             'num_shards': self.num_shards
         }
+        
+        # Include corruption event statistics if any occurred
+        if hasattr(self, '_rejection_stats'):
+            stats['session_rejections'] = self._rejection_stats['count']
+            stats['rejected_cpes_sample'] = self._rejection_stats['cpes'][:5]  # First 5 for logging
+        
+        return stats
     
     def log_session_stats(self) -> None:
         """Log cache performance for current session."""
@@ -508,6 +660,18 @@ class ShardedCPECache:
                 f"Cache session saved {stats['session_api_calls_saved']} API calls this run",
                 group="cpe_queries"
             )
+        
+        # Log corruption events if any occurred
+        if 'session_rejections' in stats and stats['session_rejections'] > 0:
+            logger.warning(
+                f"Cache session rejected {stats['session_rejections']} corrupt API responses",
+                group="cpe_queries"
+            )
+            if stats.get('rejected_cpes_sample'):
+                logger.info(
+                    f"Sample rejected CPEs (first 5): {', '.join(stats['rejected_cpes_sample'][:5])}",
+                    group="cpe_queries"
+                )
     
     def flush(self) -> None:
         """Save all loaded shards to disk and reset unsaved counter."""
