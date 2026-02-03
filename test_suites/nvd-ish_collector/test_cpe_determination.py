@@ -93,7 +93,109 @@ class CPEDeterminationTestSuite:
                 copied_files.append(str(nvd_target))
         
         print(f"  * Copied {len(copied_files)} test files to INPUT cache")
+        
+        # Inject CPE cache data for test CVEs to prevent test isolation issues
+        self._inject_cpe_cache_data()
+        
         return copied_files
+    
+    def _inject_cpe_cache_data(self):
+        """Inject CPE cache entries for test CVEs to simulate NVD API query results.
+        
+        This prevents test isolation issues when running in consolidated test suites.
+        Without this, the test depends on whatever state the CPE cache is in from
+        previous tests, causing flakiness.
+        
+        Injects cache data into sharded cache using MD5 hash-based distribution.
+        """
+        import datetime
+        import hashlib
+        
+        # Sharded cache configuration
+        cache_shards_dir = CACHE_DIR / "cpe_base_strings"
+        cache_shards_dir.mkdir(parents=True, exist_ok=True)
+        num_shards = 16
+        
+        # Helper function to determine shard index (matches ShardedCPECache implementation)
+        def get_shard_index(cpe_string: str) -> int:
+            hash_digest = hashlib.md5(cpe_string.encode('utf-8')).hexdigest()
+            return int(hash_digest[:8], 16) % num_shards
+        
+        # Load all existing shards
+        shard_data = {}
+        for shard_index in range(num_shards):
+            shard_filename = f"cpe_cache_shard_{shard_index:02d}.json"
+            shard_path = cache_shards_dir / shard_filename
+            
+            if shard_path.exists():
+                with open(shard_path, 'r', encoding='utf-8') as f:
+                    shard_data[shard_index] = json.load(f)
+            else:
+                shard_data[shard_index] = {}
+        
+        # Test data for CVE-1337-0001 (microsoft products)
+        test_combinations = [
+            ("microsoft", "windows_10"),
+            ("microsoft", "windows_server_2019"),
+            ("microsoft", "edge"),
+            ("microsoft", "visual_studio_code"),
+            ("apache", "tomcat"),
+        ]
+        
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        injection_count = 0
+        
+        for vendor, product in test_combinations:
+            # Create mock CPE products for this vendor/product
+            products_list = [
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:1.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-001", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}},
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:1.1:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-002", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}},
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:2.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-003", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}}
+            ]
+            
+            # Create standard cache entry structure
+            cache_entry = {
+                "query_response": {
+                    "resultsPerPage": 3,
+                    "startIndex": 0,
+                    "totalResults": 3,
+                    "format": "NVD_CPE",
+                    "version": "2.0",
+                    "timestamp": timestamp,
+                    "products": products_list
+                },
+                "last_queried": timestamp,
+                "query_count": 1,
+                "total_results": 3
+            }
+            
+            # Inject all three search patterns the tool uses
+            # Pattern 1: Vendor-only
+            vendor_only_key = f"cpe:2.3:*:{vendor}:*:*:*:*:*:*:*:*:*"
+            shard_index = get_shard_index(vendor_only_key)
+            shard_data[shard_index][vendor_only_key] = cache_entry.copy()
+            injection_count += 1
+            
+            # Pattern 2: Product-only (with wildcard prefix)
+            product_only_key = f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:*:*"
+            shard_index = get_shard_index(product_only_key)
+            shard_data[shard_index][product_only_key] = cache_entry.copy()
+            injection_count += 1
+            
+            # Pattern 3: Vendor+product combined
+            vendor_product_key = f"cpe:2.3:a:{vendor}:{product}:*:*:*:*:*:*:*:*"
+            shard_index = get_shard_index(vendor_product_key)
+            shard_data[shard_index][vendor_product_key] = cache_entry.copy()
+            injection_count += 1
+        
+        # Save all modified shards
+        for shard_index, data in shard_data.items():
+            shard_filename = f"cpe_cache_shard_{shard_index:02d}.json"
+            shard_path = cache_shards_dir / shard_filename
+            with open(shard_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2)
+        
+        print(f"  * Injected {injection_count} CPE cache entries into shards")
     
     def cleanup_test_environment(self, copied_files):
         """Clean up test environment by removing copied test files."""
@@ -632,10 +734,9 @@ class CPEDeterminationTestSuite:
     def test_top10_cpe_determination_validation(self) -> bool:
         """Test top 10 CPE suggestions are correctly populated in enriched records.
         
-        NOTE: POTENTIALLY FLAKY TEST - Depends on external CPE cache data.
+        Uses injected CPE cache data to ensure consistent test behavior.
         """
         print(f"\n=== Test 6: Top 10 CPE Suggestions Validation ===")
-        print(f"  ⚠️  NOTE: This test may be flaky due to external data dependencies")
         
         # Run analysis with CPE determination enabled
         success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001")
@@ -721,15 +822,13 @@ class CPEDeterminationTestSuite:
                     print(f"  ✓ Entry {entry_index} ({vendor_name}/{product_name}): {len(top10_suggestions)} top 10 suggestions validated")
             
             if total_entries_with_top10 == 0:
-                print(f"⚠️  SKIP: No top 10 suggestions found - likely external data dependency issue")
-                print(f"  ✓ This test is FLAKY and depends on external CPE cache content")
-                return True
+                print(f"❌ FAIL: No top 10 suggestions found - CPE cache injection may have failed")
+                return False
             
             print(f"✅ PASS: Top 10 CPE suggestions validation completed successfully")
             print(f"  ✓ Found top 10 suggestions in {total_entries_with_top10} affected entries")
             print(f"  ✓ Total suggestions validated: {total_top10_suggestions}")
             print(f"  ✓ All suggestions have correct structure (cpeBaseString + rank)")
-            print(f"  ⚠️  Note: This test success depends on external CPE cache data")
             return True
             
         except Exception as e:

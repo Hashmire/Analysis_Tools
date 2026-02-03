@@ -4,7 +4,7 @@
         "version": "0.3.0"
     },
     "defaults": {
-        "default_cve_id": "CVE-2024-20515",
+        "default_cve_id": "",
         "enable_browser_open": true,
         "default_api_key": ""
     },
@@ -18,11 +18,11 @@
             "sharding": {
                 "enabled": true,
                 "num_shards": 16,
-                "description": "Hash-based sharding for improved memory management and scalability (MANDATORY - monolithic cache deprecated)"
+                "description": "Hash-based sharding for improved memory management and scalability"
             },
             "refresh_strategy": {
                 "field_path": "$.*.last_queried",
-                "notify_age_hours": 100
+                "notify_age_hours": 500
             }
         },
         "nvd_source_data": {
@@ -43,7 +43,7 @@
             "description": "CVE List V5 repository with per-file tracking",
             "refresh_strategy": {
                 "field_path": "cache_metadata.datasets.cve_list_v5.lastManualUpdate",
-                "notify_age_hours": 24
+                "notify_age_hours": 168
             }
         },
         "nvd_2_0_cve": {

@@ -176,6 +176,10 @@ class TestSuiteRunner:
                 'command': ['python', 'test_suites\\\\cpe-as_generation\\\\test_modular_rules.py', 'test_suites\\\\cpe-as_generation\\\\testModularRulesEnhanced.json']
             },
             {
+                'name': 'CPE Format Conversion',
+                'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_cpe_format_conversion.py']
+            },
+            {
                 'name': 'Update Patterns',
                 'command': ['python', 'test_suites\\\\cpe-as_generation\\\\test_update_patterns.py']
             },

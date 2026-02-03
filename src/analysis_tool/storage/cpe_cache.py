@@ -16,7 +16,6 @@ Key Features:
 import hashlib
 import time
 import tempfile
-import shutil
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
@@ -109,20 +108,20 @@ class ShardedCPECache:
     
     @staticmethod
     def load_shard_from_disk(shard_path: Path) -> Dict[str, Any]:
-        """Load a shard file from disk with automatic corruption recovery.
+        """Load a shard file from disk.
         
-        Handles all load failures gracefully by creating backups and rebuilding.
-        Supported recovery scenarios:
-        - JSON parse errors (malformed JSON, truncated files)
-        - UTF-8 encoding errors (surrogates, invalid byte sequences from API)
-        - File system errors (permissions, disk issues)
+        Prevention logic in put() ensures data is validated before caching,
+        so corruption should not occur. If a shard is corrupted, fail loudly
+        to surface the real issue rather than masking it.
         
         Args:
             shard_path: Path to shard file
             
         Returns:
-            Dict of cache entries, or empty dict if file doesn't exist or is corrupted.
-            Never raises exceptions - always returns dict to allow continued operation.
+            Dict of cache entries, or empty dict if file doesn't exist
+            
+        Raises:
+            Exception: If shard file is corrupted (indicates unexpected issue)
         """
         if not shard_path.exists():
             return {}
@@ -130,71 +129,36 @@ class ShardedCPECache:
         try:
             with open(shard_path, 'rb') as f:
                 return orjson.loads(f.read())
-        except (orjson.JSONDecodeError, ValueError, UnicodeDecodeError) as e:
-            # Expected corruption types (JSON, UTF-8, encoding)
-            error_type = type(e).__name__
-            error_msg = str(e)[:200]
-            
-            logger.warning(
-                f"CPE cache shard corrupted - automatic recovery initiated:",
-                group="cpe_queries"
-            )
-            logger.warning(
-                f"  Shard: {shard_path.name}",
-                group="cpe_queries"
-            )
-            logger.warning(
-                f"  Error: {error_type} - {error_msg}",
-                group="cpe_queries"
-            )
         except Exception as e:
-            # Unexpected error type (filesystem, permissions, etc.)
+            # Fail fast - corruption should not happen due to prevention logic
             error_type = type(e).__name__
             error_msg = str(e)[:200]
             
-            logger.warning(
-                f"CPE cache shard load failed - attempting recovery:",
+            logger.error(
+                f"CPE cache shard corrupted: {shard_path.name}",
                 group="cpe_queries"
             )
-            logger.warning(
-                f"  Shard: {shard_path.name}",
-                group="cpe_queries"
-            )
-            logger.warning(
+            logger.error(
                 f"  Error: {error_type} - {error_msg}",
                 group="cpe_queries"
             )
-        
-        # Corruption recovery for all failure types
-        try:
-            # Create timestamped backup
-            from datetime import datetime
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_name = f"{shard_path.stem}_{timestamp}.corrupted"
-            backup_path = shard_path.parent / backup_name
-            
-            shutil.copy2(shard_path, backup_path)
-            logger.info(f"Corrupted shard backed up: {backup_name}", group="cpe_queries")
-            
-            # Delete corrupted file
-            shard_path.unlink()
-            logger.info(f"Rebuilding cache shard from API: {shard_path.name}", group="cpe_queries")
-            
-        except Exception as recovery_error:
-            # Recovery failed but continue anyway
-            logger.warning(
-                f"Backup failed for {shard_path.name}: {recovery_error} - continuing without backup",
+            logger.error(
+                f"  This should not happen due to put() validation.",
                 group="cpe_queries"
             )
-        
-        return {}  # Always return empty dict for rebuild
+            logger.error(
+                f"  Manual action: Delete corrupted file to rebuild: {shard_path}",
+                group="cpe_queries"
+            )
+            raise
     
     @staticmethod
     def save_shard_to_disk(shard_path: Path, shard_data: Dict[str, Any]) -> None:
         """Save a shard file to disk using atomic write with compact JSON.
         
         Uses atomic write pattern (temp file + rename) to prevent corruption from
-        partial writes. Handles UTF-8 surrogates in API responses.
+        partial writes. Prevention logic in put() validates all data before caching,
+        so serialization should never fail.
         
         Args:
             shard_path: Path to shard file
@@ -208,22 +172,8 @@ class ShardedCPECache:
             # Ensure parent directory exists
             shard_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # Serialize with strict UTF-8 (validation in put() ensures this will succeed)
-            # Data has been pre-validated, so serialization should never fail here
-            try:
-                json_bytes = orjson.dumps(shard_data)
-            except orjson.JSONEncodeError as e:
-                # This should never happen due to put() validation, but handle defensively
-                logger.error(
-                    f"UNEXPECTED: Shard serialization failed despite validation: {shard_path.name} - {e}",
-                    group="cpe_queries"
-                )
-                logger.error(
-                    f"This indicates validation bypass or data mutation after caching. Skipping save to prevent corruption.",
-                    group="cpe_queries"
-                )
-                # Do not write corrupt data - better to skip save and rebuild from API
-                return
+            # Serialize - put() validation ensures this will succeed
+            json_bytes = orjson.dumps(shard_data)
             
             # Atomic write: temp file in same directory + rename
             # Using same directory ensures atomic rename on same filesystem

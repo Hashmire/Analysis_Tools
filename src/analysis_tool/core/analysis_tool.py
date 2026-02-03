@@ -418,70 +418,59 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
                 # Import alias extraction functions
                 from .badge_modal_system import create_alias_extraction_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
                 from ..logging.badge_contents_collector import collect_alias_extraction_data, get_badge_contents_collector
-                from .unified_source_manager import get_unified_source_manager
                 
                 collector = get_badge_contents_collector()
                 # Initialize CVE processing session for alias extraction
                 collector.start_cve_processing(cve_id)
                 logger.debug(f"Badge contents collector initialized for alias extraction - CVE {cve_id}", group="data_processing")
                 
-                # Temporarily disable source UUID filtering for alias extraction
-                manager = get_unified_source_manager()
-                original_source_uuid = manager.get_source_uuid_filter()
-                manager.set_source_uuid_filter(None)  # Disable filtering temporarily
+                # Process CVE data to get all entries (no filtering in processCVEData)
+                alias_dataframe = gatherData.gatherPrimaryDataframe()
+                alias_dataframe, _ = processData.processCVEData(alias_dataframe, cveRecordData)
                 
-                try:
-                    # Reprocess CVE data without source UUID filtering to get all entries
-                    unfiltered_dataframe = gatherData.gatherPrimaryDataframe()
-                    unfiltered_dataframe, _ = processData.processCVEData(unfiltered_dataframe, cveRecordData)
+                # Process each row in the dataframe to collect alias extraction data
+                for index, row in alias_dataframe.iterrows():
+                    logger.debug(f"Processing alias extraction for row {index} (all sources)", group="data_processing")
                     
-                    # Process each row in the unfiltered dataframe to collect alias extraction data
-                    for index, row in unfiltered_dataframe.iterrows():
-                        logger.debug(f"Processing alias extraction for row {index} (all sources)", group="data_processing")
-                        
-                        # Extract basic row data
-                        source_id = row.get('sourceID', 'Unknown')
-                        raw_platform_data = row.get('rawPlatformData', {})
-                        cve_id_for_alias = row.get('cve_id', cve_id)  # Use row-specific CVE ID if available
-                        
-                        # Ensure the row has the CVE ID in the expected format for alias extraction
-                        row_with_cve = dict(row)
-                        row_with_cve['cve_id'] = cve_id_for_alias
-                        
-                        # Create alias extraction badge to populate the registry
-                        badge_result = create_alias_extraction_badge(
+                    # Extract basic row data
+                    source_id = row.get('sourceID', 'Unknown')
+                    raw_platform_data = row.get('rawPlatformData', {})
+                    cve_id_for_alias = row.get('cve_id', cve_id)  # Use row-specific CVE ID if available
+                    
+                    # Ensure the row has the CVE ID in the expected format for alias extraction
+                    row_with_cve = dict(row)
+                    row_with_cve['cve_id'] = cve_id_for_alias
+                    
+                    # Create alias extraction badge to populate the registry
+                    badge_result = create_alias_extraction_badge(
+                        table_index=index,
+                        raw_platform_data=raw_platform_data,
+                        row=row_with_cve
+                    )
+                    
+                    # Check if alias extraction data was generated and collect it
+                    alias_registry_data = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('aliasExtraction', {})
+                    
+                    # Count entries for this table index (including platform expansion)
+                    matching_entries = {}
+                    entry_count = 0
+                    
+                    for reg_key, reg_data in alias_registry_data.items():
+                        # Check for direct match or platform expansion match
+                        if reg_key == str(index) or reg_key.startswith(f"{index}_platform_"):
+                            matching_entries[reg_key] = reg_data
+                            entry_count += 1
+                    
+                    if matching_entries and badge_result:
+                        # Collect the alias extraction data for this platform entry
+                        collect_alias_extraction_data(
                             table_index=index,
-                            raw_platform_data=raw_platform_data,
-                            row=row_with_cve
+                            source_id=source_id,
+                            alias_data=matching_entries,
+                            entry_count=entry_count,
+                            cve_id=cve_id_for_alias
                         )
-                        
-                        # Check if alias extraction data was generated and collect it
-                        alias_registry_data = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('aliasExtraction', {})
-                        
-                        # Count entries for this table index (including platform expansion)
-                        matching_entries = {}
-                        entry_count = 0
-                        
-                        for reg_key, reg_data in alias_registry_data.items():
-                            # Check for direct match or platform expansion match
-                            if reg_key == str(index) or reg_key.startswith(f"{index}_platform_"):
-                                matching_entries[reg_key] = reg_data
-                                entry_count += 1
-                        
-                        if matching_entries and badge_result:
-                            # Collect the alias extraction data for this platform entry
-                            collect_alias_extraction_data(
-                                table_index=index,
-                                source_id=source_id,
-                                alias_data=matching_entries,
-                                entry_count=entry_count,
-                                cve_id=cve_id_for_alias
-                            )
-                    
-                finally:
-                    # Restore original source UUID filtering
-                    manager.set_source_uuid_filter(original_source_uuid)
-                    
+                
                 logger.info("Alias extraction processing completed (all sources)", group="data_processing")
                 
                 # Complete badge contents collection for this CVE

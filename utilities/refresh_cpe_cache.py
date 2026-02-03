@@ -144,8 +144,19 @@ def find_oldest_cache_entry(cache_dir: Path, num_shards: int = 16) -> datetime:
             logger.debug(f"Shard {shard_index:02d} does not exist - skipping", group="CACHE_REFRESH")
             continue
         
-        # Use ShardedCPECache static method for loading
-        shard_data = ShardedCPECache.load_shard_from_disk(shard_path)
+        # Load shard - fail fast if corrupted
+        try:
+            shard_data = ShardedCPECache.load_shard_from_disk(shard_path)
+        except Exception as e:
+            logger.error(
+                f"Shard {shard_index:02d} is corrupted and cannot be loaded: {e}",
+                group="CACHE_REFRESH"
+            )
+            logger.error(
+                f"Delete the corrupted file to allow rebuild: {shard_path}",
+                group="CACHE_REFRESH"
+            )
+            raise  # Fail fast - don't continue with corrupted cache
         
         shard_entries = len(shard_data)
         total_entries += shard_entries
@@ -413,8 +424,19 @@ def flush_staged_updates(staged: Dict[int, Dict[str, Any]], cache_dir: Path, sta
         
         shard_path = cache_dir / _cache_utils._get_shard_filename(shard_index)
         
-        # Load existing shard using ShardedCPECache static method
-        shard_data = ShardedCPECache.load_shard_from_disk(shard_path)
+        # Load shard - fail fast if corrupted
+        try:
+            shard_data = ShardedCPECache.load_shard_from_disk(shard_path)
+        except Exception as e:
+            logger.error(
+                f"Cannot refresh shard {shard_index:02d} - file is corrupted: {e}",
+                group="CACHE_REFRESH"
+            )
+            logger.error(
+                f"Delete the corrupted file to allow rebuild: {shard_path}",
+                group="CACHE_REFRESH"
+            )
+            raise  # Fail fast - don't write updates to corrupted cache
         
         # Merge updates (preserve query_count if entry exists)
         # This maintains cache statistics across refreshes

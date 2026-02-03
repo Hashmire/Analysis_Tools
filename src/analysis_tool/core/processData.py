@@ -1738,26 +1738,7 @@ def analyzeBaseStrings(cpeVersionChecks, json_response: Dict[str, Any]) -> Dict[
 
 
 def processCVEData(dataframe, cveRecordData):
-    # Use UnifiedSourceManager for source UUID filtering
-    from .unified_source_manager import get_unified_source_manager
-    
-    manager = get_unified_source_manager()
-    source_uuid = manager.get_source_uuid_filter()
-    
     result_df = dataframe.copy()
-    
-    # Log source UUID filtering configuration
-    if source_uuid:
-        logger.info(f"Source UUID filtering enabled: {source_uuid}", group="data_processing")
-        # Validate that the source exists in unified registry
-        source_info = manager.get_source_by_id(source_uuid)
-        if source_info:
-            logger.info(f"Filtering to source: {source_info['name']}", group="data_processing")
-        else:
-            logger.warning(f"Source UUID {source_uuid} not found in unified registry - this indicates a manager synchronization issue", group="data_processing")
-            logger.info("Source data should have been initialized before CVE processing - check initialization order", group="data_processing")
-    else:
-        logger.info("Source UUID filtering disabled (processing all sources)", group="data_processing")
     
     # Track products for duplicate identification
     product_key_to_row_indices = {}
@@ -1786,15 +1767,6 @@ def processCVEData(dataframe, cveRecordData):
                 continue
                 
             for container in containers:
-                # Filter by source UUID if provided using UnifiedSourceManager
-                if not manager.should_process_container(container):
-                    container_source_id = container.get('providerMetadata', {}).get('orgId', '')
-                    logger.debug(f"Source UUID filtering (descriptions): target={source_uuid}, container={container_source_id}, match=False", group="data_processing")
-                    logger.debug(f"Skipping container with source ID {container_source_id} (target: {source_uuid})", group="data_processing")
-                    continue
-                elif source_uuid:  # Log match for debugging
-                    container_source_id = container.get('providerMetadata', {}).get('orgId', '')
-                    logger.debug(f"Source UUID filtering (descriptions): target={source_uuid}, container={container_source_id}, match=True", group="data_processing")
                 source_id = container.get('providerMetadata', {}).get('orgId', 'Unknown')
                 source_role = container_type.upper()
                 
@@ -1847,15 +1819,6 @@ def processCVEData(dataframe, cveRecordData):
                 continue
                 
             for container in containers:
-                # Filter by source UUID if provided using UnifiedSourceManager
-                if not manager.should_process_container(container):
-                    container_source_id = container.get('providerMetadata', {}).get('orgId', '')
-                    logger.debug(f"Source UUID filtering (affected): target={source_uuid}, container={container_source_id}, match=False", group="data_processing")
-                    logger.debug(f"Skipping container with source ID {container_source_id} (target: {source_uuid})", group="data_processing")
-                    continue
-                elif source_uuid:  # Log match for debugging
-                    container_source_id = container.get('providerMetadata', {}).get('orgId', '')
-                    logger.debug(f"Source UUID filtering (affected): target={source_uuid}, container={container_source_id}, match=True", group="data_processing")
                 source_id = container.get('providerMetadata', {}).get('orgId', 'Unknown')
                 source_role = container_type.upper()
                 
@@ -2022,6 +1985,12 @@ def formatFor23CPE(rawAttribute):
     # Strip leading/trailing whitespace BEFORE converting to CPE format
     # This prevents trailing spaces from becoming trailing underscores
     ascii_attribute = ascii_attribute.strip()
+    
+    # Convert all whitespace characters (tabs, newlines, etc.) to single spaces
+    # This ensures consistent handling - all whitespace becomes underscores in CPE format
+    # Common issue: source data contains tabs (\t) which need to be normalized
+    import re
+    ascii_attribute = re.sub(r'\s+', ' ', ascii_attribute)
     
     # Remove characters that have structural meaning in CPE format
     # TODO: These cases will need to be supported in the future

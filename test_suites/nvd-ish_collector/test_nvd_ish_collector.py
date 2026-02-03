@@ -74,7 +74,7 @@ class NVDishCollectorTestSuite:
     
     def __init__(self):
         self.passed = 0
-        self.total = 6  # Core functionality tests only (others moved to focused suites)
+        self.total = 7  # Core functionality tests only (others moved to focused suites)
         self.test_cves = [
             # Core functionality tests (use test 1337 files)
             "CVE-1337-0001",  # Dual-source success
@@ -674,6 +674,241 @@ class NVDishCollectorTestSuite:
             
         except Exception as e:
             print(f"❌ FAIL: Error validating record structure: {e}")
+            return False
+    
+    def test_cna_adp_multi_source_processing(self) -> bool:
+        """Test that both CNA and ADP affected entries are properly processed into NVD-ish records.
+        
+        Validates:
+        - Correct entry count (3 CNA + 4 ADP = 7 total)
+        - CNA entries have proper container attribution (cve.containers.cna.affected.[N])
+        - ADP entries have proper container attribution (cve.containers.adp[0].affected.[N])
+        - Content matches source CVE List V5 data (vendor, product, versions)
+        - originAffectedEntry preserves all source properties
+        """
+        print(f"\n=== Test 7: CNA+ADP Multi-Source Entry Processing ===")
+        
+        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-1004")
+        
+        if not success:
+            print(f"❌ FAIL: Analysis tool failed")
+            return False
+        
+        validation = self.validate_enhanced_record(output_path)
+        
+        if not validation["has_enriched_affected"]:
+            print(f"❌ FAIL: No enriched entries found")
+            return False
+        
+        try:
+            # Load both source and output data for comparison
+            with open(output_path, 'r') as f:
+                nvd_ish_data = json.load(f)
+            
+            source_file = TEST_FILES_DIR / "CVE-1337-1004-cve-list-v5.json"
+            with open(source_file, 'r') as f:
+                source_data = json.load(f)
+            
+            enriched = nvd_ish_data["enrichedCVEv5Affected"]
+            entries = enriched.get("cveListV5AffectedEntries", [])
+            
+            # VALIDATION 1: Entry count (3 CNA + 4 ADP = 7)
+            expected_total = 7
+            expected_cna = 3
+            expected_adp = 4
+            
+            if len(entries) != expected_total:
+                print(f"❌ FAIL: Expected {expected_total} total entries, got {len(entries)}")
+                return False
+            
+            # Count CNA vs ADP entries
+            cna_entries = []
+            adp_entries = []
+            
+            for entry in entries:
+                origin = entry.get("originAffectedEntry", {})
+                index_path = origin.get("cvelistv5AffectedEntryIndex", "")
+                
+                if "cna" in index_path:
+                    cna_entries.append(entry)
+                elif "adp" in index_path:
+                    adp_entries.append(entry)
+            
+            if len(cna_entries) != expected_cna:
+                print(f"❌ FAIL: Expected {expected_cna} CNA entries, got {len(cna_entries)}")
+                return False
+            
+            if len(adp_entries) != expected_adp:
+                print(f"❌ FAIL: Expected {expected_adp} ADP entries, got {len(adp_entries)}")
+                return False
+            
+            print(f"  ✓ Entry count validated: {expected_total} total ({expected_cna} CNA + {expected_adp} ADP)")
+            
+            # VALIDATION 2: CNA entry content matches source
+            source_cna_affected = source_data["containers"]["cna"]["affected"]
+            
+            for i, cna_entry in enumerate(cna_entries):
+                origin = cna_entry.get("originAffectedEntry", {})
+                source_entry = source_cna_affected[i]
+                
+                # Validate index path
+                expected_index = f"cve.containers.cna.affected.[{i}]"
+                actual_index = origin.get("cvelistv5AffectedEntryIndex", "")
+                if actual_index != expected_index:
+                    print(f"❌ FAIL: CNA entry {i} index mismatch: expected '{expected_index}', got '{actual_index}'")
+                    return False
+                
+                # Validate vendor/product (handle whitespace and special chars in test data)
+                if "vendor" in source_entry:
+                    expected_vendor = source_entry["vendor"]
+                    actual_vendor = origin.get("vendor")
+                    if actual_vendor != expected_vendor:
+                        print(f"❌ FAIL: CNA entry {i} vendor mismatch: expected '{expected_vendor}', got '{actual_vendor}'")
+                        return False
+                
+                if "product" in source_entry:
+                    expected_product = source_entry["product"]
+                    actual_product = origin.get("product")
+                    if actual_product != expected_product:
+                        print(f"❌ FAIL: CNA entry {i} product mismatch: expected '{expected_product}', got '{actual_product}'")
+                        return False
+                
+                # Validate versions array exists and is a list
+                if "versions" in source_entry:
+                    if "versions" not in origin:
+                        print(f"❌ FAIL: CNA entry {i} missing versions array")
+                        return False
+                    if not isinstance(origin["versions"], list):
+                        print(f"❌ FAIL: CNA entry {i} versions is not a list")
+                        return False
+                    if len(origin["versions"]) != len(source_entry["versions"]):
+                        print(f"❌ FAIL: CNA entry {i} version count mismatch: expected {len(source_entry['versions'])}, got {len(origin['versions'])}")
+                        return False
+            
+            print(f"  ✓ CNA entries validated: {expected_cna} entries with correct attribution and content")
+            
+            # VALIDATION 3: ADP entry content matches source
+            source_adp_affected = source_data["containers"]["adp"][0]["affected"]
+            
+            for i, adp_entry in enumerate(adp_entries):
+                origin = adp_entry.get("originAffectedEntry", {})
+                source_entry = source_adp_affected[i]
+                
+                # Validate index path
+                expected_index = f"cve.containers.adp[0].affected.[{i}]"
+                actual_index = origin.get("cvelistv5AffectedEntryIndex", "")
+                if actual_index != expected_index:
+                    print(f"❌ FAIL: ADP entry {i} index mismatch: expected '{expected_index}', got '{actual_index}'")
+                    return False
+                
+                # Validate vendor/product
+                if "vendor" in source_entry:
+                    expected_vendor = source_entry["vendor"]
+                    actual_vendor = origin.get("vendor")
+                    if actual_vendor != expected_vendor:
+                        print(f"❌ FAIL: ADP entry {i} vendor mismatch: expected '{expected_vendor}', got '{actual_vendor}'")
+                        return False
+                
+                if "product" in source_entry:
+                    expected_product = source_entry["product"]
+                    actual_product = origin.get("product")
+                    if actual_product != expected_product:
+                        print(f"❌ FAIL: ADP entry {i} product mismatch: expected '{expected_product}', got '{actual_product}'")
+                        return False
+                
+                # Validate versions array
+                if "versions" in source_entry:
+                    if "versions" not in origin:
+                        print(f"❌ FAIL: ADP entry {i} missing versions array")
+                        return False
+                    if not isinstance(origin["versions"], list):
+                        print(f"❌ FAIL: ADP entry {i} versions is not a list")
+                        return False
+                    if len(origin["versions"]) != len(source_entry["versions"]):
+                        print(f"❌ FAIL: ADP entry {i} version count mismatch: expected {len(source_entry['versions'])}, got {len(origin['versions'])}")
+                        return False
+                
+                # Validate CPEs array if present
+                if "cpes" in source_entry:
+                    if "cpes" not in origin:
+                        print(f"❌ FAIL: ADP entry {i} missing cpes array")
+                        return False
+                    if not isinstance(origin["cpes"], list):
+                        print(f"❌ FAIL: ADP entry {i} cpes is not a list")
+                        return False
+            
+            print(f"  ✓ ADP entries validated: {expected_adp} entries with correct attribution and content")
+            
+            # VALIDATION 4: Property preservation in originAffectedEntry
+            # Check that all entries have proper originAffectedEntry structure
+            # Need to cross-reference with source to know which fields should be present
+            for idx, entry in enumerate(entries):
+                origin = entry.get("originAffectedEntry", {})
+                index_path = origin.get("cvelistv5AffectedEntryIndex", "")
+                
+                if not isinstance(origin, dict):
+                    print(f"❌ FAIL: Entry {idx} originAffectedEntry is not a dict")
+                    return False
+                
+                # Required fields
+                required_fields = ["sourceId", "cvelistv5AffectedEntryIndex", "versions"]
+                missing_fields = [f for f in required_fields if f not in origin]
+                if missing_fields:
+                    print(f"❌ FAIL: Entry {idx} originAffectedEntry missing required fields: {missing_fields}")
+                    return False
+                
+                # Determine which source entry this is from (needed for optional field validation)
+                if "cna" in index_path:
+                    entry_num = int(index_path.split("[")[-1].rstrip("]"))
+                    source_entry = source_data["containers"]["cna"]["affected"][entry_num]
+                elif "adp" in index_path:
+                    entry_num = int(index_path.split("[")[-1].rstrip("]"))
+                    source_entry = source_data["containers"]["adp"][0]["affected"][entry_num]
+                else:
+                    source_entry = {}
+                
+                # Platforms are optional in source - only validate if they should be present
+                if "platforms" in source_entry:
+                    if "platforms" not in origin:
+                        print(f"❌ FAIL: Entry {idx} originAffectedEntry missing platforms array (was in source)")
+                        return False
+                    if not isinstance(origin["platforms"], list):
+                        print(f"❌ FAIL: Entry {idx} originAffectedEntry platforms is not a list")
+                        return False
+                else:
+                    # platforms was not in source, so it should either be absent or an empty array
+                    if "platforms" in origin and not isinstance(origin["platforms"], list):
+                        print(f"❌ FAIL: Entry {idx} originAffectedEntry platforms is present but not a list")
+                        return False
+                
+                # CPEs are optional in source - only validate if they should be present
+                if "cpes" in source_entry:
+                    if "cpes" not in origin:
+                        print(f"❌ FAIL: Entry {idx} originAffectedEntry missing cpes array (was in source)")
+                        return False
+                    if not isinstance(origin["cpes"], list):
+                        print(f"❌ FAIL: Entry {idx} originAffectedEntry cpes is not a list")
+                        return False
+                else:
+                    # cpes was not in source, so it should either be absent or an empty array
+                    if "cpes" in origin and not isinstance(origin["cpes"], list):
+                        print(f"❌ FAIL: Entry {idx} originAffectedEntry cpes is present but not a list")
+                        return False
+            
+            print(f"  ✓ Property preservation validated: All entries have proper originAffectedEntry structure")
+            
+            print(f"✅ PASS: CNA+ADP multi-source processing validated successfully")
+            print(f"  ✓ Both CNA and ADP containers processed correctly")
+            print(f"  ✓ Entry count matches expected (3 CNA + 4 ADP = 7 total)")
+            print(f"  ✓ Container attribution paths correct (cve.containers.cna/adp[N].affected.[N])")
+            print(f"  ✓ Content matches source CVE List V5 data (vendor, product, versions, cpes)")
+            print(f"  ✓ originAffectedEntry preserves all source properties")
+            return True
+            
+        except Exception as e:
+            print(f"❌ FAIL: Error validating CNA+ADP processing: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     # SDC Integration Tests
@@ -2661,6 +2896,7 @@ class NVDishCollectorTestSuite:
                 ("Source Alias Resolution", self.test_source_alias_resolution),
                 ("Complex Merge Scenarios", self.test_complex_merge_scenarios),
                 ("Enhanced Record Structure", self.test_enhanced_record_structure),
+                ("CNA+ADP Multi-Source Processing", self.test_cna_adp_multi_source_processing),
             ]
             
             for test_name, test_func in tests:
