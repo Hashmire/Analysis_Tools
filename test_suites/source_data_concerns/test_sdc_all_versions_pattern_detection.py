@@ -4,7 +4,7 @@ All Versions Pattern Detection Test Suite
 
 This test suite validates the detection of "all versions" patterns that should be 
 represented as "*" for consistent parsing. It tests the ALL_VERSION_VALUES array 
-defined in badge_modal_system.py.
+defined in platform_entry_registry.py.
 
 All versions patterns detected:
 - 'all versions', 'all', 'all version', 'any version', 'any versions', 'any'

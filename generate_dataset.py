@@ -759,7 +759,7 @@ def main():
     # Group 1: Tool Output - What analysis outputs to generate
     output_group = parser.add_argument_group('Tool Output', 'Select which analysis outputs to generate')
     output_group.add_argument("--nvd-ish-only", nargs='?', const='true', choices=['true', 'false'], default='false',
-                             help="Generate complete NVD-ish enriched records without report files or HTML (ignores other output flags)")
+                             help="Generate complete NVD-ish enriched records without report files (ignores other output flags)")
     output_group.add_argument('--sdc-report', nargs='?', const='true', choices=['true', 'false'], default='false',
                              help='Generate Source Data Concerns report (default: false, true if flag provided without value)')
     output_group.add_argument('--cpe-determination', nargs='?', const='true', choices=['true', 'false'], default='false', 
@@ -767,7 +767,7 @@ def main():
     output_group.add_argument('--alias-report', nargs='?', const='true', choices=['true', 'false'], default='false',
                              help='Generate alias report via curator features (default: false, true if flag provided without value)')
     output_group.add_argument('--cpe-as-generator', nargs='?', const='true', choices=['true', 'false'], default='false',
-                             help='Generate CPE Applicability Statements as interactive HTML pages (default: false, true if flag provided without value)')
+                             help='Generate CPE Applicability Statements (default: false, true if flag provided without value)')
     
     # Group 2: Data Input/Sources - Specify what data to process and where to get it
     input_group = parser.add_argument_group('Data Input/Sources', 'Specify input data and data sources')
@@ -859,7 +859,7 @@ def main():
         alias_report = False
         cpe_as_generator = False
         
-        print("NVD-ish only mode enabled: generating complete enriched records without report files or HTML")
+        print("NVD-ish only mode enabled: generating complete enriched records without report files")
         print("Other output flags ignored in NVD-ish only mode")
     
     # Validate feature combinations
@@ -876,8 +876,8 @@ def main():
         print("  --sdc-report               : Generate Source Data Concerns report")
         print("  --cpe-determination        : Generate CPE determination via NVD CPE API calls")
         print("  --alias-report             : Generate alias report via curator features")
-        print("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages")
-        print("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files or HTML")
+        print("  --cpe-as-generator         : Generate CPE Applicability Statements")
+        print("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files")
         print("")
         print("Example usage:")
         print("  python generate_dataset.py --last-days 7 --sdc-report")
@@ -940,9 +940,8 @@ def main():
     from pathlib import Path
     parent_run_path = Path(args.parent_run_dir) if args.parent_run_dir else None
     
-    # Determine subdirectories based on nvd-ish-only mode
-    # nvd-ish-only doesn't need generated_pages (only produces JSON enriched records)
-    subdirs = ["logs"] if nvd_ish_only else ["generated_pages", "logs"]
+    # Determine subdirectories - all dataset runs only need logs
+    subdirs = ["logs"]
     
     # Check if we're in a test environment to enable consolidated test run handling
     is_test = os.environ.get('CONSOLIDATED_TEST_RUN') == '1'

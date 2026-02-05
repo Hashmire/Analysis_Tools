@@ -503,7 +503,7 @@ Enhanced CVE Record Architecture
 
 - Detection results: 9 concern types (placeholderData, bloatTextDetection, versionGranularity, etc.)
 - `sourceId`: Analysis tool identifier, `cvelistv5AffectedEntryIndex`: Array position reference
-- Processing function: `create_source_data_concerns_badge()` in `badge_modal_system.py`
+- Processing function: `create_source_data_concerns_badge()` in `platform_entry_registry.py`
 
 **II.C.3. Alias Extraction:**
 
@@ -516,12 +516,12 @@ Enhanced CVE Record Architecture
 - `confirmedMappings`: Validated CPE base strings from mapping files
 - `cpeMatchStringsSearched`: Enumerated CPE Match Strings used for NVD API queries
 - `cpeMatchStringsCulled`: Rejected CPE Match Strings with validation failure reasons
-- Processing functions: `create_top10_cpe_suggestions_registry_entry()` in `badge_modal_system.py`, `find_confirmed_mappings()`, `deriveCPEMatchStringList()`, `is_nvd_api_compatible()`, validation functions in `processData.py`
+- Processing functions: `create_top10_cpe_suggestions_registry_entry()` in `platform_entry_registry.py`, `find_confirmed_mappings()`, `deriveCPEMatchStringList()`, `is_nvd_api_compatible()`, validation functions in `processData.py`
 
 **II.C.5. CPE-AS Generation Rules:** (Not Implemented Yet)  
 
 - JSON generation transformation rules: Pattern-based CPE-AS generation with traceability metadata
 - Intelligent settings configuration: Rule enablement flags based on data analysis
-- Processing functions: Python detection logic in `badge_modal_system.py`, JavaScript generation in `cpe_json_handler.js`, `modular_rules.js`
+- Processing functions: Python detection logic in `platform_entry_registry.py`, JavaScript generation in `cpe_json_handler.js`, `modular_rules.js`
 
 ---

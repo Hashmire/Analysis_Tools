@@ -37,7 +37,7 @@ The CPE-AS generation system transforms CVE 5.0 affected array entries into NVD-
 
 ### Required Inputs
 1. **CVE 5.0 affected entry** - Single platform from `affected[]` array
-2. **CPE base string** - Generated via `badge_modal_system.py` CPE cache
+2. **CPE base string** - Generated via `platform_entry_registry.py` CPE cache
 3. **Settings/flags** (optional) - Pattern detection settings
 
 ### Affected Entry Field Processing
@@ -228,7 +228,7 @@ Single cpeMatch with wildcard version (*) when no specific version data is avail
 - **Pattern D**: defaultStatus='unknown' → metadata-only cpeMatch with `concerns: ["defaultStatusUnknown"]`
 - Output (Patterns A-C): Single cpeMatch with wildcard version (*), vulnerability based on status
 
-**VERSION_PLACEHOLDER_VALUES (Centralized in badge_modal_system.py):**
+**VERSION_PLACEHOLDER_VALUES (Centralized in platform_entry_registry.py):**
 ```python
 VERSION_PLACEHOLDER_VALUES = [
     'unspecified', 'unknown', 'none', 'undefined', 'various',

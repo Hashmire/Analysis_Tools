@@ -197,7 +197,7 @@ if 'platforms' in platform_data and isinstance(platform_data['platforms'], list)
 **Step 4: Placeholder Detection & Validation**
 
 ```python
-# Uses GENERAL_PLACEHOLDER_VALUES from badge_modal_system.py
+# Uses GENERAL_PLACEHOLDER_VALUES from platform_entry_registry.py
 GENERAL_PLACEHOLDER_VALUES = [
     'unspecified', 'unknown', 'none', 'undefined', 'various',
     'n/a', 'not available', 'not applicable', 'unavailable',

@@ -58,7 +58,7 @@ from typing import Dict, List, Optional, Tuple
 # CRITICAL IMPORTS - must succeed or script fails
 from ..logging.workflow_logger import get_logger
 from ..storage.run_organization import get_analysis_tools_root
-from ..core.badge_modal_system import (
+from ..core.platform_entry_registry import (
     GENERAL_PLACEHOLDER_VALUES,
     ALL_TEXT_COMPARATOR_PATTERNS,
     TEXT_COMPARATOR_REGEX_PATTERNS
@@ -358,7 +358,7 @@ class AliasReportBuilder:
         """
         Generate deduplication key from alias properties.
         
-        Must match badge_modal_system._create_alias_data() logic:
+        Must match platform_entry_registry._create_alias_data() logic:
         - Sort keys alphabetically
         - Exclude 'source_cve' from key
         - Lowercase all values
@@ -597,7 +597,7 @@ def _has_alias_concerns(alias: dict) -> bool:
     Check if an alias has data quality concerns.
     
     Optimized for boolean detection - returns immediately upon finding first concern.
-    Uses imported constants from badge_modal_system.py (single source of truth).
+    Uses imported constants from platform_entry_registry.py (single source of truth).
     Matches JavaScript detectSourceDataConcerns and Python SDC detection.
     
     Args:
@@ -675,7 +675,7 @@ def _has_alias_concerns(alias: dict) -> bool:
 def calculate_alias_statistics(report_data: dict) -> dict:
     """
     Calculate statistics from alias report data for index display.
-    Uses centralized detection logic with constants from badge_modal_system.py.
+    Uses centralized detection logic with constants from platform_entry_registry.py.
     
     Analyzes aliasGroups and confirmedMappings to determine:
     - Total unique aliases

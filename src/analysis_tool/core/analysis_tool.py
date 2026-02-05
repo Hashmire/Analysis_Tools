@@ -33,7 +33,6 @@ _ensure_src_path()
 
 from . import gatherData
 from . import processData
-from . import generateHTML
 
 # Import the new logging system
 from ..logging.workflow_logger import (
@@ -41,9 +40,8 @@ from ..logging.workflow_logger import (
     start_cve_queries, end_cve_queries,
     start_unique_cpe_generation, end_unique_cpe_generation,
     start_cpe_queries, end_cpe_queries,
-    start_page_generation, end_page_generation,
     start_audit, end_audit,
-    log_cve_query, log_data_proc, log_page_gen
+    log_cve_query, log_data_proc
 )
 
 # Import run organization utilities
@@ -90,8 +88,6 @@ def process_test_file(test_file_path):
     """Process a test file containing CVE data for testing modular rules."""
     logger.info(f"Processing test file: {test_file_path}", group="DATA_PROC")
     
-    # Clear global HTML state to prevent accumulation from previous processing
-    generateHTML.clear_global_html_state()
     
     try:
         # Load test data from JSON file
@@ -147,8 +143,6 @@ def process_test_file(test_file_path):
         except Exception as e:
             logger.debug(f"Real-time collector unavailable for stage tracking: {e}", group="data_processing")
         
-        # Skip CPE suggestions for test files to avoid API calls
-        # primaryDataframe = processData.suggestCPEData(nvd_api_key, primaryDataframe, 1)
         
         # For test files, ensure CPE data fields are proper dictionaries instead of empty lists
         for index, row in primaryDataframe.iterrows():
@@ -159,64 +153,60 @@ def process_test_file(test_file_path):
         
         end_cve_queries("Test CVE data processed")
         
-        start_page_generation("Generating HTML output")
+        # Source Data Concerns Processing for test files
+        logger.info("Generating Source Data Concerns report", group="data_processing")
+        from .platform_entry_registry import create_source_data_concerns_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+        from ..logging.badge_contents_collector import get_badge_contents_collector, collect_clean_platform_entry
         
-        # Generate HTML
-        primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe)
-        
-        # Clean up dataframe
-        columns_to_drop = ['sourceID', 'sourceRole', 'rawPlatformData', 'rawCPEsQueryData', 
-                          'sortedCPEsQueryData', 'trimmedCPEsQueryData', 'platformEntryMetadata']
-        for col in columns_to_drop:
-            primaryDataframe = primaryDataframe.drop(col, axis=1, errors='ignore')
-
-        # Set column widths
-        num_cols = len(primaryDataframe.columns)
-        if num_cols == 0:
-            # Handle empty dataframe case - can't generate HTML from empty data
-            logger.error("Dataframe has no columns after cleanup - cannot generate HTML for test file", group="page_generation")
-            return None
-        col_widths = ['20%', '80%'] if num_cols == 2 else [f"{100/num_cols}%"] * num_cols
-
-        # Convert to HTML
-        affectedHtml2 = primaryDataframe.to_html(
-            classes='table table-stripped',
-            col_space=col_widths,
-            escape=False,
-            index=False
-        )
-
-        # Format HTML headers
-        if 'rowDataHTML' in primaryDataframe.columns:
-            affectedHtml2 = re.sub(r'<th[^>]*>rowDataHTML</th>', 
-                                  r'<th class="hidden-header" style="min-width: 20%;">rowDataHTML</th>', 
-                                  affectedHtml2)
-
-        if 'cpeQueryHTML' in primaryDataframe.columns:
-            affectedHtml2 = re.sub(r'<th[^>]*>cpeQueryHTML</th>',                                  r'<th class="hidden-header" style="min-width: 80%;">cpeQueryHTML</th>', 
-                                  affectedHtml2)
-        
-        # Generate page and save HTML
-        external_assets_for_html = config.get('external_assets', {})
-        allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, cve_id, globalCVEMetadata, external_assets_config=external_assets_for_html)
-
-        # For test files, use run-specific directory
-        if not ('current_run_paths' in globals() and current_run_paths):
-            raise RuntimeError("Run paths not initialized - test runs require run directory system")
+        collector = get_badge_contents_collector()
+        for index, row in primaryDataframe.iterrows():
+            # Extract basic row data
+            source_id = row.get('sourceID', 'Unknown')
+            raw_platform_data = row.get('rawPlatformData', {})
+            platform_metadata = row.get('platformEntryMetadata', {})
             
-        # Use existing run paths
-        filepath = current_run_paths["generated_pages"] / f"{cve_id}.html"
+            vendor = raw_platform_data.get('vendor', 'Unknown')
+            product = raw_platform_data.get('product', 'Unknown')
+            
+            # Collect source data concerns and populate the registry
+            create_source_data_concerns_badge(
+                table_index=index,
+                raw_platform_data=raw_platform_data,
+                characteristics={},  # Empty for SDC report only
+                platform_metadata=platform_metadata,
+                row=row
+            )
+            
+            # Check if source data concerns were found and collect them
+            registry_data = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('sourceDataConcerns', {}).get(index, {})
+            if registry_data:
+                concerns_data = registry_data.get('concerns', {})
+                concerns_summary = registry_data.get('summary', {})
+                concerns_count = concerns_summary.get('total_concerns', 0)
+                concern_types = concerns_summary.get('concern_types', [])
+                
+                collector.collect_source_data_concern(
+                    table_index=index,
+                    source_id=source_id,
+                    vendor=vendor,
+                    product=product,
+                    concerns_data=concerns_data,
+                    concerns_count=concerns_count,
+                    concern_types=concern_types
+                )
+            else:
+                # No source data concerns found - collect this as a clean platform entry
+                if source_id and source_id != 'Unknown':
+                    collect_clean_platform_entry(source_id)
         
-        with filepath.open("w", encoding="utf-8") as fd:
-            fd.write(allConsoleHTML)
+        logger.info("SDC report processing completed", group="data_processing")
         
-        logger.file_operation("Generated", str(filepath), "test file", group="PAGE_GEN")
-        end_page_generation("HTML file created")
+        logger.debug("Test file processing complete", group="report_gen")
         
         # Complete badge contents collection for this test CVE
         complete_cve_collection()
         
-        return filepath
+        return True
         
     except Exception as e:
         logger.error(f"Test file processing failed: Unable to process test file '{test_file_path}' - {str(e)}", group="initialization")
@@ -257,8 +247,6 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
     """
     global config
     
-    # Clear global HTML state to prevent accumulation from previous CVEs
-    generateHTML.clear_global_html_state()
     
     # Audit: Verify global state is properly cleared before processing
     audit_global_state_cleared()
@@ -353,17 +341,13 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
         else:
             logger.info(f"Platform processing skipped - no features requiring platform data are enabled", group="data_processing")
         
-        # HTML Generation Decision
-        if not cpe_as_generator:
-            logger.info("HTML generation skipped - CPE features disabled", group="data_processing")
-        
         # Source Data Concerns Processing
         if sdc_report:
             logger.info("Generating Source Data Concerns report", group="data_processing")
             tool_execution_timestamps['sourceDataConcerns'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
             
             # Process each row in the dataframe to collect source data concerns
-            from .badge_modal_system import create_source_data_concerns_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+            from .platform_entry_registry import create_source_data_concerns_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
             from ..logging.badge_contents_collector import get_badge_contents_collector, collect_clean_platform_entry
             
             collector = get_badge_contents_collector()
@@ -376,7 +360,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
                 vendor = raw_platform_data.get('vendor', 'Unknown')
                 product = raw_platform_data.get('product', 'Unknown')
                 
-                # Create source data concerns badge to populate the registry
+                # Collect source data concerns and populate the registry
                 create_source_data_concerns_badge(
                     table_index=index,
                     raw_platform_data=raw_platform_data,
@@ -416,7 +400,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
                 tool_execution_timestamps['aliasExtraction'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
                 
                 # Import alias extraction functions
-                from .badge_modal_system import create_alias_extraction_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+                from .platform_entry_registry import create_alias_extraction_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
                 from ..logging.badge_contents_collector import collect_alias_extraction_data, get_badge_contents_collector
                 
                 collector = get_badge_contents_collector()
@@ -441,8 +425,8 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
                     row_with_cve = dict(row)
                     row_with_cve['cve_id'] = cve_id_for_alias
                     
-                    # Create alias extraction badge to populate the registry
-                    badge_result = create_alias_extraction_badge(
+                    # Collect alias extraction data and populate the registry
+                    create_alias_extraction_badge(
                         table_index=index,
                         raw_platform_data=raw_platform_data,
                         row=row_with_cve
@@ -461,7 +445,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
                             matching_entries[reg_key] = reg_data
                             entry_count += 1
                     
-                    if matching_entries and badge_result:
+                    if matching_entries:
                         # Collect the alias extraction data for this platform entry
                         collect_alias_extraction_data(
                             table_index=index,
@@ -486,7 +470,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
             try:
                 # Import confirmed mapping functions
                 from .processData import extract_confirmed_mappings_for_affected_entry
-                from .badge_modal_system import create_confirmed_mappings_registry_entry
+                from .platform_entry_registry import create_confirmed_mappings_registry_entry
                 
                 # Extract affected entries from CVE List V5 data for confirmed mapping processing
                 if cveRecordData and 'containers' in cveRecordData:
@@ -532,11 +516,11 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
                 logger.error(f"Confirmed mappings processing failed for {cve_id}: {str(confirmed_error)}", group="data_processing")
                 logger.info("Continuing without confirmed mappings...", group="data_processing")
         
-        # Complete NVD-ish enhanced record collection for this CVE BEFORE HTML generation decision
+        # Complete NVD-ish enhanced record collection for this CVE
         logger.info(f"Starting NVD-ish enhanced record collection for {cve_id}", group="data_processing")
         try:
             # Import Platform Entry Notification Registry for nvd-ish integration
-            from .badge_modal_system import PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+            from .platform_entry_registry import PLATFORM_ENTRY_NOTIFICATION_REGISTRY
             
             nvd_ish_collector.start_cve_processing(cve_id)
             
@@ -592,137 +576,17 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
             logger.error(f"Failed to complete NVD-ish collection for {cve_id}: {collection_error}", group="data_processing")
             logger.error(f"Full traceback:\n{traceback.format_exc()}", group="data_processing")
 
-        # HTML generation decision based on feature flags
-        # Only generate HTML when cpe_as_generator is enabled (the only feature that needs interactive HTML pages)
-        # Skip HTML generation entirely in NVD-ish only mode
-        should_generate_html = cpe_as_generator and not nvd_ish_only
-        
-        if not should_generate_html:
-            if nvd_ish_only:
-                logger.info("CPE-AS Generator HTML page generation skipped (NVD-ish only)", group="page_generation")
-            else:
-                logger.info("HTML generation skipped for this feature configuration", group="page_generation")
-            
-            # Complete badge contents collection for this CVE
-            complete_cve_collection()
-            
-            return {
-                'success': True,
-                'sdc_report': sdc_report,
-                'cpe_suggestions': cpe_determination,
-                'alias_report': alias_report,
-                'cve_as_generator': cpe_as_generator,
-                'nvd_ish_only': nvd_ish_only,
-                'cve_id': cve_id,
-                'filepath': None  # No HTML file generated
-            }
-        
-        start_page_generation("Generating HTML output")
-        
-        # Generate HTML
-        primaryDataframe = generateHTML.update_cpeQueryHTML_column(primaryDataframe)
-        
-        # Clean up dataframe
-        columns_to_drop = ['sourceID', 'sourceRole', 'rawPlatformData', 'rawCPEsQueryData', 
-                          'sortedCPEsQueryData', 'trimmedCPEsQueryData', 'platformEntryMetadata']
-        for col in columns_to_drop:
-            primaryDataframe = primaryDataframe.drop(col, axis=1, errors='ignore')
-
-        # Set column widths
-        num_cols = len(primaryDataframe.columns)
-        if num_cols == 0:
-            # Handle empty dataframe case - can't generate HTML from empty data
-            logger.error(f"Dataframe has no columns after cleanup - cannot generate HTML for {cve_id}", group="page_generation")
-            return {
-                'success': False,
-                'error': 'No data to process',
-                'reason': 'No columns remaining in dataframe after processing - likely no matching data for source UUID filter',
-                'cve_id': cve_id,
-                'filepath': None
-            }
-        col_widths = ['20%', '80%'] if num_cols == 2 else [f"{100/num_cols}%"] * num_cols
-
-        # Convert to HTML
-        affectedHtml2 = primaryDataframe.to_html(
-            classes='table table-stripped',
-            col_space=col_widths,
-            escape=False,
-            index=False
-        )
-
-        # Format HTML headers
-        if 'rowDataHTML' in primaryDataframe.columns:
-            affectedHtml2 = re.sub(r'<th[^>]*>rowDataHTML</th>', 
-                                  r'<th class="hidden-header" style="min-width: 20%;">rowDataHTML</th>', 
-                                  affectedHtml2)
-
-        if 'cpeQueryHTML' in primaryDataframe.columns:
-            affectedHtml2 = re.sub(r'<th[^>]*>cpeQueryHTML</th>', 
-                                  r'<th class="hidden-header" style="min-width: 80%;">cpeQueryHTML</th>', 
-                                  affectedHtml2)
-
-        # Generate page and save HTML
-        external_assets_for_html = config.get('external_assets', {})
-        allConsoleHTML = generateHTML.buildHTMLPage(affectedHtml2, cve_id, globalCVEMetadata, external_assets_config=external_assets_for_html)
-
-        # Save output to run-specific generated_pages directory
-        if not current_run_paths:
-            raise RuntimeError("Run paths not initialized - run directory system required")
-        
-        sub_directory = current_run_paths["generated_pages"]
-        
-        filename = f"{cve_id}.html"
-        filepath = sub_directory / filename
-        
-        with filepath.open("w", encoding="utf-8") as fd:
-            fd.write(allConsoleHTML)
-        
-        logger.file_operation("Generated", str(filepath), group="page_generation")
-        
-        # Record file generation in dashboard collector
-        try:
-            from ..reporting.dataset_contents_collector import record_output_file, get_current_cve_processing_time, update_cve_affected_entries_count
-            
-            # Get processing time for this CVE
-            processing_time = get_current_cve_processing_time()
-            
-            # Count platform entries (dataframe rows)
-            dataframe_rows = len(primaryDataframe) if 'primaryDataframe' in locals() else None
-            
-            # Update the final affected entries count for accurate dashboard reporting
-            if dataframe_rows is not None:
-                update_cve_affected_entries_count(cve_id, dataframe_rows)
-            
-            # Record the generated file with enhanced metadata
-            record_output_file(
-                filename=filename,
-                file_path=str(filepath),
-                cve_count=1,  # Individual CVE files always have 1 CVE
-                cve_id=cve_id,
-                dataframe_rows=dataframe_rows,
-                processing_time=processing_time,
-                bloat_analysis=None  # Bloat analysis could be added later if needed
-            )
-            
-        except Exception as e:
-            # Don't fail file generation if dashboard recording fails
-            if logger:
-                logger.warning(f"Failed to record file generation in dashboard: {e}", group="page_generation")
-        
-        end_page_generation("HTML file created")
-        
-        # Complete badge contents collection for this CVE
+        # Complete badge contents collection and return success
         complete_cve_collection()
         
-        # Store success result before nvd-ish collector runs
-        success_result = {
+        return {
             'success': True,
             'sdc_report': sdc_report,
             'cpe_suggestions': cpe_determination,
             'alias_report': alias_report,
             'cve_as_generator': cpe_as_generator,
             'cve_id': cve_id,
-            'filepath': str(filepath)
+            'filepath': None
         }
         
     except Exception as e:
@@ -731,14 +595,11 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
         # Still complete badge contents collection even if processing failed
         complete_cve_collection()
         
-        # Store failure result
-        success_result = {
+        return {
             'success': False,
             'error': str(e),
             'cve_id': cve_id
         }
-    
-    return success_result
 
 def audit_global_state(warn_on_bloat=True):
     """Audit global state for potential bloat accumulation
@@ -749,7 +610,6 @@ def audit_global_state(warn_on_bloat=True):
     """
     try:
         from ..storage.cpe_cache import get_global_cache_manager
-        from . import generateHTML
         
         issues = []
           # Check CPE cache size
@@ -762,16 +622,7 @@ def audit_global_state(warn_on_bloat=True):
             else:
                 logger.debug(f"CPE cache size: {cache_size} entries", group="CPE_QUERY")
         
-        # Check HTML settings growth during processing (warn if excessive accumulation)
-        html_settings_size = len(generateHTML.JSON_SETTINGS_HTML) if hasattr(generateHTML, 'JSON_SETTINGS_HTML') else 0
-        intelligent_settings_size = len(generateHTML.INTELLIGENT_SETTINGS) if hasattr(generateHTML, 'INTELLIGENT_SETTINGS') else 0
-        
-        # These grow during processing, so only warn if extremely large (suggests memory leak)
-        if html_settings_size > 1000:  # Very high threshold - indicates potential memory leak
-            issues.append(f"Excessive HTML settings accumulation: {html_settings_size} entries")
-        if intelligent_settings_size > 1000:  # Very high threshold - indicates potential memory leak
-            issues.append(f"Excessive intelligent settings accumulation: {intelligent_settings_size} entries")
-              # Report issues or all-clear
+        # Report issues or all-clear
         if issues:
             if warn_on_bloat:
                 logger.warning(f"Global state bloat detected: {', '.join(issues)}", group="data_processing")
@@ -784,28 +635,6 @@ def audit_global_state(warn_on_bloat=True):
     except Exception as e:
         logger.debug(f"Global state audit failed: {e}", group="data_processing")
         return False
-
-def audit_file_size(filepath, expected_max_kb=1000):
-    """Audit generated file size for bloat detection"""
-    try:
-        if os.path.exists(filepath):
-            file_size_kb = os.path.getsize(filepath) / 1024
-            
-            if file_size_kb > expected_max_kb:
-                logger.warning(f"Large output file detected: {os.path.basename(filepath)} ({file_size_kb:.1f}KB > {expected_max_kb}KB)", group="page_generation")
-                
-                # If extremely large, provide more details
-                if file_size_kb > expected_max_kb * 5:
-                    logger.error(f"Extremely large file: {os.path.basename(filepath)} ({file_size_kb:.1f}KB) - investigate for bloat", group="page_generation")
-                    
-                return False
-            else:
-                logger.debug(f"File size normal: {os.path.basename(filepath)} ({file_size_kb:.1f}KB)", group="page_generation")
-                return True
-    except Exception as e:
-        logger.debug(f"File size audit failed for {filepath}: {e}", group="data_processing")
-        
-    return True
 
 def audit_cache_and_mappings_stats():
     """Audit cache hit rates and confirmed mappings statistics"""
@@ -849,20 +678,7 @@ def audit_cache_and_mappings_stats():
 
 def audit_global_state_cleared():
     """Audit function to verify global state is properly cleared before CVE processing"""
-    issues = []
-    
-    # Check HTML settings state - should be empty at start of CVE processing
-    html_settings_size = len(generateHTML.JSON_SETTINGS_HTML) if hasattr(generateHTML, 'JSON_SETTINGS_HTML') else 0
-    intelligent_settings_size = len(generateHTML.INTELLIGENT_SETTINGS) if hasattr(generateHTML, 'INTELLIGENT_SETTINGS') else 0
-    
-    if html_settings_size > 0:
-        issues.append(f"HTML settings not cleared: {html_settings_size} entries remain")
-    if intelligent_settings_size > 0:
-        issues.append(f"Intelligent settings not cleared: {intelligent_settings_size} entries remain")    # Report issues or confirm clean state
-    if issues:            
-        logger.warning(f"Global state not properly cleared: {', '.join(issues)}", group="data_processing")
-    else:
-        logger.debug("Environment prepared for new CVE processing", group="data_processing")
+    logger.debug("Environment prepared for new CVE processing", group="data_processing")
 
 def update_dashboard_async(current_cve_num, total_cves):
     """Update dashboard in parallel without blocking main CVE processing"""
@@ -940,8 +756,6 @@ def main():
     control_group = parser.add_argument_group('Processing Control', 'Control processing behavior and output presentation')
     control_group.add_argument("--no-cache", action="store_true", help="Disable CPE cache for faster testing")
     control_group.add_argument("--run-id", help="Continue within existing run directory (used by generate_dataset.py integration)")
-    control_group.add_argument("--browser", action="store_true", help="Open results in browser (default: no browser)")
-    control_group.add_argument("--external-assets", action="store_true", help="Use external asset references instead of inline CSS/JS (reduces file size)")
     
     args = parser.parse_args()
     
@@ -1030,30 +844,6 @@ def main():
     
     # Load configuration (logging will be started after run directory is created)
     config = processData.load_config()
-    
-    # Override external assets setting if CLI argument is provided
-    if args.external_assets:
-        logger.info("External assets enabled via CLI argument - overriding config setting", group="initialization")
-        # Copy the external_assets configuration from api.external_assets and enable it
-        if 'api' in config and 'external_assets' in config['api']:
-            config['external_assets'] = config['api']['external_assets'].copy()
-            config['external_assets']['enabled'] = True
-        else:
-            # Fail fast if required config structure is missing
-            logger.error(
-                f"External assets requested via --external-assets but config structure is missing. "
-                f"Expected config['api']['external_assets'] section in config.json. "
-                f"Please verify your configuration file contains the required external_assets section."
-            )
-        
-        # Update the global config as well so process_cve function can access it
-        import sys
-        current_module = sys.modules[__name__]
-        current_module.config = config
-        
-        # Update the generateHTML module's config
-        from . import generateHTML
-        generateHTML.config = config
     
     # Get API key (shared by both test file and CVE processing)
     nvd_api_key = ""
@@ -1167,13 +957,9 @@ def main():
         cache_manager.save_and_cleanup()
         
         if filepath:
-            logger.info(f"Test file processed successfully: {filepath}", group="page_generation")
-            # Open in browser if requested
-            if args.browser:
-                import webbrowser
-                webbrowser.open_new_tab(f"file:///{filepath}")
+            logger.info("Test file processed successfully", group="data_processing")
         else:
-            logger.error("Test file processing failed: Unable to generate HTML output from test data", group="data_processing")
+            logger.error("Test file processing failed", group="data_processing")
             logger.stop_file_logging()
             sys.exit(1)
         
@@ -1212,8 +998,7 @@ def main():
             # Build run_paths dictionary manually for full path case
             run_paths = {
                 "run_root": run_path,
-                "logs": run_path / "logs",
-                "generated_pages": run_path / "generated_pages"
+                "logs": run_path / "logs"
             }
         else:
             # Just an ID provided - resolve it
@@ -1255,7 +1040,6 @@ def main():
             # Try to resolve source UUID to shortname
             try:
                 # Add src to path if not already there
-                import sys
                 from pathlib import Path
                 project_root = Path(__file__).parent.parent.parent.parent
                 src_path = project_root / "src"
@@ -1389,9 +1173,9 @@ def main():
         logger.warning(f"Failed to start real-time dashboard processing run: {e}", group="initialization")
     
     # Process all CVEs with progress tracking
-    generated_files = []
     skipped_cves = []
     skipped_reasons = {}
+    success_count = 0
     start_time = time.time()
     progress_config = config.get('progress', {})
     show_progress = progress_config.get('enabled', True)
@@ -1481,44 +1265,21 @@ def main():
             # Handle results: successful processing, skipped CVEs, or failures
             if result:
                 if result['success']:
-                    # Determine if HTML was generated using the same logic as process_cve
-                    html_was_generated = result.get('cve_as_generator') or (
-                        (result.get('sdc_report') or result.get('cpe_suggestions')) and not (
-                            # Skip HTML for single-feature modes that don't need interactive pages
-                            (result.get('sdc_report') and not result.get('cpe_suggestions') and not result.get('alias_report') and not result.get('cve_as_generator')) or
-                            (result.get('cpe_suggestions') and not result.get('sdc_report') and not result.get('alias_report') and not result.get('cve_as_generator')) or
-                            (result.get('alias_report') and not result.get('cpe_suggestions') and not result.get('sdc_report') and not result.get('cve_as_generator'))
-                        )
-                    )
+                    # Log successful processing
+                    feature_names = []
+                    if result.get('sdc_report'): feature_names.append("SDC")
+                    if result.get('cpe_suggestions'): feature_names.append("CPE-determination")
+                    if result.get('alias_report'): feature_names.append("alias")
+                    if result.get('cve_as_generator'): feature_names.append("CPE-AS")
+                    feature_suffix = f" ({', '.join(feature_names)})" if feature_names else ""
                     
-                    if html_was_generated:
-                        # Normal processing with HTML file generation
-                        generated_files.append(result['filepath'])
-                        
-                        if show_timing:
-                            cve_elapsed = time.time() - cve_start_time
-                            logger.info(f"Successfully processed {cve} in {cve_elapsed:.2f}s", group="processing")
-                        else:
-                            logger.info(f"Successfully processed {cve}", group="processing")
-                        
-                        # Open in browser if single CVE and HTML was generated
-                        if len(cves_to_process) == 1 and args.browser:
-                            import webbrowser
-                            webbrowser.open_new_tab(f"file:///{result['filepath']}")
+                    if show_timing:
+                        cve_elapsed = time.time() - cve_start_time
+                        logger.info(f"Successfully processed {cve}{feature_suffix} in {cve_elapsed:.2f}s", group="processing")
                     else:
-                        # Single-feature mode without HTML generation
-                        feature_names = []
-                        if result.get('sdc_report'): feature_names.append("SDC")
-                        if result.get('cpe_suggestions'): feature_names.append("CPE-suggestions")
-                        if result.get('alias_report'): feature_names.append("alias")
-                        if result.get('cve_as_generator'): feature_names.append("CPE-as-generator")
-                        feature_suffix = f" ({'-'.join(feature_names)}-only)" if feature_names else ""
-                        
-                        if show_timing:
-                            cve_elapsed = time.time() - cve_start_time
-                            logger.info(f"Successfully processed {cve}{feature_suffix} in {cve_elapsed:.2f}s", group="processing")
-                        else:
-                            logger.info(f"Successfully processed {cve}{feature_suffix}", group="processing")
+                        logger.info(f"Successfully processed {cve}{feature_suffix}", group="processing")
+                    
+                    success_count += 1
                     
                     # Mark as successfully completed in progress tracker
                     try:
@@ -1583,7 +1344,6 @@ def main():
     
     # Final summary
     total_time = time.time() - start_time
-    success_count = len(generated_files)
     
     logger.info(f"Processing complete!", group="completion")
     logger.info(f"Total CVEs processed: {total_cves}", group="completion")

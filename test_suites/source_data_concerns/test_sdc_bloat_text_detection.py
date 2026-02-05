@@ -4,7 +4,7 @@ Bloat Text Detection Test Suite
 
 This test suite validates the detection of bloat text patterns that should be 
 removed from version fields for cleaner parsing. It tests the BLOAT_TEXT_VALUES 
-array defined in badge_modal_system.py.
+array defined in platform_entry_registry.py.
 
 Bloat text patterns detected:
 - 'version', 'versions', 'ver'

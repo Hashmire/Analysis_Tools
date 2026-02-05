@@ -969,7 +969,7 @@ class TestGroupEnforcementIntegration(LoggingSystemTestSuite):
         """Test that all required groups are defined in LogGroup enum."""
         required_groups = [
             'INIT', 'CVE_QUERY', 'UNIQUE_CPE', 'CPE_QUERY',
-            'BADGE_GEN', 'PAGE_GEN', 'DATA_PROC'
+            'BADGE_GEN', 'REPORT_GEN', 'DATA_PROC'
         ]
         available_groups = [group.name for group in LogGroup]
         
@@ -986,7 +986,7 @@ class TestGroupEnforcementIntegration(LoggingSystemTestSuite):
             "unique_cpe": "UNIQUE_CPE",
             "cpe_queries": "CPE_QUERY",
             "badge_generation": "BADGE_GEN",
-            "page_generation": "PAGE_GEN",
+            "page_generation": "REPORT_GEN",  # page_generation maps to REPORT_GEN
             "data_processing": "DATA_PROC"
         }
         
@@ -1073,7 +1073,7 @@ class TestAuditSystemConfiguration(LoggingSystemTestSuite):
         self.assertIsNotNone(logger.groups, "Groups configuration missing")
           # Test that we can access group configurations
         expected_groups = ['INIT', 'CVE_QUERY', 'UNIQUE_CPE', 'CPE_QUERY', 
-                          'BADGE_GEN', 'PAGE_GEN', 'DATA_PROC']
+                          'BADGE_GEN', 'REPORT_GEN', 'DATA_PROC']
         
         # Each group should have some form of configuration available
         for group in expected_groups:

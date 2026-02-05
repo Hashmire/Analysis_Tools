@@ -183,26 +183,6 @@ class NVDSourceManagerIntegrationTestSuite:
         except Exception as e:
             self.add_result("BADGE_COLLECTOR_INTEGRATION", False, f"Badge collector integration failed: {e}")
 
-    def test_html_generation_integration(self):
-        """Test integration with HTML generation."""
-        print("\n📄 Testing HTML Generation Integration...")
-        
-        try:
-            # Import HTML generation module and check for source manager usage
-            from analysis_tool.core.generateHTML import convertRowDataToHTML
-            from analysis_tool.storage.nvd_source_manager import get_source_info, get_source_name
-            
-            # Test that HTML generator can import and use source functions
-            cisco_info = get_source_info("d1c1063e-7a18-46af-9102-31f8928bc633")
-            cisco_name = get_source_name("d1c1063e-7a18-46af-9102-31f8928bc633")
-            
-            if cisco_info and cisco_name == "Cisco Systems, Inc.":
-                self.add_result("HTML_GENERATION_INTEGRATION", True, "HTML generator can access source data")
-            else:
-                self.add_result("HTML_GENERATION_INTEGRATION", False, f"Source data access failed: info={cisco_info}, name={cisco_name}")
-                
-        except Exception as e:
-            self.add_result("HTML_GENERATION_INTEGRATION", False, f"HTML generation integration failed: {e}")
 
     def test_process_data_integration(self):
         """Test integration with process data module."""
@@ -719,7 +699,6 @@ class NVDSourceManagerIntegrationTestSuite:
         # Run focused integration tests
         self.test_core_source_manager_functionality()
         self.test_badge_contents_collector_integration()
-        self.test_html_generation_integration()
         self.test_process_data_integration()
         self.test_analysis_tool_initialization()
         self.test_javascript_completion_tracker_integration()

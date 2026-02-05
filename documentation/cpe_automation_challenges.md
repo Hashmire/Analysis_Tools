@@ -22,14 +22,14 @@ The tool processes provided, relevant platform metadata and identifies the most 
 
 - **Data Transformations / Heuristics**: The tool gathers relevant data from product/platform related fields to create various CPE Match Criteria representations. These are used to query the NVD /cpes/ API to gather relevant CPE Name data. The CPE Names and associated metadata are then consolidated, reviewed and ordered to derive the top ten most likely CPE Base Strings.  
   *Files*:
-  - `src/analysis_tool/core/gatherData.py`
+  - `src/analysis_tool/core/analysis_tool.py`
   - `src/analysis_tool/core/processData.py`
-- **Confirmed Mappings**: The tool reviews a curated list of alias mappings to drive consistency of CPE Base String identification. Once a mapping is made, that decision will never need to be made by any system again for that alias. Alias mappings are flexible enough to handle multiple datatypes and overlapping identifications. Any organization is able to contribute a known alias mapping, so long as they can provide provenance that the alias data should map to the target CPE Base String and the alias exists in the CVE dataset.  
+  - `src/analysis_tool/storage/cpe_cache.py`
+- **Confirmed Mappings**: The tool reviews a curated list of alias mappings to drive consistency of CPE Base String identification. Alias mappings are flexible enough to handle multiple datatypes and overlapping identifications. Any organization is able to contribute a known alias mapping, so long as they can provide provenance that the alias data should map to the target CPE Base String and the alias exists in the CVE dataset.  
  *Files*:
   - `src/analysis_tool/mappings/*`
+  - `src/analysis_tool/storage/confirmed_mapping_manager.py`
   - `src/analysis_tool/core/processData.py`
-  - `src/analysis_tool/core/badge_modal_system.py`
-  - `src/analysis_tool/static/js/badge_modal_system.js`
 
 ---
 
@@ -43,11 +43,11 @@ The tool translates the information provided within a CVE record and (once a CPE
 
 ### Codebase Areas
 
-- **(CPE-AS) JSON Generation Rules**: The tool reviews the various defined CVE record affected array content, determines how to structure the available version data as CPE Match Strings or CPE Match String Ranges, identifies the most direct way to represent affected/unaffected/unknown indicators, leverages any unique conversions for known version types and makes appropriate conversions for cases where update data needs to be extracted into the update attribute of the normative CPE Match Criteria. Each affected entry processed, is consolidated into an overall CPE-AS for the CVE record.  
+- **(CPE-AS) JSON Generation Rules**: The tool reviews the various defined CVE record affected array content, determines how to structure the available version data as CPE Match Strings or CPE Match String Ranges, identifies the most direct way to represent affected/unaffected/unknown indicators, leverages any unique conversions for known version types and makes appropriate conversions for cases where update data needs to be extracted into the update attribute of the normative CPE Match Criteria. Each affected entry processed, is consolidated into an NVD-ish enriched record format.  
   *Files*:  
   - `src/analysis_tool/core/processData.py`
-  - `src/analysis_tool/core/generateHTML.py`
-  - `src/analysis_tool/static/js/badge_modal_system.js`
+  - `src/analysis_tool/core/cpe_as_generator.py`
+  - `src/analysis_tool/storage/nvd_ish_collector.py`
 
 ---
 
@@ -61,15 +61,16 @@ The tool tracks and identifies a collection of cases that prevent or impede plat
 
 ### Codebase Areas
 
-- **Source Data Concern Dashboard**: The tool generates a detailed dashboard providing overall Source Data Concern statistics for the CVE records processed. This dashboard also provides searchable, targeted source based statistics enabling overall review and drilldown capabilities directly to the generated page for the CVE record in question.  
+- **Source Data Concern Dashboard**: The tool generates a detailed dashboard providing overall Source Data Concern statistics for the CVE records processed. This dashboard also provides searchable, targeted source based statistics enabling overall review and drilldown capabilities directly to the NVD-ish record in question.  
   *Files*:
-  - `dashboards/sourceDataConcernDashboard.html`
+  - `src/analysis_tool/reporting/generate_sdc_report.py`
   - `src/analysis_tool/logging/badge_contents_collector.py`
-- **Source Data Concern Badge/Modal**: The tool generates an html page for user assistance of CPE-AS generation. Within each relevant row of the page, a Source Data Concerns Badge/Modal is available. Data contributors can use this to review the exact details of the Source Data Concern for that row. Each concern is broken down by problem, data and resolution guidance.  
+  - `dashboards/sourceDataConcernDashboard.html` (example)
+- **Source Data Concern Detection & Storage**: The tool analyzes platform entries during processing to detect quality issues, storing findings in the Platform Entry Notification Registry (PENR). This data is then integrated into NVD-ish records and rendered via report generation for data contributor review. Each concern is broken down by problem, data and resolution guidance.  
   *Files*:
-  - `src/analysis_tool/core/badge_modal_system.py`
-  - `src/analysis_tool/static/js/badge_modal_system.js`
-  - `src/analysis_tool/core/generateHTML.py`
+  - `src/analysis_tool/core/platform_entry_registry.py`
+  - `src/analysis_tool/storage/nvd_ish_collector.py`
+  - `src/analysis_tool/reporting/generate_sdc_report.py`
 
 ---
 
@@ -83,15 +84,23 @@ The tool takes a series of approaches to assist with these issues.
 
 ### Codebase Areas
 
-- **Caching System**: The tool reduces NVD /cpes/ API calls by caching responses locally for review during the same run. The cache has configurable settings for how long to reference the cached data before making new queries for the most up-to-date CPE Dictionary data.  
+- **Caching System**: The tool caches multiple data sources locally to reduce API calls and improve performance. This includes NVD CPE Dictionary data (sharded architecture), NVD source metadata, and CVE List v5 records. The cache has configurable settings for staleness detection and automatic refresh based on NVD change history endpoints.  
   *Files*:
   - `src/analysis_tool/storage/cpe_cache.py`
-  - `src/cache/*`
-- **CPE Match String Consolidation**: The tool consolidates all unique CPE Match Strings as part of the initial data generation stage to reduce the volume of queries made against the NVD /cpes/ API or the caching system. Additionally, any problematic CPE Match Criteria are culled to avoid wasted time on overly broad or erroneous queries.  
+  - `src/analysis_tool/storage/nvd_source_manager.py`
+  - `cache/cpe_base_strings/*` (sharded CPE cache)
+  - `cache/nvd_source_data.json`
+  - `cache/cve_list_v5/*`
+  - `utilities/refresh_cpe_cache.py`
+- **CPE Match String Consolidation & Validation**: The tool consolidates all unique CPE Match Strings during initial data processing to reduce query volume against the NVD /cpes/ API. Additionally, CPE Match Criteria undergo validation and exclusion logic to cull problematic entries (overly broad patterns, known placeholders, invalid formats) preventing wasted processing time on erroneous queries.  
   *Files*:
   - `src/analysis_tool/core/processData.py`
-- **Templating/Filesize Reduction**: The tool reduces the amount of data stored and thus file size within each generated page by leveraging templating techniques and unified data storage. This ensures reasonable dataset size for provisioning within a GitHub repository.  
+  - `src/analysis_tool/core/platform_entry_registry.py`
+- **Dataset Generation & Reporting Architecture**: The tool generates enriched NVD-ish records storing structured CVE data with CPE determination, alias extraction, source data concerns or CPE Applicability Statements data in a persistent cache. This separation of data collection from report generation enables scalable dataset creation (`generate_dataset.py`, `harvest_and_process_sources.py`) and flexible on-demand report generation (SDC reports, alias extraction reports, CPE-AS automation reports) without reprocessing.  
   *Files*:
-  - `src/analysis_tool/core/generateHTML.py`
-  - `src/analysis_tool/static/js/badge_modal_system.js`
-  - `src/analysis_tool/static/css/*`
+  - `generate_dataset.py`
+  - `harvest_and_process_sources.py`
+  - `src/analysis_tool/storage/nvd_ish_collector.py`
+  - `cache/nvd-ish_2.0_cves/*`
+  - `src/analysis_tool/reporting/generate_sdc_report.py`
+  - `src/analysis_tool/reporting/generate_alias_report.py`  - `src/analysis_tool/reporting/generate_cpe_as_report.py`

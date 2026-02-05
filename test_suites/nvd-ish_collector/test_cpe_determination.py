@@ -456,7 +456,7 @@ class CPEDeterminationTestSuite:
         try:
             import sys
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-            from src.analysis_tool.core.badge_modal_system import register_platform_notification_data
+            from src.analysis_tool.core.platform_entry_registry import register_platform_notification_data
             
             # Create test supporting information with CPE match strings searched
             test_supporting_info = {
@@ -539,7 +539,7 @@ class CPEDeterminationTestSuite:
         try:
             import sys
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-            from src.analysis_tool.core.badge_modal_system import register_platform_notification_data
+            from src.analysis_tool.core.platform_entry_registry import register_platform_notification_data
             
             # Create test supporting information with realistic CPE data flow
             test_supporting_info = {
@@ -938,7 +938,7 @@ class CPEDeterminationTestSuite:
         try:
             import sys
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-            from src.analysis_tool.core.badge_modal_system import (
+            from src.analysis_tool.core.platform_entry_registry import (
                 PLATFORM_ENTRY_NOTIFICATION_REGISTRY,
                 register_platform_notification_data
             )

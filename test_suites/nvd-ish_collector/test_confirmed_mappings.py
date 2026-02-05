@@ -49,6 +49,33 @@ class ConfirmedMappingsTestSuite:
     def __init__(self):
         self.passed = 0
         self.total = 2  # Two confirmed mapping tests
+    
+    def _resolve_nvd_ish_output_path(self, cve_id: str) -> Optional[Path]:
+        """Resolve nvd-ish cache output path using same logic as nvd_ish_collector.
+        
+        CVE-2024-12345 → cache/nvd-ish_2.0_cves/2024/12xxx/CVE-2024-12345.json
+        """
+        try:
+            parts = cve_id.split('-')
+            if len(parts) != 3 or parts[0] != 'CVE':
+                return None
+                
+            year = parts[1]
+            sequence = parts[2]
+            
+            # Create directory name based on sequence length (matching NVD cache structure)
+            if len(sequence) == 4:
+                dir_name = f"{sequence[0]}xxx"
+            elif len(sequence) == 5:
+                dir_name = f"{sequence[:2]}xxx"
+            elif len(sequence) >= 6:
+                dir_name = f"{sequence[:3]}xxx"
+            else:
+                return None
+                
+            return CACHE_DIR / "nvd-ish_2.0_cves" / year / dir_name / f"{cve_id}.json"
+        except (IndexError, ValueError):
+            return None
         
     def setup_test_environment(self) -> List[str]:
         """Set up isolated test environment with test source data injected BEFORE any tool execution."""
@@ -240,31 +267,8 @@ class ConfirmedMappingsTestSuite:
             stdout, stderr = process.communicate(timeout=300)
             success = process.returncode == 0
             
-            # Extract output path from stdout
-            output_path = None
-            for line in stdout.split('\n'):
-                # Look for NVD-ish record cache message (nvd-ish only mode)
-                if 'Enhanced record cached:' in line or 'NVD-ish record cached:' in line:
-                    parts = line.split(':', 1)
-                    if len(parts) > 1:
-                        path_str = parts[1].strip()
-                        output_path = Path(path_str)
-                        break
-                # Also look for HTML file generation message (full mode)
-                elif 'File Generated:' in line:
-                    parts = line.split(':', 2)  # Split on first 2 colons to skip timestamp
-                    if len(parts) > 2:
-                        path_str = parts[2].strip()
-                        # For HTML files, we need the corresponding NVD-ish JSON
-                        html_path = Path(path_str)
-                        # Convert HTML path to nvd-ish JSON path
-                        # HTML: runs/.../generated_pages/CVE-XXXX-YYYY.html
-                        # JSON: cache/nvd-ish_2.0_cves/XXXX/YYYY/CVE-XXXX-YYYY.json
-                        cve_id = html_path.stem  # CVE-XXXX-YYYY
-                        year = cve_id.split('-')[1]
-                        thousands = cve_id.split('-')[2][0] + 'xxx'
-                        output_path = CACHE_DIR / "nvd-ish_2.0_cves" / year / thousands / f"{cve_id}.json"
-                        break
+            # Use programmatic cache path resolution (same logic as nvd_ish_collector)
+            output_path = self._resolve_nvd_ish_output_path(cve_id)
             
             return success, output_path, stdout, stderr
             

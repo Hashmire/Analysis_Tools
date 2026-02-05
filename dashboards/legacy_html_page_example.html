@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Legacy HTML Page Example - CVE-2024-EXAMPLE</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.3.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+jjXkk+Q2h455rYXK/7HAuoJl+0I4" crossorigin="anonymous"></script>
+    
+    <!-- 
+    ============================================================
+    LEGACY HTML GENERATION PATTERN DOCUMENTATION
+    ============================================================
+    
+    PRODUCTION BEHAVIOR (generateHTML.py):
+    In actual production, get_css_content() and getCPEJsonScript() inject
+    the FULL content of these files INLINE within <style> and <script> tags.
+    
+    This results in ~422 KB of duplicated code injected per CVE HTML file:
+    - styles.css: 1,172 lines (31.2 KB)
+    - 10 JavaScript files: 8,380 lines total (391.4 KB)
+    
+    For a 30,000 CVE dataset: 12.6 GB of duplicated CSS/JS code alone.
+    
+    EXAMPLE BEHAVIOR (this file):
+    To demonstrate the structure without massive file duplication, this
+    example references the files relatively from src/analysis_tool/static.
+    
+    Open this file from the documentation/ folder and it will load the
+    actual static assets to show the real interactive behavior.
+    ============================================================
+    -->
+    
+    <!-- Legacy Custom CSS (1,172 lines, 31.2 KB) -->
+    <link rel="stylesheet" href="../src/analysis_tool/static/css/styles.css">
+    
+    <!-- JavaScript Files (8,380 lines total, 391.4 KB) -->
+    <!-- Load order is CRITICAL for dependency resolution -->
+    
+    <!-- 1. Unified data extraction (146 lines) -->
+    <script src="../src/analysis_tool/static/js/unified_data_extraction.js"></script>
+    
+    <!-- 2. Core systems -->
+    <script src="../src/analysis_tool/static/js/badge_modal_system.js"></script> <!-- 2,682 lines -->
+    <script src="../src/analysis_tool/static/js/modular_rules.js"></script> <!-- 1,918 lines -->
+    
+    <!-- 3. Data handlers -->
+    <script src="../src/analysis_tool/static/js/cpe_json_handler.js"></script> <!-- 403 lines -->
+    
+    <!-- 4. UI and interaction systems -->
+    <script src="../src/analysis_tool/static/js/ui_controller.js"></script> <!-- 339 lines -->
+    <script src="../src/analysis_tool/static/js/selection_manager.js"></script> <!-- 832 lines -->
+    <script src="../src/analysis_tool/static/js/timestamp_handler.js"></script> <!-- 50 lines -->
+    <script src="../src/analysis_tool/static/js/provenance_assistance.js"></script> <!-- 950 lines -->
+    
+    <!-- 5. Completion tracking -->
+    <script src="../src/analysis_tool/static/js/completion_tracker.js"></script> <!-- 218 lines -->
+    
+    <!-- 6. Application-specific modules -->
+    <script src="../src/analysis_tool/static/js/custom_cpe_builder.js"></script> <!-- 842 lines -->
+</head>
+<body>
+
+<!-- Tool Info Header -->
+<div class="header" style="margin-left: 10px;">
+    <h1>Hashmire/Analysis_Tools <small>- version: 0.1.0</small></h1>
+</div>
+
+<!-- Hidden div containing global CVE metadata for Provenance Assistance -->
+<div id="global-cve-metadata" style="display:none;" data-cve-metadata='{"cveId":"CVE-2024-EXAMPLE","assigner":"cna@example.com","datePublished":"2024-01-15T08:30:00.000Z","descriptionData":[{"sourceId":"f2daf9a0-02c2-4b83-a01d-63b3b304b807","sourceRole":"CNA","descriptions":[{"lang":"en","value":"Example vulnerability description showing how CVE metadata is stored for provenance assistance."}]}],"referencesData":[{"sourceId":"f2daf9a0-02c2-4b83-a01d-63b3b304b807","sourceRole":"CNA","references":[{"url":"https://example.com/advisory","name":"Example Advisory","tags":["vendor-advisory"]},{"url":"https://example.com/patch","name":"Security Patch","tags":["patch"]},{"url":"https://github.com/acme/acme-product/issues/123","name":"Issue #123","tags":["issue-tracking"]},{"url":"https://example.com/mitigation-guide","name":"Mitigation Guide","tags":["mitigation"]}]}],"sourceData":[{"sourceId":"f2daf9a0-02c2-4b83-a01d-63b3b304b807","name":"Example CNA","contactEmail":"security@example.com","sourceIdentifiers":["f2daf9a0-02c2-4b83-a01d-63b3b304b807"]}]}'></div>
+
+<!-- Tab links -->
+<div class="tab">
+    <button class="tablinks active" onclick="openCity(event, 'cveListCPESuggester')">CVE List CPE Suggester</button>
+</div>
+
+<div class="d-flex align-items-center justify-content-between" style="margin-left: 10px; margin-right: 10px;">
+    <h3 id="cve-id" style="margin-bottom: 0px;"><b>CVE-2024-EXAMPLE</b></h3>
+    <span id="generationTimestamp" class="text-muted">Generated: <time datetime="2024-01-15T14:30:00.000Z"></time></span>
+</div>
+<hr style="margin: 10px; border: 1px solid;">
+
+<!-- CPE Applicability Generator -->
+<div id="cveListCPESuggester" class="tabcontent" style="display: block; border-left: 0px;">
+    <div id="cpeSuggesterHeader" class="header">
+        <h3>CPE Applicability Generator</h3>
+    </div>
+    <table border="1" class="dataframe table table-stripped">
+        <thead>
+            <tr style="text-align: right;">
+                <th class="hidden-header" style="min-width: 20%;">rowDataHTML</th>
+                <th class="hidden-header" style="min-width: 80%;">cpeQueryHTML</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Platform Entry 0: Version Range Example -->
+            <tr>
+                <td>
+                    <div class="mb-3 d-flex gap-2" id="buttonContainer_0">
+                        <button id="collapseRowButton_0" class="btn btn-secondary" onclick="toggleRowCollapse(0)">Collapse Row (Mark Complete)</button>
+                    </div>
+                    <div id="rowDataTable_0_container" class="table-container">
+                        <table id="rowDataTable_0" class="table table-hover">
+                            <tr>
+                                <td>Data Resource</td>
+                                <td>CVEAPI</td>
+                            </tr>
+                            <tr>
+                                <td>Source ID</td>
+                                <td><span title="Contact Email: security@example.com &#013;Source Identifiers: example-source-id, f2daf9a0-02c2-4b83-a01d-63b3b304b807">Example CNA</span></td>
+                            </tr>
+                            <tr>
+                                <td>Source Role</td>
+                                <td>CNA</td>
+                            </tr>
+                            <tr>
+                                <td>Platform Entry Notifications</td>
+                                <td>
+                                    <span class="badge modal-badge" style="background-color: purple; color: white;" 
+                                          onclick="BadgeModalManager.openSourceDataConcernsModal('0', 'Platform Entry 0 (CNA, Example CNA, ACME Product)')"
+                                          title="1 Source Data Concern(s) detected. Click for details.">
+                                        ⚠️ Source Data Concerns (1)
+                                    </span>
+                                    <span class="badge modal-badge bg-secondary"
+                                          onclick="BadgeModalManager.openSupportingInformationModal('0', 'Platform Entry 0 (CNA, Example CNA, ACME Product)')"
+                                          title="Supporting Information available - Versions Array Details + CPE Base Strings Searched + Data Transformations + API Results (4 item(s)). Click for detailed technical insights and debugging information.">
+                                        🔍 Supporting Information
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Vendor Value</td>
+                                <td>ACME Corporation</td>
+                            </tr>
+                            <tr>
+                                <td>Product Value</td>
+                                <td>ACME Product</td>
+                            </tr>
+                            <tr>
+                                <td>Raw Platform Data</td>
+                                <td>
+                                    <details>
+                                        <summary>Review rawPlatformData</summary>
+                                        <code id="rawPlatformData_0" class="rawPlatformData">{"defaultStatus": "unaffected", "product": "ACME Product", "vendor": "ACME Corporation", "versions": [{"status": "affected", "version": "1.0", "versionType": "semver"}, {"status": "affected", "version": "1.5", "versionType": "semver"}]}</code>
+                                    </details>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </td>
+                <td>
+                    <div id="cpe-query-container-0" class="cpe-query-container">
+                        <!-- Provenance Assistance Card -->
+                        <div class="card mb-3">
+                            <div class="card-header d-flex justify-content-between align-items-center"
+                                 id="provenanceHeader_0"
+                                 data-bs-toggle="collapse"
+                                 data-bs-target="#provenanceCollapse_0"
+                                 style="cursor: pointer;">
+                                <h5 class="mb-0">Provenance Assistance</h5>
+                                <span class="arrow-icon">&darr;</span>
+                            </div>
+                            <div id="provenanceCollapse_0" class="collapse" aria-labelledby="provenanceHeader_0">
+                                <div class="card-body">
+                                    <!-- EXAMPLE: Showing provenance assistance badge links only -->
+                                    <div id="provenanceLinks_0" class="provenance-links">
+                                        <a href="https://example.com/patch" target="_blank" class="badge bg-success text-decoration-none me-1">Security Patch</a>
+                                        <a href="https://example.com/mitigation-guide" target="_blank" class="badge bg-warning text-decoration-none me-1">Mitigation Guide</a>
+                                        <a href="https://github.com/acme/acme-product/issues/123" target="_blank" class="badge bg-info text-decoration-none me-1">Issue #123</a>
+                                        <a href="https://example.com/advisory" target="_blank" class="badge bg-primary text-decoration-none me-1">Vendor Advisory</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Custom CPE Builder Card -->
+                        <div class="card mb-3">
+                            <div class="card-header d-flex justify-content-between align-items-center"
+                                 id="customCPEBuilderHeader_0"
+                                 data-bs-toggle="collapse"
+                                 data-bs-target="#customCPEBuilderCollapse_0"
+                                 style="cursor: pointer;">
+                                <h5 class="mb-0">Custom CPE Builder</h5>
+                                <span class="arrow-icon">&darr;</span>
+                            </div>
+                            <div id="customCPEBuilderCollapse_0" class="collapse" aria-labelledby="customCPEBuilderHeader_0">
+                                <div class="card-body">
+                                    <div id="customCPEBuilder-content-0" class="customCPEBuilder">
+                                        <!-- Content populated by custom_cpe_builder.js -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CPE Suggestions Card -->
+                        <div class="card mb-3">
+                            <div class="card-header d-flex justify-content-between align-items-center"
+                                 id="cpeHeader_0"
+                                 data-bs-toggle="collapse"
+                                 data-bs-target="#cpeCollapse_0"
+                                 style="cursor: pointer;">
+                                <h5 class="mb-0">CPE Suggestions</h5>
+                                <span class="arrow-icon">&uarr;</span>
+                            </div>
+                            <div id="cpeCollapse_0" class="collapse show" aria-labelledby="cpeHeader_0">
+                                <div class="card-body">
+                                    <div id="matchesTable_0_container" class="table-container">
+                                        <table id="matchesTable_0" class="table table-hover matchesTable">
+                                            <thead>
+                                                <tr>
+                                                    <th style="width: 65%">CPE Base String</th>
+                                                    <th style="width: 35%">Information</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr id="row_cpe_2_3_a_acme_acme_product_*_*_*_*_*_*_*_*" class="cpe-row confirmed-mapping" data-cpe-base="cpe:2.3:a:acme:acme_product:*:*:*:*:*:*:*:*">
+                                                    <td class="text-break">cpe:2.3:a:acme:acme_product:*:*:*:*:*:*:*:*</td>
+                                                    <td>
+                                                        <div class="d-flex flex-wrap gap-1 align-items-center">
+                                                            <span class="badge modal-badge bg-success"
+                                                                  onclick="BadgeModalManager.openConfirmedMappingModal('cpe_2_3_a_acme_acme_product_star_star_star_star_star_star_star_star', 'cpe:2.3:a:acme:acme_product:*:*:*:*:*:*:*:*')"
+                                                                  title="This CPE was found in the CVE's affected CPEs data">
+                                                                ✓ Confirmed Mapping
+                                                            </span>
+                                                            <span class="badge modal-badge bg-secondary"
+                                                                  onclick="BadgeModalManager.openSortingPriorityModal('cpe_2_3_a_acme_acme_product_star_star_star_star_star_star_star_star', 'cpe:2.3:a:acme:acme_product:*:*:*:*:*:*:*:*', 'statistics')">
+                                                                📈 Sorting Priority Context
+                                                            </span>
+                                                            <div class="reference-section">
+                                                                <span class="badge modal-badge bg-info"
+                                                                      onclick="BadgeModalManager.openReferencesModal('cpe_2_3_a_acme_acme_product_star_star_star_star_star_star_star_star', 'cpe:2.3:a:acme:acme_product:*:*:*:*:*:*:*:*', 5)"
+                                                                      id="refBadge_cpe_2_3_a_acme_acme_product_star_star_star_star_star_star_star_star">
+                                                                    📋 Provenance (5)
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <!-- JSON Generation Settings Container - EXAMPLE SHOWING ALL FEATURES -->
+                                    <!-- NOTE: This should be hidden by default and populated/shown by JavaScript -->
+                                    <div id="jsonSettings_matchesTable_0" class="json-settings-container mb-3" style="display: none;">
+                                        <div class="card">
+                                            <div class="card-header">
+                                                <h6 class="mb-0"><i class="fas fa-cog"></i> JSON Generation Settings</h6>
+                                            </div>
+                                            <div class="card-body">
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <h6 class="text-muted mb-2">Processing Features</h6>
+                                                        <div class="form-check mb-1">
+                                                            <input class="form-check-input" type="checkbox" id="enableWildcards_matchesTable_0" checked>
+                                                            <label class="form-check-label" for="enableWildcards_matchesTable_0">
+                                                                Enable Wildcard Expansion
+                                                            </label>
+                                                        </div>
+                                                        <div class="form-check mb-1">
+                                                            <input class="form-check-input" type="checkbox" id="enableVersionChanges_matchesTable_0">
+                                                            <label class="form-check-label" for="enableVersionChanges_matchesTable_0">
+                                                                Enable Version Changes
+                                                            </label>
+                                                        </div>
+                                                        <div class="form-check mb-1">
+                                                            <input class="form-check-input" type="checkbox" id="enableSpecialVersionTypes_matchesTable_0" checked>
+                                                            <label class="form-check-label" for="enableSpecialVersionTypes_matchesTable_0">
+                                                                Enable Special Version Types
+                                                            </label>
+                                                        </div>
+                                                        <div class="form-check mb-1">
+                                                            <input class="form-check-input" type="checkbox" id="enableGapProcessing_matchesTable_0" checked>
+                                                            <label class="form-check-label" for="enableGapProcessing_matchesTable_0">
+                                                                Enable Gap Processing
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <h6 class="text-muted mb-2">Advanced Options</h6>
+                                                        <div class="form-check mb-1">
+                                                            <input class="form-check-input" type="checkbox" id="enableInverseStatus_matchesTable_0">
+                                                            <label class="form-check-label" for="enableInverseStatus_matchesTable_0">
+                                                                Enable Inverse Status
+                                                            </label>
+                                                        </div>
+                                                        <div class="form-check mb-1">
+                                                            <input class="form-check-input" type="checkbox" id="enableMultipleBranches_matchesTable_0">
+                                                            <label class="form-check-label" for="enableMultipleBranches_matchesTable_0">
+                                                                Enable Multiple Branches
+                                                            </label>
+                                                        </div>
+                                                        <div class="form-check mb-1">
+                                                            <input class="form-check-input" type="checkbox" id="enableMixedStatus_matchesTable_0">
+                                                            <label class="form-check-label" for="enableMixedStatus_matchesTable_0">
+                                                                Enable Mixed Status
+                                                            </label>
+                                                        </div>
+                                                        <div class="form-check mb-1">
+                                                            <input class="form-check-input" type="checkbox" id="enableUpdatePatterns_matchesTable_0">
+                                                            <label class="form-check-label" for="enableUpdatePatterns_matchesTable_0">
+                                                                Enable Update Patterns
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="mt-3">
+                                                    <button class="btn btn-sm btn-primary" onclick="updateJsonGeneration(0)">
+                                                        Regenerate JSON
+                                                    </button>
+                                                    <button class="btn btn-sm btn-secondary" onclick="resetSettingsToDefault(0)">
+                                                        Reset to Defaults
+                                                    </button>
+                                                    <span class="badge modal-badge bg-info ms-2"
+                                                          onclick="BadgeModalManager.openJsonGenerationRulesModal('0', 'Platform Entry 0')"
+                                                          title="View rules and patterns used to generate JSON">
+                                                        📋 JSON Generation Rules
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+
+            <!-- Platform Entry 1: Git versionType Example -->
+            <tr>
+                <td>
+                    <div class="mb-3 d-flex gap-2" id="buttonContainer_1">
+                        <button id="collapseRowButton_1" class="btn btn-secondary" onclick="toggleRowCollapse(1)">Collapse Row (Mark Complete)</button>
+                    </div>
+                    <div id="rowDataTable_1_container" class="table-container">
+                        <table id="rowDataTable_1" class="table table-hover">
+                            <tr>
+                                <td>Data Resource</td>
+                                <td>CVEAPI</td>
+                            </tr>
+                            <tr>
+                                <td>Source Role</td>
+                                <td>CNA</td>
+                            </tr>
+                            <tr>
+                                <td>Platform Entry Notifications</td>
+                                <td>
+                                    <span class="badge modal-badge bg-secondary"
+                                          title="Git versionType - CPE matching limited">
+                                        ℹ️ Git Commit Detected
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Vendor Value</td>
+                                <td>Open Source Project</td>
+                            </tr>
+                            <tr>
+                                <td>Product Value</td>
+                                <td>Example Library</td>
+                            </tr>
+                            <tr>
+                                <td>Raw Platform Data</td>
+                                <td>
+                                    <details>
+                                        <summary>Review rawPlatformData</summary>
+                                        <code id="rawPlatformData_1" class="rawPlatformData">{"product": "Example Library", "vendor": "Open Source Project", "versions": [{"status": "affected", "version": "abc123def456", "versionType": "git"}]}</code>
+                                    </details>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </td>
+                <td>
+                    <div id="cpe-query-container-1" class="cpe-query-container">
+                        <div class="card mb-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">CPE Suggestions</h5>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted">Git commit hashes detected - CPE matching may be limited</p>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+
+            <!-- Platform Entry 2: No Versions Example -->
+            <tr>
+                <td>
+                    <div class="mb-3 d-flex gap-2" id="buttonContainer_2">
+                        <button id="collapseRowButton_2" class="btn btn-secondary" onclick="toggleRowCollapse(2)">Collapse Row (Mark Complete)</button>
+                    </div>
+                    <div id="rowDataTable_2_container" class="table-container">
+                        <table id="rowDataTable_2" class="table table-hover">
+                            <tr>
+                                <td>Source Role</td>
+                                <td>NVD</td>
+                            </tr>
+                            <tr>
+                                <td>Platform Entry Notifications</td>
+                                <td>
+                                    <span class="badge modal-badge bg-info"
+                                          title="NVD enrichment data - no version information">
+                                        ℹ️ No Version Data
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Vendor Value</td>
+                                <td>Hardware Vendor</td>
+                            </tr>
+                            <tr>
+                                <td>Product Value</td>
+                                <td>Hardware Device</td>
+                            </tr>
+                        </table>
+                    </div>
+                </td>
+                <td>
+                    <div id="cpe-query-container-2" class="cpe-query-container">
+                        <div class="alert alert-info">
+                            No version data available for CPE matching
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script>
+        // Initialize timestamp handler
+        if (window.timestampHandler) {
+            window.timestampHandler.init("2024-01-15T14:30:00.000Z");
+        }
+    </script>
+</div>
+
+<script>
+    // Tab switching functionality
+    function openCity(evt, cityName) {
+        var i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tabcontent");
+        for (i = 0; i < tabcontent.length; i++) {
+            tabcontent[i].style.display = "none";
+        }
+        tablinks = document.getElementsByClassName("tablinks");
+        for (i = 0; i < tablinks.length; i++) {
+            tablinks[i].className = tablinks[i].className.replace(" active", "");
+        }
+        document.getElementById(cityName).style.display = "block";
+        evt.currentTarget.className += " active";
+    }
+
+    // Row collapse functionality - KNOWN BROKEN
+    // TODO: This does not properly collapse content or track skip/complete status
+    // The implementation needs to hide/show the cpe-query-container as well as the rowDataTable
+    // and properly integrate with completion tracking system
+    function toggleRowCollapse(rowIndex) {
+        const container = document.getElementById(`rowDataTable_${rowIndex}_container`);
+        const button = document.getElementById(`collapseRowButton_${rowIndex}`);
+        if (container) {
+            container.classList.toggle('collapsed');
+            if (container.classList.contains('collapsed')) {
+                button.textContent = 'Expand Row';
+                button.classList.remove('btn-secondary');
+                button.classList.add('btn-success');
+            } else {
+                button.textContent = 'Collapse Row (Mark Complete)';
+                button.classList.remove('btn-success');
+                button.classList.add('btn-secondary');
+            }
+        }
+    }
+
+    // Description display functionality - EXAMPLE STUB
+    function showDescription(rowIndex, source) {
+        const contentDiv = document.getElementById(`descriptionContent_${rowIndex}`);
+        if (contentDiv) {
+            contentDiv.style.display = 'block';
+            // In real implementation, this would fetch and display the appropriate description
+        }
+    }
+
+    // JSON generation update - EXAMPLE STUB
+    function updateJsonGeneration(rowIndex) {
+        console.log(`Regenerating JSON for table ${rowIndex} with current settings`);
+        // In real implementation, this would trigger cpe_json_handler.js to regenerate
+    }
+
+    // Reset settings - EXAMPLE STUB
+    function resetSettingsToDefault(rowIndex) {
+        console.log(`Resetting settings to defaults for table ${rowIndex}`);
+        // In real implementation, this would reset checkboxes to intelligent defaults
+    }
+</script>
+
+<!-- Required Global Data Structures -->
+<script>
+    // ============================================================
+    // UNIFIED SOURCE DATA (Required by unified_data_extraction.js)
+    // ============================================================
+    // Unified Source Data - Generated by Python UnifiedSourceManager
+    window.UNIFIED_SOURCE_DATA = {
+        "sourceRegistry": {
+            "f2daf9a0-02c2-4b83-a01d-63b3b304b807": {
+                "name": "Example CNA",
+                "contactEmail": "security@example.com",
+                "sourceIdentifiers": ["example-source-id", "f2daf9a0-02c2-4b83-a01d-63b3b304b807"]
+            }
+        },
+        "orgToSources": {
+            "Example CNA": ["f2daf9a0-02c2-4b83-a01d-63b3b304b807"]
+        }
+    };
+
+    // Unified Source Manager Functions
+    window.UnifiedSourceManager = {
+        
+        /**
+         * Get source information by source ID
+         * @param {string} sourceId - The source identifier (UUID)
+         * @returns {Object|null} Source information or null if not found
+         */
+        getSourceById: function(sourceId) {
+            const source = window.UNIFIED_SOURCE_DATA.sourceRegistry[sourceId];
+            if (source) {
+                // Add the ID to the returned object since it's stored as the key
+                return { id: sourceId, ...source };
+            }
+            return null;
+        },
+        
+        /**
+         * Get all sources for a specific organization
+         * @param {string} orgId - The organization identifier
+         * @returns {Array} Array of source objects for the organization
+         */
+        getSourcesByOrg: function(orgId) {
+            const sourceIds = window.UNIFIED_SOURCE_DATA.orgToSources[orgId] || [];
+            return sourceIds.map(id => {
+                const source = window.UNIFIED_SOURCE_DATA.sourceRegistry[id];
+                return source ? { id: id, ...source } : null;
+            }).filter(Boolean);
+        },
+        
+        /**
+         * Get all sources in the registry
+         * @returns {Object} Dictionary mapping source IDs to source information
+         */
+        getAllSources: function() {
+            const result = {};
+            for (const [id, source] of Object.entries(window.UNIFIED_SOURCE_DATA.sourceRegistry)) {
+                result[id] = { id: id, ...source };
+            }
+            return result;
+        },
+        
+        /**
+         * Check if a source ID exists in the registry
+         * @param {string} sourceId - The source identifier to check
+         * @returns {boolean} True if source exists, false otherwise
+         */
+        hasSource: function(sourceId) {
+            return sourceId in window.UNIFIED_SOURCE_DATA.sourceRegistry;
+        },
+        
+        /**
+         * Resolve source display name and contact
+         * @param {string} sourceId - The source identifier
+         * @returns {Object} Object with name and contactEmail properties
+         */
+        resolveSource: function(sourceId) {
+            const source = this.getSourceById(sourceId);
+            if (source) {
+                return {
+                    name: source.name,
+                    contactEmail: source.contactEmail
+                };
+            }
+            return {
+                name: "Unknown Source",
+                contactEmail: "unknown@example.com"
+            };
+        }
+    };
+
+    // ============================================================
+    // JSON GENERATION SETTINGS (Required by cpe_json_handler.js)
+    // ============================================================
+    // NOTE: This template string is used by JavaScript to dynamically populate settings
+    // The example in the HTML above shows the fully rendered version
+    window.JSON_SETTINGS_HTML = window.JSON_SETTINGS_HTML || {};
+    window.JSON_SETTINGS_HTML['matchesTable_0'] = `
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center"
+                 style="cursor: pointer;"
+                 data-bs-toggle="collapse"
+                 data-bs-target="#settingsCollapse_matchesTable_0">
+                <h6 class="mb-0">
+                    <i class="fas fa-cog"></i> JSON Generation Settings
+                </h6>
+                <span class="arrow-icon">&uarr;</span>
+            </div>
+            <div id="settingsCollapse_matchesTable_0" class="collapse">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-2">Processing Features</h6>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input row-setting" type="checkbox"
+                                       id="enableWildcards_matchesTable_0"
+                                       data-setting="enableWildcardExpansion"
+                                       data-table-id="matchesTable_0"
+                                       checked>
+                                <label class="form-check-label" for="enableWildcards_matchesTable_0">
+                                    <small>Enable Wildcard Expansion</small>
+                                </label>
+                            </div>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input row-setting" type="checkbox"
+                                       id="enablePatches_matchesTable_0"
+                                       data-setting="enableVersionChanges"
+                                       data-table-id="matchesTable_0">
+                                <label class="form-check-label" for="enablePatches_matchesTable_0">
+                                    <small>Enable Version Changes</small>
+                                </label>
+                            </div>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input row-setting" type="checkbox"
+                                       id="enableSpecialVersionTypes_matchesTable_0"
+                                       data-setting="enableSpecialVersionTypes"
+                                       data-table-id="matchesTable_0"
+                                       checked>
+                                <label class="form-check-label" for="enableSpecialVersionTypes_matchesTable_0">
+                                    <small>Enable Special Version Types</small>
+                                </label>
+                            </div>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input row-setting" type="checkbox"
+                                       id="enableGapProcessing_matchesTable_0"
+                                       data-setting="enableGapProcessing"
+                                       data-table-id="matchesTable_0"
+                                       checked>
+                                <label class="form-check-label" for="enableGapProcessing_matchesTable_0">
+                                    <small>Enable Gap Processing</small>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted mb-2">Advanced Options</h6>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input row-setting" type="checkbox"
+                                       id="enableInverseStatus_matchesTable_0"
+                                       data-setting="enableInverseStatus"
+                                       data-table-id="matchesTable_0">
+                                <label class="form-check-label" for="enableInverseStatus_matchesTable_0">
+                                    <small>Enable Inverse Status</small>
+                                </label>
+                            </div>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input row-setting" type="checkbox"
+                                       id="enableMultipleBranches_matchesTable_0"
+                                       data-setting="enableMultipleBranches"
+                                       data-table-id="matchesTable_0">
+                                <label class="form-check-label" for="enableMultipleBranches_matchesTable_0">
+                                    <small>Enable Multiple Branches</small>
+                                </label>
+                            </div>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input row-setting" type="checkbox"
+                                       id="enableMixedStatus_matchesTable_0"
+                                       data-setting="enableMixedStatus"
+                                       data-table-id="matchesTable_0">
+                                <label class="form-check-label" for="enableMixedStatus_matchesTable_0">
+                                    <small>Enable Mixed Status</small>
+                                </label>
+                            </div>
+                            <div class="form-check mb-1">
+                                <input class="form-check-input row-setting" type="checkbox"
+                                       id="enableUpdatePatterns_matchesTable_0"
+                                       data-setting="enableUpdatePatterns"
+                                       data-table-id="matchesTable_0">
+                                <label class="form-check-label" for="enableUpdatePatterns_matchesTable_0">
+                                    <small>Enable Update Patterns</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Intelligent settings for each table
+    window.INTELLIGENT_SETTINGS = window.INTELLIGENT_SETTINGS || {};
+    window.INTELLIGENT_SETTINGS['matchesTable_0'] = {
+        "enableWildcardExpansion": true,
+        "enableVersionChanges": false,
+        "enableSpecialVersionTypes": true,
+        "enableInverseStatus": false,
+        "enableMultipleBranches": false,
+        "enableMixedStatus": false,
+        "enableGapProcessing": true,
+        "enableUpdatePatterns": false
+    };
+
+    // Version placeholder values (required by cpe_json_handler.js)
+    window.VERSION_PLACEHOLDER_VALUES = [
+        "*", "-", "n/a", "unknown", "unspecified", "all", "all_versions"
+    ];
+
+    // Non-specific version values
+    window.NON_SPECIFIC_VERSION_VALUES = [
+        "unspecified", "unknown", "none", "undefined", "various", "n/a",
+        "not available", "not applicable", "unavailable", "na", "nil",
+        "tbd", "to be determined", "pending", "not specified"
+    ];
+
+    // ============================================================
+    // MODAL DATA REGISTRATIONS (Required by badge_modal_system.js)
+    // ============================================================
+    
+    // Initialize BadgeModalManager data registry with ALL modal types
+    window.BADGE_MODAL_DATA = {
+        sourceDataConcerns: {},      // Note: PLURAL not singular
+        references: {},
+        sortingPriority: {},
+        confirmedMapping: {},
+        supportingInformation: {},
+        wildcards: {},
+        jsonGenerationRules: {},
+        updatePatterns: {}
+    };
+    
+    // ============================================================
+    // 1. SOURCE DATA CONCERNS MODAL DATA
+    // ============================================================
+    window.BADGE_MODAL_DATA.sourceDataConcerns['0'] = {
+        "sourceRole": "CNA",
+        "concerns": {
+            "versionTypeMismatch": [
+                {
+                    "concernId": "versionType_mismatch_example",
+                    "concernType": "versionTypeMismatch",
+                    "title": "Version Type Mismatch",
+                    "severity": "warning",
+                    "description": "versionType 'semver' specified but version format doesn't follow semantic versioning",
+                    "affectedVersions": ["1.0", "1.5"],
+                    "suggestedFix": "Consider using versionType 'custom' or reformatting version to follow semver (e.g., '1.0.0')",
+                    "impact": "May cause confusion in automated version processing"
+                }
+            ]
+        }
+    };
+
+    // ============================================================
+    // 2. REFERENCES MODAL DATA
+    // ============================================================
+    window.BADGE_MODAL_DATA.references['cpe_2_3_a_acme_acme_product_star_star_star_star_star_star_star_star'] = {
+        "Advisory": {
+            "total_freq": 3,
+            "refs": [
+                {"url": "https://example.com/advisory-1", "count": 2},
+                {"url": "https://example.com/advisory-2", "count": 1}
+            ]
+        },
+        "Change Log": {
+            "total_freq": 2,
+            "refs": [
+                {"url": "https://example.com/changelog", "count": 2}
+            ]
+        }
+    };
+
+    // ============================================================
+    // 3. SORTING PRIORITY MODAL DATA
+    // ============================================================
+    window.BADGE_MODAL_DATA.sortingPriority['cpe_2_3_a_acme_acme_product_star_star_star_star_star_star_star_star'] = {
+        "searches": {
+            "searchSourceproduct": "cpe:2.3:*:*:*acme_product*:*:*:*:*:*:*:*:*"
+        },
+        "versions": [],
+        "statistics": {
+            "total_cpe_names": 15,
+            "final_count": 15,
+            "deprecated_count": 0
+        }
+    };
+
+    // ============================================================
+    // 4. CONFIRMED MAPPING MODAL DATA
+    // ============================================================
+    window.BADGE_MODAL_DATA.confirmedMapping['cpe_2_3_a_acme_acme_product_star_star_star_star_star_star_star_star'] = {
+        "cpeBaseString": "cpe:2.3:a:acme:acme_product:*:*:*:*:*:*:*:*",
+        "source": "CVE Affected CPEs",
+        "confidence": "high"
+    };
+
+    // ============================================================
+    // 5. SUPPORTING INFORMATION MODAL DATA
+    // ============================================================
+    window.BADGE_MODAL_DATA.supportingInformation['0'] = {
+        "tabs": [
+            {
+                "id": "versions",
+                "title": "Versions Array Details",
+                "icon": "fas fa-code-branch",
+                "items": [{
+                    "title": "Versions Array Structure",
+                    "content": "2 version entries",
+                    "details": "Complete structure of the versions array from platform data",
+                    "versions_array": [
+                        {"status": "affected", "version": "1.0", "versionType": "semver"},
+                        {"status": "affected", "version": "1.5", "versionType": "semver"}
+                    ],
+                    "type": "versions_structure"
+                }]
+            },
+            {
+                "id": "search",
+                "title": "CPE Base Strings Searched",
+                "icon": "fas fa-search",
+                "items": [{
+                    "title": "CPE Base String Processing",
+                    "content": "2 used, 0 culled",
+                    "details": "CPE base strings generated and searched",
+                    "used_strings": [
+                        "cpe:2.3:*:acme:*acme_product*:*:*:*:*:*:*:*:*",
+                        "cpe:2.3:a:acme:acme_product:*:*:*:*:*:*:*:*"
+                    ],
+                    "culled_strings": [],
+                    "used_count": 2,
+                    "culled_count": 0,
+                    "type": "cpe_searches"
+                }]
+            },
+            {
+                "id": "transformations",
+                "title": "Data Transformations",
+                "icon": "fas fa-exchange-alt",
+                "items": [{
+                    "title": "Source to CPE Transformations",
+                    "content": "Applied to normalize source data",
+                    "details": "Transformations applied to convert source vulnerability data to CPE format",
+                    "type": "source_transformations",
+                    "transformations": [{
+                        "category": "Field Curation",
+                        "field": "Vendor Product",
+                        "original": "ACME Corporation:ACME Product",
+                        "transformed": "acme:acme_product",
+                        "type": "curation"
+                    }]
+                }]
+            },
+            {
+                "id": "api",
+                "title": "API Results",
+                "icon": "fas fa-server",
+                "items": [{
+                    "title": "CPE API Query Results",
+                    "content": "2 successful, 0 errors",
+                    "details": "NVD CPE API query results",
+                    "errors": [],
+                    "successful_count": 2,
+                    "type": "cpe_api_results"
+                }]
+            }
+        ],
+        "summary": {
+            "total_items": 4,
+            "categories": ["Versions Array Details", "CPE Base Strings Searched", "Data Transformations", "API Results"]
+        }
+    };
+
+    // ============================================================
+    // 6. WILDCARDS MODAL DATA
+    // ============================================================
+    window.BADGE_MODAL_DATA.wildcards['1'] = {
+        "wildcards": [{
+            "field": "versions[0].version",
+            "original": "abc123def456",
+            "pattern": "git commit hash",
+            "transformation": "Special versionType handling required"
+        }]
+    };
+
+    // ============================================================
+    // 7. JSON GENERATION RULES MODAL DATA
+    // ============================================================
+    window.BADGE_MODAL_DATA.jsonGenerationRules['0'] = {
+        "rules": [
+            {
+                "type": "versionRange",
+                "transformations": [
+                    {
+                        "input": "versions: [{version: '1.0', status: 'affected'}, {version: '1.5', status: 'affected'}]",
+                        "output": "versionStartIncluding: '1.0', versionEndIncluding: '1.5'",
+                        "rule": "Consecutive affected versions combined into range"
+                    }
+                ]
+            },
+            {
+                "type": "semverProcessing",
+                "transformations": [
+                    {
+                        "input": "versionType: 'semver'",
+                        "output": "Applied semantic version comparison rules",
+                        "rule": "Semantic versioning rules applied for version ordering"
+                    }
+                ]
+            }
+        ],
+        "summary": {
+            "total_rules": 2,
+            "rule_types": ["versionRange", "semverProcessing"]
+        }
+    };
+    
+    window.BADGE_MODAL_DATA.jsonGenerationRules['1'] = {
+        "rules": [
+            {
+                "type": "gitCommitDetection",
+                "transformations": [
+                    {
+                        "input": "version: 'abc123def456', versionType: 'git'",
+                        "output": "Recognized as git commit hash",
+                        "rule": "Git versionType triggers special handling",
+                        "note": "Wildcard pattern detected: cannot expand git commits to version ranges"
+                    }
+                ]
+            }
+        ],
+        "summary": {
+            "total_rules": 1,
+            "rule_types": ["gitCommitDetection"]
+        }
+    };
+    
+    window.BADGE_MODAL_DATA.jsonGenerationRules['2'] = {
+        "rules": [],
+        "summary": {
+            "total_rules": 0,
+            "rule_types": []
+        }
+    };
+
+    // ============================================================
+    // 8. UPDATE PATTERNS MODAL DATA
+    // ============================================================
+    window.BADGE_MODAL_DATA.updatePatterns['0'] = {
+        "detectedPatterns": [{
+            "type": "semantic_versioning",
+            "confidence": "high",
+            "evidence": "Versions follow MAJOR.MINOR format (1.0, 1.5)"
+        }],
+        "recommendations": [
+            "Consider using versionEndIncluding for open-ended ranges",
+            "Watch for patch-level versions (1.0.x, 1.5.x)"
+        ]
+    };
+</script>
+
+</body>
+</html>

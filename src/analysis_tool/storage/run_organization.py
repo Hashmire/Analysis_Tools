@@ -89,7 +89,7 @@ def create_run_directory(run_context: str = None, is_test: bool = False,
     Args:
         run_context: Optional legacy context string (e.g., CVE ID, batch name) to append to timestamp
         is_test: Whether this is a test run (adds 'TEST_' prefix to context)
-        subdirs: Optional list of subdirectories to create (defaults to ["generated_pages", "logs"])
+        subdirs: Optional list of subdirectories to create (defaults to ["logs"])
         execution_type: Type of execution (e.g., 'dataset', 'analysis', 'harvest') for enhanced naming
         source_shortname: NVD source shortname (e.g., 'adobe', 'microsoft') for enhanced naming
         range_spec: Range specification (e.g., 'last_7_days', 'range_2024-01-01_to_2024-01-31') for enhanced naming
@@ -127,7 +127,7 @@ def create_run_directory(run_context: str = None, is_test: bool = False,
             
             # Create subdirectories
             if subdirs is None:
-                subdirs = ["generated_pages", "logs"]  # Default for Analysis_Tools
+                subdirs = ["logs"]
             
             for subdir in subdirs:
                 (run_path / subdir).mkdir(parents=True, exist_ok=True)
@@ -194,7 +194,7 @@ def create_run_directory(run_context: str = None, is_test: bool = False,
     
     # Create subdirectories (cache is global, not run-specific)
     if subdirs is None:
-        subdirs = ["generated_pages", "logs"]  # Default for Analysis_Tools
+        subdirs = ["logs"]
     
     for subdir in subdirs:
         (run_path / subdir).mkdir(parents=True, exist_ok=True)
@@ -214,7 +214,7 @@ def get_current_run_paths(run_id: str, parent_run_dir: Path = None) -> dict:
         parent_run_dir: Optional parent directory for nested runs
         
     Returns:
-        Dictionary with keys: generated_pages, logs, cache (global), run_root
+        Dictionary with keys: logs, cache (global), run_root
     """
     import os
     
@@ -242,7 +242,6 @@ def get_current_run_paths(run_id: str, parent_run_dir: Path = None) -> dict:
         run_path = project_root / "runs" / run_id
     
     return {
-        "generated_pages": run_path / "generated_pages",
         "logs": run_path / "logs", 
         "cache": get_analysis_tools_root() / "cache",  # Cache is global, not run-specific
         "run_root": run_path

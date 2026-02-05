@@ -34,7 +34,7 @@ class LogGroup(Enum):
     UNIQUE_CPE = "UNIQUE_CPE"
     CPE_QUERY = "CPE_QUERY"
     BADGE_GEN = "BADGE_GEN"
-    PAGE_GEN = "PAGE_GEN"
+    REPORT_GEN = "REPORT_GEN"
     DATA_PROC = "DATA_PROC"
 
 
@@ -191,8 +191,9 @@ class WorkflowLogger:
                 "cpe_queries": LogGroup.CPE_QUERY,
                 "badge_gen": LogGroup.BADGE_GEN,
                 "badge_generation": LogGroup.BADGE_GEN,
-                "page_gen": LogGroup.PAGE_GEN,
-                "page_generation": LogGroup.PAGE_GEN,
+                "page_gen": LogGroup.REPORT_GEN,
+                "report_gen": LogGroup.REPORT_GEN,
+                "report_generation": LogGroup.REPORT_GEN,
                 "data_proc": LogGroup.DATA_PROC,
                 "data_processing": LogGroup.DATA_PROC
             }
@@ -330,7 +331,7 @@ class WorkflowLogger:
         details = ", ".join([f"{k}={v}" for k, v in kwargs.items()])
         self.info(f"[{operation}]: {details}", group=group)
     
-    def file_operation(self, operation: str, filepath: str, details: str = "", group: str = "page_generation"):
+    def file_operation(self, operation: str, filepath: str, details: str = "", group: str = "report_generation"):
         """Log a file operation"""
         extra = f" - {details}" if details else ""
         self.info(f"File {operation}: {filepath}{extra}", group=group)
@@ -538,9 +539,9 @@ def log_badge_gen(message: str):
     get_logger().info(message, group="badge_gen")
 
 
-def log_page_gen(message: str):
-    """Log page generation message"""
-    get_logger().info(message, group="page_gen")
+def log_report_gen(message: str):
+    """Log a report generation message"""
+    get_logger().info(message, group="report_gen")
 
 
 def log_data_proc(message: str):
@@ -589,14 +590,14 @@ def end_confirmed_mappings(details: str = ""):
     get_logger().stage_end("Confirmed Mappings", details, group="badge_gen")
 
 
-def start_page_generation(details: str = ""):
-    """Mark the start of page generation stage"""
-    get_logger().stage_start("Page Generation", details, group="page_gen")
+def start_report_generation(details: str = ""):
+    """Mark the start of report generation stage"""
+    get_logger().stage_start("Report Generation", details, group="report_gen")
 
 
-def end_page_generation(details: str = ""):
-    """Mark the end of page generation stage"""
-    get_logger().stage_end("Page Generation", details, group="page_gen")
+def end_report_generation(details: str = ""):
+    """Mark the end of report generation stage"""
+    get_logger().stage_end("Report Generation", details, group="report_gen")
 
 
 def start_audit(details: str = ""):

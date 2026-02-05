@@ -55,7 +55,7 @@ logger = get_logger()
 def get_nvd_source_data_config() -> Dict[str, Any]:
     """Get nvd_source_data configuration settings from config.json"""
     try:
-        from ..core.generateHTML import load_config
+        from ..core.processData import load_config
         config = load_config()
         return config.get('cache_settings', {}).get('nvd_source_data', {
             'enabled': True,

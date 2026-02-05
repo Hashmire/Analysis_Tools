@@ -1,6 +1,6 @@
 # Vulnerability Analysis and Enrichment Tools
 
-Tools for processing CVE records and generating CPE Applicability Statements. Processes CVE data from MITRE and NVD APIs to create interactive HTML reports for CPE matching and configuration generation.
+Tools for processing CVE records to generate enriched NVD-ish records with CPE determination, source data quality analysis, alias extraction, and CPE Applicability Statement generation. Processes CVE data from CVE List and NVD APIs, storing structured enrichment data for flexible report generation and vulnerability intelligence.
 
 ## Overview
 
@@ -12,27 +12,40 @@ For comprehensive insight into the challenges this tool addresses, see [CPE Auto
 
 - [Alias Mapping Dashboard](https://hashmire.github.io/Alias_Mapping_Reports/)
 - [Source Data Concerns Dashboard](https://hashmire.github.io/SDC_Reports/)
-- [Generate Dataset Dashboard](https://hashmire.github.io/Alias_Mapping_Reports)
+- [CPE-AS Automation Dashboard](https://hashmire.github.io/cpeApplicabilityGeneratorPages/)
 
-### CPE Applicability Generator
+### Core Capabilities
 
-Processes CVE records to generate CPE Applicability Statements:
+**NVD-ish Record Generation**: Processes CVE records to create enriched structured data with comprehensive platform intelligence:
 
-- Ingests CVE information from CVE List and NVD APIs
-- Extracts CPE attribute values from affected product data
-- Queries NVD /cpes/ API for matching CPE Names
-- Processes results to identify relevant CPE Base String values
-- Generates HTML reports for user review and selection
-- Produces CPE Applicability Statements (configurations) from selected CPE Base Strings
+- Ingests CVE data from CVE List v5 and NVD 2.0 APIs
+- Performs CPE Base String determination via heuristics, confirmed mappings, and NVD CPE Dictionary queries
+- Detects source data quality concerns (placeholders, overlapping ranges, invalid characters, etc.)
+- Extracts platform aliases for curator integration
+- Generates CPE Applicability Statements with version range normalization and update pattern handling
+- Stores enriched data as NVD-ish JSON records in persistent cache
+
+**Report Generation**: Produces multiple report types from NVD-ish record cache:
+
+- **Source Data Concern Reports**: Detailed dashboards for data quality review by source
+- **Alias Extraction Reports**: Platform alias mappings for curator validation
+- **CPE-AS Automation Reports**: Generated CPE configurations with platform match criteria
 
 ## Documentation
 
+### Architecture & Systems
+
 - [CPE Automation Challenges](documentation/cpe_automation_challenges.md) - Problem domains, solutions, and codebase architecture
-- [Badge and Modal System Reference](documentation/badge_modal_system_reference.md) - Complete badge/modal system documentation
-- [CPE Caching System](documentation/cpes_api_caching_system.md) - Cache configuration and management
+- [CPE Cache Reference](documentation/cpe_cache_reference.md) - Sharded CPE cache architecture and refresh strategies
 - [Logging System](documentation/logging_system.md) - Structured logging patterns and configuration
-- [Dashboard Usage](documentation/dashboard_usage.md) - Dashboard system and usage
 - [Dataset Generation](documentation/dataset_generation.md) - Dataset generation methodology and capabilities
+
+### NVD-ish Records & Enrichment
+
+- [NVD-ish Record Example](documentation/nvd-ish_record_example.md) - Complete NVD-ish record structure and format
+- [NVD-ish CPE Determination](documentation/nvd-ish_cpe_determination.md) - CPE Base String determination methodology
+- [NVD-ish CPE-AS Generation](documentation/nvd-ish_cpe-as_generation.md) - CPE Applicability Statement generation rules
+- [Source Data Concerns](documentation/source_data_concerns_enhanced_table.md) - Complete SDC detection specifications
 
 ### Test Documentation
 
@@ -52,6 +65,35 @@ _Note: Not all CVEs are currently present in the dataset._
 
 ## Usage
 
+### Single CVE Processing
+
+```bash
+# Process single CVE with all features (SDC, CPE determination, alias extraction, CPE-AS)
+python -m src.analysis_tool.core.analysis_tool CVE-2024-1234 \
+    --source-data-concerns \
+    --cpe-determination \
+    --alias-extraction \
+    --cpe-as-generation
+
+# Quick processing with defaults (SDC only)
+python -m src.analysis_tool.core.analysis_tool CVE-2024-1234
+```
+
+Outputs are stored in `runs/[timestamp]_analysis_[CVE-ID]_[features]/`
+
+### Batch Source Harvesting
+
+```bash
+# Harvest CVEs from specific sources and generate NVD-ish records
+python harvest_and_process_sources.py \
+    --sources "Microsoft Corporation" "Google Inc." \
+    --record-type nvd-ish
+
+# Harvest by source UUID
+python harvest_and_process_sources.py \
+    --sources "8254265b-2729-46b6-b9e3-3dfca2d5bfca" \
+    --record-type nvd-ish
+```
 
 ### Dataset Generation
 
@@ -68,38 +110,31 @@ python generate_dataset.py --start-date 2024-01-01 --end-date 2024-01-31
 
 All dataset outputs are isolated in run-specific directories under `runs/[timestamp]_[context]/logs/`.
 
-### Alias Mapping Report Generation
+### Report Generation
 
 ```bash
-# Generate alias extraction report from default NVD-ish cache (standalone)
+# Alias Mapping Report (from NVD-ish cache)
 python -m src.analysis_tool.reporting.generate_alias_report
 
-# Generate report for specific source by name or UUID
-python -m src.analysis_tool.reporting.generate_alias_report \
-    --source-filter "Microsoft Corporation"
-
-# Generate report using existing run directory from dataset generation
-python -m src.analysis_tool.reporting.generate_alias_report \
-    --run-id 2025-12-01_10-30-00_dataset_last_7_days_nvd-ish
-```
-
-Reports are generated as per-source files in `runs/[timestamp]_alias_report/logs/`:
-- `aliasExtractionReport_index.json` - Source listing with statistics
-- `aliasExtractionReport_[source]_[id].json` - Individual source reports with alias data
-- Interactive HTML dashboard generated from report JSON files
-
-### Source Data Concern Report Generation
-
-```bash
-# Generate SDC report from default NVD-ish cache (standalone)
+# Source Data Concerns Report  
 python -m src.analysis_tool.reporting.generate_sdc_report
 
-# Generate report using existing run directory from dataset generation
-python -m src.analysis_tool.reporting.generate_sdc_report \
+# CPE-AS Automation Report
+python -m src.analysis_tool.reporting.generate_cpe_as_report
+
+# Use existing dataset run directory (any report type)
+python -m src.analysis_tool.reporting.generate_alias_report \
     --run-id 2025-12-01_10-30-00_dataset_last_7_days_nvd-ish
 
+# Filter by source (any report type)
+python -m src.analysis_tool.reporting.generate_sdc_report \
+    --source-filter "Microsoft Corporation"
 ```
 
-Reports are generated as per-source files in `runs/[timestamp]_sdc_report/logs/`:
-- `sourceDataConcernReport_index.json` - Source listing with statistics
-- `sourceDataConcernReport_[source]_[id].json` - Individual source reports
+Reports generate per-source JSON files and interactive HTML dashboards in `runs/[timestamp]_[report_type]/logs/`
+
+### NVD-ish Cache Location
+
+Enriched NVD-ish records are stored in: `cache/nvd-ish_2.0_cves/`
+
+Run-specific outputs are isolated in: `runs/[timestamp]_[context]/`

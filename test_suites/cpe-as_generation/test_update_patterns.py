@@ -53,7 +53,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 try:
-    from src.analysis_tool.core.badge_modal_system import transform_version_with_update_pattern
+    from src.analysis_tool.core.platform_entry_registry import transform_version_with_update_pattern
 except ImportError as e:
     print(f"ERROR: Could not import transform_version_with_update_pattern: {e}")
     sys.exit(1)
@@ -909,9 +909,9 @@ def validate_implementation_consistency():
     print(f"\n Implementation Pattern Consistency")
     
     try:
-        # Read the badge_modal_system.py file to analyze implementation patterns
+        # Read the platform_entry_registry.py file to analyze implementation patterns
         import inspect
-        from src.analysis_tool.core.badge_modal_system import transform_version_with_update_pattern
+        from src.analysis_tool.core.platform_entry_registry import transform_version_with_update_pattern
         
         # Get the source code of the function
         source_file_path = inspect.getfile(transform_version_with_update_pattern)
@@ -1132,7 +1132,7 @@ def validate_javascript_python_synchronization():
         ]
         
         # Import the Python implementation
-        from src.analysis_tool.core.badge_modal_system import transform_version_with_update_pattern
+        from src.analysis_tool.core.platform_entry_registry import transform_version_with_update_pattern
         
         sync_issues = []
         patterns_analyzed = 0

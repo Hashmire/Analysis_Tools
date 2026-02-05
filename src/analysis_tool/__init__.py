@@ -27,7 +27,6 @@ __all__ = [
     'workflow_logger', 
     'cpe_cache',
     'processData',
-    'gatherData', 
-    'generateHTML',
+    'gatherData',
     'utilities'
 ]

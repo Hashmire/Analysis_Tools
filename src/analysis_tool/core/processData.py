@@ -12,8 +12,8 @@ import json
 
 # Import Analysis Tool 
 from . import gatherData
-from . import generateHTML
-from .badge_modal_system import GENERAL_PLACEHOLDER_VALUES, PLATFORM_ENTRY_NOTIFICATION_REGISTRY, register_platform_notification_data, create_cpe_processing_registry_entry, create_top10_cpe_suggestions_registry_entry
+
+from .platform_entry_registry import GENERAL_PLACEHOLDER_VALUES, PLATFORM_ENTRY_NOTIFICATION_REGISTRY, register_platform_notification_data, create_cpe_processing_registry_entry, create_top10_cpe_suggestions_registry_entry
 from ..storage.cpe_cache import get_global_cache_manager  # CPECache class removed - sharded cache only
 from ..storage.nvd_source_manager import get_source_name, get_source_info, get_all_sources_for_cve
 
@@ -62,7 +62,7 @@ def normalize_string_for_comparison(s: str) -> str:
 
 def check_alias_match(alias: dict, raw_platform_data: dict) -> bool:
     """Check if an alias matches raw platform data, filtering out placeholder values from CVE data before comparison"""
-    from .badge_modal_system import GENERAL_PLACEHOLDER_VALUES
+    from .platform_entry_registry import GENERAL_PLACEHOLDER_VALUES
     
     # Required fields that must match if present in both alias and platform data
     # CVE data in these fields will be filtered for placeholders before comparison
@@ -691,7 +691,7 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                 
                 # CPE base string generation does not require version data - it only needs vendor, product, 
                 # platforms, and packageName to generate CPE match strings for NVD API queries.
-                # Version handling is performed separately by badge_modal_system.py and cpe_as_generator.py.
+                # Version handling is performed separately by platform_entry_registry.py and cpe_as_generator.py.
                 # All platformFormatType values are now processed including 'cveAffectsNoVersions'.
                 if platform_format_type in ['cveAffectsVersionSingle', 'cveAffectsVersionRange', 'cveAffectsVersionMix', 'cveAffectsNoVersions']:
                     

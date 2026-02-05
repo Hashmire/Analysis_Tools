@@ -3,7 +3,7 @@
 Text Comparator Detection Test Suite
 
 This test suite validates the detection of text patterns indicating version comparisons.
-It tests the TEXT_COMPARATOR_PATTERNS array defined in badge_modal_system.py.
+It tests the TEXT_COMPARATOR_PATTERNS array defined in platform_entry_registry.py.
 
 """
 

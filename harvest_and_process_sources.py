@@ -253,14 +253,14 @@ def main():
         nargs='?',
         const='true',
         choices=['true', 'false'],
-        help="Generate CPE Applicability Statements as interactive HTML pages (default: false, true if flag provided without value)"
+        help="Generate CPE Applicability Statements (default: false, true if flag provided without value)"
     )
     output_group.add_argument(
         "--nvd-ish-only",
         nargs='?',
         const='true',
         choices=['true', 'false'],
-        help="Generate complete NVD-ish enriched records without report files or HTML (ignores other output flags)"
+        help="Generate complete NVD-ish enriched records without report files (ignores other output flags)"
     )
     
     # Dataset Generation - Parameters passed to generate_dataset.py
@@ -330,8 +330,8 @@ def main():
         logger.info("  --sdc-report               : Generate Source Data Concerns report", group="HARVEST")
         logger.info("  --cpe-determination          : Generate CPE suggestions via NVD CPE API calls", group="HARVEST")
         logger.info("  --alias-report             : Generate alias report via curator features", group="HARVEST")
-        logger.info("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages", group="HARVEST")
-        logger.info("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files or HTML", group="HARVEST")
+        logger.info("  --cpe-as-generator         : Generate CPE Applicability Statements", group="HARVEST")
+        logger.info("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files", group="HARVEST")
         logger.info("", group="HARVEST")
         logger.info("Example usage:", group="HARVEST")
         logger.info("  python harvest_and_process_sources.py --sdc-report", group="HARVEST")
@@ -363,8 +363,8 @@ def main():
         logger.info("  --sdc-report               : Generate Source Data Concerns report", group="HARVEST")
         logger.info("  --cpe-determination          : Generate CPE suggestions via NVD CPE API calls", group="HARVEST")
         logger.info("  --alias-report             : Generate alias report via curator features", group="HARVEST")
-        logger.info("  --cpe-as-generator         : Generate CPE Applicability Statements as interactive HTML pages", group="HARVEST")
-        logger.info("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files or HTML", group="HARVEST")
+        logger.info("  --cpe-as-generator         : Generate CPE Applicability Statements", group="HARVEST")
+        logger.info("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files", group="HARVEST")
         logger.info("", group="HARVEST")
         logger.info("Example usage:", group="HARVEST")
         logger.info("  python harvest_and_process_sources.py --sdc-report", group="HARVEST")
@@ -460,7 +460,7 @@ def main():
         run_context=harvest_context,
         execution_type="harvest",
         tool_flags={feat.replace('-', '_'): True for feat in enabled_features},
-        subdirs=["logs"]  # Harvest runs only need logs, no generated_pages
+        subdirs=["logs"]
     )
     run_paths = get_current_run_paths(run_id)
     
