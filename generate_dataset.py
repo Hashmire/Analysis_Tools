@@ -108,6 +108,15 @@ def _flush_cve_list_cache_batch():
     
     repo_paths = set()
     
+    # Load schema once before batch processing
+    cve_v5_schema = None
+    try:
+        from src.analysis_tool.core.schema_validator import validate_cve_record_v5
+        from src.analysis_tool.core.gatherData import load_schema
+        cve_v5_schema = load_schema('cve_record_v5')
+    except Exception as schema_error:
+        logger.warning(f"Failed to load CVE Record V5 schema: {schema_error} - Batch will cache without validation", group="CACHE_MANAGEMENT")
+    
     for item in batch:
         try:
             # Fetch CVE List V5 record from MITRE API
@@ -117,6 +126,14 @@ def _flush_cve_list_cache_batch():
             response = requests.get(simple_cve_request_url, timeout=config['api']['timeouts']['cve_org'])
             response.raise_for_status()
             cve_record_data = response.json()
+            
+            # Validate CVE Record V5 before caching (if schema loaded successfully)
+            if cve_v5_schema:
+                try:
+                    validated_data = validate_cve_record_v5(cve_record_data, item['cve_id'], cve_v5_schema)
+                    cve_record_data = validated_data
+                except Exception as validation_error:
+                    logger.warning(f"CVE List v5 validation failed for {item['cve_id']}: {validation_error} - Caching without validation", group="CACHE_MANAGEMENT")
             
             # Ensure directory exists
             item['file_path'].parent.mkdir(parents=True, exist_ok=True)
@@ -154,6 +171,15 @@ def _flush_nvd_cache_batch():
     
     repo_paths = set()
     
+    # Load schema once before batch processing
+    cve_schema = None
+    try:
+        from src.analysis_tool.core.schema_validator import validate_cve_data
+        from src.analysis_tool.core.gatherData import load_schema
+        cve_schema = load_schema('cve_api_2_0')
+    except Exception as schema_error:
+        logger.warning(f"Failed to load NVD CVE API 2.0 schema: {schema_error} - Batch will cache without validation", group="CACHE_MANAGEMENT")
+    
     for item in batch:
         try:
             # Ensure directory exists
@@ -169,6 +195,14 @@ def _flush_nvd_cache_batch():
                 "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
                 "vulnerabilities": [item['vulnerability_record']]
             }
+            
+            # Validate NVD CVE data before caching (if schema loaded successfully)
+            if cve_schema:
+                try:
+                    validated_data = validate_cve_data(nvd_response_data, item['cve_id'], cve_schema)
+                    nvd_response_data = validated_data
+                except Exception as validation_error:
+                    logger.warning(f"NVD CVE validation failed for {item['cve_id']}: {validation_error} - Caching without validation", group="CACHE_MANAGEMENT")
             
             # Write with pretty formatting
             with open(item['file_path'], 'w', encoding='utf-8') as f:

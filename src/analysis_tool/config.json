@@ -159,6 +159,12 @@
             "nvd_cpes": "https://services.nvd.nist.gov/rest/json/cpes/2.0",
             "nvd_cpematch": "https://services.nvd.nist.gov/rest/json/cpematch/2.0"
         },
+        "schemas": {
+            "cpe_api_2_0": "https://csrc.nist.gov/schema/nvd/api/2.0/cpe_api_json_2.0.schema",
+            "cve_api_2_0": "https://csrc.nist.gov/schema/nvd/api/2.0/cve_api_json_2.0.schema",
+            "source_api_2_0": "https://csrc.nist.gov/schema/nvd/api/2.0/source_api_json_2.0.schema",
+            "cve_record_v5": "https://raw.githubusercontent.com/CVEProject/cve-schema/refs/heads/main/schema/docs/CVE_Record_Format_bundled.json"
+        },
         "external_assets": {
             "enabled": false,
             "base_url": "https://hashmire.github.io/cpeApplicabilityGeneratorPages/static/",

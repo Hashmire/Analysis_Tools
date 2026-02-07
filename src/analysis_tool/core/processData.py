@@ -1538,10 +1538,16 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                     json_response = gatherData.gatherNVDCPEData(apiKey, "cpeMatchString", query_string)
                     api_calls += 1
                     
-                    # Cache the response if it's valid
-                    if json_response and json_response.get("status") != "invalid_cpe":
+                    # Cache the response if it's valid (no error status)
+                    response_status = json_response.get("status")
+                    if json_response and response_status not in ("invalid_cpe", "partial_validation_error"):
                         cache.put(query_string, json_response)
                         logger.debug(f"API response cached for CPE: {query_string}", group="cpe_queries")
+                    elif response_status == "partial_validation_error":
+                        logger.warning(
+                            f"Skipping cache save for CPE due to validation error: {query_string}",
+                            group="cpe_queries"
+                        )
                 else:
                     # Cache hit - no API call needed
                     cache_hits += 1

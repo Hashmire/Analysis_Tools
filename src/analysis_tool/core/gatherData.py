@@ -15,6 +15,77 @@ from ..logging.workflow_logger import get_logger, LogGroup
 # Get logger instance
 logger = get_logger()
 
+
+class HTTPResponseError(Exception):
+    """Raised when HTTP response fails integrity checks or JSON parsing"""
+    pass
+
+
+def validate_http_response(response: requests.Response, context: str, max_size_mb: int = 100) -> dict:
+    """
+    Universal HTTP response validator for all API calls.
+    
+    Validates transport layer (HTTP) and extracts JSON data.
+    Generic checks applicable to all NVD/CVE API responses.
+    
+    Args:
+        response: requests.Response object from API call
+        context: Description for error messages (e.g., "CVE API query: CVE-2024-1234")
+        max_size_mb: Maximum allowed response size in MB (default: 100)
+    
+    Returns:
+        Parsed JSON data as dict
+    
+    Raises:
+        HTTPResponseError: If response fails any integrity check
+    
+    Example:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Check HTTP status code first
+        data = validate_http_response(response, "NVD CVE API")
+    """
+    # 1. Check Content-Type header
+    content_type = response.headers.get('content-type', '')
+    if 'application/json' not in content_type.lower():
+        error_msg = f"Invalid Content-Type: {content_type} (expected application/json) - {context}"
+        logger.error(error_msg, group="DATA_PROC")
+        raise HTTPResponseError(error_msg)
+    
+    # 2. Check response size
+    content_length = len(response.content)
+    max_bytes = max_size_mb * 1024 * 1024
+    
+    if content_length > max_bytes:
+        size_mb = content_length / 1024 / 1024
+        error_msg = f"Response too large: {size_mb:.1f}MB (max {max_size_mb}MB) - {context}"
+        logger.error(error_msg, group="DATA_PROC")
+        raise HTTPResponseError(error_msg)
+    
+    if content_length == 0:
+        error_msg = f"Response body is empty - {context}"
+        logger.error(error_msg, group="DATA_PROC")
+        raise HTTPResponseError(error_msg)
+    
+    # 3. Parse JSON
+    try:
+        data = response.json()
+    except json.JSONDecodeError as e:
+        error_msg = f"Invalid JSON in response: {e} - {context}"
+        logger.error(error_msg, group="DATA_PROC")
+        raise HTTPResponseError(error_msg)
+    except Exception as e:
+        error_msg = f"Failed to parse response: {type(e).__name__}: {e} - {context}"
+        logger.error(error_msg, group="DATA_PROC")
+        raise HTTPResponseError(error_msg)
+    
+    # 4. Validate is a dict (NVD APIs always return objects, not arrays)
+    if not isinstance(data, dict):
+        error_msg = f"Response is not a JSON object (got {type(data).__name__}) - {context}"
+        logger.error(error_msg, group="DATA_PROC")
+        raise HTTPResponseError(error_msg)
+    
+    return data
+
 # Load configuration
 def load_config():
     """Load configuration from config.json"""
@@ -25,6 +96,70 @@ def load_config():
 config = load_config()
 VERSION = config['application']['version']
 TOOLNAME = config['application']['toolname']
+
+
+# ============================================================================
+# Schema Loading Functions (Cache I/O Operations)
+# ============================================================================
+
+# In-memory schema cache to avoid repeated downloads
+_schema_cache = {}
+
+def load_schema(schema_name: str) -> dict:
+    """
+    Load JSON schema from URL specified in config.json.
+    Caches schemas in memory to avoid repeated downloads.
+    
+    Args:
+        schema_name: Schema identifier (e.g., 'cpe_api_2_0', 'cve_api_2_0', 'cve_record_v5')
+    
+    Returns:
+        Parsed JSON schema as dict
+    
+    Raises:
+        ValueError: If schema_name not found in config
+        requests.RequestException: If schema download fails
+        json.JSONDecodeError: If schema is invalid JSON
+    """
+    # Check memory cache first
+    if schema_name in _schema_cache:
+        logger.debug(f"Schema loaded from memory cache: {schema_name}", group="CACHE_MANAGEMENT")
+        return _schema_cache[schema_name]
+    
+    # Get schema URL from config
+    if schema_name not in config['api']['schemas']:
+        raise ValueError(f"Schema '{schema_name}' not found in config.json api.schemas")
+    
+    schema_url = config['api']['schemas'][schema_name]
+    logger.debug(f"Downloading schema: {schema_name} from {schema_url}", group="CACHE_MANAGEMENT")
+    
+    try:
+        response = requests.get(schema_url, timeout=30)
+        response.raise_for_status()
+        schema_data = response.json()
+        
+        # Cache in memory
+        _schema_cache[schema_name] = schema_data
+        logger.debug(f"Schema cached in memory: {schema_name}", group="CACHE_MANAGEMENT")
+        
+        return schema_data
+        
+    except requests.RequestException as e:
+        error_msg = f"Failed to download schema '{schema_name}' from {schema_url}: {e}"
+        logger.error(error_msg, group="CACHE_MANAGEMENT")
+        raise
+    except json.JSONDecodeError as e:
+        error_msg = f"Invalid JSON in schema '{schema_name}': {e}"
+        logger.error(error_msg, group="CACHE_MANAGEMENT")
+        raise
+
+
+def clear_schema_cache():
+    """Clear in-memory schema cache (useful for testing)"""
+    global _schema_cache
+    _schema_cache = {}
+    logger.debug("Schema cache cleared", group="CACHE_MANAGEMENT")
+
 
 # Session-level cache for config lookups
 _config_cache = {}
@@ -446,8 +581,7 @@ def _refresh_cvelist_from_mitre_api(targetCve, local_file_path, refresh_reason="
         
         # Make direct API call (bypass local loading)
         r = requests.get(simpleCveRequestUrl, timeout=config['api']['timeouts']['cve_org'])
-        r.raise_for_status()  
-        fresh_cve_data = r.json()
+        fresh_cve_data = validate_http_response(r, f"MITRE CVE API refresh: {targetCve}")
 
         # Validate fresh data
         processData.integrityCheckCVE("cveIdMatch", targetCve, fresh_cve_data)
@@ -519,6 +653,15 @@ def _save_nvd_cve_to_local_file(targetCve, nvd_data):
         if not nvd_file_path:
             logger.warning(f"Could not resolve NVD file path for {targetCve}", group="CACHE_MANAGEMENT")
             return
+        
+        # Validate NVD CVE data before caching
+        try:
+            from .schema_validator import validate_cve_data
+            cve_schema = load_schema('cve_api_2_0')
+            validated_data = validate_cve_data(nvd_data, targetCve, cve_schema)
+            nvd_data = validated_data
+        except Exception as validation_error:
+            logger.warning(f"NVD CVE validation failed for {targetCve}: {validation_error} - Caching without validation", group="CACHE_MANAGEMENT")
             
         # Ensure directory structure exists
         nvd_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -602,8 +745,7 @@ def gatherCVEListRecord(targetCve):
     
     try:
         r = requests.get(simpleCveRequestUrl, timeout=config['api']['timeouts']['cve_org'])
-        r.raise_for_status()  
-        cveRecordDict = r.json()
+        cveRecordDict = validate_http_response(r, f"MITRE CVE API: {targetCve}")
 
         processData.integrityCheckCVE("cveIdMatch", targetCve, cveRecordDict)
         processData.integrityCheckCVE("cveStatusCheck", "REJECTED", cveRecordDict)
@@ -714,10 +856,8 @@ def gatherNVDCVERecord(apiKey, targetCve):
     for attempt in range(max_retries):
         try:
             response = requests.get(url, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
-            response.raise_for_status()
+            nvd_data = validate_http_response(response, f"NVD CVE API: {targetCve}")
             logger.api_response("NVD CVE API", "Success", group="cve_queries")
-            
-            nvd_data = response.json()
             
             # Save to local cache if enabled
             _save_nvd_cve_to_local_file(targetCve, nvd_data)
@@ -763,8 +903,7 @@ def gatherNVDSourceData(apiKey):
         for attempt in range(max_retries):
             try:
                 response = requests.get(url, headers=headers)
-                response.raise_for_status()
-                return response.json()
+                return validate_http_response(response, "NVD Source API")
             except requests.exceptions.RequestException as e:                
                 public_ip = get_public_ip()
                 logger.error(f"NVD Sources API request failed: Unable to fetch source entries (Attempt {attempt + 1}/{max_retries}) - {e}", group="cve_queries")
@@ -817,9 +956,7 @@ def gatherNVDCPEData(apiKey, case, query_string):
                     logger.api_call("NVD CPE API", {"cpe_match_string": query_string, "start_index": 0}, group="cpe_queries")
                    
                     response = requests.get(nvd_cpes_url, params=initial_params, headers=headers)
-                    response.raise_for_status()
-                    
-                    initial_data = response.json()
+                    initial_data = validate_http_response(response, f"NVD CPE API: {query_string}")
                    
                     total_results = initial_data.get("totalResults", 0)
                     results_per_page = initial_data.get("resultsPerPage", 0)
@@ -860,9 +997,8 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                 additional_api_calls += 1
                                
                                 response = requests.get(nvd_cpes_url, params=params, headers=headers)
-                                response.raise_for_status()
-                                
-                                page_data = response.json()
+                                page_number = (current_index // results_per_page) + 1
+                                page_data = validate_http_response(response, f"NVD CPE API page {page_number}: {query_string}")
                                
                                 # Log the paginated API response
                                 page_results = len(page_data.get("products", []))
@@ -1045,9 +1181,7 @@ def gatherAllCVEIDs(apiKey):
                     logger.info(f"Processing CVE queries: Page {current_page}/? - Determining total count...", group="cve_queries")
                 
                 response = requests.get(base_url, params=params, headers=headers)
-                response.raise_for_status()
-                
-                data = response.json()
+                data = validate_http_response(response, f"NVD CVE List API page {current_page}")
                 
                 if total_results is None:
                     total_results = data.get("totalResults", 0)
@@ -1105,9 +1239,7 @@ def harvestSourceUUIDs():
     try:
         url = config['api']['endpoints']['nvd_sources']
         response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        
-        data = response.json()
+        data = validate_http_response(response, "NVD Source API - harvest UUIDs")
         sources = data.get('sources', [])
         
         source_info = []
@@ -1205,9 +1337,7 @@ def checkSourceCVECount(source_uuid, api_key, max_count):
         }
         
         response = requests.get(url, headers=headers, params=params, timeout=30)
-        response.raise_for_status()
-        
-        data = response.json()
+        data = validate_http_response(response, f"NVD CVE API - check source count: {source_uuid}")
         total_results = data.get('totalResults', 0)
         
         logger.info(f"Source has {total_results:,} CVE records", group="cve_queries")

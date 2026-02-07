@@ -308,11 +308,30 @@ class GlobalNVDSourceManager:
         try:
             current_time = datetime.now(timezone.utc)
             
+            # Validate source data before caching
+            source_data_to_cache = self._source_data
+            try:
+                # Import schema validation at function level to avoid circular imports
+                import sys
+                from pathlib import Path
+                sys.path.insert(0, str(Path(__file__).parent.parent))
+                from analysis_tool.core.schema_validator import validate_source_data
+                from analysis_tool.core.gatherData import load_schema
+                
+                # Validate the raw source data before processing
+                if self._source_data is not None and len(self._source_data) > 0:
+                    source_schema = load_schema('source_api_2_0')
+                    # Convert first record to dict for validation (schema validates single records)
+                    sample_record = self._source_data.iloc[0].to_dict()
+                    validate_source_data({'sources': [sample_record]}, source_schema)
+            except Exception as validation_error:
+                logger.warning(f"NVD source data validation failed: {validation_error} - Caching without validation", group="CACHE_MANAGEMENT")
+            
             # Save source data to JSON cache file - handle NaN values properly
             source_data_records = []
-            if self._source_data is not None:
+            if source_data_to_cache is not None:
                 # Convert DataFrame to records and clean NaN values
-                for record in self._source_data.to_dict('records'):
+                for record in source_data_to_cache.to_dict('records'):
                     cleaned_record = {}
                     for key, value in record.items():
                         # Convert NaN/None values to None, which JSON can handle

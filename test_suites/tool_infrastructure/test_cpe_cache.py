@@ -243,6 +243,7 @@ def test_auto_save():
             'enabled': True,
             'compression': False,
             'auto_save_threshold': 5,
+            'max_loaded_shards': 10,  # High limit to prevent proactive eviction from clearing unsaved_changes
             'refresh_strategy': {'notify_age_hours': 100}
         }
         
@@ -251,16 +252,17 @@ def test_auto_save():
         cache.cache_dir.mkdir(parents=True, exist_ok=True)
         cache.metadata_file = Path(tmpdir) / 'cache_metadata.json'
         
-        # Add entries below threshold
+        # Add entries to SAME shard to accumulate unsaved changes
+        # Using same base CPE ensures same shard for all entries
         for i in range(4):
-            cache.put(f"cpe:2.3:a:save{i}:test:1.0", {'totalResults': i})
+            cache.put(f"cpe:2.3:a:autosave:product{i}:1.0", {'totalResults': i})
         
         assert cache.session_stats['auto_saves'] == 0, "Should not auto-save yet"
         
         # Add 5th entry to trigger auto-save
-        cache.put("cpe:2.3:a:save4:test:1.0", {'totalResults': 4})
+        cache.put("cpe:2.3:a:autosave:product4:1.0", {'totalResults': 4})
         
-        assert cache.session_stats['auto_saves'] == 1, "Should have auto-saved"
+        assert cache.session_stats['auto_saves'] == 1, f"Should have auto-saved, got {cache.session_stats['auto_saves']}"
         
         # Verify files exist
         shard_files = list(cache.cache_dir.glob("cpe_cache_shard_*.json"))

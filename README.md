@@ -47,22 +47,6 @@ For comprehensive insight into the challenges this tool addresses, see [CPE Auto
 - [NVD-ish CPE-AS Generation](documentation/nvd-ish_cpe-as_generation.md) - CPE Applicability Statement generation rules
 - [Source Data Concerns](documentation/source_data_concerns_enhanced_table.md) - Complete SDC detection specifications
 
-### Test Documentation
-
-- [Test Suites Overview](documentation/README.md) - Comprehensive test documentation
-
-## Examples
-
-The complete collection of generated pages is maintained at [Hashmire/cpeApplicabilityGeneratorPages](https://github.com/Hashmire/cpeApplicabilityGeneratorPages).  
-
-To access a specific CVE analysis page, use the following URL pattern:
-
-```text
-https://hashmire.github.io/cpeApplicabilityGeneratorPages/generated_pages/[CVE-ID].html
-```
-
-_Note: Not all CVEs are currently present in the dataset._
-
 ## Usage
 
 ### Single CVE Processing

@@ -246,6 +246,22 @@ class TestSuiteRunner:
                 'name': 'CPE Base String Cache Manager',
                 'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_cpe_cache.py']
             },
+            {
+                'name': 'CPE Cache Proactive Eviction',
+                'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_cpe_cache_eviction.py']
+            },
+            {
+                'name': 'Schema Validation',
+                'command': ['python', 'test_suites\\validation\\test_schema_validation.py']
+            },
+            {
+                'name': 'Schema Loading Integration',
+                'command': ['python', 'test_suites\\integration\\test_schema_loading_integration.py']
+            },
+            {
+                'name': 'CPE Pagination Fix',
+                'command': ['python', 'test_suites\\integration\\test_cpe_pagination_fix.py']
+            },
             # === NVD-ish Record Processing Flow (Ordered by Execution) ===
             # Step 1: Core record collection and structure
             {

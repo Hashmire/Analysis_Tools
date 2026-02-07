@@ -209,9 +209,27 @@ class ShardedCPECache:
             )
     
     def _load_shard(self, shard_index: int) -> Dict[str, Any]:
-        """Lazy load a single shard into memory."""
+        """Lazy load a single shard into memory with proactive eviction."""
         if shard_index in self.loaded_shards:
             return self.loaded_shards[shard_index]
+        
+        # PROACTIVE EVICTION: Enforce memory limit BEFORE loading new shard
+        max_loaded_shards = self.config.get('max_loaded_shards', 4)
+        if len(self.loaded_shards) >= max_loaded_shards:
+            # Need to make room - save and evict oldest shard
+            oldest_shard_idx = list(self.loaded_shards.keys())[0]
+            
+            # Save if it has changes
+            if oldest_shard_idx in self.unsaved_changes and self.unsaved_changes[oldest_shard_idx] > 0:
+                self._save_shard(oldest_shard_idx)
+                self.unsaved_changes[oldest_shard_idx] = 0
+            
+            # Evict from memory
+            del self.loaded_shards[oldest_shard_idx]
+            logger.debug(
+                f"Proactive eviction: Shard {oldest_shard_idx} saved and evicted to load shard {shard_index}",
+                group="cpe_queries"
+            )
         
         shard_path = self.cache_dir / self._get_shard_filename(shard_index)
         
@@ -261,10 +279,40 @@ class ShardedCPECache:
     def _save_metadata(self) -> None:
         """Save cache metadata to unified metadata file."""
         try:
-            # Update total entries count
+            # Update total entries count from loaded shards
             total_entries = sum(len(shard) for shard in self.loaded_shards.values())
-            self.cpe_metadata['total_entries'] = total_entries
-            self.cpe_metadata['last_updated'] = datetime.now(timezone.utc).isoformat()
+            
+            # Scan all shard files to get accurate total
+            total_entries_on_disk = 0
+            shard_details = {}
+            for shard_index in range(self.num_shards):
+                shard_path = self.cache_dir / self._get_shard_filename(shard_index)
+                if shard_path.exists():
+                    try:
+                        with open(shard_path, 'rb') as f:
+                            shard_data = orjson.loads(f.read())
+                        entry_count = len(shard_data)
+                        total_entries_on_disk += entry_count
+                        
+                        # Get file modification time for last_updated
+                        file_stat = shard_path.stat()
+                        file_mtime = datetime.fromtimestamp(file_stat.st_mtime, tz=timezone.utc)
+                        
+                        shard_details[f"shard_{shard_index:02d}"] = {
+                            'filename': shard_path.name,
+                            'entry_count': entry_count,
+                            'file_size_mb': round(file_stat.st_size / (1024 * 1024), 2),
+                            'last_updated': file_mtime.isoformat()
+                        }
+                    except Exception:
+                        pass
+            
+            self.cpe_metadata['total_entries'] = total_entries_on_disk
+            self.cpe_metadata['directory_path'] = 'cache/cpe_base_strings'
+            self.cpe_metadata['shards'] = shard_details
+            
+            # Remove cache-level last_updated (now tracked per-shard)
+            self.cpe_metadata.pop('last_updated', None)
             
             # Load existing metadata or create new
             unified_metadata = {}
@@ -478,12 +526,43 @@ class ShardedCPECache:
             self._auto_save()
     
     def _auto_save(self) -> None:
-        """Perform automatic incremental save of all loaded shards."""
+        """Perform automatic incremental save with memory-spike prevention."""
         self.session_stats['auto_saves'] += 1
         total_unsaved = sum(self.unsaved_changes.values())
         logger.debug(f"CPE cache auto-save triggered ({total_unsaved} new entries)", group="cpe_queries")
-        self.save_all_shards()
+        
+        # INCREMENTAL SAVE-AND-EVICT: Process one shard at a time to prevent memory spikes
+        max_loaded_shards = self.config.get('max_loaded_shards', 4)
+        shards_to_process = list(self.loaded_shards.keys())
+        shards_saved = 0
+        shards_evicted = 0
+        
+        for shard_idx in shards_to_process:
+            # Save if has changes
+            if shard_idx in self.unsaved_changes and self.unsaved_changes[shard_idx] > 0:
+                self._save_shard(shard_idx)  # Saves, then releases serialized data immediately
+                self.unsaved_changes[shard_idx] = 0
+                shards_saved += 1
+            
+            # Evict if we're over limit (keep newest shards)
+            if len(self.loaded_shards) > max_loaded_shards:
+                # Evict this shard after saving (process from oldest to newest)
+                if shard_idx in self.loaded_shards:
+                    del self.loaded_shards[shard_idx]
+                    shards_evicted += 1
+        
         self.unsaved_changes.clear()
+        
+        if shards_evicted > 0:
+            logger.debug(
+                f"Auto-save: Saved {shards_saved} shards, evicted {shards_evicted} shards ({len(self.loaded_shards)} retained)",
+                group="cpe_queries"
+            )
+        else:
+            logger.debug(
+                f"Auto-save: Saved {shards_saved} shards, no eviction needed",
+                group="cpe_queries"
+            )
     
     def _get_total_entries(self) -> int:
         """Get total number of entries across all loaded shards."""
@@ -498,7 +577,11 @@ class ShardedCPECache:
         start_time = time.time()
         shards_saved = 0
         
+        # Only save shards that have unsaved changes (memory efficient)
         for shard_index in list(self.loaded_shards.keys()):
+            # Skip shards with no changes unless forced
+            if shard_index not in self.unsaved_changes or self.unsaved_changes[shard_index] == 0:
+                continue
             self._save_shard(shard_index)
             shards_saved += 1
         
@@ -524,6 +607,48 @@ class ShardedCPECache:
             update_cache_file_size(str(self.cache_dir / "cpe_cache_shard_*.json"))
         except (ImportError, Exception):
             pass
+    
+    def save_changed_shards_only(self) -> None:
+        """Save only shards with unsaved changes (memory-efficient operation)."""
+        if self.disabled or not self.config.get('enabled', True):
+            return
+        
+        if not self.unsaved_changes:
+            logger.debug("No unsaved changes - skipping save", group="cpe_queries")
+            return
+        
+        start_time = time.time()
+        for shard_index in list(self.unsaved_changes.keys()):
+            if shard_index in self.loaded_shards:
+                self._save_shard(shard_index)
+        
+        save_time = time.time() - start_time
+        logger.debug(
+            f"Saved {len(self.unsaved_changes)} changed shards in {save_time:.2f}s",
+            group="cpe_queries"
+        )
+        self.unsaved_changes.clear()
+    
+    def save_changed_shards_only(self) -> None:
+        """Save only shards with unsaved changes (memory-efficient operation)."""
+        if self.disabled or not self.config.get('enabled', True):
+            return
+        
+        if not self.unsaved_changes:
+            logger.debug("No unsaved changes - skipping save", group="cpe_queries")
+            return
+        
+        start_time = time.time()
+        for shard_index in list(self.unsaved_changes.keys()):
+            if shard_index in self.loaded_shards:
+                self._save_shard(shard_index)
+        
+        save_time = time.time() - start_time
+        logger.debug(
+            f"Saved {len(self.unsaved_changes)} changed shards in {save_time:.2f}s",
+            group="cpe_queries"
+        )
+        self.unsaved_changes.clear()
     
     def evict_all_shards(self) -> None:
         """
@@ -565,6 +690,13 @@ class ShardedCPECache:
     
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
+        # Calculate most recent shard update from shards
+        shard_updates = [
+            shard_info.get('last_updated', '')
+            for shard_info in self.cpe_metadata.get('shards', {}).values()
+        ]
+        most_recent_update = max(shard_updates) if shard_updates else 'unknown'
+        
         stats = {
             'total_entries': self._get_total_entries(),
             'loaded_shards': len(self.loaded_shards),
@@ -576,7 +708,7 @@ class ShardedCPECache:
             'unsaved_changes': sum(self.unsaved_changes.values()),
             'session_api_calls_saved': self.session_stats['api_calls_saved'],
             'cache_created': self.cpe_metadata['created'],
-            'last_updated': self.cpe_metadata['last_updated'],
+            'last_updated': most_recent_update,
             'sharding_enabled': True,
             'num_shards': self.num_shards
         }
@@ -584,7 +716,7 @@ class ShardedCPECache:
         # Include corruption event statistics if any occurred
         if hasattr(self, '_rejection_stats'):
             stats['session_rejections'] = self._rejection_stats['count']
-            stats['rejected_cpes_sample'] = self._rejection_stats['cpes'][:5]  # First 5 for logging
+            stats['rejected_cpes'] = self._rejection_stats['cpes']  # All rejected CPEs, not a sample
         
         return stats
     
@@ -617,9 +749,10 @@ class ShardedCPECache:
                 f"Cache session rejected {stats['session_rejections']} corrupt API responses",
                 group="cpe_queries"
             )
-            if stats.get('rejected_cpes_sample'):
-                logger.info(
-                    f"Sample rejected CPEs (first 5): {', '.join(stats['rejected_cpes_sample'][:5])}",
+            rejected_cpes = stats.get('rejected_cpes', [])
+            if rejected_cpes:
+                logger.warning(
+                    f"All rejected CPEs ({len(rejected_cpes)}): {', '.join(rejected_cpes)}",
                     group="cpe_queries"
                 )
     
@@ -692,10 +825,13 @@ class GlobalCPECacheManager:
         return self._cache_instance is not None
     
     def save_and_cleanup(self):
-        """Save cache and cleanup on shutdown"""
+        """Save cache and cleanup on shutdown (memory-efficient strategy)"""
         if self._cache_instance:
             try:
-                self._cache_instance.__exit__(None, None, None)  # Trigger save
+                # Save only changed shards first (memory efficient)
+                self._cache_instance.save_changed_shards_only()
+                # Then evict all from memory
+                self._cache_instance.evict_all_shards()
                 logger.info("Global CPE cache saved and cleaned up", group="cpe_queries")
             except Exception as e:
                 logger.warning(f"Error during cache cleanup: {e}", group="cpe_queries")
