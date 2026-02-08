@@ -2,6 +2,7 @@
 import requests
 import pandas as pd
 import os
+import sys
 import json
 from time import sleep
 from pathlib import Path
@@ -11,6 +12,9 @@ from . import processData
 
 # Import the new logging system
 from ..logging.workflow_logger import get_logger, LogGroup
+
+# Import storage utilities
+from ..storage.run_organization import get_analysis_tools_root
 
 # Get logger instance
 logger = get_logger()
@@ -41,9 +45,22 @@ def validate_http_response(response: requests.Response, context: str, max_size_m
     
     Example:
         response = requests.get(url, headers=headers)
-        response.raise_for_status()  # Check HTTP status code first
         data = validate_http_response(response, "NVD CVE API")
     """
+    # 0. Check HTTP status code (4xx, 5xx errors)
+    try:
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        status_code = response.status_code
+        error_msg = f"HTTP {status_code} error: {e} - {context}"
+        logger.error(error_msg, group="DATA_PROC")
+        raise HTTPResponseError(error_msg) from e
+    except Exception as e:
+        # Catch any other unexpected errors during status check
+        error_msg = f"Unexpected error checking HTTP status: {type(e).__name__}: {e} - {context}"
+        logger.error(error_msg, group="DATA_PROC")
+        raise HTTPResponseError(error_msg) from e
+    
     # 1. Check Content-Type header
     content_type = response.headers.get('content-type', '')
     if 'application/json' not in content_type.lower():
@@ -108,16 +125,27 @@ _schema_cache = {}
 def load_schema(schema_name: str) -> dict:
     """
     Load JSON schema from URL specified in config.json.
-    Caches schemas in memory to avoid repeated downloads.
+    Caches schemas in memory and on disk to avoid repeated downloads.
+    
+    CRITICAL: Schema files MUST follow naming convention: Source_Endpoint_Version_schema.json
+    
+    Config.json schema keys define the expected filename (without _schema.json suffix):
+    - nvd_cpes_2_0 -> nvd_cpes_2_0_schema.json
+    - nvd_cves_2_0 -> nvd_cves_2_0_schema.json
+    - nvd_source_2_0 -> nvd_source_2_0_schema.json
+    - cve_cve_5_2 -> cve_cve_5_2_schema.json (version validated against schema's dataVersion.default)
+    
+    For CVE schemas, the version is derived from schema content and MUST match config key.
+    This ensures we're using the expected schema version and fail explicitly on version mismatches.
     
     Args:
-        schema_name: Schema identifier (e.g., 'cpe_api_2_0', 'cve_api_2_0', 'cve_record_v5')
+        schema_name: Schema identifier from config.json (e.g., 'nvd_cpes_2_0', 'cve_cve_5_2')
     
     Returns:
         Parsed JSON schema as dict
     
     Raises:
-        ValueError: If schema_name not found in config
+        ValueError: If schema_name not found in config, version mismatch, or invalid format
         requests.RequestException: If schema download fails
         json.JSONDecodeError: If schema is invalid JSON
     """
@@ -131,12 +159,80 @@ def load_schema(schema_name: str) -> dict:
         raise ValueError(f"Schema '{schema_name}' not found in config.json api.schemas")
     
     schema_url = config['api']['schemas'][schema_name]
+    project_root = get_analysis_tools_root()
+    schema_dir = project_root / "cache" / "schemas"
+    
+    # Determine if this is a CVE schema (requires version validation)
+    is_cve_schema = schema_name.startswith('cve_cve_')
+    
+    # Generate expected filename from config key
+    schema_filename = f"{schema_name}_schema.json"
+    schema_path = schema_dir / schema_filename
+    
+    # Check disk cache before downloading
+    if schema_path.exists():
+        try:
+            schema_data = json.loads(schema_path.read_text(encoding='utf-8'))
+            _schema_cache[schema_name] = schema_data
+            logger.debug(f"Schema loaded from disk cache: {schema_filename}", group="CACHE_MANAGEMENT")
+            return schema_data
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(
+                f"Failed to load schema from disk cache ({schema_filename}), will re-download: {e}",
+                group="CACHE_MANAGEMENT"
+            )
+    
+    # Download schema
     logger.debug(f"Downloading schema: {schema_name} from {schema_url}", group="CACHE_MANAGEMENT")
     
     try:
-        response = requests.get(schema_url, timeout=30)
+        response = requests.get(schema_url, timeout=config['api']['timeouts']['nvd_api'])
         response.raise_for_status()
         schema_data = response.json()
+        
+        # For CVE schemas, validate derived version matches config key
+        if is_cve_schema:
+            # Extract version from schema: definitions.dataVersion.default (e.g., "5.2.0")
+            data_version = schema_data.get('definitions', {}).get('dataVersion', {}).get('default', '')
+            if not data_version:
+                logger.error("CVE schema missing definitions.dataVersion.default field", group="CACHE_MANAGEMENT")
+                sys.exit(1)
+            
+            # Extract major.minor from version string (e.g., "5.2.0" -> "5_2")
+            version_parts = data_version.split('.')
+            if len(version_parts) < 2:
+                logger.error(f"Invalid CVE schema version format: {data_version}", group="CACHE_MANAGEMENT")
+                sys.exit(1)
+            
+            major, minor = version_parts[0], version_parts[1]
+            derived_version = f"{major}.{minor}"
+            
+            # Extract expected version from config key (e.g., "cve_cve_5_2" -> "5.2")
+            expected_parts = schema_name.split('_')[2:]  # Skip "cve_cve_" prefix
+            expected_version = '.'.join(expected_parts)
+            
+            # Validate versions match
+            if derived_version != expected_version:
+                logger.error(
+                    f"Expected CVE schema major.minor version is {expected_version} but schema has "
+                    f"dataVersion.default '{data_version}'. CVE record validation may not work properly "
+                    f"without expected schema version.",
+                    group="CACHE_MANAGEMENT"
+                )
+                sys.exit(1)
+            
+            logger.debug(
+                f"CVE schema version validated: {data_version} matches expected {expected_version}",
+                group="CACHE_MANAGEMENT"
+            )
+        
+        # Save to disk cache
+        try:
+            schema_dir.mkdir(parents=True, exist_ok=True)
+            schema_path.write_text(json.dumps(schema_data, indent=2), encoding='utf-8')
+            logger.debug(f"Schema saved to disk cache: {schema_filename}", group="CACHE_MANAGEMENT")
+        except OSError as e:
+            logger.warning(f"Failed to save schema to disk ({schema_filename}): {e}", group="CACHE_MANAGEMENT")
         
         # Cache in memory
         _schema_cache[schema_name] = schema_data
@@ -657,7 +753,7 @@ def _save_nvd_cve_to_local_file(targetCve, nvd_data):
         # Validate NVD CVE data before caching
         try:
             from .schema_validator import validate_cve_data
-            cve_schema = load_schema('cve_api_2_0')
+            cve_schema = load_schema('nvd_cves_2_0')
             validated_data = validate_cve_data(nvd_data, targetCve, cve_schema)
             nvd_data = validated_data
         except Exception as validation_error:
@@ -902,7 +998,7 @@ def gatherNVDSourceData(apiKey):
         max_retries = config['api']['retry']['max_attempts_nvd']
         for attempt in range(max_retries):
             try:
-                response = requests.get(url, headers=headers)
+                response = requests.get(url, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
                 return validate_http_response(response, "NVD Source API")
             except requests.exceptions.RequestException as e:                
                 public_ip = get_public_ip()
@@ -955,7 +1051,7 @@ def gatherNVDCPEData(apiKey, case, query_string):
                     # Log the API call before making the request
                     logger.api_call("NVD CPE API", {"cpe_match_string": query_string, "start_index": 0}, group="cpe_queries")
                    
-                    response = requests.get(nvd_cpes_url, params=initial_params, headers=headers)
+                    response = requests.get(nvd_cpes_url, params=initial_params, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
                     initial_data = validate_http_response(response, f"NVD CPE API: {query_string}")
                    
                     total_results = initial_data.get("totalResults", 0)
@@ -996,7 +1092,7 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                 logger.api_call("NVD CPE API", {"cpe_match_string": query_string, "start_index": current_index}, group="cpe_queries")
                                 additional_api_calls += 1
                                
-                                response = requests.get(nvd_cpes_url, params=params, headers=headers)
+                                response = requests.get(nvd_cpes_url, params=params, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
                                 page_number = (current_index // results_per_page) + 1
                                 page_data = validate_http_response(response, f"NVD CPE API page {page_number}: {query_string}")
                                
@@ -1180,7 +1276,7 @@ def gatherAllCVEIDs(apiKey):
                 else:
                     logger.info(f"Processing CVE queries: Page {current_page}/? - Determining total count...", group="cve_queries")
                 
-                response = requests.get(base_url, params=params, headers=headers)
+                response = requests.get(base_url, params=params, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
                 data = validate_http_response(response, f"NVD CVE List API page {current_page}")
                 
                 if total_results is None:
@@ -1238,7 +1334,7 @@ def harvestSourceUUIDs():
     
     try:
         url = config['api']['endpoints']['nvd_sources']
-        response = requests.get(url, timeout=30)
+        response = requests.get(url, timeout=config['api']['timeouts']['nvd_api'])
         data = validate_http_response(response, "NVD Source API - harvest UUIDs")
         sources = data.get('sources', [])
         
@@ -1336,7 +1432,7 @@ def checkSourceCVECount(source_uuid, api_key, max_count):
             "resultsPerPage": 1  # We only need the total count
         }
         
-        response = requests.get(url, headers=headers, params=params, timeout=30)
+        response = requests.get(url, headers=headers, params=params, timeout=config['api']['timeouts']['nvd_api'])
         data = validate_http_response(response, f"NVD CVE API - check source count: {source_uuid}")
         total_results = data.get('totalResults', 0)
         

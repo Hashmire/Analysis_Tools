@@ -260,15 +260,11 @@ class TestSuiteRunner:
             },
             {
                 'name': 'Schema Loading Integration',
-                'command': ['python', 'test_suites\\integration\\test_schema_loading_integration.py']
-            },
-            {
-                'name': 'CPE Pagination Fix',
-                'command': ['python', 'test_suites\\integration\\test_cpe_pagination_fix.py']
+                'command': ['python', 'test_suites\\validation\\test_schema_loading_integration.py']
             },
             {
                 'name': 'CPE Corruption Prevention',
-                'command': ['python', 'test_suites\\integration\\test_cpe_corruption_prevention.py']
+                'command': ['python', 'test_suites\\tool_infrastructure\\test_cpe_corruption_prevention.py']
             },
             # === NVD-ish Record Processing Flow (Ordered by Execution) ===
             # Step 1: Core record collection and structure

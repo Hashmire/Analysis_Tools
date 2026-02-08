@@ -1539,6 +1539,20 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                     json_response = gatherData.gatherNVDCPEData(apiKey, "cpeMatchString", query_string)
                     api_calls += 1
                     
+                    # Handle None response (max retries exceeded or other errors)
+                    if json_response is None:
+                        logger.error(
+                            f"CPE API call failed after retries: {query_string}",
+                            group="cpe_queries"
+                        )
+                        stats = {
+                            "matches_found": 0,
+                            "status": "error",
+                            "error_message": "API call failed after maximum retries"
+                        }
+                        bulk_results.append({query_string: stats})
+                        continue
+                    
                     # Validate and cache the response if it's valid
                     response_status = json_response.get("status")
                     if json_response and response_status not in ("invalid_cpe", "partial_validation_error"):

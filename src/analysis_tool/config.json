@@ -27,7 +27,7 @@
         },
         "nvd_source_data": {
             "enabled": true,
-            "filename": "nvd_source_data.json", 
+            "filename": "nvd_source_data.json",
             "description": "NVD source organization data",
             "refresh_strategy": {
                 "field_path": "$.created_at",
@@ -132,7 +132,6 @@
         "enabled": true,
         "mappings_directory": "cache/alias_mappings"
     },
-
     "harvest_and_process_sources": {
         "max_cves_per_source": 30000,
         "quiet_individual": false
@@ -140,12 +139,12 @@
     "api": {
         "timeouts": {
             "public_ip": 5,
-            "nvd_api": 30,
-            "cve_org": 30
+            "nvd_api": 120,
+            "cve_org": 120
         },
         "retry": {
-            "max_attempts_nvd": 50,
-            "max_attempts_cpe": 100,
+            "max_attempts_nvd": 10,
+            "max_attempts_cpe": 10,
             "delay_with_key": 0,
             "delay_without_key": 6,
             "page_delay_with_key": 0,
@@ -160,29 +159,10 @@
             "nvd_cpematch": "https://services.nvd.nist.gov/rest/json/cpematch/2.0"
         },
         "schemas": {
-            "cpe_api_2_0": "https://csrc.nist.gov/schema/nvd/api/2.0/cpe_api_json_2.0.schema",
-            "cve_api_2_0": "https://csrc.nist.gov/schema/nvd/api/2.0/cve_api_json_2.0.schema",
-            "source_api_2_0": "https://csrc.nist.gov/schema/nvd/api/2.0/source_api_json_2.0.schema",
-            "cve_record_v5": "https://raw.githubusercontent.com/CVEProject/cve-schema/refs/heads/main/schema/docs/CVE_Record_Format_bundled.json"
-        },
-        "external_assets": {
-            "enabled": false,
-            "base_url": "https://hashmire.github.io/cpeApplicabilityGeneratorPages/static/",
-            "css": {
-                "styles": "css/styles.css"
-            },
-            "js": {
-                "unified_data_extraction": "js/unified_data_extraction.js",
-                "badge_modal_system": "js/badge_modal_system.js",
-                "modular_rules": "js/modular_rules.js",
-                "cpe_json_handler": "js/cpe_json_handler.js",
-                "ui_controller": "js/ui_controller.js",
-                "selection_manager": "js/selection_manager.js",
-                "timestamp_handler": "js/timestamp_handler.js",
-                "provenance_assistance": "js/provenance_assistance.js",
-                "completion_tracker": "js/completion_tracker.js",
-                "custom_cpe_builder": "js/custom_cpe_builder.js"
-            }
+            "nvd_cpes_2_0": "https://csrc.nist.gov/schema/nvd/api/2.0/cpe_api_json_2.0.schema",
+            "nvd_cves_2_0": "https://csrc.nist.gov/schema/nvd/api/2.0/cve_api_json_2.0.schema",
+            "nvd_source_2_0": "https://csrc.nist.gov/schema/nvd/api/2.0/source_api_json_2.0.schema",
+            "cve_cve_5_2": "https://raw.githubusercontent.com/CVEProject/cve-schema/refs/heads/main/schema/docs/CVE_Record_Format_bundled.json"
         }
     }
 }

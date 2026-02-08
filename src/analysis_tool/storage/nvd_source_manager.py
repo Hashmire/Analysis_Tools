@@ -319,7 +319,7 @@ class GlobalNVDSourceManager:
                 
                 # Validate the raw source data before processing
                 if self._source_data is not None and len(self._source_data) > 0:
-                    source_schema = load_schema('source_api_2_0')
+                    source_schema = load_schema('nvd_source_2_0')
                     # Convert first record to dict for validation (schema validates single records)
                     sample_record = self._source_data.iloc[0].to_dict()
                     validate_source_data({'sources': [sample_record]}, source_schema)

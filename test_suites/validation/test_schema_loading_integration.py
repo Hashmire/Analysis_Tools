@@ -77,7 +77,7 @@ def test(description):
 def test_load_cpe_schema():
     """Test loading CPE API 2.0 schema from actual config URL"""
     clear_schema_cache()  # Start fresh
-    schema = load_schema('cpe_api_2_0')
+    schema = load_schema('nvd_cpes_2_0')
     
     # Verify it's a valid JSON schema
     assert isinstance(schema, dict), "Schema should be a dict"
@@ -88,7 +88,7 @@ def test_load_cpe_schema():
 @test("Schema Loading - CVE API 2.0 schema loads from config URL")
 def test_load_cve_schema():
     """Test loading CVE API 2.0 schema from actual config URL"""
-    schema = load_schema('cve_api_2_0')
+    schema = load_schema('nvd_cves_2_0')
     
     assert isinstance(schema, dict), "Schema should be a dict"
     assert '$schema' in schema or 'type' in schema, "Should be valid JSON schema"
@@ -98,7 +98,7 @@ def test_load_cve_schema():
 @test("Schema Loading - Source API 2.0 schema loads from config URL")
 def test_load_source_schema():
     """Test loading Source API 2.0 schema from actual config URL"""
-    schema = load_schema('source_api_2_0')
+    schema = load_schema('nvd_source_2_0')
     
     assert isinstance(schema, dict), "Schema should be a dict"
     assert '$schema' in schema or 'type' in schema, "Should be valid JSON schema"
@@ -108,7 +108,7 @@ def test_load_source_schema():
 @test("Schema Loading - CVE Record V5 schema loads from config URL")
 def test_load_cve_record_v5_schema():
     """Test loading CVE Record V5 schema from actual config URL"""
-    schema = load_schema('cve_record_v5')
+    schema = load_schema('cve_cve_5_2')
     
     assert isinstance(schema, dict), "Schema should be a dict"
     assert '$schema' in schema or 'definitions' in schema, "Should be valid JSON schema"
@@ -119,8 +119,8 @@ def test_load_cve_record_v5_schema():
 def test_schema_caching():
     """Test that schemas are cached in memory on second load"""
     # First load already done by previous tests
-    schema1 = load_schema('cpe_api_2_0')
-    schema2 = load_schema('cpe_api_2_0')  # Should be from cache
+    schema1 = load_schema('nvd_cpes_2_0')
+    schema2 = load_schema('nvd_cpes_2_0')  # Should be from cache
     
     # Should be the exact same object (not just equal)
     assert schema1 is schema2, "Second load should return cached object"
@@ -141,9 +141,9 @@ def test_invalid_schema_name():
 @test("Schema Loading - Clear cache removes cached schemas")
 def test_clear_cache():
     """Test that clearing cache forces re-download"""
-    schema1 = load_schema('cpe_api_2_0')
+    schema1 = load_schema('nvd_cpes_2_0')
     clear_schema_cache()
-    schema2 = load_schema('cpe_api_2_0')
+    schema2 = load_schema('nvd_cpes_2_0')
     
     # After cache clear, should get different object
     assert schema1 is not schema2, "After clear_cache, should get new object"
@@ -250,7 +250,7 @@ def test_schema_loading_logs():
     
     # Load schema and check that it completes without errors
     # (Logger output goes to configured handlers, not easy to capture)
-    schema = load_schema('cpe_api_2_0')
+    schema = load_schema('nvd_cpes_2_0')
     
     # Verify the function succeeded
     assert schema is not None, "Schema should load successfully"
@@ -292,7 +292,7 @@ def test_cve_record_cache_entry():
     
     # This is what generate_dataset.py does - load schema and validate before caching
     try:
-        schema = load_schema('cve_record_v5')
+        schema = load_schema('cve_cve_5_2')
         # Note: Full schema validation would fail with minimal record, so we skip schema
         validated = validate_cve_record_v5(cve_record_data, "CVE-2024-TEST", schema=None)
         assert validated == cve_record_data
