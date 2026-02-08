@@ -67,31 +67,104 @@ def validate_against_schema(
         logger.error(f"Invalid schema encountered: {e}", group="DATA_PROC")
 
 
+def validate_string_content(data: Any, context: str, path: str = "root") -> None:
+    """
+    Recursively validate string content for dangerous characters/encoding.
+    
+    Catches issues that orjson.dumps() might accept but cause problems:
+    - Null bytes (\x00)
+    - Invalid UTF-8 sequences
+    - Control characters that corrupt JSON
+    - Windows-1252/CP1252 characters in UTF-8 stream
+    
+    Args:
+        data: Data structure to validate (dict, list, or primitive)
+        context: Description for error messages
+        path: Current path in data structure for error reporting
+    
+    Raises:
+        NVDSchemaValidationError: If dangerous content found
+    """
+    if isinstance(data, dict):
+        for key, value in data.items():
+            validate_string_content(value, context, f"{path}.{key}")
+    elif isinstance(data, list):
+        for idx, item in enumerate(data):
+            validate_string_content(item, context, f"{path}[{idx}]")
+    elif isinstance(data, str):
+        # Check for null bytes
+        if '\x00' in data:
+            error_msg = f"Null byte found in string at {path} - {context}"
+            logger.error(error_msg, group="DATA_PROC")
+            raise NVDSchemaValidationError(error_msg)
+        
+        # Check for problematic control characters (except allowed whitespace)
+        dangerous_chars = []
+        for char in data:
+            code = ord(char)
+            # Allow: tab(9), newline(10), carriage return(13), normal printable (32-126, 128+)
+            # Reject: Other control chars (0-8, 11-12, 14-31)
+            if (code < 32 and code not in (9, 10, 13)):
+                dangerous_chars.append((char, code))
+        
+        if dangerous_chars:
+            char_list = ', '.join(f"\\x{code:02x}" for char, code in dangerous_chars[:3])
+            error_msg = f"Dangerous control characters in string at {path}: {char_list} - {context}"
+            logger.error(error_msg, group="DATA_PROC")
+            raise NVDSchemaValidationError(error_msg)
+        
+        # Check for valid UTF-8 encoding by attempting encode/decode
+        try:
+            data.encode('utf-8', errors='strict')
+        except UnicodeEncodeError as e:
+            error_msg = f"Invalid UTF-8 in string at {path}: {str(e)[:100]} - {context}"
+            logger.error(error_msg, group="DATA_PROC")
+            raise NVDSchemaValidationError(error_msg)
+
+
 def validate_orjson_serializable(data: Dict[str, Any], context: str) -> None:
     """
     Validate data is serializable by orjson (required for cache storage).
+    
+    CRITICAL: Multi-layer validation to catch all corruption types:
+    1. Content validation: Scans for null bytes, control chars, invalid UTF-8
+    2. Serialization test: Verifies orjson.dumps() succeeds
+    3. Round-trip test: Verifies orjson.loads() succeeds (catches surrogates)
     
     Args:
         data: Parsed API response
         context: Description for error messages
     
     Raises:
-        NVDSchemaValidationError: If data is not serializable
+        NVDSchemaValidationError: If data is not serializable or contains invalid UTF-8
     """
+    # LAYER 1: Content validation (catches null bytes, control chars, etc.)
+    validate_string_content(data, context)
+    
     if not ORJSON_AVAILABLE:
-        # Fallback to standard json
+        # Fallback to standard json with round-trip
         try:
-            json.dumps(data)
+            serialized = json.dumps(data)
+            json.loads(serialized)  # Round-trip to catch encoding issues
         except (TypeError, ValueError) as e:
             error_msg = f"Data not serializable: {type(e).__name__}: {str(e)[:200]} - {context}"
             logger.error(error_msg, group="DATA_PROC")
             raise NVDSchemaValidationError(error_msg)
         return
     
+    # LAYER 2: Serialization test
     try:
-        orjson.dumps(data)
+        serialized = orjson.dumps(data)
     except (orjson.JSONEncodeError, TypeError, ValueError) as e:
         error_msg = f"Data contains non-serializable content: {type(e).__name__}: {str(e)[:200]} - {context}"
+        logger.error(error_msg, group="DATA_PROC")
+        raise NVDSchemaValidationError(error_msg)
+    
+    # LAYER 3: Round-trip test (catches UTF-8 surrogate pairs)
+    try:
+        orjson.loads(serialized)
+    except (orjson.JSONDecodeError, ValueError) as e:
+        error_msg = f"Data contains invalid UTF-8 encoding (surrogates/invalid sequences): {type(e).__name__}: {str(e)[:200]} - {context}"
         logger.error(error_msg, group="DATA_PROC")
         raise NVDSchemaValidationError(error_msg)
 

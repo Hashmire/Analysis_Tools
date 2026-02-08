@@ -459,41 +459,9 @@ class ShardedCPECache:
         """
         if self.disabled or not self.config.get('enabled', True):
             return
-                # VALIDATION: Ensure data is serializable before caching to prevent corruption
-        # Test serialization with strict UTF-8 enforcement
-        try:
-            test_serialization = orjson.dumps(api_response)
-            # Successfully serialized - data is clean
-        except (orjson.JSONEncodeError, TypeError, ValueError) as e:
-            # Data contains invalid UTF-8 surrogates or non-serializable types
-            error_type = type(e).__name__
-            error_msg = str(e)[:200]  # Capture more context
-            
-            logger.warning(
-                f"CPE cache rejection - corrupt NVD API response detected:",
-                group="cpe_queries"
-            )
-            logger.warning(
-                f"  CPE: {cpe_string}",
-                group="cpe_queries"
-            )
-            logger.warning(
-                f"  Error: {error_type} - {error_msg}",
-                group="cpe_queries"
-            )
-            logger.info(
-                f"Data not cached - future queries for this CPE will retry the API call",
-                group="cpe_queries"
-            )
-            
-            # Track rejection statistics
-            if not hasattr(self, '_rejection_stats'):
-                self._rejection_stats = {'count': 0, 'cpes': []}
-            self._rejection_stats['count'] += 1
-            self._rejection_stats['cpes'].append(cpe_string)
-            
-            # Do not cache - let future queries retry the API call instead
-            return
+        
+        # NOTE: Validation now happens in processData.py before calling put()
+        # via validate_cpe_data() which performs round-trip orjson serialization test
                 # Determine which shard should contain this CPE
         shard_index = self._get_shard_index(cpe_string)
         shard_data = self._load_shard(shard_index)

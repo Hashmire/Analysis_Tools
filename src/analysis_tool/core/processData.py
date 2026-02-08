@@ -16,6 +16,7 @@ from . import gatherData
 from .platform_entry_registry import GENERAL_PLACEHOLDER_VALUES, PLATFORM_ENTRY_NOTIFICATION_REGISTRY, register_platform_notification_data, create_cpe_processing_registry_entry, create_top10_cpe_suggestions_registry_entry
 from ..storage.cpe_cache import get_global_cache_manager  # CPECache class removed - sharded cache only
 from ..storage.nvd_source_manager import get_source_name, get_source_info, get_all_sources_for_cve
+from .schema_validator import validate_cpe_data, NVDSchemaValidationError
 
 # Import the new logging system
 from ..logging.workflow_logger import (
@@ -1538,11 +1539,26 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                     json_response = gatherData.gatherNVDCPEData(apiKey, "cpeMatchString", query_string)
                     api_calls += 1
                     
-                    # Cache the response if it's valid (no error status)
+                    # Validate and cache the response if it's valid
                     response_status = json_response.get("status")
                     if json_response and response_status not in ("invalid_cpe", "partial_validation_error"):
-                        cache.put(query_string, json_response)
-                        logger.debug(f"API response cached for CPE: {query_string}", group="cpe_queries")
+                        # VALIDATION: Prevent UTF-8 encoding corruption before caching
+                        try:
+                            # Load CPE schema (None = skip schema validation, just test serialization)
+                            validated_response = validate_cpe_data(json_response, query_string, schema=None)
+                            cache.put(query_string, validated_response)
+                            logger.debug(f"API response cached for CPE: {query_string}", group="cpe_queries")
+                        except NVDSchemaValidationError as e:
+                            logger.warning(
+                                f"CPE response validation failed - skipping cache save: {query_string}",
+                                group="cpe_queries"
+                            )
+                            logger.warning(
+                                f"  Validation error: {str(e)[:200]}",
+                                group="cpe_queries"
+                            )
+                            # Don't cache - response contains invalid UTF-8 or unserializable data
+                            # Future queries will retry the API call
                     elif response_status == "partial_validation_error":
                         logger.warning(
                             f"Skipping cache save for CPE due to validation error: {query_string}",

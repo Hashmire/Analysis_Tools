@@ -313,7 +313,6 @@ class GlobalNVDSourceManager:
             try:
                 # Import schema validation at function level to avoid circular imports
                 import sys
-                from pathlib import Path
                 sys.path.insert(0, str(Path(__file__).parent.parent))
                 from analysis_tool.core.schema_validator import validate_source_data
                 from analysis_tool.core.gatherData import load_schema

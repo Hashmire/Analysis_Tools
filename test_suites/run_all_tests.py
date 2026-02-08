@@ -251,6 +251,10 @@ class TestSuiteRunner:
                 'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_cpe_cache_eviction.py']
             },
             {
+                'name': 'CPE UTF-8 Validation',
+                'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_cpe_utf8_validation.py']
+            },
+            {
                 'name': 'Schema Validation',
                 'command': ['python', 'test_suites\\validation\\test_schema_validation.py']
             },
@@ -261,6 +265,10 @@ class TestSuiteRunner:
             {
                 'name': 'CPE Pagination Fix',
                 'command': ['python', 'test_suites\\integration\\test_cpe_pagination_fix.py']
+            },
+            {
+                'name': 'CPE Corruption Prevention',
+                'command': ['python', 'test_suites\\integration\\test_cpe_corruption_prevention.py']
             },
             # === NVD-ish Record Processing Flow (Ordered by Execution) ===
             # Step 1: Core record collection and structure
