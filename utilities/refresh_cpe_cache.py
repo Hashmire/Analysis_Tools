@@ -36,6 +36,7 @@ from src.analysis_tool.logging.workflow_logger import get_logger
 from src.analysis_tool.storage.run_organization import get_analysis_tools_root
 from src.analysis_tool.storage.cpe_cache import ShardedCPECache
 from src.analysis_tool.core.analysis_tool import load_config
+from src.analysis_tool.core.gatherData import query_nvd_cpematch_page, gatherNVDCPEData
 
 logger = get_logger()
 
@@ -96,6 +97,133 @@ class CPECacheRefreshStats:
         return "\n".join(lines)
 
 
+def diagnose_shard_corruption(shard_path: Path, error: Exception) -> Dict[str, Any]:
+    """
+    Diagnose the source and type of cache shard corruption.
+    
+    Provides detailed feedback about corruption to aid debugging and
+    identify systemic issues (e.g., network errors, disk failures).
+    
+    Args:
+        shard_path: Path to corrupted shard file
+        error: Exception that was raised during load attempt
+    
+    Returns:
+        Dict with diagnostic information
+    """
+    diagnostics = {
+        'error_type': type(error).__name__,
+        'error_message': str(error)[:200],
+        'file_size': 0,
+        'corruption_category': 'UNKNOWN',
+        'first_bytes': '',
+        'recommendations': []
+    }
+    
+    try:
+        # Get file size
+        diagnostics['file_size'] = shard_path.stat().st_size
+        
+        # Read first 200 bytes for analysis
+        with open(shard_path, 'rb') as f:
+            first_bytes = f.read(200)
+            diagnostics['first_bytes'] = repr(first_bytes[:100])
+        
+        # Check for null bytes (should be prevented by validation)
+        has_null_bytes = b'\x00' in first_bytes
+        
+        # Check for surrogate pairs in UTF-8 byte sequence
+        # Surrogates in UTF-8: 0xED 0xA0-0xBF (high) or 0xED 0xB0-0xBF (low)
+        has_surrogates = False
+        for i in range(len(first_bytes) - 2):
+            if first_bytes[i] == 0xED and 0xA0 <= first_bytes[i+1] <= 0xBF:
+                has_surrogates = True
+                break
+        
+        # Categorize corruption type aligned with prevention mechanisms
+        if diagnostics['file_size'] == 0:
+            diagnostics['corruption_category'] = 'DISK_FAILURE - Empty File'
+            diagnostics['recommendations'].append('Complete write failure or interruption during atomic save operation')
+            diagnostics['recommendations'].append('Likely cause: Disk full, power loss, or process termination during write')
+        
+        elif first_bytes.startswith(b'{') and diagnostics['file_size'] < 100:
+            diagnostics['corruption_category'] = 'DISK_FAILURE - Truncated Write'
+            diagnostics['recommendations'].append('Partial write detected - file starts valid but incomplete')
+            diagnostics['recommendations'].append('Likely cause: Disk full, process killed, or temp file not fully written')
+        
+        elif not first_bytes.startswith(b'{'):
+            diagnostics['corruption_category'] = 'DISK_CORRUPTION - Invalid Format'
+            diagnostics['recommendations'].append('File does not contain valid JSON structure')
+            diagnostics['recommendations'].append('Likely cause: Bit flips, disk corruption, or external file modification')
+        
+        elif 'JSONDecodeError' in diagnostics['error_type']:
+            # Distinguish between orjson-specific, general JSON, and NVD garbage issues
+            if first_bytes.startswith(b'<!DOCTYPE') or first_bytes.startswith(b'<html'):
+                diagnostics['corruption_category'] = 'NVD_GARBAGE - HTML Error Page'
+                diagnostics['recommendations'].append('NVD API returned HTML error page instead of JSON')
+                diagnostics['recommendations'].append('Should be caught during HTTP response validation before caching')
+                diagnostics['recommendations'].append('Indicates validation bypass or API rate limiting/error response')
+            
+            elif has_null_bytes:
+                diagnostics['corruption_category'] = 'VALIDATION_BYPASS - Null Bytes (JSON-level)'
+                diagnostics['recommendations'].append('Null bytes in JSON content (invalid for both JSON and orjson)')
+                diagnostics['recommendations'].append('Should be blocked by validate_string_content() layer')
+                diagnostics['recommendations'].append('Possible causes: Validation skipped, disk corruption post-write, or manual file edit')
+            
+            elif has_surrogates:
+                diagnostics['corruption_category'] = 'ORJSON_SPECIFIC - UTF-8 Surrogate Pairs'
+                diagnostics['recommendations'].append('UTF-8 surrogate pairs detected (orjson strictness - standard json may accept)')
+                diagnostics['recommendations'].append('Should be blocked by orjson roundtrip test in validate_orjson_serializable()')
+                diagnostics['recommendations'].append('Possible causes: Validation skipped, NVD data corruption, or post-write disk corruption')
+            
+            else:
+                # Generic JSON syntax error - check error message for clues
+                error_lower = diagnostics['error_message'].lower()
+                if 'unexpected character' in error_lower or 'unexpected end' in error_lower:
+                    diagnostics['corruption_category'] = 'JSON_SYNTAX_ERROR - Malformed Structure'
+                    diagnostics['recommendations'].append('General JSON syntax error (missing braces, invalid escapes, etc.)')
+                    diagnostics['recommendations'].append('Likely cause: Incomplete write, disk corruption during save, or power loss')
+                else:
+                    diagnostics['corruption_category'] = 'JSON_PARSE_ERROR - Unknown Issue'
+                    diagnostics['recommendations'].append('orjson parsing failed with unrecognized error pattern')
+                    diagnostics['recommendations'].append('Check error message for details - may be encoding or syntax issue')
+        
+        else:
+            diagnostics['corruption_category'] = 'UNKNOWN'
+            diagnostics['recommendations'].append('Unrecognized corruption pattern - see error details for investigation')
+    
+    except Exception as diag_error:
+        diagnostics['recommendations'].append(f'Diagnostic scan failed: {diag_error}')
+    
+    return diagnostics
+
+
+def log_corruption_diagnostics(shard_index: int, shard_path: Path, error: Exception) -> None:
+    """
+    Log detailed corruption diagnostics before auto-recovery.
+    
+    Args:
+        shard_index: Shard index number
+        shard_path: Path to corrupted shard file
+        error: Exception that was raised
+    """
+    diag = diagnose_shard_corruption(shard_path, error)
+    
+    logger.error(
+        f"Shard {shard_index:02d} corruption detected - detailed diagnostics:",
+        group="CACHE_REFRESH"
+    )
+    logger.error(f"  File: {shard_path}", group="CACHE_REFRESH")
+    logger.error(f"  Size: {diag['file_size']:,} bytes", group="CACHE_REFRESH")
+    logger.error(f"  Category: {diag['corruption_category']}", group="CACHE_REFRESH")
+    logger.error(f"  Error Type: {diag['error_type']}", group="CACHE_REFRESH")
+    logger.error(f"  Error Message: {diag['error_message']}", group="CACHE_REFRESH")
+    logger.error(f"  First Bytes: {diag['first_bytes']}", group="CACHE_REFRESH")
+    
+    for rec in diag['recommendations']:
+        logger.error(f"  -> {rec}", group="CACHE_REFRESH")
+
+
 def get_shard_index(cpe_string: str, num_shards: int = 16) -> int:
     """
     Hash CPE string to shard index (delegates to ShardedCPECache implementation).
@@ -144,19 +272,20 @@ def find_oldest_cache_entry(cache_dir: Path, num_shards: int = 16) -> datetime:
             logger.debug(f"Shard {shard_index:02d} does not exist - skipping", group="CACHE_REFRESH")
             continue
         
-        # Load shard - fail fast if corrupted
+        # Load shard - auto-recover if corrupted
         try:
             shard_data = ShardedCPECache.load_shard_from_disk(shard_path)
         except Exception as e:
+            # Diagnose corruption before deletion
+            log_corruption_diagnostics(shard_index, shard_path, e)
+            
             logger.error(
-                f"Shard {shard_index:02d} is corrupted and cannot be loaded: {e}",
+                f"Auto-recovering: Deleting corrupted shard to allow rebuild",
                 group="CACHE_REFRESH"
             )
-            logger.error(
-                f"Delete the corrupted file to allow rebuild: {shard_path}",
-                group="CACHE_REFRESH"
-            )
-            raise  # Fail fast - don't continue with corrupted cache
+            shard_path.unlink()  # Delete corrupted file - will rebuild naturally
+            logger.info(f"Shard {shard_index:02d} deleted - will rebuild on next CPE lookup", group="CACHE_REFRESH")
+            continue  # Skip this shard in current refresh cycle
         
         shard_entries = len(shard_data)
         total_entries += shard_entries
@@ -259,13 +388,23 @@ def query_cpematch_changes(
         
         headers = {'apiKey': api_key} if api_key else {}
         
+        # Build URL with query parameters
+        from urllib.parse import urlencode
+        url = f"{nvd_cpematch_api}?{urlencode(params)}"
+        logger.info(f"Query: {url}", group="CACHE_REFRESH")
+        
+        # Use centralized API query function
+        data = query_nvd_cpematch_page(url, headers, f"NVD CPE Match API (startIndex={start_index})")
+        
+        if data is None:
+            error_msg = f"Failed to query /cpematch/ API (startIndex={start_index})"
+            logger.error(error_msg, group="CACHE_REFRESH")
+            stats.errors.append(error_msg)
+            break
+        
+        stats.api_calls_made += 1
+        
         try:
-            response = requests.get(nvd_cpematch_api, params=params, headers=headers, timeout=60)
-            logger.info(f"Query: {response.url}", group="CACHE_REFRESH")
-            response.raise_for_status()
-            stats.api_calls_made += 1
-            
-            data = response.json()
             matches = data.get('matchStrings', [])
             
             if not matches:
@@ -299,8 +438,8 @@ def query_cpematch_changes(
             start_index += RESULTS_PER_PAGE
             time.sleep(REQUEST_DELAY)  # Rate limiting
             
-        except requests.exceptions.RequestException as e:
-            error_msg = f"Failed to query /cpematch/ API (startIndex={start_index}): {e}"
+        except Exception as e:
+            error_msg = f"Failed to process /cpematch/ API response (startIndex={start_index}): {e}"
             logger.error(error_msg, group="CACHE_REFRESH")
             stats.errors.append(error_msg)
             break
@@ -367,29 +506,26 @@ def query_nvd_cpes_api(api_key: str, cpe_base: str, stats: CPECacheRefreshStats,
         api_key: NVD API key
         cpe_base: CPE base string to query (identified in Phase 1)
         stats: Statistics tracker
-        nvd_cpe_api: NVD CPE API endpoint URL
+        nvd_cpe_api: NVD CPE API endpoint URL (not used - kept for backward compatibility)
     
     Returns:
         Full API response dict with complete CPE metadata, or None on error
     """
-    params = {'cpeMatchString': cpe_base}
-    headers = {'apiKey': api_key} if api_key else {}
+    # Use centralized gatherNVDCPEData function from gatherData.py
+    data = gatherNVDCPEData(api_key, 'cpeMatchString', cpe_base)
     
-    try:
-        response = requests.get(nvd_cpe_api, params=params, headers=headers, timeout=60)
-        response.raise_for_status()
-        stats.api_calls_made += 1
-        
-        data = response.json()
-        result_count = data.get('totalResults', 0)
-        logger.info(f"Refreshing CPE cache: {cpe_base} ({result_count} results)", group="CACHE_REFRESH")
-        return data
-        
-    except requests.exceptions.RequestException as e:
-        error_msg = f"Failed to query /cpes/ API for {cpe_base}: {e}"
+    if data is None:
+        error_msg = f"Failed to query /cpes/ API for {cpe_base}"
         logger.warning(error_msg, group="CACHE_REFRESH")
         stats.errors.append(error_msg)
         return None
+    
+    # Track API call in stats
+    stats.api_calls_made += 1
+    
+    result_count = data.get('totalResults', 0)
+    logger.info(f"Refreshing CPE cache: {cpe_base} ({result_count} results)", group="CACHE_REFRESH")
+    return data
 
 
 def flush_staged_updates(staged: Dict[int, Dict[str, Any]], cache_dir: Path, stats: CPECacheRefreshStats, num_shards: int = 16) -> int:
@@ -424,19 +560,20 @@ def flush_staged_updates(staged: Dict[int, Dict[str, Any]], cache_dir: Path, sta
         
         shard_path = cache_dir / _cache_utils._get_shard_filename(shard_index)
         
-        # Load shard - fail fast if corrupted
+        # Load shard - auto-recover if corrupted
         try:
             shard_data = ShardedCPECache.load_shard_from_disk(shard_path)
         except Exception as e:
+            # Diagnose corruption before deletion
+            log_corruption_diagnostics(shard_index, shard_path, e)
+            
             logger.error(
-                f"Cannot refresh shard {shard_index:02d} - file is corrupted: {e}",
+                f"Auto-recovering: Deleting corrupted shard to rebuild with fresh updates",
                 group="CACHE_REFRESH"
             )
-            logger.error(
-                f"Delete the corrupted file to allow rebuild: {shard_path}",
-                group="CACHE_REFRESH"
-            )
-            raise  # Fail fast - don't write updates to corrupted cache
+            shard_path.unlink()  # Delete corrupted file
+            logger.info(f"Shard {shard_index:02d} deleted - starting fresh with updates", group="CACHE_REFRESH")
+            shard_data = {}  # Start with empty shard, apply updates
         
         # Merge updates (preserve query_count if entry exists)
         # This maintains cache statistics across refreshes

@@ -134,14 +134,14 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True,
         dataset_run_dir = None
         statistics = None
         process = subprocess.Popen(cmd, cwd=project_root,
-                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT,  # Merge stderr into stdout
                                   text=True, bufsize=1)
         
         # Store global reference for interrupt handling
         global _active_subprocess
         _active_subprocess = process
         
-        # Process stdout line by line in real-time
+        # Process stdout line by line in real-time (includes stderr since merged)
         for line in process.stdout:
             # Extract run directory if present
             if 'Run directory:' in line:
@@ -162,16 +162,11 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True,
         # Wait for process to complete
         return_code = process.wait()
         
-        # Handle any stderr output
-        stderr_output = process.stderr.read()
-        if allow_logging and stderr_output:
-            print(stderr_output, end='', file=sys.stderr)
-        
         # Clear global subprocess reference
         _active_subprocess = None
         
         if return_code != 0:
-            raise subprocess.CalledProcessError(return_code, cmd, '', stderr_output)
+            raise subprocess.CalledProcessError(return_code, cmd)
         
         logger.info(f"[SUCCESS] Successfully processed {source_name}", group="HARVEST")
         

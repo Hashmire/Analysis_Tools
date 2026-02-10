@@ -266,6 +266,10 @@ class TestSuiteRunner:
                 'name': 'CPE Corruption Prevention',
                 'command': ['python', 'test_suites\\tool_infrastructure\\test_cpe_corruption_prevention.py']
             },
+            {
+                'name': 'CPE Cache Refresh',
+                'command': ['python', 'test_suites\\tool_infrastructure\\test_cpe_cache_refresh.py']
+            },
             # === NVD-ish Record Processing Flow (Ordered by Execution) ===
             # Step 1: Core record collection and structure
             {

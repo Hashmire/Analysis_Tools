@@ -981,6 +981,95 @@ def gatherNVDCVERecord(apiKey, targetCve):
             else:
                 logger.error(f"NVD CVE API request failed: Maximum retry attempts ({max_retries}) reached for CVE {targetCve}", group="cve_queries")
                 return None
+
+def query_nvd_cve_page(url, headers, context_msg="NVD CVE API"):
+    """
+    Query NVD CVE API endpoint with retry logic.
+    Centralizes all NVD CVE API requests to ensure consistent error handling and retry behavior.
+    
+    Args:
+        url: Complete NVD CVE API URL with query parameters
+        headers: HTTP headers including API key if available
+        context_msg: Context message for logging (default: "NVD CVE API")
+    
+    Returns:
+        dict: API response data, or None if all retries failed
+    """
+    max_retries = config['api']['retry']['max_attempts_nvd']
+    
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
+            response.raise_for_status()
+            return response.json()
+            
+        except requests.exceptions.RequestException as e:
+            public_ip = get_public_ip()
+            logger.error(f"{context_msg} request failed (Attempt {attempt + 1}/{max_retries}): {e}", group="cve_queries")
+            logger.debug(f"Current public IP address: {public_ip}", group="cve_queries")
+            
+            if hasattr(e, 'response') and e.response is not None:
+                if 'message' in e.response.headers:
+                    logger.error(f"NVD API Message: {e.response.headers['message']}", group="cve_queries")
+                if hasattr(e.response, 'status_code'):
+                    logger.error(f"Response status code: {e.response.status_code}", group="cve_queries")
+            
+            if attempt < max_retries - 1:
+                # Determine wait time based on API key presence
+                has_api_key = 'apiKey' in headers
+                wait_time = config['api']['retry']['delay_with_key'] if has_api_key else config['api']['retry']['delay_without_key']
+                logger.info(f"Waiting {wait_time} seconds before retry...", group="cve_queries")
+                sleep(wait_time)
+            else:
+                logger.error(f"{context_msg} request failed: Maximum retry attempts ({max_retries}) reached", group="cve_queries")
+                return None
+    
+    return None
+
+
+def query_nvd_cpematch_page(url, headers, context_msg="NVD CPE Match API"):
+    """
+    Query NVD CPE Match API endpoint with retry logic.
+    Centralizes all NVD CPE Match API requests for cache refresh operations.
+    
+    Args:
+        url: Complete NVD CPE Match API URL with query parameters
+        headers: HTTP headers including API key if available
+        context_msg: Context message for logging (default: "NVD CPE Match API")
+    
+    Returns:
+        dict: API response data, or None if all retries failed
+    """
+    max_retries = config['api']['retry']['max_attempts_nvd']
+    
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(url, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
+            response.raise_for_status()
+            return response.json()
+            
+        except requests.exceptions.RequestException as e:
+            public_ip = get_public_ip()
+            logger.error(f"{context_msg} request failed (Attempt {attempt + 1}/{max_retries}): {e}", group="cpe_queries")
+            logger.debug(f"Current public IP address: {public_ip}", group="cpe_queries")
+            
+            if hasattr(e, 'response') and e.response is not None:
+                if 'message' in e.response.headers:
+                    logger.error(f"NVD API Message: {e.response.headers['message']}", group="cpe_queries")
+                if hasattr(e.response, 'status_code'):
+                    logger.error(f"Response status code: {e.response.status_code}", group="cpe_queries")
+            
+            if attempt < max_retries - 1:
+                # Determine wait time based on API key presence
+                has_api_key = 'apiKey' in headers
+                wait_time = config['api']['retry']['delay_with_key'] if has_api_key else config['api']['retry']['delay_without_key']
+                logger.info(f"Waiting {wait_time} seconds before retry...", group="cpe_queries")
+                sleep(wait_time)
+            else:
+                logger.error(f"{context_msg} request failed: Maximum retry attempts ({max_retries}) reached", group="cpe_queries")
+                return None
+    
+    return None
     
 # Query NVD /source/ API for data and return a dataframe of the response content
 def gatherNVDSourceData(apiKey):
