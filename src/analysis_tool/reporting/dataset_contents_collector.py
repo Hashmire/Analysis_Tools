@@ -979,8 +979,16 @@ class UnifiedDashboardCollector:
         """Categorize warning messages into appropriate sub-categories"""
         message_lower = message.lower()
         
+        # Schema validation warnings (must come before generic validation checks)
+        if any(keyword in message_lower for keyword in ['schema validation failed', 'cache schema validation', 'validation failed', 'nvd source data validation', 'cve list v5 validation', 'nvd cve validation', 'metadata validation']):
+            return "schema_validation_warnings"
+        
+        # Platform mapping warnings (must come before generic data processing checks)
+        elif any(keyword in message_lower for keyword in ['unrecognized platform', 'platform not recognized']):
+            return "platform_mapping_warnings"
+        
         # CPE-specific warnings (moved from other_warnings to data_processing_warnings)
-        if any(keyword in message_lower for keyword in ['overly broad cpe detected', 'invalid cpe match string detected']):
+        elif any(keyword in message_lower for keyword in ['overly broad cpe detected', 'invalid cpe match string detected']):
             return "data_processing_warnings"
         
         # API-related warnings
@@ -988,7 +996,7 @@ class UnifiedDashboardCollector:
             return "api_warnings"
         
         # Cache-related warnings  
-        elif any(keyword in message_lower for keyword in ['cache', 'expired', 'miss', 'hit rate']):
+        elif any(keyword in message_lower for keyword in ['cache', 'expired', 'cache miss', 'hit rate']):
             return "cache_warnings"
         
         # File system warnings
@@ -999,8 +1007,8 @@ class UnifiedDashboardCollector:
         elif any(keyword in message_lower for keyword in ['config', 'setting', 'parameter', 'deprecated']):
             return "configuration_warnings"
         
-        # Data processing warnings
-        elif any(keyword in message_lower for keyword in ['processing', 'parse', 'format', 'data', 'field']):
+        # Data processing warnings (includes unsupported arrays, missing fields, etc.)
+        elif any(keyword in message_lower for keyword in ['processing', 'parse', 'format', 'data', 'field', 'missing']):
             return "data_processing_warnings"
         
         else:
@@ -1022,9 +1030,9 @@ class UnifiedDashboardCollector:
         elif any(keyword in message_lower for keyword in ['memory', 'system', 'dependency', 'import', 'module']):
             return "system_errors"
         
-        # Validation errors
-        elif any(keyword in message_lower for keyword in ['validation', 'schema', 'invalid', 'malformed', 'corrupt']):
-            return "validation_errors"
+        # Schema validation errors (must come before generic processing checks)
+        elif any(keyword in message_lower for keyword in ['validation', 'schema', 'invalid schema', 'malformed', 'corrupt']):
+            return "schema_validation_errors"
         
         # Processing errors
         elif any(keyword in message_lower for keyword in ['processing', 'failed to', 'error in', 'exception']):

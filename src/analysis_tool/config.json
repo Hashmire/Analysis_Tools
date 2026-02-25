@@ -14,6 +14,7 @@
             "filename": "cpe_base_string_cache.json",
             "compression": false,
             "auto_save_threshold": 50,
+            "max_loaded_shards": 16,
             "description": "NVD CPE API responses with per-entry expiration",
             "sharding": {
                 "enabled": true,
@@ -22,7 +23,7 @@
             },
             "refresh_strategy": {
                 "field_path": "$.*.last_queried",
-                "notify_age_hours": 500
+                "notify_age_hours": 720
             }
         },
         "nvd_source_data": {
@@ -43,7 +44,7 @@
             "description": "CVE List V5 repository with per-file tracking",
             "refresh_strategy": {
                 "field_path": "cache_metadata.datasets.cve_list_v5.lastManualUpdate",
-                "notify_age_hours": 168
+                "notify_age_hours": 720
             }
         },
         "nvd_2_0_cve": {
@@ -53,7 +54,8 @@
             "description": "NVD CVE 2.0 API responses cache with per-file tracking",
             "refresh_strategy": {
                 "field_path": "$.vulnerabilities.*.cve.lastModified",
-                "notify_age_hours": 24
+                "notify_age_hours": 0,
+                "comment": "File age checking disabled - cache refreshed via NVD lastModified timestamp comparison during bulk harvesting"
             }
         }
     },

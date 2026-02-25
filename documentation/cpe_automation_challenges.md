@@ -91,7 +91,7 @@ The tool takes a series of approaches to assist with these issues.
   - `cache/cpe_base_strings/*` (sharded CPE cache)
   - `cache/nvd_source_data.json`
   - `cache/cve_list_v5/*`
-  - `utilities/refresh_cpe_cache.py`
+  - `utilities/refresh_nvd_cpe_base_strings_cache.py`
 - **CPE Match String Consolidation & Validation**: The tool consolidates all unique CPE Match Strings during initial data processing to reduce query volume against the NVD /cpes/ API. Additionally, CPE Match Criteria undergo validation and exclusion logic to cull problematic entries (overly broad patterns, known placeholders, invalid formats) preventing wasted processing time on erroneous queries.  
   *Files*:
   - `src/analysis_tool/core/processData.py`

@@ -14,6 +14,7 @@ Key Features:
 """
 
 import hashlib
+import os
 import time
 import tempfile
 from datetime import datetime, timedelta, timezone
@@ -45,14 +46,26 @@ class ShardedCPECache:
         self.disabled = config.get('disabled', False)
         self.num_shards = num_shards
         
-        # Use project root cache directory
+        # Use project root cache directory (or test override for test isolation)
         current_file = Path(__file__).resolve()
         project_root = current_file.parent.parent.parent.parent 
-        self.cache_dir = project_root / "cache" / "cpe_base_strings"
-        self.metadata_file = project_root / "cache" / 'cache_metadata.json'
+        
+        # Check for test cache override (used by integration tests to avoid loading millions of production entries)
+        test_cpe_cache = os.environ.get('TEST_CPE_CACHE_DIR')
+        if test_cpe_cache:
+            # Test environment - use isolated cache directory
+            self.cache_dir = Path(test_cpe_cache) / "cpe_base_strings"
+            self.metadata_file = Path(test_cpe_cache) / 'cache_metadata.json'
+        else:
+            # Production environment - use project root cache directory
+            self.cache_dir = project_root / "cache" / "cpe_base_strings"
+            self.metadata_file = project_root / "cache" / 'cache_metadata.json'
         
         # Loaded shards {shard_index: cache_data_dict}
         self.loaded_shards = {}
+        
+        # LRU tracking: {shard_index: last_access_timestamp}
+        self.shard_access_times = {}
         
         # Track unsaved changes per shard {shard_index: count}
         self.unsaved_changes = {}
@@ -75,9 +88,7 @@ class ShardedCPECache:
             'created': datetime.now(timezone.utc).isoformat(),
             'description': 'NVD CPE API responses with per-entry expiration (sharded)',
             'sharding_enabled': True,
-            'num_shards': num_shards,
-            'last_updated': datetime.now(timezone.utc).isoformat(),
-            'total_entries': 0
+            'num_shards': num_shards
         }
         
         # Ensure cache directory exists
@@ -209,25 +220,29 @@ class ShardedCPECache:
             )
     
     def _load_shard(self, shard_index: int) -> Dict[str, Any]:
-        """Lazy load a single shard into memory with proactive eviction."""
+        """Lazy load a single shard into memory with proactive LRU eviction."""
         if shard_index in self.loaded_shards:
+            # Already in memory - update access time for LRU tracking
+            self.shard_access_times[shard_index] = time.time()
             return self.loaded_shards[shard_index]
         
-        # PROACTIVE EVICTION: Enforce memory limit BEFORE loading new shard
-        max_loaded_shards = self.config.get('max_loaded_shards', 4)
+        # PROACTIVE EVICTION: Enforce memory limit BEFORE loading new shard (LRU policy)
+        max_loaded_shards = self.config.get('max_loaded_shards', 16)
         if len(self.loaded_shards) >= max_loaded_shards:
-            # Need to make room - save and evict oldest shard
-            oldest_shard_idx = list(self.loaded_shards.keys())[0]
+            # Need to make room - save and evict least recently used shard
+            lru_shard_idx = min(self.shard_access_times.keys(), 
+                                key=lambda idx: self.shard_access_times[idx])
             
             # Save if it has changes
-            if oldest_shard_idx in self.unsaved_changes and self.unsaved_changes[oldest_shard_idx] > 0:
-                self._save_shard(oldest_shard_idx)
-                self.unsaved_changes[oldest_shard_idx] = 0
+            if lru_shard_idx in self.unsaved_changes and self.unsaved_changes[lru_shard_idx] > 0:
+                self._save_shard(lru_shard_idx)
+                self.unsaved_changes[lru_shard_idx] = 0
             
             # Evict from memory
-            del self.loaded_shards[oldest_shard_idx]
+            del self.loaded_shards[lru_shard_idx]
+            del self.shard_access_times[lru_shard_idx]
             logger.debug(
-                f"Proactive eviction: Shard {oldest_shard_idx} saved and evicted to load shard {shard_index}",
+                f"LRU eviction: Shard {lru_shard_idx} saved and evicted to load shard {shard_index}",
                 group="cpe_queries"
             )
         
@@ -235,6 +250,9 @@ class ShardedCPECache:
         
         start_time = time.time()
         self.loaded_shards[shard_index] = self.load_shard_from_disk(shard_path)
+        
+        # Track access time for LRU eviction
+        self.shard_access_times[shard_index] = time.time()
         
         if self.loaded_shards[shard_index]:
             load_time = time.time() - start_time
@@ -278,66 +296,50 @@ class ShardedCPECache:
     
     def _save_metadata(self) -> None:
         """Save cache metadata to unified metadata file."""
-        try:
-            # Update total entries count from loaded shards
-            total_entries = sum(len(shard) for shard in self.loaded_shards.values())
-            
-            # Scan all shard files to get accurate total
-            total_entries_on_disk = 0
-            shard_details = {}
-            for shard_index in range(self.num_shards):
-                shard_path = self.cache_dir / self._get_shard_filename(shard_index)
-                if shard_path.exists():
-                    try:
-                        with open(shard_path, 'rb') as f:
-                            shard_data = orjson.loads(f.read())
-                        entry_count = len(shard_data)
-                        total_entries_on_disk += entry_count
-                        
-                        # Get file modification time for last_updated
-                        file_stat = shard_path.stat()
-                        file_mtime = datetime.fromtimestamp(file_stat.st_mtime, tz=timezone.utc)
-                        
-                        shard_details[f"shard_{shard_index:02d}"] = {
-                            'filename': shard_path.name,
-                            'entry_count': entry_count,
-                            'file_size_mb': round(file_stat.st_size / (1024 * 1024), 2),
-                            'last_updated': file_mtime.isoformat()
-                        }
-                    except Exception:
-                        pass
-            
-            self.cpe_metadata['total_entries'] = total_entries_on_disk
-            self.cpe_metadata['directory_path'] = 'cache/cpe_base_strings'
-            self.cpe_metadata['shards'] = shard_details
-            
-            # Remove cache-level last_updated (now tracked per-shard)
-            self.cpe_metadata.pop('last_updated', None)
-            
-            # Load existing metadata or create new
-            unified_metadata = {}
-            if self.metadata_file.exists():
-                try:
-                    with open(self.metadata_file, 'rb') as f:
-                        unified_metadata = orjson.loads(f.read())
-                except Exception as e:
-                    # Metadata file exists but can't be loaded - log but continue with empty dict
-                    # This is non-critical (only affects statistics, not actual cache data)
-                    logger.warning(f"Metadata file exists but failed to load: {e} - using empty metadata", group="cpe_queries")
-            
-            # Update CPE cache section
-            if 'datasets' not in unified_metadata:
-                unified_metadata['datasets'] = {}
-            unified_metadata['datasets']['cpe_cache'] = self.cpe_metadata
-            unified_metadata['last_updated'] = datetime.now(timezone.utc).isoformat()
-            
-            # Save updated metadata
-            with open(self.metadata_file, 'wb') as f:
-                f.write(orjson.dumps(unified_metadata, option=orjson.OPT_INDENT_2))
-            
-            logger.debug("Saved CPE cache metadata", group="cpe_queries")
-        except Exception as e:
-            logger.error(f"Failed to save cache metadata: {e}", group="cpe_queries")
+        # Scan all shard files for last_updated timestamps
+        shard_details = {}
+        for shard_index in range(self.num_shards):
+            shard_path = self.cache_dir / self._get_shard_filename(shard_index)
+            if shard_path.exists():
+                # Get file modification time for last_updated
+                file_stat = shard_path.stat()
+                file_mtime = datetime.fromtimestamp(file_stat.st_mtime, tz=timezone.utc)
+                
+                shard_details[f"shard_{shard_index:02d}"] = {
+                    'filename': shard_path.name,
+                    'last_updated': file_mtime.isoformat()
+                }
+        
+        self.cpe_metadata['directory_path'] = 'cache/cpe_base_strings'
+        self.cpe_metadata['shards'] = shard_details
+        
+        # Remove cache-level last_updated (now tracked per-shard)
+        self.cpe_metadata.pop('last_updated', None)
+        # Remove total_entries (no longer tracked)
+        self.cpe_metadata.pop('total_entries', None)
+        
+        # Load existing metadata or create new
+        unified_metadata = {}
+        if self.metadata_file.exists():
+            try:
+                with open(self.metadata_file, 'rb') as f:
+                    unified_metadata = orjson.loads(f.read())
+            except Exception as e:
+                # Metadata file exists but can't be loaded - log but continue with empty dict
+                # This is non-critical (only affects statistics, not actual cache data)
+                logger.warning(f"Metadata file exists but failed to load: {e} - using empty metadata", group="cpe_queries")
+        
+        # Update CPE cache section
+        if 'datasets' not in unified_metadata:
+            unified_metadata['datasets'] = {}
+        unified_metadata['datasets']['cpe_cache'] = self.cpe_metadata
+        unified_metadata['last_updated'] = datetime.now(timezone.utc).isoformat()
+        
+        # Save updated metadata
+        with open(self.metadata_file, 'wb') as f:
+            f.write(orjson.dumps(unified_metadata, option=orjson.OPT_INDENT_2))
+        
+        logger.debug("Saved CPE cache metadata", group="cpe_queries")
     
     @staticmethod
     def parse_cache_entry_timestamp(entry: Dict[str, Any]) -> datetime:
@@ -392,6 +394,9 @@ class ShardedCPECache:
         # Determine which shard contains this CPE
         shard_index = self._get_shard_index(cpe_string)
         shard_data = self._load_shard(shard_index)
+        
+        # Update access time for LRU tracking (shard accessed for lookup)
+        self.shard_access_times[shard_index] = time.time()
         
         # Check if entry exists
         if cpe_string not in shard_data:
@@ -500,7 +505,7 @@ class ShardedCPECache:
         logger.debug(f"CPE cache auto-save triggered ({total_unsaved} new entries)", group="cpe_queries")
         
         # INCREMENTAL SAVE-AND-EVICT: Process one shard at a time to prevent memory spikes
-        max_loaded_shards = self.config.get('max_loaded_shards', 4)
+        max_loaded_shards = self.config.get('max_loaded_shards', 8)
         shards_to_process = list(self.loaded_shards.keys())
         shards_saved = 0
         shards_evicted = 0
@@ -512,11 +517,13 @@ class ShardedCPECache:
                 self.unsaved_changes[shard_idx] = 0
                 shards_saved += 1
             
-            # Evict if we're over limit (keep newest shards)
+            # Evict if we're over limit (LRU policy - though unlikely with limit=16)
             if len(self.loaded_shards) > max_loaded_shards:
-                # Evict this shard after saving (process from oldest to newest)
+                # Evict this shard after saving
                 if shard_idx in self.loaded_shards:
                     del self.loaded_shards[shard_idx]
+                    if shard_idx in self.shard_access_times:
+                        del self.shard_access_times[shard_idx]
                     shards_evicted += 1
         
         self.unsaved_changes.clear()

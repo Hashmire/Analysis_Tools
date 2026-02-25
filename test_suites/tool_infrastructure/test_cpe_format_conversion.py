@@ -43,7 +43,7 @@ class CPEFormatConversionTestSuite:
     
     def __init__(self):
         self.passed = 0
-        self.total = 19
+        self.total = 20
         
     def test_tab_character_normalization(self) -> bool:
         """Test that tab characters are normalized to single underscores."""
@@ -490,29 +490,33 @@ class CPEFormatConversionTestSuite:
         return True
     
     def test_empty_and_whitespace_only_strings(self) -> bool:
-        """Test edge cases with empty or whitespace-only strings."""
+        """Test edge cases with empty or whitespace-only strings.
+        
+        Updated behavior: Empty results after character removal return '*' to prevent
+        consecutive asterisks in CPE strings (e.g., cpe:2.3:*:**:...).
+        """
         print("\n=== Test 14: Empty and Whitespace-Only Strings ===")
         
         test_cases = [
             {
                 "input": "",
-                "expected": "",
-                "description": "Empty string"
+                "expected": "*",
+                "description": "Empty string (returns wildcard)"
             },
             {
                 "input": "   ",
-                "expected": "",
-                "description": "Spaces only"
+                "expected": "*",
+                "description": "Spaces only (returns wildcard)"
             },
             {
                 "input": "\t\t\t",
-                "expected": "",
-                "description": "Tabs only"
+                "expected": "*",
+                "description": "Tabs only (returns wildcard)"
             },
             {
                 "input": " \t \n ",
-                "expected": "",
-                "description": "Mixed whitespace only"
+                "expected": "*",
+                "description": "Mixed whitespace only (returns wildcard)"
             }
         ]
         
@@ -622,7 +626,10 @@ class CPEFormatConversionTestSuite:
         return True
     
     def test_none_and_null_inputs(self) -> bool:
-        """Test handling of None and various null-like inputs."""
+        """Test handling of None and various null-like inputs.
+        
+        Updated behavior: Empty string returns '*' to prevent consecutive asterisks.
+        """
         print("\n=== Test 17: None and Null-like Inputs ===\n")
         
         # Note: formatFor23CPE() expects string input, but we should verify behavior
@@ -630,7 +637,7 @@ class CPEFormatConversionTestSuite:
         
         # Test empty-like string values (actual use cases)
         string_test_cases = [
-            {"input": "", "expected": "", "description": "Empty string"},
+            {"input": "", "expected": "*", "description": "Empty string (returns wildcard)"},
             {"input": "null", "expected": "null", "description": "String literal 'null'"},
             {"input": "None", "expected": "none", "description": "String literal 'None'"},
             {"input": "N/A", "expected": "n\\/a", "description": "String literal 'N/A'"},
@@ -647,7 +654,7 @@ class CPEFormatConversionTestSuite:
                 return False
         
         print(f"✅ PASS: All null-like string inputs handled correctly ({len(string_test_cases)} cases)")
-        print(f"  ✓ Empty strings preserved")
+        print(f"  ✓ Empty strings return wildcard '*' (prevents consecutive asterisks)")
         print(f"  ✓ String literals 'null'/'None' converted properly")
         return True
     
@@ -741,6 +748,84 @@ class CPEFormatConversionTestSuite:
         print(f"  ℹ️  This is current expected behavior - verify against NVD API requirements")
         return True
     
+    def test_empty_string_after_character_removal(self) -> bool:
+        """Test that formatFor23CPE returns wildcard '*' for inputs that become empty after character removal.
+        
+        This prevents consecutive asterisks in CPE strings like cpe:2.3:*:**:*:*:*:*:*:*:*:*:*
+        which cause NVD API 404 errors.
+        
+        Bug Fix Context:
+        - formatFor23CPE removes asterisks and colons to prevent CPE format corruption
+        - If input contains ONLY those characters, result would be empty
+        - constructSearchString wraps product with wildcards: "*" + "" + "*" = "**"
+        - Fix: Return "*" for empty results to maintain valid CPE structure
+        """
+        print("\n=== Test 20: Empty String After Character Removal ===")
+        
+        test_cases = [
+            {
+                "input": "*",
+                "expected": "*",
+                "description": "Single asterisk (becomes empty, return wildcard)"
+            },
+            {
+                "input": "**",
+                "expected": "*",
+                "description": "Double asterisk (becomes empty, return wildcard)"
+            },
+            {
+                "input": "***",
+                "expected": "*",
+                "description": "Triple asterisk (becomes empty, return wildcard)"
+            },
+            {
+                "input": ":",
+                "expected": "*",
+                "description": "Single colon (becomes empty, return wildcard)"
+            },
+            {
+                "input": "::",
+                "expected": "*",
+                "description": "Double colon (becomes empty, return wildcard)"
+            },
+            {
+                "input": "*:*",
+                "expected": "*",
+                "description": "Mixed asterisks and colons (becomes empty, return wildcard)"
+            },
+            {
+                "input": "   ",
+                "expected": "*",
+                "description": "Whitespace only (stripped to empty, return wildcard)"
+            },
+            {
+                "input": "* * *",
+                "expected": "*",
+                "description": "Asterisks with spaces (becomes empty, return wildcard)"
+            },
+            {
+                "input": ":*:",
+                "expected": "*",
+                "description": "Colon-asterisk-colon (becomes empty, return wildcard)"
+            },
+        ]
+        
+        for test_case in test_cases:
+            result = formatFor23CPE(test_case['input'])
+            if result != test_case['expected']:
+                print(f"❌ FAIL: {test_case['description']}")
+                print(f"  Input: {repr(test_case['input'])}")
+                print(f"  Expected: {repr(test_case['expected'])}")
+                print(f"  Got: {repr(result)}")
+                print(f"  ⚠️  This would cause consecutive asterisks in CPE strings!")
+                return False
+        
+        print(f"✅ PASS: All empty string handling tests passed ({len(test_cases)} cases)")
+        print(f"  ✓ Empty results after character removal return wildcard '*'")
+        print(f"  ✓ Prevents consecutive asterisk bug (cpe:2.3:*:**:...)")
+        print(f"  ✓ Maintains valid CPE structure for NVD API compatibility")
+        return True
+    
     def run_all_tests(self) -> bool:
         """Run all CPE format conversion tests."""
         print("="*70)
@@ -768,6 +853,7 @@ class CPEFormatConversionTestSuite:
             ("None and Null-like Inputs", self.test_none_and_null_inputs),
             ("Consecutive Special Characters", self.test_consecutive_special_characters),
             ("Percent Sign Edge Case", self.test_percent_sign_handling),
+            ("Empty String After Character Removal", self.test_empty_string_after_character_removal),
         ]
         
         passed = 0

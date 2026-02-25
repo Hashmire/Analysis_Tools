@@ -306,6 +306,11 @@ def main():
         default=harvest_config.get('max_cves_per_source', 5000),
         help=f"Maximum number of CVEs a source can have before being skipped (default: {harvest_config.get('max_cves_per_source', 5000)})"
     )
+    harvest_group.add_argument(
+        "--min-cves",
+        type=int,
+        help="Minimum number of CVEs a source must have to be processed (skip sources with fewer CVEs)"
+    )
     
     args = parser.parse_args()
     
@@ -533,7 +538,12 @@ def main():
             logger.stage_progress(current=i, total=len(source_info), item=f"{source_name} (modified: {last_modified})", group="HARVEST")
             
             # Check CVE count first
-            cve_count, should_skip = checkSourceCVECount(source_uuid, processed_params['api_key'], args.max_cves)
+            cve_count, should_skip, skip_reason = checkSourceCVECount(
+                source_uuid, 
+                processed_params['api_key'], 
+                max_count=args.max_cves,
+                min_count=args.min_cves
+            )
             
             # Track current source being processed
             current_source_info = (source_name, source_uuid)
@@ -546,8 +556,8 @@ def main():
                 logger.warning(f"Failed to mark source as in-progress in harvest index (non-critical): {e}", group="HARVEST")
             
             if should_skip:
-                logger.info(f"Skipped {source_name} (too many CVEs: {cve_count:,})", group="HARVEST")
-                skipped_sources.append((source_name, source_uuid, cve_count))
+                logger.info(f"Skipped {source_name} (CVEs: {cve_count:,}, reason: {skip_reason})", group="HARVEST")
+                skipped_sources.append((source_name, source_uuid, cve_count, skip_reason))
             else:
                 success, dataset_run_dir, error_type, statistics = run_generate_dataset(
                     source_name=source_name,
@@ -627,12 +637,12 @@ def main():
                                 'runtime': src_runtime
                             })
                         # Add all skipped sources so far
-                        for src_name, src_uuid, src_cve_count in skipped_sources:
+                        for src_name, src_uuid, src_cve_count, src_skip_reason in skipped_sources:
                             incremental_stats['sources'].append({
                                 'name': src_name,
                                 'uuid': src_uuid,
                                 'status': 'skipped',
-                                'details': f"Exceeded --max-cves {args.max_cves} threshold",
+                                'details': src_skip_reason,
                                 'cve_info': src_cve_count
                             })
                         update_harvest_index_incremental(run_directory, incremental_stats)
@@ -704,12 +714,12 @@ def main():
                                 'runtime': src_runtime
                             })
                         # Add all skipped sources so far
-                        for src_name, src_uuid, src_cve_count in skipped_sources:
+                        for src_name, src_uuid, src_cve_count, src_skip_reason in skipped_sources:
                             incremental_stats['sources'].append({
                                 'name': src_name,
                                 'uuid': src_uuid,
                                 'status': 'skipped',
-                                'details': f"Exceeded --max-cves {args.max_cves} threshold",
+                                'details': src_skip_reason,
                                 'cve_info': src_cve_count
                             })
                         update_harvest_index_incremental(run_directory, incremental_stats)
@@ -801,11 +811,12 @@ def main():
     # Report skipped sources details
     if skipped_sources:
         logger.info(f"SKIPPED SOURCES REPORT:", group="HARVEST")
-        logger.info(f"The following {len(skipped_sources)} sources were skipped due to exceeding the CVE threshold of {args.max_cves:,}:", group="HARVEST")
-        for source_name, source_uuid, cve_count in skipped_sources:
+        logger.info(f"The following {len(skipped_sources)} sources were skipped:", group="HARVEST")
+        for source_name, source_uuid, cve_count, skip_reason in skipped_sources:
             logger.warning(f"{source_name}", group="HARVEST")
             logger.info(f"  UUID: {source_uuid}", group="HARVEST")
             logger.info(f"  CVE Count: {cve_count:,}", group="HARVEST")
+            logger.info(f"  Reason: {skip_reason}", group="HARVEST")
     
     # Report failed sources details
     if failed_sources:

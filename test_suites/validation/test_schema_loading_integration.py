@@ -26,11 +26,22 @@ import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+# Force UTF-8 output encoding for Windows compatibility
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+
 # Add project root to path
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.analysis_tool.core.gatherData import load_schema, clear_schema_cache, validate_http_response
+from src.analysis_tool.core.gatherData import (
+    load_schema,
+    clear_schema_cache,
+    validate_http_response,
+    _refresh_cvelist_from_mitre_api
+)
 from src.analysis_tool.core.schema_validator import (
     validate_cpe_data,
     validate_cve_data,
@@ -148,6 +159,40 @@ def test_clear_cache():
     # After cache clear, should get different object
     assert schema1 is not schema2, "After clear_cache, should get new object"
     print(f"    ✓ Cache clear working correctly")
+
+
+@test("Schema Loading - Metadata tracking in cache_metadata.json")
+def test_schema_metadata_tracking():
+    """Test that schema metadata is properly tracked in cache_metadata.json"""
+    # Load a schema to trigger metadata update
+    load_schema('nvd_cves_2_0')
+    
+    # Check that cache_metadata.json was updated
+    metadata_file = project_root / "cache" / "cache_metadata.json"
+    assert metadata_file.exists(), "cache_metadata.json should exist"
+    
+    with open(metadata_file, 'r') as f:
+        metadata = json.load(f)
+    
+    # Verify datasets section exists
+    assert 'datasets' in metadata, "Metadata should have 'datasets' section"
+    
+    # Verify schema entry exists
+    schema_key = 'nvd_cves_2_0'  # Schema name without _schema.json suffix
+    assert schema_key in metadata['datasets'], f"Schema '{schema_key}' should be tracked in metadata"
+    
+    # Verify schema metadata structure
+    schema_meta = metadata['datasets'][schema_key]
+    assert 'description' in schema_meta, "Schema metadata should have 'description'"
+    assert 'filename' in schema_meta, "Schema metadata should have 'filename'"
+    assert 'last_updated' in schema_meta, "Schema metadata should have 'last_updated'"
+    
+    # Verify values are correct
+    assert schema_meta['filename'] == 'nvd_cves_2_0_schema.json', "Filename should match"
+    assert 'NVD CVE 2.0 API schema' in schema_meta['description'], "Description should be correct"
+    
+    print(f"    ✓ Schema metadata properly tracked: {schema_meta['filename']}")
+    print(f"    ✓ Description: {schema_meta['description']}")
 
 
 # ============================================================================
@@ -449,6 +494,110 @@ def test_invalid_data_rejected():
 
 
 # ============================================================================
+# Production Code Integration Tests (CVE List V5 Cache Refresh)
+# ============================================================================
+
+@test("Production - validate_cve_record_v5 called in _refresh_cvelist_from_mitre_api")
+def test_cve_list_validator_production_integration():
+    """Verify validate_cve_record_v5 is actually invoked in production cache refresh code"""
+    clear_schema_cache()
+    
+    mock_cve_data = {
+        "dataType": "CVE_RECORD",
+        "dataVersion": "5.1.0",
+        "cveMetadata": {"cveId": "CVE-2024-TEST", "state": "PUBLISHED"},
+        "containers": {"cna": {}}
+    }
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_file = Path(tmpdir) / "2024" / "1xxx" / "CVE-2024-TEST.json"
+        
+        # Mock HTTP response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.headers = {'content-type': 'application/json'}
+        mock_response.content = json.dumps(mock_cve_data).encode('utf-8')
+        mock_response.json.return_value = mock_cve_data
+        
+        validator_called = False
+        
+        def track_validator(cve_record, cve_id, schema=None):
+            nonlocal validator_called
+            validator_called = True
+            return cve_record
+        
+        with patch('src.analysis_tool.core.gatherData.requests.get', return_value=mock_response):
+            with patch('src.analysis_tool.core.gatherData.processData.integrityCheckCVE'):
+                with patch('src.analysis_tool.core.schema_validator.validate_cve_record_v5', side_effect=track_validator):
+                    _refresh_cvelist_from_mitre_api("CVE-2024-TEST", cache_file, "test")
+                    assert validator_called, "validate_cve_record_v5 NOT called - architectural disconnection!"
+                    print(f"    ✓ Validator integrated into production cache refresh path")
+
+
+@test("Production - Pre-loaded schema optimization in batch processing")
+def test_cve_list_batch_schema_optimization():
+    """Verify pre-loaded schema parameter works for batch optimization"""
+    clear_schema_cache()
+    
+    mock_cve_data = {
+        "dataType": "CVE_RECORD",
+        "dataVersion": "5.1.0",
+        "cveMetadata": {"cveId": "CVE-2024-TEST", "state": "PUBLISHED"},
+        "containers": {"cna": {}}
+    }
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_file = Path(tmpdir) / "2024" / "1xxx" / "CVE-2024-TEST.json"
+        cve_schema = load_schema('cve_cve_5_2')
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.headers = {'content-type': 'application/json'}
+        mock_response.content = json.dumps(mock_cve_data).encode('utf-8')
+        mock_response.json.return_value = mock_cve_data
+        
+        with patch('src.analysis_tool.core.gatherData.requests.get', return_value=mock_response):
+            with patch('src.analysis_tool.core.gatherData.processData.integrityCheckCVE'):
+                with patch('src.analysis_tool.core.gatherData.load_schema', wraps=load_schema) as mock_load:
+                    with patch('src.analysis_tool.core.schema_validator.validate_cve_record_v5', return_value=mock_cve_data):
+                        # With pre-loaded schema, should NOT load again
+                        _refresh_cvelist_from_mitre_api("CVE-2024-TEST", cache_file, "test", cve_schema=cve_schema)
+                        mock_load.assert_not_called()
+                        print(f"    ✓ Pre-loaded schema optimization working")
+
+
+@test("Production - Schema loaded when not pre-provided")
+def test_cve_list_schema_loading_fallback():
+    """Verify schema is loaded when not pre-provided (single operation mode)"""
+    clear_schema_cache()
+    
+    mock_cve_data = {
+        "dataType": "CVE_RECORD",
+        "dataVersion": "5.1.0",
+        "cveMetadata": {"cveId": "CVE-2024-TEST", "state": "PUBLISHED"},
+        "containers": {"cna": {}}
+    }
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_file = Path(tmpdir) / "2024" / "1xxx" / "CVE-2024-TEST.json"
+        
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.headers = {'content-type': 'application/json'}
+        mock_response.content = json.dumps(mock_cve_data).encode('utf-8')
+        mock_response.json.return_value = mock_cve_data
+        
+        with patch('src.analysis_tool.core.gatherData.requests.get', return_value=mock_response):
+            with patch('src.analysis_tool.core.gatherData.processData.integrityCheckCVE'):
+                with patch('src.analysis_tool.core.gatherData.load_schema', wraps=load_schema) as mock_load:
+                    with patch('src.analysis_tool.core.schema_validator.validate_cve_record_v5', return_value=mock_cve_data):
+                        # Without pre-loaded schema, should load it
+                        _refresh_cvelist_from_mitre_api("CVE-2024-TEST", cache_file, "test", cve_schema=None)
+                        mock_load.assert_called_with('cve_cve_5_2')
+                        print(f"    ✓ Schema loading fallback working")
+
+
+# ============================================================================
 # Run all tests
 # ============================================================================
 
@@ -469,6 +618,7 @@ def main():
     test_schema_caching()
     test_invalid_schema_name()
     test_clear_cache()
+    test_schema_metadata_tracking()
     
     # Integration tests
     test_cve_record_validation_with_schema()
@@ -485,6 +635,11 @@ def main():
     test_nvd_cve_cache_entry()
     test_source_data_cache_entry()
     test_invalid_data_rejected()
+    
+    # Production code integration tests (CVE List V5 cache refresh)
+    test_cve_list_validator_production_integration()
+    test_cve_list_batch_schema_optimization()
+    test_cve_list_schema_loading_fallback()
     
     print()
     print("=" * 80)

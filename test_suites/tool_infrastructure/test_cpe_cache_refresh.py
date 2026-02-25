@@ -2,7 +2,7 @@
 """
 CPE Cache Refresh Script Test Suite
 
-Tests for utilities/refresh_cpe_cache.py functionality covering:
+Tests for utilities/refresh_nvd_cpe_base_strings_cache.py functionality covering:
 - Shard data preservation during refresh
 - Query count incrementing behavior
 - Timestamp updates
@@ -35,7 +35,7 @@ from src.analysis_tool.logging.workflow_logger import get_logger
 import orjson
 
 # Import refresh script functions for testing
-import utilities.refresh_cpe_cache as refresh_module
+import utilities.refresh_nvd_cpe_base_strings_cache as refresh_module
 
 def load_config():
     """Load configuration from config.json"""
@@ -846,8 +846,8 @@ def test_refresh_script_exists():
     """Integration test: Verify refresh script exists and is executable"""
     print("Testing refresh script existence...")
     
-    script_path = project_root / "utilities" / "refresh_cpe_cache.py"
-    assert script_path.exists(), f"utilities/refresh_cpe_cache.py not found at {script_path}"
+    script_path = project_root / "utilities" / "refresh_nvd_cpe_base_strings_cache.py"
+    assert script_path.exists(), f"utilities/refresh_nvd_cpe_base_strings_cache.py not found at {script_path}"
     
     # Verify it's a Python script
     with open(script_path, 'r') as f:
@@ -861,7 +861,7 @@ def test_refresh_script_imports():
     """Integration test: Verify refresh script has all required imports"""
     print("Testing refresh script imports...")
     
-    script_path = project_root / "utilities" / "refresh_cpe_cache.py"
+    script_path = project_root / "utilities" / "refresh_nvd_cpe_base_strings_cache.py"
     with open(script_path, 'r') as f:
         content = f.read()
     
@@ -893,7 +893,7 @@ def test_configuration_independence():
     # It queries from oldest cache entry timestamp
     # This is documented in the script's docstring
     
-    script_path = project_root / "utilities" / "refresh_cpe_cache.py"
+    script_path = project_root / "utilities" / "refresh_nvd_cpe_base_strings_cache.py"
     with open(script_path, 'r') as f:
         content = f.read()
     

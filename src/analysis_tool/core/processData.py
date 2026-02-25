@@ -9,6 +9,7 @@ from collections import defaultdict
 import unicodedata
 import os
 import json
+import orjson
 
 # Import Analysis Tool 
 from . import gatherData
@@ -1558,20 +1559,52 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                     if json_response and response_status not in ("invalid_cpe", "partial_validation_error"):
                         # VALIDATION: Prevent UTF-8 encoding corruption before caching
                         try:
+                            # Validate the CPE string key itself for UTF-8 surrogates
+                            # Keys become dict keys in shards and must be orjson-serializable
+                            try:
+                                query_string.encode('utf-8', errors='strict')
+                                # Test orjson can serialize the key as part of a dict
+                                orjson.loads(orjson.dumps({query_string: "test"}))
+                            except (UnicodeEncodeError, ValueError) as key_error:
+                                logger.warning(
+                                    f"CPE string contains invalid UTF-8 (surrogates/encoding errors) - skipping cache: {query_string[:100]}...",
+                                    group="cpe_queries"
+                                )
+                                logger.warning(
+                                    f"  Key validation error: {type(key_error).__name__}: {str(key_error)[:100]}",
+                                    group="cpe_queries"
+                                )
+                                # Skip caching but continue processing (API call succeeded)
+                                raise NVDSchemaValidationError(f"Invalid CPE string key: {str(key_error)}")
+                            except Exception as key_error:
+                                # Catch orjson-specific serialization errors
+                                if 'orjson' in str(type(key_error)):
+                                    logger.warning(
+                                        f"CPE string serialization failed - skipping cache: {query_string[:100]}...",
+                                        group="cpe_queries"
+                                    )
+                                    logger.warning(
+                                        f"  Key serialization error: {type(key_error).__name__}: {str(key_error)[:100]}",
+                                        group="cpe_queries"
+                                    )
+                                    raise NVDSchemaValidationError(f"Invalid CPE string key: {str(key_error)}")
+                                else:
+                                    raise  # Re-raise unexpected errors
+                            
                             # Load CPE schema (None = skip schema validation, just test serialization)
                             validated_response = validate_cpe_data(json_response, query_string, schema=None)
                             cache.put(query_string, validated_response)
                             logger.debug(f"API response cached for CPE: {query_string}", group="cpe_queries")
                         except NVDSchemaValidationError as e:
                             logger.warning(
-                                f"CPE response validation failed - skipping cache save: {query_string}",
+                                f"CPE validation failed - skipping cache save: {query_string[:100]}...",
                                 group="cpe_queries"
                             )
                             logger.warning(
                                 f"  Validation error: {str(e)[:200]}",
                                 group="cpe_queries"
                             )
-                            # Don't cache - response contains invalid UTF-8 or unserializable data
+                            # Don't cache - key or response contains invalid UTF-8 or unserializable data
                             # Future queries will retry the API call
                     elif response_status == "partial_validation_error":
                         logger.warning(
@@ -2075,6 +2108,16 @@ def formatFor23CPE(rawAttribute):
     ascii_attribute = ascii_attribute.lower()
     result = ''.join([cpeEscape.get(x, x) for x in ascii_attribute])
     
+    # Validate result is not empty - if character removal left nothing, use wildcard
+    # This prevents constructSearchString() from creating consecutive asterisks like "**"
+    # Example: input="*" → after removal="" → would become "* + + *" = "**"
+    if not result or result.strip('_') == '':
+        logger.warning(
+            f"CPE attribute became empty after character removal (original: '{original_attribute}') - using wildcard '*'",
+            group="data_processing"
+        )
+        return '*'
+    
     # Return ONLY the result string (maintain existing interface)
     return result
 #
@@ -2389,14 +2432,6 @@ def integrityCheckCVE(checkType, checkValue, checkDataSet=False):
                 logger.error(f"CVE Services ID check failed: CVE-ID from Services returned as {checkDataSet['cveMetadata']['cveId']}", group="data_processing")
                 raise ValueError(f"CVE ID mismatch: expected {checkValue}, got {checkDataSet['cveMetadata']['cveId']}")
         
-        case "cveStatusCheck":
-            # Confirm the CVE ID is not REJECTED
-            if checkDataSet["cveMetadata"]["state"] == checkValue:
-                logger.error(f"CVE status check failed: CVE record is in the {checkDataSet['cveMetadata']['state']} state", group="data_processing")
-                raise ValueError(f"CVE {checkDataSet['cveMetadata']['cveId']} is in {checkDataSet['cveMetadata']['state']} state")
-            else:
-                checkValue == True
-                
         case "cveIdFormat":
             # Confirm that the CVE ID entered is a valid CVE ID
             pattern = re.compile("^CVE-[0-9]{4}-[0-9]{4,19}$")
@@ -2630,6 +2665,12 @@ def is_nvd_api_compatible(cpe_string):
     
     if not cpe_string.startswith('cpe:2.3:'):
         return False, "Missing CPE 2.3 prefix - NVD API requires 'cpe:2.3:' prefix"
+    
+    # Check for consecutive asterisks (indicates malformed CPE from character removal)
+    # Valid: cpe:2.3:*:vendor:*product*:*:*:*:*:*:*:*:*
+    # Invalid: cpe:2.3:*:**:*:*:*:*:*:*:*:* (consecutive ** in product field)
+    if '**' in cpe_string:
+        return False, "CPE string contains consecutive asterisks (**) - indicates invalid CPE attribute after character removal"
     
     # Check total CPE string length (empirically determined limit: 375 chars)
     if len(cpe_string) > 375:

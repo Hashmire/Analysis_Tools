@@ -6,31 +6,64 @@ Unified Test Runner for Analysis Tools CVE Analysis System
 Runs all test suites with consolidated output organization and comprehensive summary reporting.
 All test suites use a standardized output format for consistent parsing.
 
-Each test suite outputs: TEST_RESULTS: PASSED=X TOTAL=Y SUITE="Name"
+All test suites MUST output: TEST_RESULTS: PASSED=X TOTAL=Y SUITE="Name"
 
-Consolidated Runs Organization:
-    - Creates single timestamped directory: runs/TIMESTAMP_run_all_tests/
-    - Individual test runs organized as: logs/TIMESTAMP_TEST_SuiteName_context/
-    - Eliminates folder bloat by consolidating all test artifacts
-    - Maintains full backward compatibility with existing run organization
-    - Test execution summary saved as: logs/test_execution_summary.json
 
 Environment Variables:
-    UNIFIED_TEST_RUNNER:
-        - Automatically set to '1' when running through this unified runner
-        - Controls detailed output suppression in individual test suites
-        - When set: test suites show minimal output for clean unified reporting
-        - When unset: test suites show detailed output for debugging
-    
     CONSOLIDATED_TEST_RUN:
         - Automatically set to '1' to enable consolidated directory structure
-        - Individual tests use consolidated-aware path resolution
-        - Helper functions in run_organization.py handle path detection
+        - Creates single timestamped directory: runs/TIMESTAMP_run_all_tests/
+        - Individual test runs organized as: logs/TIMESTAMP_TEST_SuiteName_context/
 
-Browser Behavior:
-    - Browser opening disabled by default (new architectural default)
-    - No browser-specific parameters needed for test execution
-    - To enable browser opening for individual debugging, run test suites directly with --browser flag
+Test Data Guidelines:
+    - Use vendor-neutral identifiers in test documentation and validation reports
+    - Actual test data files may use realistic vendor/product structures for authenticity
+    - Documentation should reference "Vendor A", "Vendor B", "Product X", etc.
+    - This maintains professional objectivity and avoids appearance of targeting specific companies
+    - Test logic validates behavior patterns, not specific vendor characteristics
+
+Standard Test Pattern (Cache-Related Integration Tests):
+    All integration tests that interact with cache systems follow the four-phase pattern:
+    
+    1. SETUP: Inject test data into appropriate cache locations
+       - Creates proper cache directory structures as needed:
+         * CVE sources: cache/{source}/YYYY/Xxxx/ (nvd_2.0_cves/, cve_list_v5/)
+         * Enhanced records: cache/nvd-ish_2.0_cves/
+         * CPE data: cache/cpe_base_strings/ (including test-only directories)
+       - Injects supporting data into system files:
+         * nvd_source_data.json for source resolution
+         * Alias mappings for vendor/product identification
+       - Copies pre-created test files to INPUT cache directories
+    
+    2. EXECUTE: Run normal tool execution (not isolated test-file mode)
+       - Uses standard module invocation from various relevant entry points:
+         * python -m src.analysis_tool.core.analysis_tool --cve CVE-ID --nvd-ish-only
+         * python -m src.analysis_tool.core.generate_dataset --file FILEPATH --nvd-ish-only
+         * python -m src.analysis_tool.core.harvest_and_process_sources --nvd-ish-only
+         * python -m src.analysis_tool.reporting.generate_sdc_report [options]
+         * python -m src.analysis_tool.reporting.generate_alias_report [options]
+         * python -m src.analysis_tool.reporting.generate_cpeas_automation_report [options]
+       - Tool automatically discovers and processes INPUT cache files
+    
+    3. VALIDATE: Check OUTPUT artifacts for expected results
+       - Validates OUTPUT cache content (nvd-ish_2.0_cves/):
+         * Enhanced record structure and content
+         * Proper data extraction and transformation
+         * Cache state isolation
+       - Validates run artifacts (runs/TIMESTAMP_*/):
+         * Log files contain expected statements
+         * Generated reports (HTML/JSON) have correct structure
+         * Cache metadata integrity maintained
+       - Confirms expected behavior:
+         * No cross-contamination between test runs
+         * Proper error handling and recovery
+    
+    4. TEARDOWN: Clean INPUT cache files only (preserve OUTPUT for inspection)
+       - Removes test files from INPUT caches (cve_list_v5/, nvd_2.0_cves/)
+       - Removes test entries from system files (nvd_source_data.json, alias mappings)
+       - Removes test-only directories (e.g., CPE cache test directories)
+       - Preserves OUTPUT cache (nvd-ish_2.0_cves/) for post-run inspection
+       - Maintains clean test environment between runs
 
 Usage:
     python run_all_tests.py                    # Run all tests with consolidated organization
@@ -115,7 +148,8 @@ def setup_test_environment(consolidated_run_path: Path, test_env_info: Dict) -> 
     os.environ['CONSOLIDATED_TEST_RUN_PATH'] = str(consolidated_run_path)
     os.environ['CONSOLIDATED_TEST_RUN_ID'] = test_env_info['consolidated_run_id']
     
-    # Also set the unified test runner flag (already exists)
+    # Set UNIFIED_TEST_RUNNER for backward compatibility with legacy test suites
+    # Note: Newer tests don't need this flag - subprocess PIPE automatically suppresses output
     os.environ['UNIFIED_TEST_RUNNER'] = '1'
 
 
@@ -239,6 +273,10 @@ class TestSuiteRunner:
                 'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_nvd_source_manager.py']
             },
             {
+                'name': 'Multi-CVE State Isolation',
+                'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_multi_cve_state_isolation.py']
+            },
+            {
                 'name': 'Confirmed Mapping Manager',
                 'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_confirmed_mapping_manager.py']
             },
@@ -269,6 +307,18 @@ class TestSuiteRunner:
             {
                 'name': 'CPE Cache Refresh',
                 'command': ['python', 'test_suites\\tool_infrastructure\\test_cpe_cache_refresh.py']
+            },
+            {
+                'name': 'NVD Cache Refresh',
+                'command': ['python', 'test_suites\\utilities\\test_nvd_cache_refresh.py']
+            },
+            {
+                'name': 'Concurrent API',
+                'command': ['python', 'test_suites\\utilities\\test_concurrent_api.py']
+            },
+            {
+                'name': 'NVD Cache Staleness Detection',
+                'command': ['python', 'test_suites\\tool_infrastructure\\test_nvd_cache_staleness.py']
             },
             # === NVD-ish Record Processing Flow (Ordered by Execution) ===
             # Step 1: Core record collection and structure
@@ -341,6 +391,7 @@ class TestSuiteRunner:
         return {
             'tests_passed': 0,
             'tests_total': 0, 
+            'success': False,  # Add default success value
             'summary': 'ERROR: Standard test output format not found'
         }
         
@@ -355,7 +406,7 @@ class TestSuiteRunner:
             import os
             env = os.environ.copy()
             env['PYTHONIOENCODING'] = 'utf-8'
-            env['UNIFIED_TEST_RUNNER'] = '1'  # Signal that we're running under unified test runner
+            env['UNIFIED_TEST_RUNNER'] = '1'  # Legacy flag for older test suites (redundant - subprocess PIPE suppresses output)
             env['CURRENT_TEST_SUITE'] = suite['name']  # Pass test suite name for better labeling
             
             # Always capture output for parsing, but only show in verbose mode
@@ -444,8 +495,6 @@ class TestSuiteRunner:
         """Run all test suites and return overall success."""
         print("Running All Test Suites", flush=True)
         print("=" * 50, flush=True)
-        print("Browser auto-opening disabled for unified test execution", flush=True)
-        print("   (run individual test suites directly to enable browser opening)", flush=True)
         print(flush=True)
         
         # Create consolidated test run directory

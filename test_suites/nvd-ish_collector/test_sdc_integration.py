@@ -47,6 +47,17 @@ class SDCIntegrationTestSuite:
         self.passed = 0
         self.total = 4
         
+        # Set up isolated test CPE cache directory to avoid loading production cache
+        self.test_cache_dir = CACHE_DIR / "temp_test_caches"
+        self.test_cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create empty CPE cache structure
+        (self.test_cache_dir / "cpe_base_strings").mkdir(parents=True, exist_ok=True)
+        
+        # Set environment variable so CPE cache uses test location
+        os.environ['TEST_CPE_CACHE_DIR'] = str(self.test_cache_dir)
+        print(f"Test CPE cache directory: {self.test_cache_dir}")
+        
     def setup_test_environment(self):
         """Set up test environment by copying test files to INPUT cache locations."""
         print("Setting up SDC integration test environment...")
@@ -92,8 +103,86 @@ class SDCIntegrationTestSuite:
                 shutil.copy2(nvd_source, nvd_target)
                 copied_files.append(str(nvd_target))
         
+        # Inject minimal CPE cache data to avoid loading production cache
+        self._inject_cpe_cache_data()
+        
         print(f"  * Copied {len(copied_files)} test files to INPUT cache")
         return copied_files
+    
+    def _inject_cpe_cache_data(self):
+        """Inject minimal CPE cache entries to avoid loading production cache.
+        
+        This creates lightweight test CPE data to prevent timeouts from API queries
+        when running with --nvd-ish-only flag.
+        """
+        import datetime
+        import hashlib
+        import orjson
+        
+        # Sharded cache configuration (use test cache directory)
+        cache_shards_dir = self.test_cache_dir / "cpe_base_strings"
+        cache_shards_dir.mkdir(parents=True, exist_ok=True)
+        num_shards = 16
+        
+        # Helper function to determine shard index (matches ShardedCPECache implementation)
+        def get_shard_index(cpe_string: str) -> int:
+            hash_digest = hashlib.md5(cpe_string.encode('utf-8')).hexdigest()
+            return int(hash_digest[:8], 16) % num_shards
+        
+        # Start with fresh shard data
+        shard_data = {i: {} for i in range(num_shards)}
+        
+        # Minimal test data for common test combinations
+        test_combinations = [
+            ("test_vendor", "test_product"),
+            ("microsoft", "windows"),
+            ("apache", "tomcat"),
+        ]
+        
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        injection_count = 0
+        
+        for vendor, product in test_combinations:
+            # Create mock CPE products
+            products_list = [
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:1.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-001", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}}
+            ]
+            
+            # Create standard cache entry structure
+            cache_entry = {
+                "query_response": {
+                    "resultsPerPage": 1,
+                    "startIndex": 0,
+                    "totalResults": 1,
+                    "format": "NVD_CPE",
+                    "version": "2.0",
+                    "timestamp": timestamp,
+                    "products": products_list
+                },
+                "last_queried": timestamp,
+                "query_count": 1,
+                "total_results": 1
+            }
+            
+            # Inject search patterns
+            for pattern in [
+                f"cpe:2.3:*:{vendor}:*:*:*:*:*:*:*:*:*",  # Vendor-only
+                f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:*:*",  # Product-only
+                f"cpe:2.3:a:{vendor}:{product}:*:*:*:*:*:*:*:*"  # Vendor+product
+            ]:
+                shard_index = get_shard_index(pattern)
+                shard_data[shard_index][pattern] = cache_entry.copy()
+                injection_count += 1
+        
+        # Save ALL shards to prevent stale production data
+        for shard_index in range(num_shards):
+            shard_filename = f"cpe_cache_shard_{shard_index:02d}.json"
+            shard_path = cache_shards_dir / shard_filename
+            data = shard_data.get(shard_index, {})
+            with open(shard_path, 'wb') as f:
+                f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2))
+        
+        print(f"  * Injected {injection_count} CPE cache entries into {num_shards} clean shards")
     
     def cleanup_test_environment(self, copied_files):
         """Clean up test environment by removing copied test files."""
@@ -105,6 +194,15 @@ class SDCIntegrationTestSuite:
                     os.unlink(file_path)
             except Exception as e:
                 print(f"  WARNING: Could not remove {file_path}: {e}")
+        
+        # Clean up test CPE cache directory
+        if self.test_cache_dir.exists():
+            shutil.rmtree(self.test_cache_dir)
+            print(f"  * Cleaned up test CPE cache directory")
+        
+        # Clear environment variable
+        if 'TEST_CPE_CACHE_DIR' in os.environ:
+            del os.environ['TEST_CPE_CACHE_DIR']
         
         print(f"  * Cleaned up {len(copied_files)} test files")
     
@@ -138,7 +236,8 @@ class SDCIntegrationTestSuite:
                 cwd=PROJECT_ROOT,
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=60,
+                env=os.environ.copy()
             )
             
             success = result.returncode == 0 and output_path.exists()

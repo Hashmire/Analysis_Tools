@@ -53,10 +53,10 @@ For comprehensive insight into the challenges this tool addresses, see [CPE Auto
 
 ```bash
 # Process single CVE with all features (SDC, CPE determination, alias extraction, CPE-AS)
-python -m src.analysis_tool.core.analysis_tool CVE-2024-1234 \
-    --source-data-concerns \
-    --cpe-determination \
-    --alias-extraction \
+python -m src.analysis_tool.core.analysis_tool CVE-2024-1234 `
+    --source-data-concerns `
+    --cpe-determination `
+    --alias-extraction `
     --cpe-as-generation
 
 # Quick processing with defaults (SDC only)
@@ -104,15 +104,18 @@ python -m src.analysis_tool.reporting.generate_alias_report
 python -m src.analysis_tool.reporting.generate_sdc_report
 
 # CPE-AS Automation Report
-python -m src.analysis_tool.reporting.generate_cpe_as_report
+python -m src.analysis_tool.reporting.generate_cpeas_automation_report
 
 # Use existing dataset run directory (any report type)
-python -m src.analysis_tool.reporting.generate_alias_report \
-    --run-id 2025-12-01_10-30-00_dataset_last_7_days_nvd-ish
+python -m src.analysis_tool.reporting.generate_alias_report --run-id 2025-12-01_10-30-00_dataset_last_7_days_nvd-ish
 
 # Filter by source (any report type)
-python -m src.analysis_tool.reporting.generate_sdc_report \
-    --source-filter "Microsoft Corporation"
+python -m src.analysis_tool.reporting.generate_sdc_report --source-filter "Microsoft Corporation"
+```
+
+```bash
+# Then run any report command
+python -m src.analysis_tool.reporting.generate_cpeas_automation_report
 ```
 
 Reports generate per-source JSON files and interactive HTML dashboards in `runs/[timestamp]_[report_type]/logs/`

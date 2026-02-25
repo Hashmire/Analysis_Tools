@@ -37,12 +37,17 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Any
 from collections import defaultdict
 
 # CRITICAL IMPORTS - must succeed or script fails
 from ..logging.workflow_logger import get_logger
 from ..storage.run_organization import get_analysis_tools_root
+from ..core.cpe_as_generator import (
+    is_placeholder_value,
+    is_version_placeholder,
+    has_real_version_data
+)
 logger = get_logger()
 
 # Presentation-layer imports with graceful degradation
@@ -102,6 +107,57 @@ class CPEASAutomationReportBuilder:
             'cve_lookup': {},  # Map CVE ID to CVE data entry for multi-entry support
             'cve_ids': set()  # Track unique CVEs per source
         })
+    
+    def _is_completely_non_actionable(self, entry: Dict) -> bool:
+        """
+        Determine if an affected entry is completely non-actionable.
+        
+        A non-actionable entry has ALL of these conditions:
+        1. All alias fields are placeholders or missing (vendor, product, packageName, 
+           repo, collectionURL, platforms array)
+        2. All version data is placeholders or missing (checked via has_real_version_data)
+        
+        These entries represent non-actionable content that should be:
+        - Visually distinguished from failures (grey theme, dash icon)
+        - Distinctly displayed along success/failure automation metrics
+        - Tracked as 'nonActionable' status (unique pattern category)
+        
+        Args:
+            entry: Single affected entry from cveListV5AffectedEntries
+        
+        Returns:
+            True if entry contains ONLY placeholder/missing content across all fields
+        """
+        origin = entry.get('originAffectedEntry', {})
+        
+        # Check ALL alias fields - if ANY has real data, entry IS actionable
+        alias_fields = {
+            'vendor': origin.get('vendor', ''),
+            'product': origin.get('product', ''),
+            'packageName': origin.get('packageName', ''),
+            'repo': origin.get('repo', ''),
+            'collectionURL': origin.get('collectionURL', '')
+        }
+        
+        # If any alias field has real data, entry is actionable
+        for field_name, field_value in alias_fields.items():
+            if not is_placeholder_value(field_value):
+                return False  # Found real data, entry IS actionable
+        
+        # Check platforms array
+        platforms = origin.get('platforms', [])
+        if isinstance(platforms, list) and platforms:
+            for platform in platforms:
+                if not is_placeholder_value(platform):
+                    return False  # Found real platform, entry IS actionable
+        
+        # Check versions array using centralized utility
+        versions = origin.get('versions', [])
+        if has_real_version_data(versions):
+            return False  # Has real version data, entry IS actionable
+        
+        # All checks passed: ALL content is placeholder or missing
+        return True
     
     def add_cve(self, cve_id: str, nvd_ish_record: Dict) -> None:
         """
@@ -177,12 +233,19 @@ class CPEASAutomationReportBuilder:
             'entry_index': entry_idx
         }
         
+        # Check if this entry is completely non-actionable (all fields are placeholders)
+        is_non_actionable = self._is_completely_non_actionable(entry)
+        metrics['is_non_actionable'] = is_non_actionable
+        
         # CPE Determination confidence analysis
         cpe_det = entry.get('cpeDetermination', {})
         confirmed_mappings = cpe_det.get('confirmedMappings', [])
         top10_suggestions = cpe_det.get('top10SuggestedCPEBaseStrings', [])
         
-        if confirmed_mappings:
+        if is_non_actionable:
+            # Non-actionable entries can't have meaningful CPE determination
+            metrics['cpe_determination_confidence'] = 'nonActionable'
+        elif confirmed_mappings:
             metrics['cpe_determination_confidence'] = 'confirmedMapping'
         elif top10_suggestions:
             metrics['cpe_determination_confidence'] = 'top10Suggestion'
@@ -197,18 +260,39 @@ class CPEASAutomationReportBuilder:
         versions = []
         pattern_usage = {}
         concerns_summary_set = set()
-        cpe_as_breakdown = {'complete': 0, 'partial': 0, 'none': 0}
+        cpe_as_breakdown = {'complete': 0, 'partial': 0, 'none': 0, 'nonActionable': 0}
+        
+        # Define concerns that indicate CPE-AS generation cannot proceed (metadata-only)
+        # These should be categorized as 'none' rather than 'partial'
+        blocking_concerns = {
+            'versionPlaceholder', 'versionTypeGit', 'statusUnaffected', 'statusUnknown',
+            'noAffectedPlatforms', 'defaultStatusUnknown', 'patternUnsupported'
+        }
         
         for match_obj in cpe_match_objects:
             # Extract version string from match object
             version_str = self._extract_version_string(match_obj)
             pattern = match_obj.get('appliedPattern', '')
             concerns = match_obj.get('concerns', [])
+            vulnerable = match_obj.get('vulnerable')
+            has_criteria = 'criteria' in match_obj
             
             # Determine CPE-AS status for this version
-            if concerns:
-                cpe_as_status = 'partial'
-                cpe_as_breakdown['partial'] += 1
+            if is_non_actionable:
+                # Non-actionable entries get their own category
+                cpe_as_status = 'nonActionable'
+                cpe_as_breakdown['nonActionable'] += 1
+            elif concerns:
+                # Check if any concern is a blocking concern (metadata-only)
+                has_blocking_concern = any(c in blocking_concerns for c in concerns)
+                if has_blocking_concern or (vulnerable is False and not has_criteria):
+                    # Metadata-only cpeMatch - no CPE-AS generation possible
+                    cpe_as_status = 'none'
+                    cpe_as_breakdown['none'] += 1
+                else:
+                    # Has concerns but CPE-AS was generated (partial success)
+                    cpe_as_status = 'partial'
+                    cpe_as_breakdown['partial'] += 1
             else:
                 cpe_as_status = 'complete'
                 cpe_as_breakdown['complete'] += 1
@@ -232,16 +316,27 @@ class CPEASAutomationReportBuilder:
         origin = entry.get('originAffectedEntry', {})
         origin_versions = origin.get('versions', [])
         if not cpe_match_objects and origin_versions:
-            # No automation for these versions
+            # Check if non-actionable vs failed automation
             for ver_obj in origin_versions:
                 version_str = ver_obj.get('version', 'unknown')
-                versions.append({
-                    'version': version_str,
-                    'cpe_as_status': 'none',
-                    'pattern': None,
-                    'concerns': []
-                })
-                cpe_as_breakdown['none'] += 1
+                if is_non_actionable:
+                    # Non-actionable content (all placeholders)
+                    versions.append({
+                        'version': version_str,
+                        'cpe_as_status': 'nonActionable',
+                        'pattern': None,
+                        'concerns': []
+                    })
+                    cpe_as_breakdown['nonActionable'] += 1
+                else:
+                    # Failed automation (real data, no CPE-AS generation)
+                    versions.append({
+                        'version': version_str,
+                        'cpe_as_status': 'none',
+                        'pattern': None,
+                        'concerns': []
+                    })
+                    cpe_as_breakdown['none'] += 1
         
         metrics['cpe_as_breakdown'] = cpe_as_breakdown
         metrics['pattern_usage'] = pattern_usage
@@ -298,27 +393,42 @@ class CPEASAutomationReportBuilder:
         entries_full = 0
         entries_partial = 0
         entries_none = 0
+        entries_non_actionable = 0
+        
+        # Track CPE determination confidence counts separately from automation level
+        cpe_det_counts = {
+            'confirmedMapping': 0,
+            'top10Suggestion': 0,
+            'nothing': 0,
+            'nonActionable': 0
+        }
         
         total_versions = 0
         total_cpe_matches = 0
-        cpe_as_rollup = {'complete': 0, 'partial': 0, 'none': 0}
+        cpe_as_rollup = {'complete': 0, 'partial': 0, 'none': 0, 'nonActionable': 0}
         
         for entry in affected_entries:
-            # Count entry automation level based on CPE DETERMINATION confidence only
-            # This determines the CVE-level "CPE Determination" badge counts
+            # Check if this entry is non-actionable
+            is_non_actionable = entry.get('is_non_actionable', False)
+            
             cpe_det_conf = entry.get('cpe_determination_confidence', 'nothing')
             cpe_as_breakdown = entry.get('cpe_as_breakdown', {})
             
-            # Entry CPE Determination classification:
-            # - Full: confirmedMapping + all versions have complete CPE-AS
-            # - Partial: confirmedMapping (but not all complete) OR top10Suggestion
-            # - None: nothing (no confirmed mapping, no suggestions)
+            # Track CPE determination status (pure CPE mapping success)
+            if is_non_actionable:
+                cpe_det_counts['nonActionable'] += 1
+            else:
+                cpe_det_counts[cpe_det_conf] = cpe_det_counts.get(cpe_det_conf, 0) + 1
             
-            if cpe_det_conf == 'confirmedMapping':
+            # Track automation level (CPE determination + CPE-AS generation combined)
+            if is_non_actionable:
+                entries_non_actionable += 1
+            elif cpe_det_conf == 'confirmedMapping':  
                 # Has confirmed mapping - check if all versions are complete
                 all_complete = (cpe_as_breakdown.get('complete', 0) > 0 and 
                               cpe_as_breakdown.get('partial', 0) == 0 and 
-                              cpe_as_breakdown.get('none', 0) == 0)
+                              cpe_as_breakdown.get('none', 0) == 0 and
+                              cpe_as_breakdown.get('nonActionable', 0) == 0)
                 if all_complete:
                     entries_full += 1
                 else:
@@ -333,17 +443,24 @@ class CPEASAutomationReportBuilder:
             # Aggregate version counts
             versions = entry.get('versions', [])
             total_versions += len(versions)
-            total_cpe_matches += cpe_as_breakdown.get('complete', 0) + cpe_as_breakdown.get('partial', 0)
+            # Don't count non-actionable entries in CPE matches total
+            if not is_non_actionable:
+                total_cpe_matches += cpe_as_breakdown.get('complete', 0) + cpe_as_breakdown.get('partial', 0)
             
-            # Rollup CPE-AS status
+            # Rollup CPE-AS status (include all categories)
             cpe_as_rollup['complete'] += cpe_as_breakdown.get('complete', 0)
             cpe_as_rollup['partial'] += cpe_as_breakdown.get('partial', 0)
             cpe_as_rollup['none'] += cpe_as_breakdown.get('none', 0)
+            cpe_as_rollup['nonActionable'] += cpe_as_breakdown.get('nonActionable', 0)
         
-        # Determine overall status
-        if entries_full == total_entries:
+        # Determine overall status (exclude non-actionable entries)
+        actionable_entries = total_entries - entries_non_actionable
+        if actionable_entries == 0:
+            # All entries are non-actionable
+            overall_status = 'nonActionable'
+        elif entries_full == actionable_entries:
             overall_status = 'full'
-        elif entries_none == total_entries:
+        elif entries_none == actionable_entries:
             overall_status = 'none'
         else:
             overall_status = 'partial'
@@ -353,6 +470,11 @@ class CPEASAutomationReportBuilder:
             'entries_full_automation': entries_full,
             'entries_partial_automation': entries_partial,
             'entries_no_automation': entries_none,
+            'entries_non_actionable': entries_non_actionable,
+            'cpe_det_confirmed': cpe_det_counts['confirmedMapping'],
+            'cpe_det_top10': cpe_det_counts['top10Suggestion'],
+            'cpe_det_nothing': cpe_det_counts['nothing'],
+            'cpe_det_nonActionable': cpe_det_counts['nonActionable'],
             'total_versions': total_versions,
             'total_cpe_matches': total_cpe_matches,
             'cpe_as_rollup': cpe_as_rollup,
@@ -427,13 +549,13 @@ class CPEASAutomationReportBuilder:
             }
         
         # CVE-level automation distribution (from cve_metadata.overall_status)
-        automation_level_counts = {'full': 0, 'partial': 0, 'none': 0}
+        automation_level_counts = {'full': 0, 'partial': 0, 'none': 0, 'nonActionable': 0}
         
         # Entry-level aggregations
-        entry_cpe_det_counts = {'confirmedMapping': 0, 'top10Suggestion': 0, 'nothing': 0}
+        entry_cpe_det_counts = {'confirmedMapping': 0, 'top10Suggestion': 0, 'nothing': 0, 'nonActionable': 0}
         
         # Version-level aggregations
-        version_cpe_as_counts = {'complete': 0, 'partial': 0, 'none': 0}
+        version_cpe_as_counts = {'complete': 0, 'partial': 0, 'none': 0, 'nonActionable': 0}
         
         # Concern and pattern aggregation
         all_concerns = []
@@ -447,9 +569,13 @@ class CPEASAutomationReportBuilder:
             
             # Process each affected entry
             for entry in cve.get('affected_entries', []):
-                # Entry-level CPE determination
-                cpe_det_conf = entry.get('cpe_determination_confidence', 'nothing')
-                entry_cpe_det_counts[cpe_det_conf] += 1
+                # Entry-level CPE determination (track non-actionable separately)
+                is_non_actionable = entry.get('is_non_actionable', False)
+                if is_non_actionable:
+                    entry_cpe_det_counts['nonActionable'] += 1
+                else:
+                    cpe_det_conf = entry.get('cpe_determination_confidence', 'nothing')
+                    entry_cpe_det_counts[cpe_det_conf] += 1
                 
                 # Aggregate concerns from entry
                 all_concerns.extend(entry.get('concerns_summary', []))
@@ -464,10 +590,13 @@ class CPEASAutomationReportBuilder:
                 version_cpe_as_counts['complete'] += cpe_as_breakdown.get('complete', 0)
                 version_cpe_as_counts['partial'] += cpe_as_breakdown.get('partial', 0)
                 version_cpe_as_counts['none'] += cpe_as_breakdown.get('none', 0)
+                version_cpe_as_counts['nonActionable'] += cpe_as_breakdown.get('nonActionable', 0)
         
-        # Calculate total entries and versions
+        # Calculate total entries and versions (exclude non-actionable from actionable totals)
         total_entries = sum(entry_cpe_det_counts.values())
+        actionable_entries = total_entries - entry_cpe_det_counts['nonActionable']
         total_versions = sum(version_cpe_as_counts.values())
+        actionable_versions = total_versions - version_cpe_as_counts['nonActionable']
         
         # Count unique concerns
         concern_counts = {}
@@ -478,6 +607,9 @@ class CPEASAutomationReportBuilder:
         top_concerns = sorted(concern_counts.items(), key=lambda x: x[1], reverse=True)[:10]
         top_patterns = sorted(pattern_counts.items(), key=lambda x: x[1], reverse=True)[:10]
         
+        # Calculate actionable CVEs (exclude non-actionable)
+        actionable_cves = total_cves - automation_level_counts['nonActionable']
+        
         # Build summary matching template format
         return {
             'total_cves': total_cves,
@@ -485,33 +617,45 @@ class CPEASAutomationReportBuilder:
                 'full_count': automation_level_counts['full'],
                 'partial_count': automation_level_counts['partial'],
                 'none_count': automation_level_counts['none'],
-                'full_rate': round(automation_level_counts['full'] / total_cves * 100, 1) if total_cves > 0 else 0,
-                'partial_rate': round(automation_level_counts['partial'] / total_cves * 100, 1) if total_cves > 0 else 0,
-                'none_rate': round(automation_level_counts['none'] / total_cves * 100, 1) if total_cves > 0 else 0
+                'nonActionable_count': automation_level_counts['nonActionable'],
+                # Rates calculated against actionable CVEs only
+                'full_rate': round(automation_level_counts['full'] / actionable_cves * 100, 1) if actionable_cves > 0 else 0,
+                'partial_rate': round(automation_level_counts['partial'] / actionable_cves * 100, 1) if actionable_cves > 0 else 0,
+                'none_rate': round(automation_level_counts['none'] / actionable_cves * 100, 1) if actionable_cves > 0 else 0,
+                'nonActionable_rate': round(automation_level_counts['nonActionable'] / total_cves * 100, 1) if total_cves > 0 else 0
             },
             'cpe_determination_stats': {
                 'confirmed_mapping_count': entry_cpe_det_counts['confirmedMapping'],
                 'top10_suggestion_count': entry_cpe_det_counts['top10Suggestion'],
                 'nothing_count': entry_cpe_det_counts['nothing'],
-                'confirmed_mapping_rate': round(entry_cpe_det_counts['confirmedMapping'] / total_entries * 100, 1) if total_entries > 0 else 0,
-                'top10_suggestion_rate': round(entry_cpe_det_counts['top10Suggestion'] / total_entries * 100, 1) if total_entries > 0 else 0,
-                'nothing_rate': round(entry_cpe_det_counts['nothing'] / total_entries * 100, 1) if total_entries > 0 else 0
+                'nonActionable_count': entry_cpe_det_counts['nonActionable'],
+                # Rates calculated against actionable entries only
+                'confirmed_mapping_rate': round(entry_cpe_det_counts['confirmedMapping'] / actionable_entries * 100, 1) if actionable_entries > 0 else 0,
+                'top10_suggestion_rate': round(entry_cpe_det_counts['top10Suggestion'] / actionable_entries * 100, 1) if actionable_entries > 0 else 0,
+                'nothing_rate': round(entry_cpe_det_counts['nothing'] / actionable_entries * 100, 1) if actionable_entries > 0 else 0,
+                'nonActionable_rate': round(entry_cpe_det_counts['nonActionable'] / total_entries * 100, 1) if total_entries > 0 else 0
             },
             'cpe_as_stats': {
                 'complete_count': version_cpe_as_counts['complete'],
                 'partial_count': version_cpe_as_counts['partial'],
                 'none_count': version_cpe_as_counts['none'],
-                'complete_rate': round(version_cpe_as_counts['complete'] / total_versions * 100, 1) if total_versions > 0 else 0,
-                'partial_rate': round(version_cpe_as_counts['partial'] / total_versions * 100, 1) if total_versions > 0 else 0,
-                'none_rate': round(version_cpe_as_counts['none'] / total_versions * 100, 1) if total_versions > 0 else 0
+                'nonActionable_count': version_cpe_as_counts['nonActionable'],
+                # Rates calculated against actionable versions only
+                'complete_rate': round(version_cpe_as_counts['complete'] / actionable_versions * 100, 1) if actionable_versions > 0 else 0,
+                'partial_rate': round(version_cpe_as_counts['partial'] / actionable_versions * 100, 1) if actionable_versions > 0 else 0,
+                'none_rate': round(version_cpe_as_counts['none'] / actionable_versions * 100, 1) if actionable_versions > 0 else 0,
+                'nonActionable_rate': round(version_cpe_as_counts['nonActionable'] / total_versions * 100, 1) if total_versions > 0 else 0
             },
             'version_stats': {
                 'complete_count': version_cpe_as_counts['complete'],
                 'partial_count': version_cpe_as_counts['partial'],
                 'none_count': version_cpe_as_counts['none'],
-                'complete_rate': round(version_cpe_as_counts['complete'] / total_versions * 100, 1) if total_versions > 0 else 0,
-                'partial_rate': round(version_cpe_as_counts['partial'] / total_versions * 100, 1) if total_versions > 0 else 0,
-                'none_rate': round(version_cpe_as_counts['none'] / total_versions * 100, 1) if total_versions > 0 else 0
+                'nonActionable_count': version_cpe_as_counts['nonActionable'],
+                # Rates calculated against actionable versions only
+                'complete_rate': round(version_cpe_as_counts['complete'] / actionable_versions * 100, 1) if actionable_versions > 0 else 0,
+                'partial_rate': round(version_cpe_as_counts['partial'] / actionable_versions * 100, 1) if actionable_versions > 0 else 0,
+                'none_rate': round(version_cpe_as_counts['none'] / actionable_versions * 100, 1) if actionable_versions > 0 else 0,
+                'nonActionable_rate': round(version_cpe_as_counts['nonActionable'] / total_versions * 100, 1) if total_versions > 0 else 0
             },
             'top_concerns': [{'concern': c, 'count': cnt} for c, cnt in top_concerns],
             'top_patterns': [{'pattern': p, 'count': cnt} for p, cnt in top_patterns]
@@ -879,17 +1023,20 @@ def generate_report(
             'automation_level_stats': {
                 'full_count': automation_stats.get('full_count', 0),
                 'partial_count': automation_stats.get('partial_count', 0),
-                'none_count': automation_stats.get('none_count', 0)
+                'none_count': automation_stats.get('none_count', 0),
+                'nonActionable_count': automation_stats.get('nonActionable_count', 0)
             },
             'cpe_determination_stats': {
                 'confirmed_mapping_count': cpe_det_stats.get('confirmed_mapping_count', 0),
                 'top10_suggestion_count': cpe_det_stats.get('top10_suggestion_count', 0),
-                'nothing_count': cpe_det_stats.get('nothing_count', 0)
+                'nothing_count': cpe_det_stats.get('nothing_count', 0),
+                'nonActionable_count': cpe_det_stats.get('nonActionable_count', 0)
             },
             'version_stats': {
                 'complete_count': version_stats.get('complete_count', 0),
                 'partial_count': version_stats.get('partial_count', 0),
-                'none_count': version_stats.get('none_count', 0)
+                'none_count': version_stats.get('none_count', 0),
+                'nonActionable_count': version_stats.get('nonActionable_count', 0)
             },
             'report_file': html_filename if source_template_path else json_filename
         })

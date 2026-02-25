@@ -100,36 +100,63 @@ def _flush_cve_list_cache_batch():
     if not _cache_batch['cve_list_updates']:
         return
     
-    from src.analysis_tool.core.gatherData import _refresh_cvelist_from_mitre_api
+    from src.analysis_tool.core.gatherData import _refresh_cvelist_from_mitre_api, _update_cache_metadata, load_schema
     
     batch = _cache_batch['cve_list_updates']
     _cache_batch['cve_list_updates'] = []
     
+    # Pre-load CVE List V5 schema once for entire batch to avoid repeated loads
+    try:
+        cve_schema = load_schema('cve_cve_5_2')
+    except Exception as e:
+        logger.warning(f"Failed to load CVE List V5 schema for batch validation: {e} - Processing without validation", group="CACHE_MANAGEMENT")
+        cve_schema = None
+    
     for item in batch:
         try:
             # Use centralized gatherData.py function for API call and caching
+            # Disable per-file metadata updates during batch processing (efficient)
             _refresh_cvelist_from_mitre_api(
                 item['cve_id'], 
                 item['file_path'], 
-                refresh_reason="batch cache update"
+                refresh_reason="batch cache update",
+                cve_schema=cve_schema,
+                update_metadata=False
             )
             
         except Exception as e:
             logger.debug(f"CVE List v5 local cache update failed for {item['cve_id']}: {e}", group="CACHE_MANAGEMENT")
     
+    # Single metadata update for entire batch
     if batch:
-        logger.info(f"Batch processed {len(batch)} CVE List v5 local cache updates", group="CACHE_MANAGEMENT")
+        try:
+            cve_config = _get_cached_config('cve_list_v5')
+            cve_repo_path = cve_config.get('path', 'cache/cve_list_v5')
+            _update_cache_metadata('cve_list_v5', cve_repo_path)
+            logger.info(f"Batch processed {len(batch)} CVE List v5 cache updates (metadata updated)", group="CACHE_MANAGEMENT")
+        except Exception as e:
+            logger.warning(f"Failed to update CVE List V5 cache metadata after batch: {e}", group="CACHE_MANAGEMENT")
 
 def _flush_nvd_cache_batch():
     """Process queued NVD cache updates in batch"""
     if not _cache_batch['nvd_updates']:
         return
     
-    from src.analysis_tool.core.gatherData import _save_nvd_cve_to_local_file
+    from src.analysis_tool.core.gatherData import _save_nvd_cve_to_local_file, _update_cache_metadata, load_schema
     from datetime import datetime
     
     batch = _cache_batch['nvd_updates']
     _cache_batch['nvd_updates'] = []
+    
+    # Pre-load schema once for entire batch to avoid repeated loads
+    try:
+        nvd_schema = load_schema('nvd_cves_2_0')
+    except Exception as e:
+        logger.warning(f"Failed to load NVD schema for batch validation: {e} - Processing without validation", group="CACHE_MANAGEMENT")
+        nvd_schema = None
+    
+    # Extract repo_path from first item (all items use same path)
+    nvd_repo_path = batch[0]['repo_path'] if batch else None
     
     for item in batch:
         try:
@@ -144,16 +171,19 @@ def _flush_nvd_cache_batch():
                 "vulnerabilities": [item['vulnerability_record']]
             }
             
-            # Use centralized gatherData.py function for validation and caching
-            _save_nvd_cve_to_local_file(item['cve_id'], nvd_response_data)
-            logger.debug(f"NVD 2.0 local cache updated for {item['cve_id']}", group="CACHE_MANAGEMENT")
+            # Disable per-file metadata updates during batch processing
+            _save_nvd_cve_to_local_file(item['cve_id'], nvd_response_data, nvd_schema, update_metadata=False)
             
         except Exception as e:
             logger.debug(f"NVD 2.0 local cache update failed for {item['cve_id']}: {e}", group="CACHE_MANAGEMENT")
     
-    # Metadata updates are handled by _save_nvd_cve_to_local_file
-    if batch:
-        logger.info(f"Batch processed {len(batch)} NVD 2.0 local cache updates", group="CACHE_MANAGEMENT")
+    # Single metadata update for entire batch (efficient)
+    if batch and nvd_repo_path:
+        try:
+            _update_cache_metadata('nvd_2_0_cve', nvd_repo_path)
+            logger.info(f"Batch processed {len(batch)} NVD 2.0 cache updates (metadata updated)", group="CACHE_MANAGEMENT")
+        except Exception as e:
+            logger.warning(f"Failed to update NVD cache metadata after batch: {e}", group="CACHE_MANAGEMENT")
 
 def _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vulnerability_record):
     """
@@ -195,7 +225,7 @@ def _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vulnerability_record):
             logger.warning(f"NVD 2.0 local cache timestamp parse failed for {cve_id}: {api_last_modified} - No Action", group="CACHE_MANAGEMENT")
             return {'action': 'no_action', 'reason': 'timestamp_parse_error'}
             
-        # Check if file exists and compare timestamps
+        # Compare NVD API lastModified vs cached lastModified timestamps
         if nvd_file_path.exists():
             try:
                 with open(nvd_file_path, 'r', encoding='utf-8') as f:
@@ -215,12 +245,17 @@ def _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vulnerability_record):
                             cached_datetime_str = cached_last_modified
                         cached_datetime = datetime.fromisoformat(cached_datetime_str)
                         
-                        # Compare timestamps - only update if API data is newer
-                        if api_datetime <= cached_datetime:
+                        # Compare timestamps - ONLY update if API data is newer
+                        if api_datetime > cached_datetime:
+                            return {'action': 'queued', 'reason': 'api_newer'}
+                        else:
+                            # API data is same or older - no update needed
                             return {'action': 'no_action', 'reason': 'up-to-date'}
-                        
-                        return {'action': 'queued', 'reason': 'stale'}
-                        
+                
+                # No cached timestamp found - queue for update
+                logger.warning(f"NVD 2.0 local cache missing lastModified timestamp for {cve_id} - Queued for Update", group="CACHE_MANAGEMENT")
+                return {'action': 'queued', 'reason': 'missing_timestamp'}
+                    
             except (json.JSONDecodeError, IOError) as e:
                 logger.warning(f"NVD 2.0 local cache file corrupted for {cve_id}: {e} - Queued for Update", group="CACHE_MANAGEMENT")
                 return {'action': 'queued', 'reason': 'corrupted'}
@@ -414,13 +449,10 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                 # UUID filtering with default statuses - include all CVEs from this source
                 should_include = True
                 matching_cves.append(cve_id)
-                logger.info(f"MATCH: {cve_id} - Status: {vuln_status}, UUID: {source_uuid} (all statuses)", group="CVE_QUERY")
             elif vuln_status in target_statuses:
                 # Either traditional status filtering or UUID + explicit status filtering
                 should_include = True
                 matching_cves.append(cve_id)
-                status_desc = f", UUID: {source_uuid}" if source_uuid else ""
-                logger.info(f"MATCH: {cve_id} - Status: {vuln_status}{status_desc}", group="CVE_QUERY")
             
             # OPTIMIZATION: Cache both NVD and CVE List V5 records now to avoid re-fetching later
             if should_include and cve_id:
@@ -439,7 +471,10 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                 
                 # Log consolidated cache status (single line per CVE)
                 if nvd_status and cvelist_status:
+                    # Format NVD message (timestamp-based comparison only)
                     nvd_msg = f"NVD: {nvd_status['reason']}"
+                    
+                    # Format CVE List message (TTL-based with age context)
                     if cvelist_status['reason'] == 'stale':
                         cvelist_msg = f"CVE-List: stale ({cvelist_status.get('age_hours', 0):.1f}h > {cvelist_status.get('ttl_hours', 0)}h)"
                     elif cvelist_status['reason'] == 'up-to-date':
@@ -449,7 +484,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
                     
                     action_nvd = "queued" if nvd_status['action'] == 'queued' else "cached"
                     action_cvelist = "queued" if cvelist_status['action'] == 'queued' else "cached"
-                    logger.debug(f"Cache: {cve_id} | {nvd_msg} ({action_nvd}) | {cvelist_msg} ({action_cvelist})", group="CACHE_MANAGEMENT")
+                    logger.info(f"Cache: {cve_id} | {nvd_msg} ({action_nvd}) | {cvelist_msg} ({action_cvelist})", group="CACHE_MANAGEMENT")
         
         # Check if we have more pages
         total_results = page_data.get('totalResults', 0)
@@ -650,7 +685,10 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
                 
                 # Log consolidated cache status (single line per CVE)
                 if nvd_status and cvelist_status:
+                    # Format NVD message (timestamp-based comparison only)
                     nvd_msg = f"NVD: {nvd_status['reason']}"
+                    
+                    # Format CVE List message (TTL-based with age context)
                     if cvelist_status['reason'] == 'stale':
                         cvelist_msg = f"CVE-List: stale ({cvelist_status.get('age_hours', 0):.1f}h > {cvelist_status.get('ttl_hours', 0)}h)"
                     elif cvelist_status['reason'] == 'up-to-date':

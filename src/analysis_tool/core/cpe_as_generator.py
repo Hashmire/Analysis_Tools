@@ -745,6 +745,7 @@ def handle_pattern_3_3(
     Logic:
         - Each version entry produces exactly one cpeMatch object
         - versionType='git' → metadata-only with concerns=["versionTypeGit"]
+        - Placeholder versions → metadata-only with concerns=["versionPlaceholder"]
         - status='affected' → full cpeMatch with criteria
         - status='unaffected' → metadata-only with concerns=["statusUnaffected"]
         - status='unknown' → metadata-only with concerns=["statusUnknown"]
@@ -783,6 +784,22 @@ def handle_pattern_3_3(
             logger.debug(
                 f"Pattern 3.3: versionType='git' at index {index} → "
                 f"metadata-only (git commits require graph ordering)"
+            )
+            continue
+        
+        # Check for placeholder version values
+        # Placeholder versions (n/a, unknown, etc.) cannot generate valid CPE strings
+        if is_version_placeholder(version_value):
+            cpe_match = create_ordered_cpe_match(
+                versions_entry_index=index,
+                applied_pattern="exact.placeholderValue",
+                vulnerable=False,
+                concerns=["versionPlaceholder"]
+            )
+            results.append(cpe_match)
+            logger.debug(
+                f"Pattern 3.3: Version '{version_value}' at index {index} → "
+                f"metadata-only (placeholder version value)"
             )
             continue
         

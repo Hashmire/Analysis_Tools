@@ -88,6 +88,17 @@ class NVDishCollectorTestSuite:
             "CVE-1337-1005",  # Skip logic validation (clean data)
         ]
         
+        # Set up isolated test CPE cache directory to avoid loading production cache
+        self.test_cache_dir = CACHE_DIR / "temp_test_caches"
+        self.test_cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create empty CPE cache structure
+        (self.test_cache_dir / "cpe_base_strings").mkdir(parents=True, exist_ok=True)
+        
+        # Set environment variable so CPE cache uses test location
+        os.environ['TEST_CPE_CACHE_DIR'] = str(self.test_cache_dir)
+        print(f"Test CPE cache directory: {self.test_cache_dir}")
+        
     def setup_test_environment(self) -> List[str]:
         """Set up test environment by copying test files to INPUT cache locations."""
         print("Setting up test environment...")
@@ -239,8 +250,96 @@ class NVDishCollectorTestSuite:
             except Exception as e:
                 print(f"  [WARNING] Failed to inject test source data: {e}")
         
+        # Inject minimal CPE cache data to avoid loading production cache
+        self._inject_cpe_cache_data()
+        
         print(f"Setup complete. Copied {len(copied_files)} test files.")
         return copied_files
+    
+    def _inject_cpe_cache_data(self):
+        """Inject minimal CPE cache entries to avoid loading production cache.
+        
+        This creates lightweight test CPE data to prevent timeouts from API queries.
+        """
+        import datetime
+        import hashlib
+        import orjson
+        
+        # Sharded cache configuration (use test cache directory)
+        cache_shards_dir = self.test_cache_dir / "cpe_base_strings"
+        cache_shards_dir.mkdir(parents=True, exist_ok=True)
+        num_shards = 16
+        
+        # Helper function to determine shard index (matches ShardedCPECache implementation)
+        def get_shard_index(cpe_string: str) -> int:
+            hash_digest = hashlib.md5(cpe_string.encode('utf-8')).hexdigest()
+            return int(hash_digest[:8], 16) % num_shards
+        
+        # Start with fresh shard data
+        shard_data = {i: {} for i in range(num_shards)}
+        
+        # Minimal test data covering common vendor/product combinations in test CVEs
+        test_combinations = [
+            ("microsoft", "windows_10"),
+            ("microsoft", "edge"),
+            ("apache", "tomcat"),
+            ("test_vendor", "test_product"),
+        ]
+        
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        injection_count = 0
+        
+        for vendor, product in test_combinations:
+            # Create mock CPE products for this vendor/product
+            products_list = [
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:1.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-001", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}},
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:2.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-002", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}}
+            ]
+            
+            # Create standard cache entry structure
+            cache_entry = {
+                "query_response": {
+                    "resultsPerPage": 2,
+                    "startIndex": 0,
+                    "totalResults": 2,
+                    "format": "NVD_CPE",
+                    "version": "2.0",
+                    "timestamp": timestamp,
+                    "products": products_list
+                },
+                "last_queried": timestamp,
+                "query_count": 1,
+                "total_results": 2
+            }
+            
+            # Inject all three search patterns the tool uses
+            # Pattern 1: Vendor-only
+            vendor_only_key = f"cpe:2.3:*:{vendor}:*:*:*:*:*:*:*:*:*"
+            shard_index = get_shard_index(vendor_only_key)
+            shard_data[shard_index][vendor_only_key] = cache_entry.copy()
+            injection_count += 1
+            
+            # Pattern 2: Product-only (with wildcard prefix)
+            product_only_key = f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:*:*"
+            shard_index = get_shard_index(product_only_key)
+            shard_data[shard_index][product_only_key] = cache_entry.copy()
+            injection_count += 1
+            
+            # Pattern 3: Vendor+product combined
+            vendor_product_key = f"cpe:2.3:a:{vendor}:{product}:*:*:*:*:*:*:*:*"
+            shard_index = get_shard_index(vendor_product_key)
+            shard_data[shard_index][vendor_product_key] = cache_entry.copy()
+            injection_count += 1
+        
+        # Save ALL shards (including empty ones) to prevent stale production data
+        for shard_index in range(num_shards):
+            shard_filename = f"cpe_cache_shard_{shard_index:02d}.json"
+            shard_path = cache_shards_dir / shard_filename
+            data = shard_data.get(shard_index, {})
+            with open(shard_path, 'wb') as f:
+                f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2))
+        
+        print(f"  * Injected {injection_count} CPE cache entries into {num_shards} clean shards")
     
     def cleanup_test_environment(self, copied_files: List[str]):
         """Clean up test environment by removing test files from INPUT caches only."""
@@ -329,6 +428,15 @@ class NVDishCollectorTestSuite:
                 active_mapping.unlink()
                 removed_count += 1
                 print(f"  [OK] Removed leftover mapping file: {active_mapping.name}")
+        
+        # Clean up test CPE cache directory
+        if self.test_cache_dir.exists():
+            shutil.rmtree(self.test_cache_dir)
+            print(f"  * Cleaned up test CPE cache directory")
+        
+        # Clear environment variable
+        if 'TEST_CPE_CACHE_DIR' in os.environ:
+            del os.environ['TEST_CPE_CACHE_DIR']
         
         print(f"Cleanup complete. Removed {removed_count} test files.")
     

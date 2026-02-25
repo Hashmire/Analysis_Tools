@@ -21,8 +21,9 @@ Configuration:
 - This is a manual refresh tool - runs independently of main cache expiration
 - Main cache uses notify_age_hours for automatic expiration during runtime
 - This script refreshes based on NVD changes, not age-based expiration
+
 Usage:
-    python -m utilities.refresh_cpe_cache
+    python -m utilities.refresh_nvd_cpe_base_strings_cache
 """
 
 import sys
@@ -30,19 +31,14 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional, Any
-import requests
 
 from src.analysis_tool.logging.workflow_logger import get_logger
 from src.analysis_tool.storage.run_organization import get_analysis_tools_root
 from src.analysis_tool.storage.cpe_cache import ShardedCPECache
 from src.analysis_tool.core.analysis_tool import load_config
-from src.analysis_tool.core.gatherData import query_nvd_cpematch_page, gatherNVDCPEData
+from src.analysis_tool.core.gatherData import query_nvd_cpematch_by_modified_date, gatherNVDCPEData
 
 logger = get_logger()
-
-# API Configuration constants
-RESULTS_PER_PAGE = 500  # NVD cpematch API max per page
-REQUEST_DELAY = 0.6  # 600ms between requests for API rate limiting
 
 # Create minimal cache instance for utility methods (filename generation)
 # Using __new__ to bypass __init__ and avoid initialization logging
@@ -80,7 +76,7 @@ class CPECacheRefreshStats:
             f"Changed CPE matches found: {self.changed_matches_found:,}",
             f"Unique CPE base strings:   {self.unique_cpe_bases:,}",
             f"Entries refreshed:         {self.entries_refreshed:,}",
-            f"API calls made:            {self.api_calls_made:,}",
+            f"API calls (Phase 2):       {self.api_calls_made:,}",
             f"Shards updated:            {self.shards_updated:,}",
             f"Auto-saves triggered:      {self.auto_saves_triggered:,}",
             f"Elapsed time:              {elapsed:.1f}s",
@@ -341,117 +337,6 @@ def get_query_start_date(oldest_entry: datetime) -> Tuple[datetime, bool]:
     return oldest_entry, False  # Can query full range
 
 
-def query_cpematch_changes(
-    api_key: str,
-    start_date: datetime,
-    end_date: datetime,
-    stats: CPECacheRefreshStats,
-    nvd_cpematch_api: str
-) -> List[str]:
-    """
-    Query NVD /cpematch/ API for CPE changes in date range (DISCOVERY PHASE).
-    
-    This API provides PARTIAL metadata - just enough to identify which CPE base
-    strings need refreshing. Full CPE metadata is obtained in Phase 2 via /cpes/ API.
-    
-    Filters out match criteria with empty 'matches' arrays (CPEs not in dictionary).
-    
-    Args:
-        api_key: NVD API key
-        start_date: Start of query range
-        end_date: End of query range (typically now)
-        stats: Statistics tracker
-        nvd_cpematch_api: NVD CPE Match API endpoint URL
-    
-    Returns:
-        List of CPE criteria strings (filtered to only those with CPE dictionary entries)
-    """
-    all_matches = []
-    start_index = 0
-    
-    # Format dates for NVD API (ISO 8601 with timezone)
-    start_str = start_date.strftime('%Y-%m-%dT%H:%M:%S.000+00:00')
-    end_str = end_date.strftime('%Y-%m-%dT%H:%M:%S.000+00:00')
-    
-    logger.info(
-        f"Querying NVD /cpematch/ API for changes between {start_date.date()} and {end_date.date()}...",
-        group="CACHE_REFRESH"
-    )
-    
-    while True:
-        params = {
-            'lastModStartDate': start_str,
-            'lastModEndDate': end_str,
-            'resultsPerPage': RESULTS_PER_PAGE,
-            'startIndex': start_index
-        }
-        
-        headers = {'apiKey': api_key} if api_key else {}
-        
-        # Build URL with query parameters
-        from urllib.parse import urlencode
-        url = f"{nvd_cpematch_api}?{urlencode(params)}"
-        logger.info(f"Query: {url}", group="CACHE_REFRESH")
-        
-        # Use centralized API query function
-        data = query_nvd_cpematch_page(url, headers, f"NVD CPE Match API (startIndex={start_index})")
-        
-        if data is None:
-            error_msg = f"Failed to query /cpematch/ API (startIndex={start_index})"
-            logger.error(error_msg, group="CACHE_REFRESH")
-            stats.errors.append(error_msg)
-            break
-        
-        stats.api_calls_made += 1
-        
-        try:
-            matches = data.get('matchStrings', [])
-            
-            if not matches:
-                break
-            
-            # Extract CPE match strings that have actual CPE dictionary entries
-            for match_obj in matches:
-                match_string_data = match_obj.get('matchString', {})
-                
-                # Check if this match has actual CPE dictionary entries
-                cpe_matches = match_string_data.get('matches', [])
-                if not cpe_matches:
-                    # Skip - this criteria doesn't have any CPE dictionary entries
-                    continue
-                
-                # Extract the 'criteria' field which contains the actual CPE string
-                cpe_match_string = match_string_data.get('criteria')
-                if cpe_match_string:
-                    all_matches.append(cpe_match_string)
-            
-            logger.debug(
-                f"Retrieved {len(matches)} match strings (startIndex={start_index})",
-                group="CACHE_REFRESH"
-            )
-            
-            # Check if more pages available
-            total_results = data.get('totalResults', 0)
-            if start_index + RESULTS_PER_PAGE >= total_results:
-                break
-            
-            start_index += RESULTS_PER_PAGE
-            time.sleep(REQUEST_DELAY)  # Rate limiting
-            
-        except Exception as e:
-            error_msg = f"Failed to process /cpematch/ API response (startIndex={start_index}): {e}"
-            logger.error(error_msg, group="CACHE_REFRESH")
-            stats.errors.append(error_msg)
-            break
-    
-    logger.info(
-        f"Found {len(all_matches):,} changed CPE match strings from NVD",
-        group="CACHE_REFRESH"
-    )
-    
-    return all_matches
-
-
 def extract_unique_cpe_bases(match_strings: List[str]) -> Set[str]:
     """
     Extract unique CPE base strings from match criteria (remove version/update components).
@@ -603,17 +488,19 @@ def flush_staged_updates(staged: Dict[int, Dict[str, Any]], cache_dir: Path, sta
 def smart_refresh(
     api_key: str,
     cache_dir: Path,
-    nvd_cpematch_api: str,
     nvd_cpe_api: str,
     num_shards: int = 16
 ) -> CPECacheRefreshStats:
     """
     Execute smart refresh using NVD change detection.
     
+    PERFORMANCE OPTIMIZATION: Processes CPEs by shard to eliminate thrashing.
+    Groups CPE base strings by shard index, then processes each shard's CPEs
+    consecutively. This reduces shard loading from O(N) to O(16) operations.
+    
     Args:
         api_key: NVD API key
         cache_dir: Path to cache/cpe_base_strings directory
-        nvd_cpematch_api: NVD CPE Match API endpoint URL
         nvd_cpe_api: NVD CPE API endpoint URL
         num_shards: Number of shards
     
@@ -623,7 +510,7 @@ def smart_refresh(
     stats = CPECacheRefreshStats()
     
     logger.info("="*80, group="CACHE_REFRESH")
-    logger.info("Starting CPE Cache Smart Refresh", group="CACHE_REFRESH")
+    logger.info("Starting CPE Cache Smart Refresh (Shard-Optimized)", group="CACHE_REFRESH")
     logger.info("="*80, group="CACHE_REFRESH")
     
     # Phase 1: Discovery
@@ -647,10 +534,11 @@ def smart_refresh(
         )
     
     # Query NVD for changes
-    changed_matches = query_cpematch_changes(
-        api_key, query_start, query_end, stats, nvd_cpematch_api
+    changed_matches = query_nvd_cpematch_by_modified_date(
+        query_start, query_end, api_key
     )
     stats.changed_matches_found = len(changed_matches)
+    # Note: Phase 1 API calls tracked internally by gatherData, Phase 2 calls tracked below
     
     # Extract unique CPE base strings
     unique_bases = extract_unique_cpe_bases(changed_matches)
@@ -667,45 +555,49 @@ def smart_refresh(
     refreshed = 0
     
     for cpe_base in unique_bases:
-        # Query NVD for updated CPE data
-        api_response = query_nvd_cpes_api(api_key, cpe_base, stats, nvd_cpe_api)
-        
-        if api_response is None:
-            continue  # Error already logged
-        
-        # Build cache entry matching ShardedCPECache.put() format
-        now = datetime.now(timezone.utc).isoformat()
-        total_results = api_response.get('totalResults', 0)
-        cache_entry = {
-            'query_response': api_response,
-            'last_queried': now,
-            'query_count': 1,  # Will be updated during flush if entry exists
-            'total_results': total_results
-        }
-        
-        # Route to correct shard using hash-based distribution (mirrors ShardedCPECache._get_shard_index)
-        shard_idx = get_shard_index(cpe_base, num_shards)
-        staged_updates[shard_idx][cpe_base] = cache_entry
-        refreshed += 1
-        stats.entries_refreshed += 1
-        
-        # Periodic flush (every 50 entries) - save staged updates to shard files
-        if refreshed % 50 == 0:
-            flushed = flush_staged_updates(staged_updates, cache_dir, stats, num_shards)
-            logger.info(
-                f"Progress: {refreshed}/{len(unique_bases)} refreshed, {flushed} entries saved to shards",
-                group="CACHE_REFRESH"
-            )
-            stats.auto_saves_triggered += 1
-            time.sleep(REQUEST_DELAY)  # Rate limiting
-        else:
-            time.sleep(REQUEST_DELAY)  # Rate limiting between API calls
+            # Query NVD for updated CPE data
+            api_response = query_nvd_cpes_api(api_key, cpe_base, stats, nvd_cpe_api)
+            
+            if api_response is None:
+                continue  # Error already logged
+            
+            # Build cache entry matching ShardedCPECache.put() format
+            now = datetime.now(timezone.utc).isoformat()
+            total_results = api_response.get('totalResults', 0)
+            cache_entry = {
+                'query_response': api_response,
+                'last_queried': now,
+                'query_count': 1,  # Will be updated during flush if entry exists
+                'total_results': total_results
+            }
+            
+            shard_idx = get_shard_index(cpe_base, num_shards)
+            staged_updates[shard_idx][cpe_base] = cache_entry
+            refreshed += 1
+            stats.entries_refreshed += 1
+            
+            # Periodic flush to prevent memory bloat and provide incremental progress
+            if refreshed % 50 == 0:
+                flushed = flush_staged_updates(staged_updates, cache_dir, stats, num_shards)
+                stats.auto_saves_triggered += 1
+                logger.info(
+                    f"Auto-save: {flushed} entries flushed ({refreshed}/{len(unique_bases)} processed)",
+                    group="CACHE_REFRESH"
+                )
+                # Rate limiting is handled by gatherNVDCPEData internally
     
-    # Phase 3: Finalize - save remaining staged updates to shard files
+    # Phase 3: Finalize
     logger.info("\n--- PHASE 3: FINALIZE ---", group="CACHE_REFRESH")
     
     flushed = flush_staged_updates(staged_updates, cache_dir, stats, num_shards)
-    logger.info(f"Final flush: {flushed} updates saved to shard files", group="CACHE_REFRESH")
+    logger.info(f"Final flush: {flushed} remaining entries saved", group="CACHE_REFRESH")
+    
+    # Update lastManualUpdate timestamp for manual refresh tracking
+    try:
+        _update_manual_refresh_timestamp('cpe_cache')
+        logger.info("CPE cache lastManualUpdate timestamp updated", group="CACHE_REFRESH")
+    except Exception as e:
+        logger.warning(f"Failed to update lastManualUpdate timestamp: {e}", group="CACHE_REFRESH")
     
     logger.info(stats.report(), group="CACHE_REFRESH")
     
@@ -729,15 +621,7 @@ def main():
     
     # Get API endpoints from config
     api_endpoints = config.get('api', {}).get('endpoints', {})
-    nvd_cpematch_api = api_endpoints.get('nvd_cpematch')
     nvd_cpe_api = api_endpoints.get('nvd_cpes')
-    
-    if not nvd_cpematch_api:
-        logger.error(
-            "Missing 'nvd_cpematch' endpoint in config.json api.endpoints section",
-            group="CACHE_REFRESH"
-        )
-        return 1
     
     if not nvd_cpe_api:
         logger.error(
@@ -765,7 +649,6 @@ def main():
         stats = smart_refresh(
             api_key=api_key,
             cache_dir=cache_dir,
-            nvd_cpematch_api=nvd_cpematch_api,
             nvd_cpe_api=nvd_cpe_api,
             num_shards=num_shards
         )

@@ -158,6 +158,72 @@ TEST_CVE_1337_0003 = {
     }
 }
 
+# Test data: NonActionable entry (ALL fields are placeholders)
+TEST_CVE_1337_0009 = {
+    "id": "CVE-1337-0009",
+    "sourceIdentifier": "test@example.com",
+    "published": "2024-01-23T00:00:00.000",
+    "enrichedCVEv5Affected": {
+        "cveListV5AffectedEntries": [
+            {
+                "originAffectedEntry": {
+                    "sourceId": "test-source-uuid-1234",
+                    "vendor": "n/a",
+                    "product": "n/a",
+                    "packageName": "",
+                    "repo": "",
+                    "collectionURL": "",
+                    "platforms": [],
+                    "versions": [
+                        {"version": "n/a", "status": "affected"}
+                    ]
+                },
+                "cpeDetermination": {},
+                "cpeAsGeneration": {
+                    "cpeMatchObjects": []
+                }
+            }
+        ]
+    }
+}
+
+# Test data: Placeholder version but REAL vendor/product (NOT nonActionable)
+TEST_CVE_1337_0014 = {
+    "id": "CVE-1337-0014",
+    "sourceIdentifier": "test@example.com",
+    "published": "2024-01-28T00:00:00.000",
+    "enrichedCVEv5Affected": {
+        "cveListV5AffectedEntries": [
+            {
+                "originAffectedEntry": {
+                    "sourceId": "test-source-uuid-1234",
+                    "vendor": "linux",
+                    "product": "linux_kernel",
+                    "packageName": "",
+                    "repo": "",
+                    "collectionURL": "",
+                    "platforms": ["Linux"],
+                    "versions": [
+                        {"version": "n/a", "status": "affected"}
+                    ]
+                },
+                "cpeDetermination": {
+                    "confirmedMappings": ["cpe:2.3:o:linux:linux_kernel:*:*:*:*:*:*:*:*"]
+                },
+                "cpeAsGeneration": {
+                    "cpeMatchObjects": [
+                        {
+                            "criteria": "cpe:2.3:o:linux:linux_kernel:*:*:*:*:*:*:*:*",
+                            "appliedPattern": "noVersion.placeholderValue",
+                            "concerns": []
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}
+
 
 class TestCPEASAutomationReport:
     """Test CPE-AS Automation Report generation with exact validation."""
@@ -530,6 +596,207 @@ class TestCPEASAutomationReport:
         expected_confirmed_rate = round(1/3 * 100, 1)
         self.assert_equals("Confirmed mapping rate", expected_confirmed_rate, cpe_det['confirmed_mapping_rate'])
     
+    def test_non_actionable_detection(self):
+        """Test 13: NonActionable detection (all placeholder fields)."""
+        print("\nTest 13: NonActionable detection")
+        
+        builder = CPEASAutomationReportBuilder()
+        builder.add_cve("CVE-1337-0009", TEST_CVE_1337_0009)
+        
+        source = builder.sources["test-source-uuid-1234"]
+        cve = source['cve_data'][0]
+        entry = cve['affected_entries'][0]
+        
+        # Verify nonActionable classification
+        self.assert_equals("CPE determination confidence", "nonActionable", entry.get('cpe_determination_confidence'))
+        self.assert_equals("Is non-actionable flag", True, entry.get('is_non_actionable', False))
+        
+        # Verify CPE-AS breakdown
+        breakdown = entry.get('cpe_as_breakdown', {})
+        self.assert_equals("NonActionable complete count", 0, breakdown.get('complete', 0))
+        self.assert_equals("NonActionable partial count", 0, breakdown.get('partial', 0))
+        self.assert_equals("NonActionable none count", 0, breakdown.get('none', 0))
+        self.assert_equals("NonActionable count", 1, breakdown.get('nonActionable', 0))
+        
+        # Verify CVE metadata
+        metadata = cve.get('cve_metadata', {})
+        self.assert_equals("CVE entries_non_actionable", 1, metadata.get('entries_non_actionable', 0))
+        self.assert_equals("CVE cpe_det_nonActionable", 1, metadata.get('cpe_det_nonActionable', 0))
+        self.assert_equals("CVE overall_status", "nonActionable", metadata.get('overall_status'))
+        
+        # Verify rollup
+        rollup = metadata.get('cpe_as_rollup', {})
+        self.assert_equals("Rollup nonActionable", 1, rollup.get('nonActionable', 0))
+    
+    def test_non_actionable_vs_placeholder_version(self):
+        """Test 14: Contrast - placeholder version with REAL alias (NOT nonActionable)."""
+        print("\nTest 14: Placeholder version with real alias")
+        
+        builder = CPEASAutomationReportBuilder()
+        builder.add_cve("CVE-1337-0014", TEST_CVE_1337_0014)
+        
+        source = builder.sources["test-source-uuid-1234"]
+        cve = source['cve_data'][0]
+        entry = cve['affected_entries'][0]
+        
+        # Should NOT be classified as nonActionable (has real vendor/product)
+        self.assert_equals("CPE determination confidence", "confirmedMapping", entry.get('cpe_determination_confidence'))
+        self.assert_equals("Is non-actionable flag", False, entry.get('is_non_actionable', False))
+        
+        # Should show success (complete) despite placeholder version
+        breakdown = entry.get('cpe_as_breakdown', {})
+        self.assert_equals("Complete count", 1, breakdown.get('complete', 0))
+        self.assert_equals("NonActionable count", 0, breakdown.get('nonActionable', 0))
+        
+        # CVE should be full automation
+        metadata = cve.get('cve_metadata', {})
+        self.assert_equals("Entries full automation", 1, metadata.get('entries_full_automation', 0))
+        self.assert_equals("Entries non-actionable", 0, metadata.get('entries_non_actionable', 0))
+        self.assert_equals("CVE overall_status", "full", metadata.get('overall_status'))
+    
+    def test_non_actionable_statistics_exclusion(self):
+        """Test 15: NonActionable excluded from automation rates."""
+        print("\nTest 15: NonActionable statistics exclusion")
+        
+        builder = CPEASAutomationReportBuilder()
+        # Add 1 partial + 1 none + 1 nonActionable CVE
+        builder.add_cve("CVE-1337-0001", TEST_CVE_1337_0001)  # partial (has confirmed + top10)
+        builder.add_cve("CVE-1337-0002", TEST_CVE_1337_0002)  # none (no CPE determination)
+        builder.add_cve("CVE-1337-0009", TEST_CVE_1337_0009)  # nonActionable
+        
+        reports = builder.finalize()
+        summary = reports["test-source-uuid-1234"]['summary']
+        
+        # Total CVEs = 3, but actionable = 2 (excludes CVE-1337-0009)
+        self.assert_equals("Total CVEs", 3, summary['total_cves'])
+        
+        # Automation level stats
+        auto_stats = summary['automation_level_stats']
+        self.assert_equals("Automation nonActionable count", 1, auto_stats['nonActionable_count'])
+        
+        # Rates should be calculated against actionable CVEs only (2 CVEs)
+        # Actionable CVEs: 1 partial + 1 none (CVE-1337-0002)
+        # Expected rates: full=0%, partial=50%, none=50%
+        self.assert_equals("Full rate (0/2)", 0.0, auto_stats['full_rate'])
+        self.assert_equals("Partial rate (1/2)", 50.0, auto_stats['partial_rate'])
+        self.assert_equals("None rate (1/2)", 50.0, auto_stats['none_rate'])
+        
+        # NonActionable rate calculated against total CVEs (1/3)
+        expected_na_rate = round(1/3 * 100, 1)
+        self.assert_equals("NonActionable rate (1/3)", expected_na_rate, auto_stats['nonActionable_rate'])
+        
+        # CPE determination stats (3 actionable entries + 1 nonActionable)
+        cpe_det = summary['cpe_determination_stats']
+        self.assert_equals("CPE det nonActionable count", 1, cpe_det['nonActionable_count'])
+        
+        # Rates should exclude nonActionable entry (calculated against 3 actionable entries)
+        # Entries: 1 confirmed (entry1), 1 top10 (entry2), 1 nothing (entry from CVE-1337-0002)
+        expected_confirmed = round(1/3 * 100, 1)
+        self.assert_equals("Confirmed rate excludes nonActionable", expected_confirmed, cpe_det['confirmed_mapping_rate'])
+    
+    def test_non_actionable_data_structure(self):
+        """Test 16: NonActionable data structure completeness."""
+        print("\nTest 16: NonActionable data structure")
+        
+        builder = CPEASAutomationReportBuilder()
+        builder.add_cve("CVE-1337-0009", TEST_CVE_1337_0009)
+        
+        reports = builder.finalize()
+        source_report = reports["test-source-uuid-1234"]
+        cve = source_report['cve_data'][0]
+        entry = cve['affected_entries'][0]
+        
+        # Verify all 4 keys present in breakdown
+        breakdown = entry.get('cpe_as_breakdown', {})
+        self.assert_structure("Breakdown has all 4 keys", breakdown, 
+                            ['complete', 'partial', 'none', 'nonActionable'])
+        
+        # Verify all 4 keys in rollup
+        rollup = cve['cve_metadata'].get('cpe_as_rollup', {})
+        self.assert_structure("Rollup has all 4 keys", rollup,
+                            ['complete', 'partial', 'none', 'nonActionable'])
+        
+        # Verify summary statistics include nonActionable
+        summary = source_report['summary']
+        auto_stats = summary['automation_level_stats']
+        self.assert_structure("Automation stats has nonActionable", auto_stats,
+                            ['full_count', 'partial_count', 'none_count', 'nonActionable_count'])
+        
+        cpe_det = summary['cpe_determination_stats']
+        self.assert_structure("CPE determination has nonActionable", cpe_det,
+                            ['confirmed_mapping_count', 'top10_suggestion_count', 
+                             'nothing_count', 'nonActionable_count'])
+        
+        version_stats = summary['version_stats']
+        self.assert_structure("Version stats has nonActionable", version_stats,
+                            ['complete_count', 'partial_count', 'none_count', 'nonActionable_count'])
+    
+    def test_non_actionable_is_completely_method(self):
+        """Test 17: Direct testing of _is_completely_non_actionable() method."""
+        print("\nTest 17: _is_completely_non_actionable() method")
+        
+        builder = CPEASAutomationReportBuilder()
+        
+        # Test case 1: All placeholders (should be nonActionable)
+        entry_all_placeholder = {
+            "originAffectedEntry": {
+                "vendor": "n/a",
+                "product": "unspecified",
+                "packageName": "",
+                "repo": "",
+                "collectionURL": "",
+                "platforms": [],
+                "versions": [{"version": "n/a", "status": "affected"}]
+            }
+        }
+        result1 = builder._is_completely_non_actionable(entry_all_placeholder)
+        self.assert_equals("All placeholders = nonActionable", True, result1)
+        
+        # Test case 2: Real vendor, rest placeholders (should NOT be nonActionable)
+        entry_real_vendor = {
+            "originAffectedEntry": {
+                "vendor": "linux",
+                "product": "n/a",
+                "packageName": "",
+                "repo": "",
+                "collectionURL": "",
+                "platforms": [],
+                "versions": [{"version": "n/a", "status": "affected"}]
+            }
+        }
+        result2 = builder._is_completely_non_actionable(entry_real_vendor)
+        self.assert_equals("Real vendor = actionable", False, result2)
+        
+        # Test case 3: All placeholder alias but real version (should NOT be nonActionable)
+        entry_real_version = {
+            "originAffectedEntry": {
+                "vendor": "n/a",
+                "product": "n/a",
+                "packageName": "",
+                "repo": "",
+                "collectionURL": "",
+                "platforms": [],
+                "versions": [{"version": "1.2.3", "status": "affected"}]
+            }
+        }
+        result3 = builder._is_completely_non_actionable(entry_real_version)
+        self.assert_equals("Real version = actionable", False, result3)
+        
+        # Test case 4: Real platforms (should NOT be nonActionable)
+        entry_real_platform = {
+            "originAffectedEntry": {
+                "vendor": "n/a",
+                "product": "n/a",
+                "packageName": "",
+                "repo": "",
+                "collectionURL": "",
+                "platforms": ["Windows"],
+                "versions": [{"version": "n/a", "status": "affected"}]
+            }
+        }
+        result4 = builder._is_completely_non_actionable(entry_real_platform)
+        self.assert_equals("Real platform = actionable", False, result4)
+    
     def run_all_tests(self):
         """Run all tests."""
         print("=" * 70)
@@ -548,6 +815,11 @@ class TestCPEASAutomationReport:
         self.test_nothing_cpe_determination()
         self.test_integration_full_workflow()
         self.test_percentage_calculations()
+        self.test_non_actionable_detection()
+        self.test_non_actionable_vs_placeholder_version()
+        self.test_non_actionable_statistics_exclusion()
+        self.test_non_actionable_data_structure()
+        self.test_non_actionable_is_completely_method()
         
         # Summary
         print("\n" + "=" * 70)

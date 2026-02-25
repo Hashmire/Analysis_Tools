@@ -158,8 +158,9 @@
                             </div>
                             <div class="filter-options" id="automation-filters">
                                 <button class="filter-toggle-btn" data-filter="full" onclick="toggleFilter(this, 'automation')" title="Confirmed Mapping + All Versions with Complete CPE-AS Generation">✓ Completely Automated</button>
-                                <button class="filter-toggle-btn" data-filter="partial" onclick="toggleFilter(this, 'automation')" title="Some automation success but not complete (mixed CPE determination or CPE-AS generation status)">⚠ Partially Automated</button>
-                                <button class="filter-toggle-btn" data-filter="none" onclick="toggleFilter(this, 'automation')" title="No CPE suggestions OR all versions have error concerns (versionTypeGit, patternUnsupported, etc.)">✕ No Automation</button>
+                                <button class="filter-toggle-btn" data-filter="partial" onclick="toggleFilter(this, 'automation')" title="Mixed CPE determination or CPE-AS generation status">⚠ Partially Automated</button>
+                                <button class="filter-toggle-btn" data-filter="none" onclick="toggleFilter(this, 'automation')" title="No CPE suggestions OR all versions have error level concerns">✕ No Automation</button>
+                                <button class="filter-toggle-btn" data-filter="nonActionable" onclick="toggleFilter(this, 'automation')" title="All alias and version fields are placeholders or missing">− Non-actionable</button>
                             </div>
                         </div>
 
@@ -224,26 +225,30 @@
                 "automation_level_stats": {
                     "full_count": 1234,
                     "partial_count": 1678,
-                    "none_count": 509,
-                    "full_rate": 36.1,
-                    "partial_rate": 49.0,
-                    "none_rate": 14.9
+                    "none_count": 440,
+                    "nonActionable_count": 69,
+                    "full_rate": 36.8,
+                    "partial_rate": 50.0,
+                    "none_rate": 13.2
                 },
                 "cpe_determination_stats": {
                     "confirmed_mapping_count": 1567,
                     "top10_suggestion_count": 975,
-                    "nothing_count": 879,
-                    "confirmed_mapping_rate": 45.8,
-                    "top10_suggestion_rate": 28.5,
-                    "nothing_rate": 25.7
+                    "nothing_count": 810,
+                    "nonActionable_count": 69,
+                    "confirmed_mapping_rate": 46.7,
+                    "top10_suggestion_rate": 29.1,
+                    "nothing_rate": 24.2
                 },
                 "version_stats": {
                     "complete_count": 1752,
                     "partial_count": 1089,
-                    "none_count": 580,
-                    "complete_rate": 51.2,
-                    "partial_rate": 31.8,
-                    "none_rate": 17.0
+                    "none_count": 511,
+                    "nonActionable_count": 69,
+                    "complete_rate": 51.3,
+                    "partial_rate": 31.9,
+                    "none_rate": 14.9,
+                    "nonActionable_rate": 2.0
                 },
                 "top_concerns": [
                     {"concern": "cpeUnconfirmedWithSuggestions", "count": 975},
@@ -260,6 +265,7 @@
                     {"pattern": "range.openEnd", "count": 156},
                     {"pattern": "range.changesIntroduced", "count": 98},
                     {"pattern": "noVersion.allAffected", "count": 67},
+                    {"pattern": "noVersion.placeholderValue", "count": 69},
                     {"pattern": "inference.affectedFromWildcardExpansion", "count": 45}
                 ]
             },
@@ -273,12 +279,18 @@
                         "entries_full_automation": 2,
                         "entries_partial_automation": 0,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 2,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 8,
                         "total_cpe_matches": 8,
                         "cpe_as_rollup": {
                             "complete": 8,
                             "partial": 0,
-                            "none": 0
+                            "none": 0,
+                            "nonActionable": 0
                         },
                         "overall_status": "full"
                     },
@@ -289,7 +301,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 4,
                                 "partial": 0,
-                                "none": 0
+                                "none": 0,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "exact.single": 1,
@@ -309,7 +322,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 4,
                                 "partial": 0,
-                                "none": 0
+                                "none": 0,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "exact.single": 1,
@@ -334,12 +348,18 @@
                         "entries_full_automation": 0,
                         "entries_partial_automation": 3,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 0,
+                        "cpe_det_top10": 3,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 12,
                         "total_cpe_matches": 9,
                         "cpe_as_rollup": {
                             "complete": 0,
                             "partial": 9,
-                            "none": 3
+                            "none": 3,
+                            "nonActionable": 0
                         },
                         "overall_status": "partial"
                     },
@@ -350,7 +370,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 0,
                                 "partial": 3,
-                                "none": 1
+                                "none": 1,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "range.lessThanOrEqual": 2,
@@ -370,7 +391,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 0,
                                 "partial": 3,
-                                "none": 1
+                                "none": 1,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "range.lessThanOrEqual": 2,
@@ -390,7 +412,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 0,
                                 "partial": 3,
-                                "none": 1
+                                "none": 1,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "range.lessThanOrEqual": 2,
@@ -412,17 +435,23 @@
                     "published": "2024-01-17T00:00:00.000",
                     "cve_metadata": {
                         "total_affected_entries": 1,
-                        "entries_full_automation": 1,
-                        "entries_partial_automation": 0,
+                        "entries_full_automation": 0,
+                        "entries_partial_automation": 1,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 6,
-                        "total_cpe_matches": 6,
+                        "total_cpe_matches": 5,
                         "cpe_as_rollup": {
                             "complete": 5,
                             "partial": 0,
-                            "none": 1
+                            "none": 1,
+                            "nonActionable": 0
                         },
-                        "overall_status": "full"
+                        "overall_status": "partial"
                     },
                     "affected_entries": [
                         {
@@ -431,7 +460,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 5,
                                 "partial": 0,
-                                "none": 1
+                                "none": 1,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "exact.single": 1,
@@ -458,12 +488,18 @@
                         "entries_full_automation": 1,
                         "entries_partial_automation": 0,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 2,
                         "total_cpe_matches": 2,
                         "cpe_as_rollup": {
                             "complete": 2,
                             "partial": 0,
-                            "none": 0
+                            "none": 0,
+                            "nonActionable": 0
                         },
                         "overall_status": "full"
                     },
@@ -474,7 +510,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 2,
                                 "partial": 0,
-                                "none": 0
+                                "none": 0,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "exact.single": 1,
@@ -497,12 +534,18 @@
                         "entries_full_automation": 0,
                         "entries_partial_automation": 0,
                         "entries_no_automation": 2,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 0,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 2,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 0,
                         "total_cpe_matches": 0,
                         "cpe_as_rollup": {
                             "complete": 0,
                             "partial": 0,
-                            "none": 0
+                            "none": 0,
+                            "nonActionable": 0
                         },
                         "overall_status": "none"
                     },
@@ -513,7 +556,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 0,
                                 "partial": 0,
-                                "none": 0
+                                "none": 0,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {},
                             "concerns_summary": ["cpeUnconfirmedNoSuggestions"],
@@ -525,7 +569,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 0,
                                 "partial": 0,
-                                "none": 0
+                                "none": 0,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {},
                             "concerns_summary": ["cpeUnconfirmedNoSuggestions"],
@@ -542,12 +587,18 @@
                         "entries_full_automation": 1,
                         "entries_partial_automation": 0,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 3,
                         "total_cpe_matches": 3,
                         "cpe_as_rollup": {
                             "complete": 3,
                             "partial": 0,
-                            "none": 0
+                            "none": 0,
+                            "nonActionable": 0
                         },
                         "overall_status": "full"
                     },
@@ -558,7 +609,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 3,
                                 "partial": 0,
-                                "none": 0
+                                "none": 0,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "exact.single": 1,
@@ -582,12 +634,18 @@
                         "entries_full_automation": 0,
                         "entries_partial_automation": 1,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 0,
+                        "cpe_det_top10": 1,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 8,
                         "total_cpe_matches": 4,
                         "cpe_as_rollup": {
                             "complete": 0,
                             "partial": 4,
-                            "none": 4
+                            "none": 4,
+                            "nonActionable": 0
                         },
                         "overall_status": "partial"
                     },
@@ -598,7 +656,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 0,
                                 "partial": 4,
-                                "none": 4
+                                "none": 4,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "exact.single": 1,
@@ -624,17 +683,23 @@
                     "published": "2024-01-22T00:00:00.000",
                     "cve_metadata": {
                         "total_affected_entries": 1,
-                        "entries_full_automation": 1,
-                        "entries_partial_automation": 0,
+                        "entries_full_automation": 0,
+                        "entries_partial_automation": 1,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 4,
-                        "total_cpe_matches": 4,
+                        "total_cpe_matches": 3,
                         "cpe_as_rollup": {
                             "complete": 3,
                             "partial": 0,
-                            "none": 1
+                            "none": 1,
+                            "nonActionable": 0
                         },
-                        "overall_status": "full"
+                        "overall_status": "partial"
                     },
                     "affected_entries": [
                         {
@@ -643,7 +708,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 3,
                                 "partial": 0,
-                                "none": 1
+                                "none": 1,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "exact.single": 1,
@@ -659,20 +725,84 @@
                         }
                     ]
                 },
-                // CVE-1337-0009 - Demonstrates: range.openEnd, updatePatternsInRange concern
+                // CVE-1337-0009 - Demonstrates: Non-actionable content (ALL alias fields + versions are placeholders)
+                // When ALL of vendor, product, packageName, repo, collectionURL, platforms, AND versions are placeholder/missing,
+                // the entry is classified as nonActionable (grey theme, excluded from automation success/failure metrics)
                 {
                     "cve_id": "CVE-1337-0009",
+                    "source_identifier": "example@example.com",
+                    "published": "2024-01-23T00:00:00.000",
+                    "cve_metadata": {
+                        "total_affected_entries": 1,
+                        "entries_full_automation": 0,
+                        "entries_partial_automation": 0,
+                        "entries_no_automation": 0,
+                        "entries_non_actionable": 1,
+                        "cpe_det_confirmed": 0,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 1,
+                        "total_versions": 1,
+                        "total_cpe_matches": 0,
+                        "cpe_as_rollup": {
+                            "complete": 0,
+                            "partial": 0,
+                            "none": 0,
+                            "nonActionable": 1
+                        },
+                        "overall_status": "nonActionable"
+                    },
+                    "affected_entries": [
+                        {
+                            "entry_index": 0,
+                            "cpe_determination_confidence": "nonActionable",
+                            "is_non_actionable": true,
+                            "alias_data": {
+                                "vendor": "n/a",
+                                "product": "n/a",
+                                "packageName": "",
+                                "repo": "",
+                                "collectionURL": "",
+                                "platforms": []
+                            },
+                            "cpe_as_breakdown": {
+                                "complete": 0,
+                                "partial": 0,
+                                "none": 0,
+                                "nonActionable": 1
+                            },
+                            "pattern_usage": {
+                                "noVersion.placeholderValue": 1
+                            },
+                            "concerns_summary": [],
+                            "versions": [
+                                {"version": "n/a", "cpe_as_status": "nonActionable", "pattern": "noVersion.placeholderValue", "concerns": []}
+                            ]
+                        }
+                    ]
+                },
+                // CVE-1337-0010 - Demonstrates: range.openEnd, updatePatternsInRange concern
+                {
+                    "cve_id": "CVE-1337-0010",
+                    "source_identifier": "example@example.com",
+                    "published": "2024-01-24T00:00:00.000",
                     "cve_metadata": {
                         "total_affected_entries": 1,
                         "entries_full_automation": 0,
                         "entries_partial_automation": 1,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 3,
-                        "total_cpe_matches": 3,
+                        "total_cpe_matches": 2,
                         "cpe_as_rollup": {
                             "complete": 1,
                             "partial": 1,
-                            "none": 1
+                            "none": 1,
+                            "nonActionable": 0
                         },
                         "overall_status": "partial"
                     },
@@ -683,7 +813,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 1,
                                 "partial": 1,
-                                "none": 1
+                                "none": 1,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "exact.single": 1,
@@ -698,22 +829,30 @@
                         }
                     ]
                 },
-                // CVE-1337-0010 - Demonstrates: range.changesIntroduced, range.openStart
+                // CVE-1337-0011 - Demonstrates: range.changesIntroduced, range.openStart
                 {
-                    "cve_id": "CVE-1337-0010",
+                    "cve_id": "CVE-1337-0011",
+                    "source_identifier": "example@example.com",
+                    "published": "2024-01-25T00:00:00.000",
                     "cve_metadata": {
                         "total_affected_entries": 1,
-                        "entries_full_automation": 1,
-                        "entries_partial_automation": 0,
+                        "entries_full_automation": 0,
+                        "entries_partial_automation": 1,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 3,
-                        "total_cpe_matches": 3,
+                        "total_cpe_matches": 2,
                         "cpe_as_rollup": {
                             "complete": 2,
                             "partial": 0,
-                            "none": 1
+                            "none": 1,
+                            "nonActionable": 0
                         },
-                        "overall_status": "full"
+                        "overall_status": "partial"
                     },
                     "affected_entries": [
                         {
@@ -722,7 +861,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 2,
                                 "partial": 0,
-                                "none": 1
+                                "none": 1,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "range.changesIntroduced": 1,
@@ -737,22 +877,30 @@
                         }
                     ]
                 },
-                // CVE-1337-0011 - Demonstrates: range.zeroStart, range.placeholderChanges
+                // CVE-1337-0012 - Demonstrates: range.zeroStart, range.placeholderChanges
                 {
-                    "cve_id": "CVE-1337-0011",
+                    "cve_id": "CVE-1337-0012",
+                    "source_identifier": "example@example.com",
+                    "published": "2024-01-26T00:00:00.000",
                     "cve_metadata": {
                         "total_affected_entries": 1,
-                        "entries_full_automation": 1,
-                        "entries_partial_automation": 0,
+                        "entries_full_automation": 0,
+                        "entries_partial_automation": 1,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 4,
-                        "total_cpe_matches": 4,
+                        "total_cpe_matches": 3,
                         "cpe_as_rollup": {
                             "complete": 3,
                             "partial": 0,
-                            "none": 1
+                            "none": 1,
+                            "nonActionable": 0
                         },
-                        "overall_status": "full"
+                        "overall_status": "partial"
                     },
                     "affected_entries": [
                         {
@@ -761,7 +909,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 3,
                                 "partial": 0,
-                                "none": 1
+                                "none": 1,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "range.zeroStart": 1,
@@ -778,20 +927,28 @@
                         }
                     ]
                 },
-                // CVE-1337-0012 - Demonstrates: noVersion.allAffected
+                // CVE-1337-0013 - Demonstrates: noVersion.allAffected
                 {
-                    "cve_id": "CVE-1337-0012",
+                    "cve_id": "CVE-1337-0013",
+                    "source_identifier": "example@example.com",
+                    "published": "2024-01-27T00:00:00.000",
                     "cve_metadata": {
                         "total_affected_entries": 1,
                         "entries_full_automation": 1,
                         "entries_partial_automation": 0,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 1,
                         "total_cpe_matches": 1,
                         "cpe_as_rollup": {
                             "complete": 1,
                             "partial": 0,
-                            "none": 0
+                            "none": 0,
+                            "nonActionable": 0
                         },
                         "overall_status": "full"
                     },
@@ -802,7 +959,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 1,
                                 "partial": 0,
-                                "none": 0
+                                "none": 0,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "noVersion.allAffected": 1
@@ -814,20 +972,31 @@
                         }
                     ]
                 },
-                // CVE-1337-0013 - Demonstrates: noVersion.placeholderValue
+                // CVE-1337-0014 - Demonstrates: noVersion.placeholderValue with REAL vendor/product (NOT nonActionable)
+                // CONTRAST with CVE-1337-0009: This entry has confirmed vendor/product mapping despite placeholder version.
+                // NonActionable requires ALL alias fields to be placeholders, not just version.
+                // This shows SUCCESS (complete) because CPE determination succeeded with real vendor/product data.
                 {
-                    "cve_id": "CVE-1337-0013",
+                    "cve_id": "CVE-1337-0014",
+                    "source_identifier": "example@example.com",
+                    "published": "2024-01-28T00:00:00.000",
                     "cve_metadata": {
                         "total_affected_entries": 1,
                         "entries_full_automation": 1,
                         "entries_partial_automation": 0,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 1,
                         "total_cpe_matches": 1,
                         "cpe_as_rollup": {
                             "complete": 1,
                             "partial": 0,
-                            "none": 0
+                            "none": 0,
+                            "nonActionable": 0
                         },
                         "overall_status": "full"
                     },
@@ -838,7 +1007,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 1,
                                 "partial": 0,
-                                "none": 0
+                                "none": 0,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "noVersion.placeholderValue": 1
@@ -850,22 +1020,30 @@
                         }
                     ]
                 },
-                // CVE-1337-0014 - Demonstrates: inference.affectedFromWildcardExpansion, inferredAffectedFromWildcardExpansion concern
+                // CVE-1337-0015 - Demonstrates: inference.affectedFromWildcardExpansion, inferredAffectedFromWildcardExpansion concern
                 {
-                    "cve_id": "CVE-1337-0014",
+                    "cve_id": "CVE-1337-0015",
+                    "source_identifier": "example@example.com",
+                    "published": "2024-01-29T00:00:00.000",
                     "cve_metadata": {
                         "total_affected_entries": 1,
-                        "entries_full_automation": 1,
-                        "entries_partial_automation": 0,
+                        "entries_full_automation": 0,
+                        "entries_partial_automation": 1,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 3,
                         "total_cpe_matches": 3,
                         "cpe_as_rollup": {
                             "complete": 3,
                             "partial": 0,
-                            "none": 0
+                            "none": 0,
+                            "nonActionable": 0
                         },
-                        "overall_status": "full"
+                        "overall_status": "partial"
                     },
                     "affected_entries": [
                         {
@@ -874,7 +1052,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 3,
                                 "partial": 0,
-                                "none": 0
+                                "none": 0,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "inference.affectedFromWildcardExpansion": 3
@@ -888,22 +1067,30 @@
                         }
                     ]
                 },
-                // CVE-1337-0015 - Demonstrates: inference.affectedFromUnaffectedRanges, inferredAffectedFromUnaffectedRanges concern
+                // CVE-1337-0016 - Demonstrates: inference.affectedFromUnaffectedRanges, inferredAffectedFromUnaffectedRanges concern
                 {
-                    "cve_id": "CVE-1337-0015",
+                    "cve_id": "CVE-1337-0016",
+                    "source_identifier": "example@example.com",
+                    "published": "2024-01-30T00:00:00.000",
                     "cve_metadata": {
                         "total_affected_entries": 1,
-                        "entries_full_automation": 1,
-                        "entries_partial_automation": 0,
+                        "entries_full_automation": 0,
+                        "entries_partial_automation": 1,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 5,
-                        "total_cpe_matches": 5,
+                        "total_cpe_matches": 3,
                         "cpe_as_rollup": {
                             "complete": 3,
                             "partial": 0,
-                            "none": 2
+                            "none": 2,
+                            "nonActionable": 0
                         },
-                        "overall_status": "full"
+                        "overall_status": "partial"
                     },
                     "affected_entries": [
                         {
@@ -912,7 +1099,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 3,
                                 "partial": 0,
-                                "none": 2
+                                "none": 2,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {
                                 "inference.affectedFromUnaffectedRanges": 3
@@ -928,22 +1116,30 @@
                         }
                     ]
                 },
-                // CVE-1337-0016 - Demonstrates: versionTypeGit concern
+                // CVE-1337-0017 - Demonstrates: versionTypeGit concern (confirmedMapping + error concerns = partial automation)
                 {
-                    "cve_id": "CVE-1337-0016",
+                    "cve_id": "CVE-1337-0017",
+                    "source_identifier": "example@example.com",
+                    "published": "2024-01-31T00:00:00.000",
                     "cve_metadata": {
                         "total_affected_entries": 1,
                         "entries_full_automation": 0,
-                        "entries_partial_automation": 0,
-                        "entries_no_automation": 1,
+                        "entries_partial_automation": 1,
+                        "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 2,
-                        "total_cpe_matches": 2,
+                        "total_cpe_matches": 0,
                         "cpe_as_rollup": {
                             "complete": 0,
                             "partial": 0,
-                            "none": 2
+                            "none": 2,
+                            "nonActionable": 0
                         },
-                        "overall_status": "none"
+                        "overall_status": "partial"
                     },
                     "affected_entries": [
                         {
@@ -952,7 +1148,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 0,
                                 "partial": 0,
-                                "none": 2
+                                "none": 2,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {},
                             "concerns_summary": ["versionTypeGit"],
@@ -963,22 +1160,30 @@
                         }
                     ]
                 },
-                // CVE-1337-0017 - Demonstrates: patternUnsupported concern
+                // CVE-1337-0018 - Demonstrates: patternUnsupported concern (confirmedMapping + error concerns = partial automation)
                 {
-                    "cve_id": "CVE-1337-0017",
+                    "cve_id": "CVE-1337-0018",
+                    "source_identifier": "example@example.com",
+                    "published": "2024-02-01T00:00:00.000",
                     "cve_metadata": {
                         "total_affected_entries": 1,
                         "entries_full_automation": 0,
-                        "entries_partial_automation": 0,
-                        "entries_no_automation": 1,
+                        "entries_partial_automation": 1,
+                        "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 2,
-                        "total_cpe_matches": 2,
+                        "total_cpe_matches": 0,
                         "cpe_as_rollup": {
                             "complete": 0,
                             "partial": 0,
-                            "none": 2
+                            "none": 2,
+                            "nonActionable": 0
                         },
-                        "overall_status": "none"
+                        "overall_status": "partial"
                     },
                     "affected_entries": [
                         {
@@ -987,7 +1192,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 0,
                                 "partial": 0,
-                                "none": 2
+                                "none": 2,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {},
                             "concerns_summary": ["patternUnsupported"],
@@ -998,22 +1204,30 @@
                         }
                     ]
                 },
-                // CVE-1337-0018 - Demonstrates: statusUnaffected concern
+                // CVE-1337-0019 - Demonstrates: statusUnaffected concern
                 {
-                    "cve_id": "CVE-1337-0018",
+                    "cve_id": "CVE-1337-0019",
+                    "source_identifier": "example@example.com",
+                    "published": "2024-02-02T00:00:00.000",
                     "cve_metadata": {
                         "total_affected_entries": 1,
                         "entries_full_automation": 0,
-                        "entries_partial_automation": 0,
+                        "entries_partial_automation": 1,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 3,
-                        "total_cpe_matches": 3,
+                        "total_cpe_matches": 0,
                         "cpe_as_rollup": {
                             "complete": 0,
                             "partial": 0,
-                            "none": 3
+                            "none": 3,
+                            "nonActionable": 0
                         },
-                        "overall_status": "none"
+                        "overall_status": "partial"
                     },
                     "affected_entries": [
                         {
@@ -1022,7 +1236,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 0,
                                 "partial": 0,
-                                "none": 3
+                                "none": 3,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {},
                             "concerns_summary": ["statusUnaffected"],
@@ -1034,22 +1249,30 @@
                         }
                     ]
                 },
-                // CVE-1337-0019 - Demonstrates: statusUnknown concern
+                // CVE-1337-0020 - Demonstrates: statusUnknown concern
                 {
-                    "cve_id": "CVE-1337-0019",
+                    "cve_id": "CVE-1337-0020",
+                    "source_identifier": "example@example.com",
+                    "published": "2024-02-03T00:00:00.000",
                     "cve_metadata": {
                         "total_affected_entries": 1,
                         "entries_full_automation": 0,
-                        "entries_partial_automation": 0,
+                        "entries_partial_automation": 1,
                         "entries_no_automation": 0,
+                        "entries_non_actionable": 0,
+                        "cpe_det_confirmed": 1,
+                        "cpe_det_top10": 0,
+                        "cpe_det_nothing": 0,
+                        "cpe_det_nonActionable": 0,
                         "total_versions": 2,
-                        "total_cpe_matches": 2,
+                        "total_cpe_matches": 0,
                         "cpe_as_rollup": {
                             "complete": 0,
                             "partial": 0,
-                            "none": 2
+                            "none": 2,
+                            "nonActionable": 0
                         },
-                        "overall_status": "none"
+                        "overall_status": "partial"
                     },
                     "affected_entries": [
                         {
@@ -1058,7 +1281,8 @@
                             "cpe_as_breakdown": {
                                 "complete": 0,
                                 "partial": 0,
-                                "none": 2
+                                "none": 2,
+                                "nonActionable": 0
                             },
                             "pattern_usage": {},
                             "concerns_summary": ["statusUnknown"],
@@ -1101,8 +1325,67 @@
                 return;
             }
 
+            // Validate data integrity before rendering
+            const validationResults = validateDataIntegrity(dashboardData);
+            if (validationResults.errors.length > 0) {
+                console.error('⚠️ DATA INTEGRITY ERRORS DETECTED ⚠️');
+                console.error(`Found ${validationResults.errors.length} data structure issues:`);
+                validationResults.errors.forEach(err => console.error(`  - ${err}`));
+                
+                // Display warning banner in UI
+                const warningBanner = document.createElement('div');
+                warningBanner.style.cssText = 'background-color: #FEF2F2; border: 2px solid #EF4444; color: #991B1B; padding: 16px; margin: 16px; border-radius: 8px; font-weight: 600;';
+                warningBanner.innerHTML = `
+                    <div style="font-size: 16px; margin-bottom: 8px;">⚠️ DATA INTEGRITY WARNING</div>
+                    <div style="font-size: 14px; font-weight: 400;">
+                        ${validationResults.errors.length} data structure issue(s) detected. 
+                        Check browser console for details. Report may render incorrectly.
+                    </div>
+                `;
+                document.body.insertBefore(warningBanner, document.body.firstChild);
+            } else {
+                console.log('✓ Data integrity validation passed');
+            }
+
             renderDashboard(dashboardData);
         });
+
+        function validateDataIntegrity(data) {
+            const errors = [];
+            const cveData = data.cve_data || [];
+            
+            cveData.forEach(cve => {
+                const cveId = cve.cve_id || 'UNKNOWN';
+                
+                // Validate cpe_as_rollup structure
+                const rollup = cve.cve_metadata?.cpe_as_rollup;
+                if (rollup) {
+                    const requiredKeys = ['complete', 'partial', 'none', 'nonActionable'];
+                    requiredKeys.forEach(key => {
+                        if (!rollup.hasOwnProperty(key)) {
+                            errors.push(`${cveId}: cpe_as_rollup missing key '${key}'`);
+                        }
+                    });
+                }
+                
+                // Validate each entry's cpe_as_breakdown
+                cve.affected_entries?.forEach((entry, idx) => {
+                    const breakdown = entry.cpe_as_breakdown;
+                    if (breakdown) {
+                        const requiredKeys = ['complete', 'partial', 'none', 'nonActionable'];
+                        requiredKeys.forEach(key => {
+                            if (!breakdown.hasOwnProperty(key)) {
+                                errors.push(`${cveId} entry[${idx}]: cpe_as_breakdown missing key '${key}'`);
+                            }
+                        });
+                    } else {
+                        errors.push(`${cveId} entry[${idx}]: cpe_as_breakdown is missing entirely`);
+                    }
+                });
+            });
+            
+            return { errors };
+        }
 
         function renderDashboard(data) {
             const metadata = data.metadata || {};
@@ -1136,21 +1419,53 @@
             const cpeDetStats = summary.cpe_determination_stats || {};
             const versionStats = summary.version_stats || {};
             
-            // Automation Level Pie Chart (by CVE) - use pre-calculated stats
+            // Automation Level Pie Chart (by CVE) - use pre-calculated stats (with nonActionable support)
             const automationCanvas = document.getElementById('automation-level-chart');
             if (automationCanvas) {
                 const fullCount = automationStats.full_count || 0;
                 const partialCount = automationStats.partial_count || 0;
                 const noneCount = automationStats.none_count || 0;
+                const nonActionableCount = automationStats.nonActionable_count || 0;
+                
+                // Build labels and data arrays dynamically (exclude zero values)
+                const labels = [];
+                const dataValues = [];
+                const bgColors = [];
+                const borderColors = [];
+                
+                if (fullCount > 0) {
+                    labels.push('✓ Complete');
+                    dataValues.push(fullCount);
+                    bgColors.push('#10B981');
+                    borderColors.push('#059669');
+                }
+                if (partialCount > 0) {
+                    labels.push('⚠ Partial');
+                    dataValues.push(partialCount);
+                    bgColors.push('#F59E0B');
+                    borderColors.push('#D97706');
+                }
+                if (nonActionableCount > 0) {
+                    labels.push('− Non-Actionable');
+                    dataValues.push(nonActionableCount);
+                    bgColors.push('#9CA3AF');
+                    borderColors.push('#6B7280');
+                }
+                if (noneCount > 0) {
+                    labels.push('✕ None');
+                    dataValues.push(noneCount);
+                    bgColors.push('#EF4444');
+                    borderColors.push('#DC2626');
+                }
                 
                 new Chart(automationCanvas, {
                     type: 'doughnut',
                     data: {
-                        labels: ['✓ Complete', '⚠ Partial', '✕ None'],
+                        labels: labels,
                         datasets: [{
-                            data: [fullCount, partialCount, noneCount],
-                            backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
-                            borderColor: ['#059669', '#D97706', '#DC2626'],
+                            data: dataValues,
+                            backgroundColor: bgColors,
+                            borderColor: borderColors,
                             borderWidth: 3,
                             hoverOffset: 18,
                             hoverBorderWidth: 4
@@ -1189,21 +1504,53 @@
                 });
             }
             
-            // CPE Determination Pie Chart
+            // CPE Determination Pie Chart (with nonActionable support)
             const cpeDetCanvas = document.getElementById('cpe-determination-chart');
             if (cpeDetCanvas) {
+                // Build labels and data arrays dynamically (exclude zero values)
+                const confirmedCount = cpeDetStats.confirmed_mapping_count || 0;
+                const suggestedCount = cpeDetStats.top10_suggestion_count || 0;
+                const nothingCount = cpeDetStats.nothing_count || 0;
+                const nonActionableCount = cpeDetStats.nonActionable_count || 0;
+                
+                const labels = [];
+                const dataValues = [];
+                const bgColors = [];
+                const borderColors = [];
+                
+                if (confirmedCount > 0) {
+                    labels.push('✓ Confirmed');
+                    dataValues.push(confirmedCount);
+                    bgColors.push('#10B981');
+                    borderColors.push('#059669');
+                }
+                if (suggestedCount > 0) {
+                    labels.push('⚠ Suggested');
+                    dataValues.push(suggestedCount);
+                    bgColors.push('#F59E0B');
+                    borderColors.push('#D97706');
+                }
+                if (nonActionableCount > 0) {
+                    labels.push('− Non-Actionable');
+                    dataValues.push(nonActionableCount);
+                    bgColors.push('#9CA3AF');
+                    borderColors.push('#6B7280');
+                }
+                if (nothingCount > 0) {
+                    labels.push('✕ Nothing');
+                    dataValues.push(nothingCount);
+                    bgColors.push('#EF4444');
+                    borderColors.push('#DC2626');
+                }
+                
                 new Chart(cpeDetCanvas, {
                     type: 'doughnut',
                     data: {
-                        labels: ['✓ Confirmed', '⚠ Suggested', '✕ Nothing'],
+                        labels: labels,
                         datasets: [{
-                            data: [
-                                cpeDetStats.confirmed_mapping_count || 0,
-                                cpeDetStats.top10_suggestion_count || 0,
-                                cpeDetStats.nothing_count || 0
-                            ],
-                            backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
-                            borderColor: ['#059669', '#D97706', '#DC2626'],
+                            data: dataValues,
+                            backgroundColor: bgColors,
+                            borderColor: borderColors,
                             borderWidth: 3,
                             hoverOffset: 18,
                             hoverBorderWidth: 4
@@ -1236,21 +1583,53 @@
                 });
             }
             
-            // CPE-AS Generation Pie Chart
+            // CPE-AS Generation Pie Chart (with nonActionable support)
             const cpeAsCanvas = document.getElementById('cpe-as-chart');
             if (cpeAsCanvas) {
+                const completeCount = versionStats.complete_count || 0;
+                const partialCount = versionStats.partial_count || 0;
+                const noneCount = versionStats.none_count || 0;
+                const nonActionableCount = versionStats.nonActionable_count || 0;
+                
+                // Build labels and data arrays dynamically (exclude zero values)
+                const labels = [];
+                const dataValues = [];
+                const bgColors = [];
+                const borderColors = [];
+                
+                if (completeCount > 0) {
+                    labels.push('✓ Complete');
+                    dataValues.push(completeCount);
+                    bgColors.push('#10B981');
+                    borderColors.push('#059669');
+                }
+                if (partialCount > 0) {
+                    labels.push('⚠ Partial');
+                    dataValues.push(partialCount);
+                    bgColors.push('#F59E0B');
+                    borderColors.push('#D97706');
+                }
+                if (nonActionableCount > 0) {
+                    labels.push('− Non-Actionable');
+                    dataValues.push(nonActionableCount);
+                    bgColors.push('#9CA3AF');
+                    borderColors.push('#6B7280');
+                }
+                if (noneCount > 0) {
+                    labels.push('✕ None');
+                    dataValues.push(noneCount);
+                    bgColors.push('#EF4444');
+                    borderColors.push('#DC2626');
+                }
+                
                 new Chart(cpeAsCanvas, {
                     type: 'doughnut',
                     data: {
-                        labels: ['✓ Complete', '⚠ Partial', '✕ None'],
+                        labels: labels,
                         datasets: [{
-                            data: [
-                                versionStats.complete_count || 0,
-                                versionStats.partial_count || 0,
-                                versionStats.none_count || 0
-                            ],
-                            backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
-                            borderColor: ['#059669', '#D97706', '#DC2626'],
+                            data: dataValues,
+                            backgroundColor: bgColors,
+                            borderColor: borderColors,
                             borderWidth: 3,
                             hoverOffset: 18,
                             hoverBorderWidth: 4
@@ -1437,9 +1816,6 @@
                 });
             });
             
-            // Render CVE table first
-            renderCveTable(cveData);
-            
             // Render concern filters (unselected by default)
             const concernFilterContainer = document.getElementById('concern-filters');
             const sortedConcerns = Array.from(allConcernTypes).sort();
@@ -1482,6 +1858,9 @@
                 return `<button class="filter-toggle-btn" data-filter="${pattern}" onclick="toggleFilter(this, 'pattern')" title="${tooltip}">${pattern}</button>`;
             }).join('');
             
+            // Render CVE table first
+            renderCveTable(cveData);
+            
             // Use setTimeout to ensure DOM is fully updated before applying filters
             setTimeout(() => applyFilters(), 0);
         }
@@ -1523,59 +1902,43 @@
             let visibleEntries = 0;
             
             allCveData.forEach(cve => {
+                // AUTOMATION FILTER: Apply at CVE level using overall_status
+                // This is a summary-level filter that shows/hides entire CVE cards
+                const cveAutomationLevel = cve.cve_metadata?.overall_status || 'none';
+                const cveMatchesAutomationFilter = !hasAutomationFilter || 
+                                                   automationLevels.has(cveAutomationLevel);
+                
+                // CONCERN/PATTERN FILTERS: Apply at entry level (detail filters)
+                // These allow users to drill into specific technical issues within visible CVEs
                 let hasVisibleEntry = false;
                 
                 cve.affected_entries.forEach((entry, idx) => {
-                    // Determine automation level based on BOTH CPE determination AND CPE-AS generation
-                    // full = confirmedMapping + ALL versions have complete CPE-AS generation
-                    // none = nothing (no suggestions) OR has error concerns (CPE-AS none)
-                    // partial = everything in between
-                    let automationLevel = 'none';
-                    const breakdown = entry.cpe_as_breakdown || {complete: 0, partial: 0, none: 0};
-                    const versionsCount = (entry.versions || []).length;
+                    let entryMatchesDetailFilters = false;
                     
-                    if (entry.cpe_determination_confidence === 'confirmedMapping' && 
-                        breakdown.complete === versionsCount && versionsCount > 0) {
-                        // Complete: Confirmed mapping AND all versions successfully generated CPE-AS
-                        automationLevel = 'full';
-                    } else if (entry.cpe_determination_confidence === 'nothing' || 
-                               (breakdown.none > 0 && breakdown.complete === 0 && breakdown.partial === 0)) {
-                        // Nothing: No suggestions OR only error concerns (all versions failed)
-                        automationLevel = 'none';
-                    } else {
-                        // Partial: Some automation success but not complete
-                        automationLevel = 'partial';
-                    }
-                    
-                    // OR logic: Show if matches ANY selected filter in ANY category
-                    let isVisible = false;
-                    
-                    // Match automation level
-                    if (hasAutomationFilter && automationLevels.has(automationLevel)) {
-                        isVisible = true;
-                    }
-                    
-                    // Match concern types
+                    // Match concern types (entry-level filter)
                     if (hasConcernFilter) {
-                        // If entry has concerns that match selected filters
-                        if (entry.concerns_summary?.length > 0 && entry.concerns_summary.some(c => concernTypes.has(c))) {
-                            isVisible = true;
+                        if (entry.concerns_summary?.length > 0 && 
+                            entry.concerns_summary.some(c => concernTypes.has(c))) {
+                            entryMatchesDetailFilters = true;
                         }
-                        // Note: Entries with no concerns don't match concern filters
-                        // They can still be visible via automation or pattern filters
                     }
                     
-                    // Match pattern types
+                    // Match pattern types (entry-level filter)
                     if (hasPatternFilter && entry.pattern_usage) {
                         if (Object.keys(entry.pattern_usage).some(p => patternTypes.has(p))) {
-                            isVisible = true;
+                            entryMatchesDetailFilters = true;
                         }
                     }
                     
-                    // If no filters selected at all, show everything
-                    if (!hasAutomationFilter && !hasConcernFilter && !hasPatternFilter) {
-                        isVisible = true;
+                    // If no detail filters (concern/pattern), show all entries within matching CVE
+                    if (!hasConcernFilter && !hasPatternFilter) {
+                        entryMatchesDetailFilters = true;
                     }
+                    
+                    // Entry is visible only if:
+                    // 1. CVE matches automation filter (CVE-level)
+                    // 2. Entry matches detail filters (entry-level)
+                    const isVisible = cveMatchesAutomationFilter && entryMatchesDetailFilters;
                     
                     // Update DOM if element exists
                     const entryElement = document.getElementById(`entry-${cve.cve_id}-${idx}`);
@@ -1590,7 +1953,7 @@
                     }
                 });
                 
-                // Update CVE visibility in DOM if element exists
+                // CVE visible only if it passes automation filter AND has at least one visible entry
                 const cveElement = document.getElementById(`cve-${cve.cve_id}`);
                 if (cveElement) {
                     cveElement.style.display = hasVisibleEntry ? '' : 'none';
@@ -1622,35 +1985,49 @@
             cveData.forEach((cve, idx) => {
                 const metadata = cve.cve_metadata || {};
                 // Determine color based on automation level across all entries
+                // Grey = all entries are non-actionable (all alias and version fields are placeholders)
                 // Green = all entries have confirmedMapping + all CPE-AS complete
                 // Red = all entries have nothing OR all CPE-AS none (error concerns)
                 // Yellow = partial automation (everything in between)
                 let statusColor = '#EF4444'; // Default red
                 
-                // Check if ALL entries are fully automated (confirmedMapping + all complete CPE-AS)
+                // Check if ALL entries are non-actionable
+                const allEntriesNonActionable = cve.affected_entries?.every(entry => {
+                    return entry.is_non_actionable === true;
+                }) && (cve.affected_entries?.length || 0) > 0;
+                
+                // Check if ALL entries are fully automated (confirmedMapping + all complete CPE-AS + no concerns)
                 const allEntriesFullyAutomated = cve.affected_entries?.every(entry => {
-                    const breakdown = entry.cpe_as_breakdown || {complete: 0, partial: 0, none: 0};
+                    const breakdown = entry.cpe_as_breakdown || {complete: 0, partial: 0, none: 0, nonActionable: 0};
                     const versionsCount = (entry.versions || []).length;
+                    const hasConcerns = (entry.concerns_summary || []).length > 0;
                     return entry.cpe_determination_confidence === 'confirmedMapping' &&
                            breakdown.complete === versionsCount &&
-                           versionsCount > 0;
+                           breakdown.nonActionable === 0 &&
+                           versionsCount > 0 &&
+                           !hasConcerns;
                 }) && (cve.affected_entries?.length || 0) > 0;
                 
                 // Check if ALL entries have no automation
                 const allEntriesNoAutomation = cve.affected_entries?.every(entry => {
-                    const breakdown = entry.cpe_as_breakdown || {complete: 0, partial: 0, none: 0};
+                    const breakdown = entry.cpe_as_breakdown || {complete: 0, partial: 0, none: 0, nonActionable: 0};
                     return entry.cpe_determination_confidence === 'nothing' ||
-                           (breakdown.none > 0 && breakdown.complete === 0 && breakdown.partial === 0);
+                           (breakdown.none > 0 && breakdown.complete === 0 && breakdown.partial === 0 && breakdown.nonActionable === 0);
                 });
                 
-                if (allEntriesFullyAutomated) {
+                if (allEntriesNonActionable) {
+                    statusColor = '#9CA3AF'; // Grey - non-actionable content
+                } else if (allEntriesFullyAutomated) {
                     statusColor = '#10B981'; // Green - complete automation
                 } else if (!allEntriesNoAutomation) {
                     statusColor = '#F59E0B'; // Yellow - partial automation
                 }
                 
+                // Set background color - grey tint for non-actionable CVEs
+                const cardBackground = allEntriesNonActionable ? '#F9FAFB' : 'white';
+                
                 html += `
-                    <div id="cve-${cve.cve_id}" style="background: white; border-left: 4px solid ${statusColor}; border-radius: 6px; padding: 12px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <div id="cve-${cve.cve_id}" style="background: ${cardBackground}; border-left: 4px solid ${statusColor}; border-radius: 6px; padding: 12px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                         <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
                             <div style="min-width: 140px;">
                                 <a href="https://nvd.nist.gov/vuln/detail/${cve.cve_id}" target="_blank" style="color: var(--teal-700); text-decoration: none; font-weight: 600; font-size: 1.05em;">${cve.cve_id}</a>
@@ -1663,15 +2040,17 @@
                             
                             <div style="display: flex; align-items: center; gap: 6px; min-width: 210px;">
                                 <span style="font-size: 0.85em; color: var(--gray-600);">CPE Determination:</span>
-                                ${metadata.entries_full_automation > 0 ? `<span style="color: #10B981; font-weight: 600; cursor: help;" title="Confirmed CPE Alias Mapping exists">✓ ${metadata.entries_full_automation}</span>` : ''}
-                                ${metadata.entries_partial_automation > 0 ? `<span style="color: #F59E0B; font-weight: 600; cursor: help;" title="CPE Suggestions available">⚠ ${metadata.entries_partial_automation}</span>` : ''}
-                                ${metadata.entries_no_automation > 0 ? `<span style="color: #EF4444; font-weight: 600; cursor: help;" title="No Confirmed CPE Alias Mapping or CPE Suggestions">✕ ${metadata.entries_no_automation}</span>` : ''}
+                                ${metadata.cpe_det_confirmed > 0 ? `<span style="color: #10B981; font-weight: 600; cursor: help;" title="Confirmed CPE Alias Mapping exists">✓ ${metadata.cpe_det_confirmed}</span>` : ''}
+                                ${metadata.cpe_det_top10 > 0 ? `<span style="color: #F59E0B; font-weight: 600; cursor: help;" title="CPE Suggestions available (top 10)">⚠ ${metadata.cpe_det_top10}</span>` : ''}
+                                ${metadata.cpe_det_nonActionable > 0 ? `<span style="color: #9CA3AF; font-weight: 600; cursor: help;" title="Non-actionable content (all alias and version fields are placeholders or missing)">− ${metadata.cpe_det_nonActionable}</span>` : ''}
+                                ${metadata.cpe_det_nothing > 0 ? `<span style="color: #EF4444; font-weight: 600; cursor: help;" title="No Confirmed CPE Alias Mapping or CPE Suggestions">✕ ${metadata.cpe_det_nothing}</span>` : ''}
                             </div>
                             
                             <div style="display: flex; align-items: center; gap: 6px; min-width: 210px;">
                                 <span style="font-size: 0.85em; color: var(--gray-600);">CPE-AS Generation:</span>
                                 ${(metadata.cpe_as_rollup?.complete || 0) > 0 ? `<span style="color: #10B981; font-weight: 600; cursor: help;" title="Confirmed Mapping + Known Pattern + No Error Concerns">✓ ${metadata.cpe_as_rollup.complete}</span>` : ''}
                                 ${(metadata.cpe_as_rollup?.partial || 0) > 0 ? `<span style="color: #F59E0B; font-weight: 600; cursor: help;" title="CPE Unconfirmed (with or without suggestions) + Known Pattern + No Error Concerns">⚠ ${metadata.cpe_as_rollup.partial}</span>` : ''}
+                                ${(metadata.cpe_as_rollup?.nonActionable || 0) > 0 ? `<span style="color: #9CA3AF; font-weight: 600; cursor: help;" title="Non-actionable content (all alias and version fields are placeholders or missing) - Not included in automation metrics">− ${metadata.cpe_as_rollup.nonActionable}</span>` : ''}
                                 ${(metadata.cpe_as_rollup?.none || 0) > 0 ? `<span style="color: #EF4444; font-weight: 600; cursor: help;" title="Error Concerns Present: versionTypeGit, patternUnsupported, updatePatternsInRange, inferredAffectedFromWildcardExpansion, or inferredAffectedFromUnaffectedRanges">✕ ${metadata.cpe_as_rollup.none}</span>` : ''}
                                 ${metadata.total_versions === 0 ? `<span style="color: var(--gray-500); font-weight: 500;">None</span>` : ''}
                             </div>
@@ -1734,7 +2113,7 @@
             let html = '<div style="display: flex; flex-direction: column; gap: 12px;">';
             
             entries.forEach((entry, entryIndex) => {
-                const breakdown = entry.cpe_as_breakdown || {complete: 0, partial: 0, none: 0};
+                const breakdown = entry.cpe_as_breakdown || {complete: 0, partial: 0, none: 0, nonActionable: 0};
                 const versions = entry.versions || [];
                 const entryId = `entry-${cveId}-${entryIndex}`;
                 const versionsTableId = `versions-${cveId}-${entryIndex}`;
@@ -1745,22 +2124,27 @@
                     cpeDetDisplay = '<span style="color: #10B981; font-weight: 600; cursor: help;" title="Confirmed CPE Alias Mapping exists">✓</span>';
                 } else if (entry.cpe_determination_confidence === 'top10Suggestion') {
                     cpeDetDisplay = '<span style="color: #F59E0B; font-weight: 600; cursor: help;" title="CPE Suggestions available">⚠</span>';
+                } else if (entry.cpe_determination_confidence === 'nonActionable') {
+                    cpeDetDisplay = '<span style="color: #9CA3AF; font-weight: 600; cursor: help;" title="Non-actionable content (all alias and version fields are placeholders or missing)">−</span>';
                 } else if (entry.cpe_determination_confidence === 'nothing') {
                     cpeDetDisplay = '<span style="color: #EF4444; font-weight: 600; cursor: help;" title="No Confirmed CPE Alias Mapping or CPE Suggestions">✕</span>';
                 }
                 
                 // Determine affected entry border color based on automation level
                 // Green = confirmedMapping + ALL versions complete CPE-AS
+                // Grey = nonActionable (all alias and version fields are placeholders)
                 // Red = nothing OR all versions have error concerns (none)
                 // Yellow = partial (everything in between)
                 let entryColor = '#EF4444'; // Default red
                 const versionsCount = (entry.versions || []).length;
                 
-                if (entry.cpe_determination_confidence === 'confirmedMapping' &&
+                if (entry.cpe_determination_confidence === 'nonActionable') {
+                    entryColor = '#9CA3AF'; // Grey - non-actionable content
+                } else if (entry.cpe_determination_confidence === 'confirmedMapping' &&
                     breakdown.complete === versionsCount && versionsCount > 0) {
                     entryColor = '#10B981'; // Green - full automation
                 } else if (entry.cpe_determination_confidence === 'nothing' ||
-                           (breakdown.none > 0 && breakdown.complete === 0 && breakdown.partial === 0)) {
+                           (breakdown.none > 0 && breakdown.complete === 0 && breakdown.partial === 0 && breakdown.nonActionable === 0)) {
                     entryColor = '#EF4444'; // Red - no automation
                 } else {
                     entryColor = '#F59E0B'; // Yellow - partial automation
@@ -1787,8 +2171,9 @@
                                 <span style="font-size: 0.85em; color: var(--gray-600);">CPE-AS Generation:</span>
                                 ${breakdown.complete > 0 ? `<span style="color: #10B981; font-weight: 600; cursor: help;" title="Confirmed Mapping + Known Pattern + No Error Concerns">✓ ${breakdown.complete}</span>` : ''}
                                 ${breakdown.partial > 0 ? `<span style="color: #F59E0B; font-weight: 600; cursor: help;" title="CPE Unconfirmed (with or without suggestions) + Known Pattern + No Error Concerns">⚠ ${breakdown.partial}</span>` : ''}
+                                ${breakdown.nonActionable > 0 ? `<span style="color: #9CA3AF; font-weight: 600; cursor: help;" title="Non-actionable content (all alias and version fields are placeholders or missing) - Not included in automation metrics">− ${breakdown.nonActionable}</span>` : ''}
                                 ${breakdown.none > 0 ? `<span style="color: #EF4444; font-weight: 600; cursor: help;" title="Error Concerns Present: versionTypeGit, patternUnsupported, updatePatternsInRange, inferredAffectedFromWildcardExpansion, or inferredAffectedFromUnaffectedRanges">✕ ${breakdown.none}</span>` : ''}
-                                ${breakdown.complete === 0 && breakdown.partial === 0 && breakdown.none === 0 ? '<span style="color: var(--gray-500); font-weight: 500;">None</span>' : ''}
+                                ${breakdown.complete === 0 && breakdown.partial === 0 && breakdown.nonActionable === 0 && breakdown.none === 0 ? '<span style="color: var(--gray-500); font-weight: 500;">None</span>' : ''}
                             </div>
                             
                             <div style="margin-left: auto;">
@@ -1842,10 +2227,13 @@
             `;
             
             versions.forEach((v, idx) => {
+                // Add nonActionable status support (light grey theme with dash icon)
                 const statusColor = v.cpe_as_status === 'complete' ? '#10B981' : 
-                                   v.cpe_as_status === 'partial' ? '#F59E0B' : '#EF4444';
+                                   v.cpe_as_status === 'partial' ? '#F59E0B' : 
+                                   v.cpe_as_status === 'nonActionable' ? '#9CA3AF' : '#EF4444';
                 const statusIcon = v.cpe_as_status === 'complete' ? '✓' : 
-                                  v.cpe_as_status === 'partial' ? '⚠' : '✕';
+                                  v.cpe_as_status === 'partial' ? '⚠' : 
+                                  v.cpe_as_status === 'nonActionable' ? '−' : '✕';
                 const statusText = v.cpe_as_status || 'none';
                 const rowBg = idx % 2 === 0 ? '#FFFFFF' : '#F9FAFB';
                 
@@ -1855,6 +2243,8 @@
                     statusTooltip = 'Confirmed Mapping + Known Pattern + No Error Concerns';
                 } else if (v.cpe_as_status === 'partial') {
                     statusTooltip = 'CPE Unconfirmed (with or without suggestions) + Known Pattern + No Error Concerns';
+                } else if (v.cpe_as_status === 'nonActionable') {
+                    statusTooltip = 'Non-actionable content (all alias and version fields are placeholders or missing) - Not included in automation metrics';
                 } else {
                     statusTooltip = 'Error Concerns Present: versionTypeGit, patternUnsupported, updatePatternsInRange, inferredAffectedFromWildcardExpansion, or inferredAffectedFromUnaffectedRanges';
                 }

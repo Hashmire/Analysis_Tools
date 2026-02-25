@@ -248,8 +248,10 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
     global config
     
     
-    # Audit: Verify global state is properly cleared before processing
-    audit_global_state_cleared()
+    # Clear global registry state before processing new CVE
+    from .platform_entry_registry import clear_all_registries
+    clear_all_registries()
+    logger.debug("Environment prepared - registries cleared", group="data_processing")
     
     # Initialize badge contents collection for this CVE
     from ..logging.badge_contents_collector import start_cve_collection, complete_cve_collection
@@ -1100,6 +1102,11 @@ def main():
     if not args.run_id:
         # Only clear dashboard collector for new runs, not when continuing from generate_dataset
         clear_dataset_contents_collector()
+    
+    # Clear global registry state at run start to prevent cross-run contamination
+    from .platform_entry_registry import clear_all_registries
+    clear_all_registries()
+    logger.debug("Global registries cleared at run initialization", group="initialization")
     
     # Initialize NVD-ish collector for enhanced record generation
     nvd_ish_collector = get_nvd_ish_collector()

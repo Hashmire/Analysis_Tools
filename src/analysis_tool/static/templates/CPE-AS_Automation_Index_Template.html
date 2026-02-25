@@ -407,9 +407,10 @@
                 const cpe = s.cpe_determination_stats || {};
                 const version = s.version_stats || {};
                 
-                const fullRate = automation.full_count ? (automation.full_count / s.total_cves) * 100 : 0;
-                const confirmedRate = cpe.confirmed_mapping_count ? (cpe.confirmed_mapping_count / (cpe.confirmed_mapping_count + cpe.top10_suggestion_count + cpe.nothing_count)) * 100 : 0;
-                const completeRate = version.complete_count ? (version.complete_count / (version.complete_count + version.partial_count + version.none_count)) * 100 : 0;
+                // Use pre-calculated rates that correctly exclude nonActionable from denominators
+                const fullRate = automation.full_rate || 0;
+                const confirmedRate = cpe.confirmed_mapping_rate || 0;
+                const completeRate = version.complete_rate || 0;
                 
                 weightedFullAutomation += fullRate * weight;
                 weightedConfirmedMapping += confirmedRate * weight;
@@ -518,137 +519,254 @@
             const cpe = source.cpe_determination_stats || {};
             const version = source.version_stats || {};
             
-            // Automation Level Chart
+            // Automation Level Chart (dynamic labels, matches source template)
             const autoCanvas = document.getElementById(`chart-auto-${sourceId}`);
             if (autoCanvas) {
+                const fullCount = automation.full_count || 0;
+                const partialCount = automation.partial_count || 0;
+                const nonActionableCount = automation.nonActionable_count || 0;
+                const noneCount = automation.none_count || 0;
+                
+                const labels = [];
+                const dataValues = [];
+                const bgColors = [];
+                const borderColors = [];
+                
+                if (fullCount > 0) {
+                    labels.push('✓ Full');
+                    dataValues.push(fullCount);
+                    bgColors.push('#10B981');
+                    borderColors.push('#059669');
+                }
+                if (partialCount > 0) {
+                    labels.push('⚠ Partial');
+                    dataValues.push(partialCount);
+                    bgColors.push('#F59E0B');
+                    borderColors.push('#D97706');
+                }
+                if (nonActionableCount > 0) {
+                    labels.push('− Non-Actionable');
+                    dataValues.push(nonActionableCount);
+                    bgColors.push('#9CA3AF');
+                    borderColors.push('#6B7280');
+                }
+                if (noneCount > 0) {
+                    labels.push('✕ None');
+                    dataValues.push(noneCount);
+                    bgColors.push('#EF4444');
+                    borderColors.push('#DC2626');
+                }
+                
                 new Chart(autoCanvas, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Full', 'Partial', 'None'],
+                        labels: labels,
                         datasets: [{
-                            data: [
-                                automation.full_count || 0,
-                                automation.partial_count || 0,
-                                automation.none_count || 0
-                            ],
-                            backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
-                            borderWidth: 0
+                            data: dataValues,
+                            backgroundColor: bgColors,
+                            borderColor: borderColors,
+                            borderWidth: 2,
+                            hoverOffset: 8,
+                            hoverBorderWidth: 3
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: true,
                         layout: {
-                            padding: 10
+                            padding: 8
                         },
                         plugins: {
                             legend: { display: false },
                             tooltip: {
                                 enabled: true,
                                 displayColors: false,
+                                titleFont: { size: 0 },
+                                bodyFont: { size: 10, weight: '600' },
+                                padding: 4,
+                                bodyAlign: 'center',
                                 position: 'nearest',
                                 yAlign: 'bottom',
                                 xAlign: 'center',
                                 callbacks: {
+                                    title: function() { return ''; },
                                     label: function(context) {
                                         const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                         const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : '0.0';
-                                        return `${context.label}: ${context.parsed} (${percentage}%)`;
+                                        return [context.label, `${context.parsed} (${percentage}%)`];
                                     }
                                 }
                             }
                         },
-                        cutout: '60%'
+                        cutout: '50%'
                     }
                 });
             }
             
-            // CPE Determination Chart
+            // CPE Determination Chart (dynamic labels, matches source template)
             const cpeCanvas = document.getElementById(`chart-cpe-${sourceId}`);
             if (cpeCanvas) {
+                const confirmedCount = cpe.confirmed_mapping_count || 0;
+                const suggestedCount = cpe.top10_suggestion_count || 0;
+                const nonActionableCount = cpe.nonActionable_count || 0;
+                const nothingCount = cpe.nothing_count || 0;
+                
+                const labels = [];
+                const dataValues = [];
+                const bgColors = [];
+                const borderColors = [];
+                
+                if (confirmedCount > 0) {
+                    labels.push('✓ Confirmed');
+                    dataValues.push(confirmedCount);
+                    bgColors.push('#10B981');
+                    borderColors.push('#059669');
+                }
+                if (suggestedCount > 0) {
+                    labels.push('⚠ Suggested');
+                    dataValues.push(suggestedCount);
+                    bgColors.push('#F59E0B');
+                    borderColors.push('#D97706');
+                }
+                if (nonActionableCount > 0) {
+                    labels.push('− Non-Actionable');
+                    dataValues.push(nonActionableCount);
+                    bgColors.push('#9CA3AF');
+                    borderColors.push('#6B7280');
+                }
+                if (nothingCount > 0) {
+                    labels.push('✕ Nothing');
+                    dataValues.push(nothingCount);
+                    bgColors.push('#EF4444');
+                    borderColors.push('#DC2626');
+                }
+                
                 new Chart(cpeCanvas, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Confirmed', 'Suggested', 'Nothing'],
+                        labels: labels,
                         datasets: [{
-                            data: [
-                                cpe.confirmed_mapping_count || 0,
-                                cpe.top10_suggestion_count || 0,
-                                cpe.nothing_count || 0
-                            ],
-                            backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
-                            borderWidth: 0
+                            data: dataValues,
+                            backgroundColor: bgColors,
+                            borderColor: borderColors,
+                            borderWidth: 2,
+                            hoverOffset: 8,
+                            hoverBorderWidth: 3
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: true,
                         layout: {
-                            padding: 10
+                            padding: 8
                         },
                         plugins: {
                             legend: { display: false },
                             tooltip: {
                                 enabled: true,
                                 displayColors: false,
+                                titleFont: { size: 0 },
+                                bodyFont: { size: 10, weight: '600' },
+                                padding: 4,
+                                bodyAlign: 'center',
                                 position: 'nearest',
                                 yAlign: 'bottom',
                                 xAlign: 'center',
                                 callbacks: {
+                                    title: function() { return ''; },
                                     label: function(context) {
                                         const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                         const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : '0.0';
-                                        return `${context.label}: ${context.parsed} (${percentage}%)`;
+                                        return [context.label, `${context.parsed} (${percentage}%)`];
                                     }
                                 }
                             }
                         },
-                        cutout: '60%'
+                        cutout: '50%'
                     }
                 });
             }
             
-            // Version/CPE-AS Chart
+            // Version/CPE-AS Chart (dynamic labels, matches source template)
             const verCanvas = document.getElementById(`chart-ver-${sourceId}`);
             if (verCanvas) {
+                const completeCount = version.complete_count || 0;
+                const partialCount = version.partial_count || 0;
+                const nonActionableCount = version.nonActionable_count || 0;
+                const noneCount = version.none_count || 0;
+                
+                const labels = [];
+                const dataValues = [];
+                const bgColors = [];
+                const borderColors = [];
+                
+                if (completeCount > 0) {
+                    labels.push('✓ Complete');
+                    dataValues.push(completeCount);
+                    bgColors.push('#10B981');
+                    borderColors.push('#059669');
+                }
+                if (partialCount > 0) {
+                    labels.push('⚠ Partial');
+                    dataValues.push(partialCount);
+                    bgColors.push('#F59E0B');
+                    borderColors.push('#D97706');
+                }
+                if (nonActionableCount > 0) {
+                    labels.push('− Non-Actionable');
+                    dataValues.push(nonActionableCount);
+                    bgColors.push('#9CA3AF');
+                    borderColors.push('#6B7280');
+                }
+                if (noneCount > 0) {
+                    labels.push('✕ None');
+                    dataValues.push(noneCount);
+                    bgColors.push('#EF4444');
+                    borderColors.push('#DC2626');
+                }
+                
                 new Chart(verCanvas, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Complete', 'Partial', 'None'],
+                        labels: labels,
                         datasets: [{
-                            data: [
-                                version.complete_count || 0,
-                                version.partial_count || 0,
-                                version.none_count || 0
-                            ],
-                            backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
-                            borderWidth: 0
+                            data: dataValues,
+                            backgroundColor: bgColors,
+                            borderColor: borderColors,
+                            borderWidth: 2,
+                            hoverOffset: 8,
+                            hoverBorderWidth: 3
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: true,
                         layout: {
-                            padding: 10
+                            padding: 8
                         },
                         plugins: {
                             legend: { display: false },
                             tooltip: {
                                 enabled: true,
                                 displayColors: false,
+                                titleFont: { size: 0 },
+                                bodyFont: { size: 10, weight: '600' },
+                                padding: 4,
+                                bodyAlign: 'center',
                                 position: 'nearest',
                                 yAlign: 'bottom',
                                 xAlign: 'center',
                                 callbacks: {
+                                    title: function() { return ''; },
                                     label: function(context) {
                                         const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                         const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : '0.0';
-                                        return `${context.label}: ${context.parsed} (${percentage}%)`;
+                                        return [context.label, `${context.parsed} (${percentage}%)`];
                                     }
                                 }
                             }
                         },
-                        cutout: '60%'
+                        cutout: '50%'
                     }
                 });
             }

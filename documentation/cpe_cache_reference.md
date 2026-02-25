@@ -28,7 +28,7 @@ Hash-based distributed cache with lazy loading and compact JSON persistence.
 Proactive eviction maintains configurable shard limits to prevent memory exhaustion during processing.
 
 ### 4. Manual Refresh Tool
-Standalone script (`refresh_cpe_cache.py`) for controlled cache updates independent of runtime expiration settings.
+Standalone script (`refresh_nvd_cpe_base_strings_cache.py`) for controlled cache updates independent of runtime expiration settings.
 
 ---
 
@@ -132,20 +132,15 @@ Processing Run (default: max 4 shards in memory):
 
 ## Manual Cache Refresh Script
 
-**Script**: [utilities/refresh_cpe_cache.py](../utilities/refresh_cpe_cache.py)  
+**Script**: [utilities/refresh_nvd_cpe_base_strings_cache.py](../utilities/refresh_nvd_cpe_base_strings_cache.py)  
 **Purpose**: Standalone forced refresh of oldest cached CPE base strings independent of runtime expiration settings
 
-### Integrated Safety Features
-
-**Phase 0: Integrity Check** (automatic)
-- Validates all cache shards for corruption before refresh
-- Detects JSON syntax errors, UTF-8 encoding issues, invalid structure
-- Auto-deletes corrupted shards to allow rebuild
-- Skip with `--skip-integrity-check` flag (not recommended)
+### Refresh Process
 
 **Phase 1: Discovery**
-- Scans all valid shards to find oldest timestamp
+- Scans all shards to find oldest timestamp
 - Queries NVD `/cpematch/2.0` API for changes since oldest entry
+- Automatically handles corrupted shards (logs diagnostics, deletes, continues)
 
 **Phase 2: Selective Refresh**
 - Only refreshes CPE base strings that changed at NVD
@@ -154,43 +149,45 @@ Processing Run (default: max 4 shards in memory):
 **Phase 3: Finalize**
 - Merges updates while preserving query_count statistics
 - Persists changes to appropriate shards
+- Automatically handles corrupted shards during merge (logs diagnostics, rebuilds)
+
+### Automatic Corruption Recovery
+
+The script includes reactive corruption handling that activates when shard loading fails:
+
+**Detection & Diagnosis**:
+- Detects JSON syntax errors, UTF-8 encoding issues, truncated files, disk corruption
+- Categorizes corruption type (NVD API errors, validation bypasses, disk failures)
+- Logs detailed diagnostics (file size, corruption category, error details, recommendations)
+
+**Recovery Actions**:
+- Auto-deletes corrupted shards to allow clean rebuild
+- Continues refresh operation with remaining valid shards
+- Rebuilt shards contain only CPE entries modified since oldest valid entry
+
+**Note**: Deleted shard data is permanently lost. For full recovery, consider periodic backups of `cache/cpe_base_strings/`.
 
 ### Implementation Details
 
 **Key Functions**:
-- `check_shard_integrity()` - Validates all shards for corruption (Phase 0)
 - `find_oldest_cache_entry()` - Scans shards to find oldest timestamp (Phase 1)
 - `query_cpematch_changes()` - Queries NVD change tracking API (Phase 1)
 - `extract_unique_cpe_bases()` - Extracts unique CPE base strings (Phase 1)
 - `query_nvd_cpes_api()` - Retrieves full metadata from CPE API (Phase 2)
 - `flush_staged_updates()` - Merges updates while preserving statistics (Phase 3)
+- `diagnose_shard_corruption()` - Analyzes corruption cause and provides diagnostics
+- `log_corruption_diagnostics()` - Logs detailed corruption information before recovery
 
-### Corruption Handling
+### Usage
 
-**Automatic Recovery**:
-1. Integrity check detects corrupted shards
-2. Reports corruption details (file, error type, position)
-3. Auto-deletes corrupted files
-4. Continues with refresh to rebuild missing data
-
-**Note**: Deleted shard data is permanently lost. Only CPE entries modified since the oldest valid entry are restored. For full recovery, consider periodic backups of `cache/cpe_base_strings/`.
-
-**Usage**:
-
+```bash
+# Run cache refresh (requires NVD API key configured in config.json)
+python -m utilities.refresh_nvd_cpe_base_strings_cache
 ```
 
-# Check cache integrity only
-python -m utilities.refresh_cpe_cache --check-only
-
-# Check and auto-delete corrupted shards
-python -m utilities.refresh_cpe_cache --check-only --delete
-
-# Full refresh with integrity check (recommended)
-python -m utilities.refresh_cpe_cache
-
-# Skip integrity check (faster but risky)
-python -m utilities.refresh_cpe_cache --skip-integrity-check
-```
+**Requirements**:
+- Valid NVD API key in `src/analysis_tool/config.json` (`default_api_key` setting)
+- Existing cache directory: `cache/cpe_base_strings/`
 
 ---
 
@@ -235,7 +232,8 @@ python -m utilities.refresh_cpe_cache --skip-integrity-check
 - `cache/nvd_schemas/cve_api_2.0_schema.json` - CVE API schema (auto-downloaded from NVD)
 
 **Scripts**:
-- [utilities/refresh_cpe_cache.py](../utilities/refresh_cpe_cache.py) - Manual cache refresh utility
+- [utilities/refresh_nvd_cpe_base_strings_cache.py](../utilities/refresh_nvd_cpe_base_strings_cache.py) - Manual cache refresh utility
+- [utilities/refresh_nvd_cves_2_0_cache.py](../utilities/refresh_nvd_cves_2_0_cache.py) - Manual NVD CVE cache refresh utility
 - [src/analysis_tool/core/schema_validator.py](../src/analysis_tool/core/schema_validator.py) - Validation implementation
 
 ### Testing

@@ -1099,6 +1099,8 @@
         // ===========================================
         
         // === PLACEHOLDER DETECTION PATTERNS ===
+        // Synchronized with Python platform_entry_registry.py GENERAL_PLACEHOLDER_VALUES
+        // Note: VERSION_PLACEHOLDER_VALUES not included - alias mapping doesn't process version data
         const GENERAL_PLACEHOLDER_VALUES = [
             'unspecified', 'unknown', 'none', 'undefined', 'various',
             'n/a', 'not available', 'not applicable', 'unavailable',
@@ -1106,7 +1108,7 @@
             'not specified', 'not determined', 'not known', 'not listed',
             'not provided', 'missing', 'empty', 'null', '-',
             'see references', 'see advisory', 'check', 'noted', 'all',
-            'contact vendor', 'check with vendor'
+            'contact vendor', 'check with vendor', 'all platforms'
         ];
 
         // === TEXT COMPARATOR DETECTION PATTERNS ===

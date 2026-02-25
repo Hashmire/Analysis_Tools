@@ -14,18 +14,8 @@ Schema URLs loaded from config.json api.schemas section.
 """
 import json
 from typing import Dict, Any, Optional
-
-try:
-    import jsonschema
-    JSONSCHEMA_AVAILABLE = True
-except ImportError:
-    JSONSCHEMA_AVAILABLE = False
-
-try:
-    import orjson
-    ORJSON_AVAILABLE = True
-except ImportError:
-    ORJSON_AVAILABLE = False
+import jsonschema
+import orjson
 
 from ..logging.workflow_logger import get_logger
 
@@ -53,7 +43,7 @@ def validate_against_schema(
     Raises:
         NVDSchemaValidationError: If data fails schema validation
     """
-    if schema is None or not JSONSCHEMA_AVAILABLE:
+    if schema is None:
         return
     
     try:
@@ -61,7 +51,6 @@ def validate_against_schema(
     except jsonschema.ValidationError as e:
         error_path = ' -> '.join(str(p) for p in e.path) if e.path else 'root'
         error_msg = f"Schema validation failed at {error_path}: {e.message} - {context}"
-        logger.error(error_msg, group="DATA_PROC")
         raise NVDSchemaValidationError(error_msg)
     except jsonschema.SchemaError as e:
         logger.error(f"Invalid schema encountered: {e}", group="DATA_PROC")
@@ -95,7 +84,6 @@ def validate_string_content(data: Any, context: str, path: str = "root") -> None
         # Check for null bytes
         if '\x00' in data:
             error_msg = f"Null byte found in string at {path} - {context}"
-            logger.error(error_msg, group="DATA_PROC")
             raise NVDSchemaValidationError(error_msg)
         
         # Check for problematic control characters (except allowed whitespace)
@@ -110,7 +98,6 @@ def validate_string_content(data: Any, context: str, path: str = "root") -> None
         if dangerous_chars:
             char_list = ', '.join(f"\\x{code:02x}" for char, code in dangerous_chars[:3])
             error_msg = f"Dangerous control characters in string at {path}: {char_list} - {context}"
-            logger.error(error_msg, group="DATA_PROC")
             raise NVDSchemaValidationError(error_msg)
         
         # Check for valid UTF-8 encoding by attempting encode/decode
@@ -118,7 +105,6 @@ def validate_string_content(data: Any, context: str, path: str = "root") -> None
             data.encode('utf-8', errors='strict')
         except UnicodeEncodeError as e:
             error_msg = f"Invalid UTF-8 in string at {path}: {str(e)[:100]} - {context}"
-            logger.error(error_msg, group="DATA_PROC")
             raise NVDSchemaValidationError(error_msg)
 
 
@@ -141,23 +127,11 @@ def validate_orjson_serializable(data: Dict[str, Any], context: str) -> None:
     # LAYER 1: Content validation (catches null bytes, control chars, etc.)
     validate_string_content(data, context)
     
-    if not ORJSON_AVAILABLE:
-        # Fallback to standard json with round-trip
-        try:
-            serialized = json.dumps(data)
-            json.loads(serialized)  # Round-trip to catch encoding issues
-        except (TypeError, ValueError) as e:
-            error_msg = f"Data not serializable: {type(e).__name__}: {str(e)[:200]} - {context}"
-            logger.error(error_msg, group="DATA_PROC")
-            raise NVDSchemaValidationError(error_msg)
-        return
-    
     # LAYER 2: Serialization test
     try:
         serialized = orjson.dumps(data)
     except (orjson.JSONEncodeError, TypeError, ValueError) as e:
         error_msg = f"Data contains non-serializable content: {type(e).__name__}: {str(e)[:200]} - {context}"
-        logger.error(error_msg, group="DATA_PROC")
         raise NVDSchemaValidationError(error_msg)
     
     # LAYER 3: Round-trip test (catches UTF-8 surrogate pairs)
@@ -165,7 +139,6 @@ def validate_orjson_serializable(data: Dict[str, Any], context: str) -> None:
         orjson.loads(serialized)
     except (orjson.JSONDecodeError, ValueError) as e:
         error_msg = f"Data contains invalid UTF-8 encoding (surrogates/invalid sequences): {type(e).__name__}: {str(e)[:200]} - {context}"
-        logger.error(error_msg, group="DATA_PROC")
         raise NVDSchemaValidationError(error_msg)
 
 
@@ -272,12 +245,10 @@ def validate_cve_record_v5(
     # Basic structure check
     if not isinstance(cve_record, dict):
         error_msg = f"Invalid record type: expected dict, got {type(cve_record).__name__} - {context}"
-        logger.error(error_msg, group="DATA_PROC")
         raise NVDSchemaValidationError(error_msg)
     
     if 'cveMetadata' not in cve_record:
         error_msg = f"Missing required field: cveMetadata - {context}"
-        logger.error(error_msg, group="DATA_PROC")
         raise NVDSchemaValidationError(error_msg)
     
     validate_against_schema(cve_record, schema, context)

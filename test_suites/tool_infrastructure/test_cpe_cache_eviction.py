@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Test suite for CPE cache proactive eviction and memory management.
-Validates that memory limits are enforced and data integrity is maintained.
+Test suite for CPE cache LRU eviction and memory management.
+Validates that LRU eviction policy works correctly, memory limits are enforced,
+and data integrity is maintained.
 """
 
 import sys
@@ -42,9 +43,9 @@ def test(description):
     return decorator
 
 
-@test("Proactive eviction enforces max_loaded_shards limit")
-def test_proactive_eviction_limit():
-    """Test that loading new shards triggers eviction when at limit"""
+@test("LRU eviction enforces max_loaded_shards limit")
+def test_lru_eviction_limit():
+    """Test that loading new shards triggers LRU eviction when at limit"""
     with tempfile.TemporaryDirectory() as tmpdir:
         config = {
             'enabled': True,
@@ -65,14 +66,14 @@ def test_proactive_eviction_limit():
             'products': []
         }
         
-        # Load shards 0, 1, 2 (should stay in memory)
+        # Load 3 shards to fill cache
         cache.put('cpe:2.3:a:test0:*:*:*:*:*:*:*:*:*', test_data)
         cache.put('cpe:2.3:a:test1:*:*:*:*:*:*:*:*:*', test_data)
         cache.put('cpe:2.3:a:test2:*:*:*:*:*:*:*:*:*', test_data)
         
         assert len(cache.loaded_shards) == 3, f"Expected 3 shards loaded, got {len(cache.loaded_shards)}"
         
-        # Load shard 3 - should trigger eviction of shard 0
+        # Load shard 3 - should trigger LRU eviction
         cache.put('cpe:2.3:a:test3:*:*:*:*:*:*:*:*:*', test_data)
         
         # Should still have max 3 shards
@@ -84,9 +85,9 @@ def test_proactive_eviction_limit():
         assert len(cache.loaded_shards) == 3, f"Expected 3 shards maintained, got {len(cache.loaded_shards)}"
 
 
-@test("Proactive eviction saves dirty shards before evicting")
-def test_proactive_save_before_evict():
-    """Test that shards with unsaved changes are saved before eviction"""
+@test("LRU eviction saves dirty shards before evicting")
+def test_lru_save_before_evict():
+    """Test that shards with unsaved changes are saved before LRU eviction"""
     with tempfile.TemporaryDirectory() as tmpdir:
         config = {
             'enabled': True,
@@ -117,7 +118,7 @@ def test_proactive_save_before_evict():
         
         assert len(cache.loaded_shards) == 2, "Should have 2 shards loaded"
         
-        # Add to shard 3 - should evict oldest shard (shard 0)
+        # Add to shard 3 - should evict LRU shard (shard 0)
         cpe_3 = 'cpe:2.3:a:test3:product:*:*:*:*:*:*:*:*'
         cache.put(cpe_3, test_data)
         
@@ -202,9 +203,9 @@ def test_autosave_incremental():
             f"Memory limit violated during auto-save: {len(cache.loaded_shards)} shards"
 
 
-@test("Evicted shards can be reloaded without data loss")
-def test_reload_evicted_shard():
-    """Test that evicted shards can be reloaded with full data integrity"""
+@test("LRU evicted shards can be reloaded without data loss")
+def test_reload_lru_evicted_shard():
+    """Test that LRU evicted shards can be reloaded with full data integrity"""
     with tempfile.TemporaryDirectory() as tmpdir:
         config = {
             'enabled': True,
@@ -232,11 +233,11 @@ def test_reload_evicted_shard():
         cpe_1 = 'cpe:2.3:a:vendor1:product:*:*:*:*:*:*:*:*'
         cache.put(cpe_1, test_data)
         
-        # Add to shard 3 - evicts shard 0
+        # Add to shard 3 - evicts LRU (shard 0)
         cpe_3 = 'cpe:2.3:a:vendor3:product:*:*:*:*:*:*:*:*'
         cache.put(cpe_3, test_data)
         
-        # Add to shard 5 - evicts shard 1
+        # Add to shard 5 - evicts LRU (shard 1)
         cpe_5 = 'cpe:2.3:a:vendor5:product:*:*:*:*:*:*:*:*'
         cache.put(cpe_5, test_data)
         
@@ -252,9 +253,9 @@ def test_reload_evicted_shard():
         assert retrieved_1['totalResults'] == 5, "Data integrity maintained across reload"
 
 
-@test("Concurrent access to multiple shards with eviction")
-def test_concurrent_shard_access():
-    """Test realistic pattern with multiple shard accesses"""
+@test("Concurrent access to multiple shards with LRU eviction")
+def test_concurrent_shard_access_lru():
+    """Test realistic pattern with multiple shard accesses using LRU"""
     with tempfile.TemporaryDirectory() as tmpdir:
         config = {
             'enabled': True,
@@ -274,7 +275,7 @@ def test_concurrent_shard_access():
             'products': []
         }
         
-        # Simulate realistic access pattern
+        # Simulate realistic access pattern (LRU should keep hot shards)
         access_pattern = [0, 0, 1, 1, 2, 2, 3, 3, 0, 1, 4, 5, 0, 2]
         
         for shard_num in access_pattern:
@@ -292,24 +293,87 @@ def test_concurrent_shard_access():
             assert retrieved is not None, f"Data lost for shard {shard_num}"
 
 
+@test("LRU policy evicts least recently used shard")
+def test_lru_evicts_least_recent():
+    """Test that LRU specifically evicts the least recently accessed shard"""
+    import time
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config = {
+            'enabled': True,
+            'disabled': False,
+            'max_loaded_shards': 3,
+            'auto_save_threshold': 100,
+            'refresh_strategy': {'notify_age_hours': 12}
+        }
+        
+        cache = ShardedCPECache(config, num_shards=16)
+        cache.cache_dir = Path(tmpdir) / "cache"
+        cache.cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        test_data = {
+            'resultsPerPage': 1,
+            'totalResults': 1,
+            'products': []
+        }
+        
+        # Find 4 CPEs that hash to different shards
+        cpes = []
+        shard_indices = []
+        vendor_num = 0
+        while len(cpes) < 4:
+            cpe = f'cpe:2.3:a:vendor{vendor_num}:product:*:*:*:*:*:*:*:*'
+            shard_idx = cache._get_shard_index(cpe)
+            if shard_idx not in shard_indices:
+                cpes.append(cpe)
+                shard_indices.append(shard_idx)
+            vendor_num += 1
+        
+        cpe_0, cpe_1, cpe_2, cpe_3 = cpes
+        shard_0_idx, shard_1_idx, shard_2_idx, shard_3_idx = shard_indices
+        
+        # Load 3 shards (max capacity)
+        cache.put(cpe_0, test_data)
+        time.sleep(0.01)  # Ensure different timestamps
+        cache.put(cpe_1, test_data)
+        time.sleep(0.01)
+        cache.put(cpe_2, test_data)
+        
+        # Access shard 1 and 2 to make them more recent than shard 0
+        time.sleep(0.01)
+        cache.get(cpe_1)
+        time.sleep(0.01)
+        cache.get(cpe_2)
+        
+        # Now shard 0 is least recently used
+        # Load a new shard - should evict shard 0 (LRU)
+        cache.put(cpe_3, test_data)
+        
+        # Shard 0 should be evicted (LRU), shards 1, 2, 3 should remain
+        assert shard_0_idx not in cache.loaded_shards, \
+            f"Shard {shard_0_idx} (LRU) should be evicted, but loaded={list(cache.loaded_shards.keys())}"
+        assert shard_1_idx in cache.loaded_shards or shard_2_idx in cache.loaded_shards, \
+            "Recently accessed shards should remain loaded"
+
+
 # Run tests
 print("="*80)
-print("CPE CACHE PROACTIVE EVICTION TEST SUITE")
+print("CPE CACHE LRU EVICTION TEST SUITE")
 print("="*80)
 print()
 
-test_proactive_eviction_limit()
-test_proactive_save_before_evict()
+test_lru_eviction_limit()
+test_lru_save_before_evict()
 test_memory_hard_limit()
 test_autosave_incremental()
-test_reload_evicted_shard()
-test_concurrent_shard_access()
+test_reload_lru_evicted_shard()
+test_concurrent_shard_access_lru()
+test_lru_evicts_least_recent()
 
 print()
 print("="*80)
 print(f"Results: {tests_passed}/{tests_run} tests passed")
 print("="*80)
 print()
-print(f"TEST_RESULTS: PASSED={tests_passed} TOTAL={tests_run} SUITE=\"CPE Cache Proactive Eviction\"")
+print(f"TEST_RESULTS: PASSED={tests_passed} TOTAL={tests_run} SUITE=\"CPE Cache LRU Eviction\"")
 
 sys.exit(0 if tests_passed == tests_run else 1)

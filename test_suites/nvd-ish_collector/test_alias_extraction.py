@@ -43,7 +43,18 @@ class AliasExtractionTestSuite:
     
     def __init__(self):
         self.passed = 0
-        self.total = 3  # Added test for isolated nvd-ish-only mode
+        self.total = 3  # Added test for isolated nv d-ish-only mode
+        
+        # Set up isolated test CPE cache directory to avoid loading production cache
+        self.test_cache_dir = CACHE_DIR / "temp_test_caches"
+        self.test_cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create empty CPE cache structure (tool will work without pre-populated CPE data)
+        (self.test_cache_dir / "cpe_base_strings").mkdir(parents=True, exist_ok=True)
+        
+        # Set environment variable so CPE cache uses test location
+        os.environ['TEST_CPE_CACHE_DIR'] = str(self.test_cache_dir)
+        print(f"Test CPE cache directory: {self.test_cache_dir}")
         
     def setup_test_environment(self):
         """Set up test environment by copying test files to INPUT cache locations."""
@@ -82,10 +93,100 @@ class AliasExtractionTestSuite:
             copied_files.append(str(nvd_target))
         
         print(f"  * Copied {len(copied_files)} test files to INPUT cache")
+        
+        # Inject CPE cache data for test CVE to prevent timeout when using --nvd-ish-only
+        # (which enables CPE determination and would otherwise try to query NVD API)
+        self._inject_cpe_cache_data()
+        
         return copied_files
     
+    def _inject_cpe_cache_data(self):
+        """Inject CPE cache entries for CVE-1337-0001 to simulate NVD API query results.
+        
+        This prevents API query timeouts when running with --nvd-ish-only flag which
+        enables CPE determination.
+        """
+        import datetime
+        import hashlib
+        
+        # Sharded cache configuration (use test cache directory)
+        cache_shards_dir = self.test_cache_dir / "cpe_base_strings"
+        cache_shards_dir.mkdir(parents=True, exist_ok=True)
+        num_shards = 16
+        
+        # Helper function to determine shard index (matches ShardedCPECache implementation)
+        def get_shard_index(cpe_string: str) -> int:
+            hash_digest = hashlib.md5(cpe_string.encode('utf-8')).hexdigest()
+            return int(hash_digest[:8], 16) % num_shards
+        
+        # Start with fresh shard data
+        import orjson
+        shard_data = {i: {} for i in range(num_shards)}
+        
+        # Test data for CVE-1337-0001 (microsoft products)
+        test_combinations = [
+            ("microsoft", "windows_10"),
+            ("microsoft", "edge"),
+            ("apache", "tomcat"),
+        ]
+        
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        injection_count = 0
+        
+        for vendor, product in test_combinations:
+            # Create mock CPE products for this vendor/product
+            products_list = [
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:1.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-001", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}},
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:2.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-002", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}}
+            ]
+            
+            # Create standard cache entry structure
+            cache_entry = {
+                "query_response": {
+                    "resultsPerPage": 2,
+                    "startIndex": 0,
+                    "totalResults": 2,
+                    "format": "NVD_CPE",
+                    "version": "2.0",
+                    "timestamp": timestamp,
+                    "products": products_list
+                },
+                "last_queried": timestamp,
+                "query_count": 1,
+                "total_results": 2
+            }
+            
+            # Inject all three search patterns the tool uses
+            # Pattern 1: Vendor-only
+            vendor_only_key = f"cpe:2.3:*:{vendor}:*:*:*:*:*:*:*:*:*"
+            shard_index = get_shard_index(vendor_only_key)
+            shard_data[shard_index][vendor_only_key] = cache_entry.copy()
+            injection_count += 1
+            
+            # Pattern 2: Product-only (with wildcard prefix)
+            product_only_key = f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:*:*"
+            shard_index = get_shard_index(product_only_key)
+            shard_data[shard_index][product_only_key] = cache_entry.copy()
+            injection_count += 1
+            
+            # Pattern 3: Vendor+product combined
+            vendor_product_key = f"cpe:2.3:a:{vendor}:{product}:*:*:*:*:*:*:*:*"
+            shard_index = get_shard_index(vendor_product_key)
+            shard_data[shard_index][vendor_product_key] = cache_entry.copy()
+            injection_count += 1
+        
+        # Save ALL shards (including empty ones) to prevent stale production data
+        for shard_index in range(num_shards):
+            shard_filename = f"cpe_cache_shard_{shard_index:02d}.json"
+            shard_path = cache_shards_dir / shard_filename
+            data = shard_data.get(shard_index, {})
+            with open(shard_path, 'wb') as f:
+                f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2))
+        
+        print(f"  * Injected {injection_count} CPE cache entries into {num_shards} clean shards")
+    
     def cleanup_test_environment(self, copied_files):
-        """Clean up test environment by removing copied test files."""
+        """Clean up test environment by removing copied test files and test cache."""
         print("Cleaning up alias extraction test environment...")
         
         for file_path in copied_files:
@@ -96,6 +197,19 @@ class AliasExtractionTestSuite:
                 print(f"  WARNING: Could not remove {file_path}: {e}")
         
         print(f"  * Cleaned up {len(copied_files)} test files")
+        
+        # Clean up test CPE cache directory
+        try:
+            if self.test_cache_dir.exists():
+                import shutil
+                shutil.rmtree(self.test_cache_dir)
+                print(f"  * Cleaned up test CPE cache directory")
+        except Exception as e:
+            print(f"  WARNING: Could not remove test cache directory: {e}")
+        
+        # Clean up environment variable
+        if 'TEST_CPE_CACHE_DIR' in os.environ:
+            del os.environ['TEST_CPE_CACHE_DIR']
     
     def run_analysis_tool(self, cve_id: str, additional_args: list = None, use_nvd_ish_only: bool = True) -> Tuple[bool, Optional[Path], str, str]:
         """Run the analysis tool and return success status, output path, stdout, stderr.
@@ -136,7 +250,8 @@ class AliasExtractionTestSuite:
                 cwd=PROJECT_ROOT,
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=120,  # Increased from 60s to match other NVD-ish collector integration tests
+                env=os.environ.copy()  # Pass environment variables including TEST_CPE_CACHE_DIR
             )
             
             success = result.returncode == 0 and output_path.exists()

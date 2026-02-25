@@ -50,7 +50,8 @@ GENERAL_PLACEHOLDER_VALUES = [
     'na', 'nil', 'tbd', 'to be determined', 'pending',
     'not specified', 'not determined', 'not known', 'not listed',
     'not provided', 'missing', 'empty', 'null', '-',
-    'see references', 'see advisory', 'check', 'noted', 'all'
+    'see references', 'see advisory', 'check', 'noted', 'all',
+    'all platforms', 'contact vendor', 'check with vendor'
 ]
 
 # Define placeholder values specific to version fields (version, lessThan, changes.at)

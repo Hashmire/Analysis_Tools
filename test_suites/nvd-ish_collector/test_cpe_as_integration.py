@@ -457,6 +457,50 @@ class TestPattern3_3_ExactVersions(unittest.TestCase):
                 cpe_match.get('criteria'),
                 f"cpe:2.3:a:acme:widget:{expected_version}:*:*:*:*:*:*:*"
             )
+    
+    def test_pattern_3_3_mixed_real_and_placeholder_versions(self):
+        """Pattern 3.3: Mixed real versions and placeholder versions (CVE-2014-9908 scenario)."""
+        affected_entry = {
+            "vendor": "google",
+            "product": "android",
+            "defaultStatus": None,
+            "versions": [
+                {"version": "4.4.4", "status": "affected"},
+                {"version": "5.0.2", "status": "affected"},
+                {"version": "5.1.1", "status": "affected"},
+                {"version": "n/a", "status": "affected"}
+            ]
+        }
+        
+        result = cpe_as_generator.generate_cpe_as(
+            affected_entry,
+            "cpe:2.3:o:google:android:*:*:*:*:*:*:*:*",
+            has_confirmed_mapping=True
+        )
+        
+        self.assertEqual(len(result), 4)
+        
+        # First three versions should have full CPE-AS generation
+        expected_versions = ["4.4.4", "5.0.2", "5.1.1"]
+        for idx, expected_version in enumerate(expected_versions):
+            cpe_match = result[idx]
+            self.assertEqual(cpe_match.get('versionsEntryIndex'), idx)
+            self.assertEqual(cpe_match.get('appliedPattern'), "exact.single")
+            self.assertTrue(cpe_match.get('vulnerable'))
+            self.assertEqual(
+                cpe_match.get('criteria'),
+                f"cpe:2.3:o:google:android:{expected_version}:*:*:*:*:*:*:*"
+            )
+            # Should NOT have concerns for real versions
+            self.assertIsNone(cpe_match.get('concerns'))
+        
+        # Fourth version (n/a) should be metadata-only with placeholder concern
+        placeholder_match = result[3]
+        self.assertEqual(placeholder_match.get('versionsEntryIndex'), 3)
+        self.assertEqual(placeholder_match.get('appliedPattern'), "exact.placeholderValue")
+        self.assertFalse(placeholder_match.get('vulnerable'))
+        self.assertIsNone(placeholder_match.get('criteria'))  # No criteria for placeholder
+        self.assertEqual(placeholder_match.get('concerns'), ["versionPlaceholder"])
 
 
 # ============================================================================
@@ -1244,6 +1288,14 @@ class CPEASIntegrationTestSuite:
         self.passed = 0
         self.total = 12  # 5 edge case tests + 5 full workflow tests + 2 concern validation tests
         
+        # Set up isolated test CPE cache directory to avoid loading production cache
+        self.test_cache_dir = CACHE_DIR / "temp_test_caches"
+        self.test_cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Set environment variable so CPE cache uses test location
+        os.environ['TEST_CPE_CACHE_DIR'] = str(self.test_cache_dir)
+        print(f"Test CPE cache directory: {self.test_cache_dir}")
+        
     def setup_test_environment(self) -> List[str]:
         """Set up test environment by copying test files to INPUT cache locations AND injecting CPE cache data."""
         print("Setting up CPE-AS integration test environment...")
@@ -1321,8 +1373,8 @@ class CPEASIntegrationTestSuite:
         import datetime
         import hashlib
         
-        # Sharded cache configuration
-        cache_shards_dir = CACHE_DIR / "cpe_base_strings"
+        # Sharded cache configuration (use test cache directory)
+        cache_shards_dir = self.test_cache_dir / "cpe_base_strings"
         cache_shards_dir.mkdir(parents=True, exist_ok=True)
         num_shards = 16
         
@@ -1331,17 +1383,14 @@ class CPEASIntegrationTestSuite:
             hash_digest = hashlib.md5(cpe_string.encode('utf-8')).hexdigest()
             return int(hash_digest[:8], 16) % num_shards
         
-        # Load all existing shards
+        # Load all existing shards using orjson (matches CPE cache implementation)
+        # TEST ISOLATION: Start with fresh shard data (don't load production shards)
+        # Loading production shards can cause timeouts with millions of entries
+        import orjson
         shard_data = {}
         for shard_index in range(num_shards):
-            shard_filename = f"cpe_cache_shard_{shard_index:02d}.json"
-            shard_path = cache_shards_dir / shard_filename
-            
-            if shard_path.exists():
-                with open(shard_path, 'r', encoding='utf-8') as f:
-                    shard_data[shard_index] = json.load(f)
-            else:
-                shard_data[shard_index] = {}
+            # Initialize fresh empty shards for test isolation
+            shard_data[shard_index] = {}
         
         # Test data: vendor/product combinations for each test CVE
         test_combinations = [
@@ -1409,17 +1458,19 @@ class CPEASIntegrationTestSuite:
             shard_data[shard_index][vendor_product_key] = cache_entry.copy()
             injection_count += 1
         
-        # Save all modified shards
-        for shard_index, data in shard_data.items():
+        # Save ALL shards (including empty ones) to prevent stale production data
+        import orjson
+        for shard_index in range(num_shards):
             shard_filename = f"cpe_cache_shard_{shard_index:02d}.json"
             shard_path = cache_shards_dir / shard_filename
-            with open(shard_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2)
+            data = shard_data.get(shard_index, {})
+            with open(shard_path, 'wb') as f:
+                f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2))
         
-        print(f"  * Injected {injection_count} CPE cache entries across {num_shards} shards")  # Should be 36 (12 products × 3 patterns)
+        print(f"  * Injected {injection_count} CPE cache entries into {num_shards} clean shards")  # Should be 36 (12 products × 3 patterns)
     
     def cleanup_test_environment(self, copied_files: List[str]):
-        """Clean up test environment by removing copied test files."""
+        """Clean up test environment by removing copied test files and test cache."""
         print("Cleaning up CPE-AS integration test environment...")
         
         for file_path in copied_files:
@@ -1430,6 +1481,19 @@ class CPEASIntegrationTestSuite:
                 print(f"  WARNING: Could not remove {file_path}: {e}")
         
         print(f"  * Cleaned up {len(copied_files)} test files")
+        
+        # Clean up test CPE cache directory
+        try:
+            if self.test_cache_dir.exists():
+                import shutil
+                shutil.rmtree(self.test_cache_dir)
+                print(f"  * Cleaned up test CPE cache directory")
+        except Exception as e:
+            print(f"  WARNING: Could not remove test cache directory: {e}")
+        
+        # Clean up environment variable
+        if 'TEST_CPE_CACHE_DIR' in os.environ:
+            del os.environ['TEST_CPE_CACHE_DIR']
     
     def run_analysis_tool(self, cve_id: str) -> Tuple[bool, Optional[Path], str, str]:
         """Run the analysis tool and return success status, output path, stdout, stderr."""
@@ -1458,7 +1522,8 @@ class CPEASIntegrationTestSuite:
                 cwd=PROJECT_ROOT,
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=60,
+                env=os.environ.copy()  # Pass environment variables including TEST_CPE_CACHE_DIR
             )
             
             success = result.returncode == 0 and output_path.exists()
