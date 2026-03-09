@@ -35,6 +35,10 @@ def validate_against_schema(
     """
     Validate data against JSON schema.
     
+    Uses locally cached external $ref schemas (e.g., CVSS) first. 
+    If external schemas failed to download, unresolved $ref will 
+    raise ValidationError, surfacing as a schema validation concern.
+    
     Args:
         data: Parsed API response data
         schema: JSON schema (None = skip validation)
@@ -47,7 +51,19 @@ def validate_against_schema(
         return
     
     try:
-        jsonschema.validate(instance=data, schema=schema)
+        # Import here to get access to get_schema_ref_resolver
+        from .gatherData import get_schema_ref_resolver
+        
+        # Get custom resolver for external refs (uses local cache)
+        resolver = get_schema_ref_resolver(schema)
+        
+        # Validate with or without resolver depending on availability
+        if resolver:
+            validator = jsonschema.Draft7Validator(schema, resolver=resolver)
+            validator.validate(data)
+        else:
+            jsonschema.validate(instance=data, schema=schema)
+            
     except jsonschema.ValidationError as e:
         error_path = ' -> '.join(str(p) for p in e.path) if e.path else 'root'
         error_msg = f"Schema validation failed at {error_path}: {e.message} - {context}"

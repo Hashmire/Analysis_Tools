@@ -1439,21 +1439,17 @@ class CPEASIntegrationTestSuite:
                 "total_results": 3
             }
             
-            # Inject all three search patterns the tool uses
-            # Pattern 1: Vendor-only
-            vendor_only_key = f"cpe:2.3:*:{vendor}:*:*:*:*:*:*:*:*:*"
-            shard_index = get_shard_index(vendor_only_key)
-            shard_data[shard_index][vendor_only_key] = cache_entry.copy()
-            injection_count += 1
+            # Inject CPE search patterns that match tool's actual query construction
+            # (see processData.py constructSearchString() - product gets wrapped with wildcards)
             
-            # Pattern 2: Product-only (with wildcard prefix)
+            # Pattern 1: Product-only (with wildcard prefix AND suffix - tool adds both)
             product_only_key = f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:*:*"
             shard_index = get_shard_index(product_only_key)
             shard_data[shard_index][product_only_key] = cache_entry.copy()
             injection_count += 1
             
-            # Pattern 3: Vendor+product combined
-            vendor_product_key = f"cpe:2.3:a:{vendor}:{product}:*:*:*:*:*:*:*:*"
+            # Pattern 2: Vendor + wildcarded product (matches actual search pattern)
+            vendor_product_key = f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:*:*:*"
             shard_index = get_shard_index(vendor_product_key)
             shard_data[shard_index][vendor_product_key] = cache_entry.copy()
             injection_count += 1
@@ -1467,7 +1463,7 @@ class CPEASIntegrationTestSuite:
             with open(shard_path, 'wb') as f:
                 f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2))
         
-        print(f"  * Injected {injection_count} CPE cache entries into {num_shards} clean shards")  # Should be 36 (12 products × 3 patterns)
+        print(f"  * Injected {injection_count} CPE cache entries into {num_shards} clean shards")  # Should be 24 (12 products × 2 patterns)
     
     def cleanup_test_environment(self, copied_files: List[str]):
         """Clean up test environment by removing copied test files and test cache."""

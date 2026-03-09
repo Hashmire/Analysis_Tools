@@ -29,7 +29,7 @@ def run_test_and_get_report():
         # Run the tool using the standard command line interface
         cmd = [sys.executable, "-m", "src.analysis_tool.core.analysis_tool", "--test-file", TEST_FILE, "--no-cache", "--sdc-report", "true"]
         
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent.parent)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent.parent, env=os.environ.copy())
         
         if result.returncode != 0:
             print(f"[FAIL] Tool execution failed with return code {result.returncode}")

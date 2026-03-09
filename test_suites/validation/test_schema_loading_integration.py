@@ -189,10 +189,13 @@ def test_schema_metadata_tracking():
     
     # Verify values are correct
     assert schema_meta['filename'] == 'nvd_cves_2_0_schema.json', "Filename should match"
-    assert 'NVD CVE 2.0 API schema' in schema_meta['description'], "Description should be correct"
+    assert 'CVE 2.0 API' in schema_meta['description'], "Description should reference CVE 2.0 API"
+    assert 'source' in schema_meta, "Schema metadata should include source attribution"
+    assert 'source_dir' in schema_meta, "Schema metadata should include source directory"
     
     print(f"    ✓ Schema metadata properly tracked: {schema_meta['filename']}")
     print(f"    ✓ Description: {schema_meta['description']}")
+    print(f"    ✓ Source: {schema_meta['source']} ({schema_meta['source_dir']})")
 
 
 # ============================================================================

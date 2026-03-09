@@ -7,7 +7,7 @@ import json
 import threading
 from time import sleep, time
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict, Any
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -230,6 +230,124 @@ TOOLNAME = config['application']['toolname']
 # In-memory schema cache to avoid repeated downloads
 _schema_cache = {}
 
+# Mapping of external ref URLs to local cached filenames
+_external_schema_cache = {}
+
+# Cache of RefResolver instances keyed by schema identity (avoids recreating RefResolvers)
+_resolver_cache = {}
+
+
+def _extract_external_refs(schema: dict, base_url_pattern: str = "https://csrc.nist.gov/schema/") -> set:
+    """
+    Recursively extract external HTTP/HTTPS $ref URLs from a JSON schema.
+    
+    Args:
+        schema: JSON schema dictionary
+        base_url_pattern: URL pattern to identify external refs (default: NIST schemas)
+    
+    Returns:
+        Set of external $ref URLs found in the schema
+    """
+    external_refs = set()
+    
+    def scan_value(value):
+        if isinstance(value, dict):
+            # Check if this dict contains a $ref
+            if '$ref' in value:
+                ref_url = value['$ref']
+                # Check if it's an external HTTP/HTTPS URL (not internal #/definitions/...)
+                if isinstance(ref_url, str) and ref_url.startswith(('http://', 'https://')):
+                    if base_url_pattern in ref_url:
+                        external_refs.add(ref_url)
+            # Recurse into all values
+            for v in value.values():
+                scan_value(v)
+        elif isinstance(value, list):
+            for item in value:
+                scan_value(item)
+    
+    scan_value(schema)
+    return external_refs
+
+
+def _download_external_schema(url: str, schema_dir: Path) -> Optional[Path]:
+    """
+    Download an external FIRST CVSS schema with proper User-Agent header and cache locally.
+    
+    NVD blocks requests without browser-like User-Agent headers, so we need to
+    set appropriate headers to successfully download external CVSS schemas.
+    
+    Implements retry logic to handle intermittent network issues and rate limiting.
+    
+    Schemas are saved to cache/schemas/first_cvss/ subdirectory (FIRST CVSS schemas).
+    
+    NOTE: Download failures return None and log warnings (not exceptions).
+    This allows main schema caching to proceed. Missing external schemas will surface
+    during actual validation as NVDSchemaValidationError, providing schema validation
+    warnings without preventing data caching (unless critical sections are affected).
+    
+    Args:
+        url: External CVSS schema URL to download (from csrc.nist.gov/schema/nvd/api/2.0/external/)
+        schema_dir: Base schema directory (cache/schemas/)
+    
+    Returns:
+        Path to cached schema file, or None if download failed
+    """
+    try:
+        # Extract filename from URL (e.g., cvss-v3.1.json)
+        url_filename = url.split('/')[-1]
+        
+        # Save FIRST CVSS schemas to first_cvss/ subdirectory (no external_ prefix)
+        first_cvss_dir = schema_dir / "first_cvss"
+        first_cvss_dir.mkdir(parents=True, exist_ok=True)
+        cache_path = first_cvss_dir / url_filename
+        
+        # Check if already cached
+        if cache_path.exists():
+            logger.debug(f"FIRST CVSS schema already cached: first_cvss/{url_filename}", group="CACHE_MANAGEMENT")
+            return cache_path
+        
+        # Download with browser-like User-Agent to avoid NVD blocking
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+        
+        # Retry logic for intermittent failures (NVD rate limiting)
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.debug(f"Downloading external schema: {url} (attempt {attempt}/{max_retries})", group="CACHE_MANAGEMENT")
+                response = requests.get(url, headers=headers, timeout=15)
+                response.raise_for_status()
+                
+                # Validate it's valid JSON
+                schema_data = response.json()
+                
+                # Save to cache
+                cache_path.write_text(json.dumps(schema_data, indent=2), encoding='utf-8')
+                logger.debug(f"FIRST CVSS schema cached: first_cvss/{url_filename}", group="CACHE_MANAGEMENT")
+                
+                # Store mapping for RefResolver
+                _external_schema_cache[url] = cache_path
+                
+                return cache_path
+            except (requests.RequestException, ConnectionResetError) as e:
+                if attempt < max_retries:
+                    # Wait before retry (exponential backoff)
+                    wait_time = 2 ** (attempt - 1)
+                    logger.debug(f"Retry {attempt}/{max_retries} in {wait_time}s after error: {e}", group="CACHE_MANAGEMENT")
+                    sleep(wait_time)
+                else:
+                    raise  # Re-raise on final attempt
+        
+    except Exception as e:
+        logger.warning(
+            f"Failed to download external schema from {url}: {e}",
+            group="CACHE_MANAGEMENT"
+        )
+        return None
+
+
 def load_schema(schema_name: str) -> dict:
     """
     Load JSON schema from URL specified in config.json.
@@ -268,14 +386,29 @@ def load_schema(schema_name: str) -> dict:
     
     schema_url = config['api']['schemas'][schema_name]
     project_root = get_analysis_tools_root()
-    schema_dir = project_root / "cache" / "schemas"
+    base_schema_dir = project_root / "cache" / "schemas"
+    
+    # Determine schema source and subdirectory
+    # NVD Project schemas
+    if schema_name.startswith('nvd_'):
+        schema_source_dir = base_schema_dir / "nvd_project"
+        schema_source = "nvd_project"
+    # CVE Program schemas
+    elif schema_name.startswith('cve_'):
+        schema_source_dir = base_schema_dir / "cve_program"
+        schema_source = "cve_program"
+    # Analysis Tool schemas (our own)
+    else:
+        schema_source_dir = base_schema_dir / "analysis_tool"
+        schema_source = "analysis_tool"
     
     # Determine if this is a CVE schema (requires version validation)
     is_cve_schema = schema_name.startswith('cve_cve_')
     
     # Generate expected filename from config key
     schema_filename = f"{schema_name}_schema.json"
-    schema_path = schema_dir / schema_filename
+    schema_source_dir.mkdir(parents=True, exist_ok=True)
+    schema_path = schema_source_dir / schema_filename
     
     # Check disk cache before downloading
     if schema_path.exists():
@@ -285,7 +418,16 @@ def load_schema(schema_name: str) -> dict:
             logger.debug(f"Schema loaded from disk cache: {schema_filename}", group="CACHE_MANAGEMENT")
             
             # Update schema metadata (ensures cache_metadata.json stays current)
-            _update_schema_metadata(schema_name, schema_filename)
+            _update_schema_metadata(schema_name, schema_filename, schema_source)
+            
+            # Download and cache any external $ref schemas if not already cached
+            # NOTE: External schema download failures are logged but don't prevent main schema use.
+            external_refs = _extract_external_refs(schema_data)
+            if external_refs:
+                for ref_url in external_refs:
+                    cached_path = _download_external_schema(ref_url, base_schema_dir)
+                    if cached_path:
+                        _external_schema_cache[ref_url] = cached_path
             
             return schema_data
         except (json.JSONDecodeError, OSError) as e:
@@ -340,18 +482,31 @@ def load_schema(schema_name: str) -> dict:
         
         # Save to disk cache
         try:
-            schema_dir.mkdir(parents=True, exist_ok=True)
+            schema_source_dir.mkdir(parents=True, exist_ok=True)
             schema_path.write_text(json.dumps(schema_data, indent=2), encoding='utf-8')
-            logger.debug(f"Schema saved to disk cache: {schema_filename}", group="CACHE_MANAGEMENT")
+            logger.debug(f"Schema saved to disk cache: {schema_source}/{schema_filename}", group="CACHE_MANAGEMENT")
             
             # Update schema metadata in cache_metadata.json
-            _update_schema_metadata(schema_name, schema_filename)
+            _update_schema_metadata(schema_name, schema_filename, schema_source)
         except OSError as e:
-            logger.warning(f"Failed to save schema to disk ({schema_filename}): {e}", group="CACHE_MANAGEMENT")
+            logger.warning(f"Failed to save schema to disk ({schema_source}/{schema_filename}): {e}", group="CACHE_MANAGEMENT")
         
         # Cache in memory
         _schema_cache[schema_name] = schema_data
         logger.debug(f"Schema cached in memory: {schema_name}", group="CACHE_MANAGEMENT")
+        
+        # Download and cache external $ref schemas (e.g., CVSS schemas)
+        # NOTE: External schema download failures are logged but don't prevent main schema caching.
+        external_refs = _extract_external_refs(schema_data)
+        if external_refs:
+            logger.debug(
+                f"Found {len(external_refs)} external schema references in {schema_name}",
+                group="CACHE_MANAGEMENT"
+            )
+            for ref_url in external_refs:
+                cached_path = _download_external_schema(ref_url, base_schema_dir)
+                if cached_path:
+                    _external_schema_cache[ref_url] = cached_path
         
         return schema_data
         
@@ -365,18 +520,79 @@ def load_schema(schema_name: str) -> dict:
         raise
 
 
-def _update_schema_metadata(schema_name: str, schema_filename: str):
+def get_schema_ref_resolver(schema: dict) -> Optional[Any]:
+    """
+    Get or create a cached RefResolver for external schema references.
+    
+    This prevents jsonschema from attempting to fetch external URLs (which may be
+    blocked by NIST's User-Agent filtering) and instead uses pre-downloaded cached schemas.
+    
+    Args:
+        schema: The root schema dictionary
+    
+    Returns:
+        Cached RefResolver instance, or None if no external refs available
+    """
+    if not _external_schema_cache:
+        return None
+    
+    # Use schema object identity as cache key (same schema dict = same RefResolver)
+    schema_id = id(schema)
+    
+    # Return cached RefResolver if available
+    if schema_id in _resolver_cache:
+        return _resolver_cache[schema_id]
+    
+    try:
+        # Build store mapping URLs to cached schema data (only done once per schema)
+        store = {}
+        for url, cache_path in _external_schema_cache.items():
+            try:
+                with open(cache_path, 'r', encoding='utf-8') as f:
+                    store[url] = json.load(f)
+                logger.debug(f"Loaded external schema for resolver: {url}", group="CACHE_MANAGEMENT")
+            except Exception as e:
+                logger.warning(
+                    f"Failed to load cached external schema {cache_path}: {e}",
+                    group="CACHE_MANAGEMENT"
+                )
+        
+        if not store:
+            return None
+        
+        # Create RefResolver with custom store
+        # Note: RefResolver is deprecated in jsonschema 4.18+ but still functional
+        # Future enhancement: migrate to referencing library when needed
+        import jsonschema
+        resolver = jsonschema.RefResolver.from_schema(schema, store=store)
+        logger.debug(
+            f"Created RefResolver with {len(store)} external schema mappings",
+            group="CACHE_MANAGEMENT"
+        )
+        
+        # Cache for future use
+        _resolver_cache[schema_id] = resolver
+        
+        return resolver
+        
+    except Exception as e:
+        logger.warning(f"Failed to create RefResolver: {e}", group="CACHE_MANAGEMENT")
+        return None
+
+
+def _update_schema_metadata(schema_name: str, schema_filename: str, schema_source: str):
     """
     Update schema file metadata in unified cache_metadata.json.
     
-    Tracks schema files downloaded and cached locally, including descriptions
-    and last modification times for monitoring purposes.
+    Tracks schema files downloaded and cached locally, including descriptions,
+    source attribution, and last modification times for monitoring purposes.
     
     CRITICAL: Uses orjson for compatibility with CPE cache which also writes to this file.
     
     Args:
         schema_name: Schema identifier (e.g., 'cve_cve_5_2', 'nvd_cpes_2_0')
         schema_filename: Schema filename (e.g., 'cve_cve_5_2_schema.json')
+        schema_source: Schema source subdirectory (e.g., 'nvd', 'cve_program', 'analysis_tool', 'first')
     """
     try:
         from datetime import datetime, timezone
@@ -384,7 +600,7 @@ def _update_schema_metadata(schema_name: str, schema_filename: str):
         import orjson
         
         project_root = Path(__file__).parent.parent.parent.parent
-        schema_path = project_root / "cache" / "schemas" / schema_filename
+        schema_path = project_root / "cache" / "schemas" / schema_source / schema_filename
         metadata_file = project_root / "cache" / "cache_metadata.json"
         
         # Schema file must exist
@@ -397,10 +613,18 @@ def _update_schema_metadata(schema_name: str, schema_filename: str):
         
         # Schema descriptions
         schema_descriptions = {
-            'cve_cve_5_2': 'CVE List V5.2 schema',
-            'nvd_cpes_2_0': 'NVD CPE 2.0 API schema',
-            'nvd_cves_2_0': 'NVD CVE 2.0 API schema',
-            'nvd_source_2_0': 'NVD Source 2.0 API schema'
+            'cve_cve_5_2': 'CVE Program - CVE List V5.2 Record Format Schema',
+            'nvd_cpes_2_0': 'NVD Project - CPE 2.0 API Response Schema',
+            'nvd_cves_2_0': 'NVD Project - CVE 2.0 API Response Schema',
+            'nvd_source_2_0': 'NVD Project - Source 2.0 API Response Schema'
+        }
+        
+        # Source descriptions
+        source_descriptions = {
+            'nvd_project': 'NVD Project (NIST)',
+            'cve_program': 'CVE Program (cve.org)',
+            'first_cvss': 'FIRST CVSS Schemas',
+            'analysis_tool': 'Analysis Tool (local)'
         }
         
         # Load existing metadata using orjson (same as CPE cache)
@@ -417,10 +641,12 @@ def _update_schema_metadata(schema_name: str, schema_filename: str):
         if 'datasets' not in metadata:
             metadata['datasets'] = {}
         
-        # Update schema metadata
+        # Update schema metadata with source attribution
         metadata['datasets'][schema_name] = {
             'description': schema_descriptions.get(schema_name, f'Schema file: {schema_filename}'),
             'filename': schema_filename,
+            'source': source_descriptions.get(schema_source, schema_source),
+            'source_dir': schema_source,
             'last_updated': file_mtime.isoformat()
         }
         

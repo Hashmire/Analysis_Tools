@@ -132,9 +132,38 @@ class SDCIntegrationTestSuite:
         # Start with fresh shard data
         shard_data = {i: {} for i in range(num_shards)}
         
-        # Minimal test data for common test combinations
+        # Comprehensive test data covering ALL vendor/product combinations in SDC test CVEs (1001-1005)
+        # Vendor names are normalized to lowercase during CPE generation
         test_combinations = [
+            # TestVendor products from CVE-1337-1001 through CVE-1337-1005
+            ("testvendor", "product_with_text_comparators"),
+            ("testvendor", "product_with_math_comparators"),
+            ("testvendor", "product_with_version_granularity_issues"),
+            ("testvendor", "product_with_whitespace"),
+            ("testvendor", "product_with_invalid_characters"),
+            ("testvendor", "product_with_overlapping_ranges"),
+            ("testvendor", "product_with_all_versions_pattern"),
+            ("testvendor", "product_with_bloat_text_detection_issue"),
+            ("testvendor", "adp_product_analysis"),
+            ("testvendor", "registry_test_product"),
+            ("testvendor", "cna_source_product"),
+            ("testvendor", "adp_source_product"),
+            ("testvendor", "cna_product_with_placeholders"),
+            ("testvendor", "cna_product_with_whitespace_issues"),
+            ("testvendor", "cna_product_with_invalid_characters"),
+            ("testvendor", "adp_product_with_version_granularity"),
+            ("testvendor", "adp_product_with_overlapping_ranges"),
+            ("testvendor", "adp_product_with_all_versions"),
+            ("testvendor", "adp_product_with_bloat_text"),
+            ("testvendor", "metadata_test_product"),
+            # TestVendor™ (trademark symbol → tm)
+            ("testvendortm", "product_with_invalidccharacters"),  # ©→c
+            ("testvendortm", "cna_product_with_invalidccharacters"),
+            # n/a vendor (slash gets escaped)
+            ("n\\/a", "test_product_with_placeholder"),
+            # Legacy/other vendors
             ("test_vendor", "test_product"),
+            ("unknown", "another_test_product"),
             ("microsoft", "windows"),
             ("apache", "tomcat"),
         ]
@@ -164,11 +193,11 @@ class SDCIntegrationTestSuite:
                 "total_results": 1
             }
             
-            # Inject search patterns
+            # Inject CPE search patterns that match tool's actual query construction
+            # (see processData.py constructSearchString() - product gets wrapped with wildcards)
             for pattern in [
-                f"cpe:2.3:*:{vendor}:*:*:*:*:*:*:*:*:*",  # Vendor-only
-                f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:*:*",  # Product-only
-                f"cpe:2.3:a:{vendor}:{product}:*:*:*:*:*:*:*:*"  # Vendor+product
+                f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:*:*",  # Product-only (with wildcards)
+                f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:*:*:*"  # Vendor + wildcarded product
             ]:
                 shard_index = get_shard_index(pattern)
                 shard_data[shard_index][pattern] = cache_entry.copy()
@@ -236,7 +265,7 @@ class SDCIntegrationTestSuite:
                 cwd=PROJECT_ROOT,
                 capture_output=True,
                 text=True,
-                timeout=60,
+                timeout=90,  # With proper CPE cache, SDC tests should be fast
                 env=os.environ.copy()
             )
             

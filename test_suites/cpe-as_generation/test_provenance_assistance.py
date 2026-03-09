@@ -63,6 +63,7 @@ class ProvenanceAssistanceTestSuite:
                 text=True,
                 encoding='utf-8',
                 errors='replace',
+                env=os.environ.copy(),
                 timeout=60
             )
             

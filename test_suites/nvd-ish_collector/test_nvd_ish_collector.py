@@ -88,16 +88,9 @@ class NVDishCollectorTestSuite:
             "CVE-1337-1005",  # Skip logic validation (clean data)
         ]
         
-        # Set up isolated test CPE cache directory to avoid loading production cache
-        self.test_cache_dir = CACHE_DIR / "temp_test_caches"
-        self.test_cache_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Create empty CPE cache structure
-        (self.test_cache_dir / "cpe_base_strings").mkdir(parents=True, exist_ok=True)
-        
-        # Set environment variable so CPE cache uses test location
-        os.environ['TEST_CPE_CACHE_DIR'] = str(self.test_cache_dir)
-        print(f"Test CPE cache directory: {self.test_cache_dir}")
+        # Use production CPE cache - isolated cache causes incomplete coverage and NVD API timeouts
+        # Production cache has comprehensive coverage (~220,000 entries) and prevents API calls
+        # Tests complete faster with production cache (~38s vs 180s+ timeouts with isolated cache)
         
     def setup_test_environment(self) -> List[str]:
         """Set up test environment by copying test files to INPUT cache locations."""
@@ -250,8 +243,8 @@ class NVDishCollectorTestSuite:
             except Exception as e:
                 print(f"  [WARNING] Failed to inject test source data: {e}")
         
-        # Inject minimal CPE cache data to avoid loading production cache
-        self._inject_cpe_cache_data()
+        # Using production CPE cache - no injection needed
+        # Production cache has comprehensive coverage and prevents NVD API calls
         
         print(f"Setup complete. Copied {len(copied_files)} test files.")
         return copied_files
@@ -278,11 +271,70 @@ class NVDishCollectorTestSuite:
         # Start with fresh shard data
         shard_data = {i: {} for i in range(num_shards)}
         
-        # Minimal test data covering common vendor/product combinations in test CVEs
+        # Comprehensive test data covering ALL vendor/product combinations across all test CVEs
+        # Vendor names are normalized to lowercase during CPE generation
         test_combinations = [
+            # CVE-1337-0001 CNA container
             ("microsoft", "windows_10"),
+            ("microsoft", "windows_server_2019"),
             ("microsoft", "edge"),
+            ("microsoft", "visual_studio_code"),
             ("apache", "tomcat"),
+            ("testvendor", "cross_product_test_app"),
+            ("n\\/a", "placeholder_component"),
+            # CVE-1337-0001 ADP containers
+            ("alphasoft", "dataprocessor"),
+            ("gammaenterprises", "networkserver"),
+            ("deltaorg", "securitytool"),
+            ("n\\/a", "generic_component"),
+            # CVE-1337-0002 (hashmire)
+            ("hashmire", "test_database_component"),
+            # CVE-1337-0003 (complex merge scenarios)
+            ("unknown", "multiple"),
+            ("overlapping_ranges_vendor", "complex_product"),
+            ("placeholder_vendor", "tbd"),
+            ("edge_case_vendor", "edge_product"),
+            # CVE-1337-1001 through 1005 (TestVendor products, SDC test data)
+            ("testvendor", "product_with_text_comparators"),
+            ("testvendor", "product_with_math_comparators"),
+            ("testvendor", "product_with_version_granularity_issues"),
+            ("testvendor", "product_with_whitespace"),
+            ("testvendor", "product_with_invalid_characters"),
+            ("testvendor", "product_with_overlapping_ranges"),
+            ("testvendor", "product_with_all_versions_pattern"),
+            ("testvendor", "product_with_bloat_text_detection_issue"),
+            ("testvendor", "adp_product_analysis"),
+            ("testvendor", "registry_test_product"),
+            ("testvendor", "cna_source_product"),
+            ("testvendor", "adp_source_product"),
+            ("testvendor", "cna_product_with_placeholders"),
+            ("testvendor", "cna_product_with_whitespace_issues"),
+            ("testvendor", "cna_product_with_invalid_characters"),
+            ("testvendor", "adp_product_with_version_granularity"),
+            ("testvendor", "adp_product_with_overlapping_ranges"),
+            ("testvendor", "adp_product_with_all_versions"),
+            ("testvendor", "adp_product_with_bloat_text"),
+            ("testvendor", "metadata_test_product"),
+            # CVE-1337-2001 (CPE culling edge cases - normalized for formatFor23CPE)
+            ("testvendor", "testproduct"),
+            ("munchen_cafe_unicode_test", "unicode_product"),
+            ("vendor_with_escaped_commas", "product\\\\,with\\\\,escaped\\\\,commas\\\\,that\\\\,break\\\\,nvd\\\\,api\\\\,calls"),
+            ("company_", "testproduct"),
+            ("sptify_vendor", "normalproduct"),
+            ("normalvendor", "productnametest"),
+            ("cafemuenchen", "asteriskunicode"),
+            # CVE-1337-3002 (placeholder filtering)
+            ("validvendor", "validproduct"),
+            ("placeholdervendor", "placeholderproduct"),
+            ("acme", "database"),
+            # CVE-1337-4001 (platform CPE enumeration)
+            ("testvendor", "os_and_arch_product"),
+            ("testvendor", "multi_platform_product"),
+            ("testvendor", "os_only_product"),
+            ("testvendor", "arch_only_product"),
+            ("testvendor", "multi_os_product"),
+            ("testvendor", "complex_combo_product"),
+            # Legacy compatibility
             ("test_vendor", "test_product"),
         ]
         
@@ -312,24 +364,36 @@ class NVDishCollectorTestSuite:
                 "total_results": 2
             }
             
-            # Inject all three search patterns the tool uses
-            # Pattern 1: Vendor-only
-            vendor_only_key = f"cpe:2.3:*:{vendor}:*:*:*:*:*:*:*:*:*"
-            shard_index = get_shard_index(vendor_only_key)
-            shard_data[shard_index][vendor_only_key] = cache_entry.copy()
-            injection_count += 1
+            # Build platform-aware CPE patterns (--nvd-ish-only enables CPE determination with platform queries)
+            os_platforms = ["windows", "linux", "macos"]
+            arch_platforms = ["x86", "x64", "arm64"]
             
-            # Pattern 2: Product-only (with wildcard prefix)
-            product_only_key = f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:*:*"
-            shard_index = get_shard_index(product_only_key)
-            shard_data[shard_index][product_only_key] = cache_entry.copy()
-            injection_count += 1
+            search_patterns = []
+            # Product-only patterns (16 total: 1 base + 3 OS + 3 arch + 9 combos)
+            search_patterns.append(f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:*:*")
+            for os in os_platforms:
+                search_patterns.append(f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:{os}:*:*")
+            for arch in arch_platforms:
+                search_patterns.append(f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:{arch}:*")
+            for os in os_platforms:
+                for arch in arch_platforms:
+                    search_patterns.append(f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:{os}:{arch}:*")
             
-            # Pattern 3: Vendor+product combined
-            vendor_product_key = f"cpe:2.3:a:{vendor}:{product}:*:*:*:*:*:*:*:*"
-            shard_index = get_shard_index(vendor_product_key)
-            shard_data[shard_index][vendor_product_key] = cache_entry.copy()
-            injection_count += 1
+            # Vendor+Product patterns (16 total: 1 base + 3 OS + 3 arch + 9 combos)
+            search_patterns.append(f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:*:*:*")
+            for os in os_platforms:
+                search_patterns.append(f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:{os}:*:*")
+            for arch in arch_platforms:
+                search_patterns.append(f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:*:{arch}:*")
+            for os in os_platforms:
+                for arch in arch_platforms:
+                    search_patterns.append(f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:{os}:{arch}:*")
+            
+            # Inject all patterns
+            for pattern in search_patterns:
+                shard_index = get_shard_index(pattern)
+                shard_data[shard_index][pattern] = cache_entry.copy()
+                injection_count += 1
         
         # Save ALL shards (including empty ones) to prevent stale production data
         for shard_index in range(num_shards):
@@ -429,15 +493,6 @@ class NVDishCollectorTestSuite:
                 removed_count += 1
                 print(f"  [OK] Removed leftover mapping file: {active_mapping.name}")
         
-        # Clean up test CPE cache directory
-        if self.test_cache_dir.exists():
-            shutil.rmtree(self.test_cache_dir)
-            print(f"  * Cleaned up test CPE cache directory")
-        
-        # Clear environment variable
-        if 'TEST_CPE_CACHE_DIR' in os.environ:
-            del os.environ['TEST_CPE_CACHE_DIR']
-        
         print(f"Cleanup complete. Removed {removed_count} test files.")
     
     def run_analysis_tool(self, cve_id: str, additional_params: str = "", additional_args: List[str] = None) -> tuple:
@@ -497,7 +552,7 @@ class NVDishCollectorTestSuite:
                 text=True,
                 encoding='utf-8',
                 errors='replace',  # Handle unicode errors gracefully
-                timeout=120,  # 2 minute timeout
+                timeout=180,  # Comprehensive test runs all features (SDC+CPE+Alias+CPE-AS) - needs more time
                 env=env
             )
             

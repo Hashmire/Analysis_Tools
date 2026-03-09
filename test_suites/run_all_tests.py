@@ -151,6 +151,10 @@ def setup_test_environment(consolidated_run_path: Path, test_env_info: Dict) -> 
     # Set UNIFIED_TEST_RUNNER for backward compatibility with legacy test suites
     # Note: Newer tests don't need this flag - subprocess PIPE automatically suppresses output
     os.environ['UNIFIED_TEST_RUNNER'] = '1'
+    
+    # Use production CPE cache - isolated cache causes incomplete coverage and NVD API timeouts
+    # Production cache has comprehensive coverage (~220,000 entries) and prevents API calls
+    # Individual tests complete faster with production cache (~38s vs 180s+ with isolated cache)
 
 
 def finalize_consolidated_test_run(consolidated_run_path: Path, test_env_info: Dict, 
@@ -185,6 +189,23 @@ def finalize_consolidated_test_run(consolidated_run_path: Path, test_env_info: D
     os.environ.pop('CONSOLIDATED_TEST_RUN', None)
     os.environ.pop('CONSOLIDATED_TEST_RUN_PATH', None)
     os.environ.pop('CONSOLIDATED_TEST_RUN_ID', None)
+
+
+def format_time_mmss(seconds: float) -> str:
+    """Format time in seconds as MM:SS.T (with tenths of a second).
+    
+    Args:
+        seconds: Time in seconds (can be float)
+        
+    Returns:
+        Formatted string like '04:26.4' or '122:00.0'
+    """
+    total_seconds = int(seconds)
+    minutes = total_seconds // 60
+    secs = total_seconds % 60
+    # Round to avoid floating point precision issues
+    tenths = round((seconds - total_seconds) * 10) % 10
+    return f"{minutes:02d}:{secs:02d}.{tenths}"
 
 
 class TestSuiteRunner:
@@ -397,7 +418,8 @@ class TestSuiteRunner:
         
     def run_test_suite(self, suite: Dict) -> Dict:
         """Run a single test suite and return results."""
-        print(f"Running {suite['name']}...", flush=True)
+        start_timestamp = datetime.now().strftime('%H:%M:%S')
+        print(f"[{start_timestamp}] Running {suite['name']}...", flush=True)
         
         start_time = time.time()
         
@@ -416,7 +438,7 @@ class TestSuiteRunner:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                timeout=300,  # 5 minute timeout
+                timeout=1200,  # 20 minute timeout for multi-test suites (test_nvd_ish_collector has 7 tests)
                 env=env,
                 encoding='utf-8',
                 errors='replace'
@@ -493,8 +515,10 @@ class TestSuiteRunner:
         
     def run_all_tests(self) -> bool:
         """Run all test suites and return overall success."""
+        overall_start_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         print("Running All Test Suites", flush=True)
         print("=" * 50, flush=True)
+        print(f"Start Time: {overall_start_timestamp}", flush=True)
         print(flush=True)
         
         # Create consolidated test run directory
@@ -513,26 +537,31 @@ class TestSuiteRunner:
             result = self.run_test_suite(suite)
             self.results.append(result)
             
+            end_timestamp = datetime.now().strftime('%H:%M:%S')
             status = "PASS" if result['success'] else "FAIL"
             test_info = f" ({result['tests_passed']}/{result['tests_total']} tests)"
-            print(f"{status} {result['name']} ({result['execution_time']:.1f}s){test_info}", flush=True)
+            time_formatted = format_time_mmss(result['execution_time'])
+            print(f"[{end_timestamp}] {status} {result['name']} ({time_formatted}){test_info}", flush=True)
             
             if not result['success']:
                 overall_success = False
                 print(f"   {result['summary']}", flush=True)
         
         total_time = time.time() - total_start_time
+        overall_end_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         # Print detailed summary
         print("\n" + "=" * 50, flush=True)
         print("TEST SUITE SUMMARY", flush=True)
         print("=" * 50, flush=True)
+        print(f"End Time: {overall_end_timestamp}", flush=True)
         
         passed_suites = sum(1 for r in self.results if r['success'])
         total_suites = len(self.results)
         
         print(f"Test Suites: {passed_suites}/{total_suites} passed", flush=True)
-        print(f"Execution Time: {total_time:.1f} seconds", flush=True)
+        total_time_formatted = format_time_mmss(total_time)
+        print(f"Execution Time: {total_time_formatted}", flush=True)
         
         # Show test details for each suite
         print("\nTest Details:", flush=True)

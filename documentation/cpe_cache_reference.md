@@ -227,9 +227,13 @@ python -m utilities.refresh_nvd_cpe_base_strings_cache
 - `cache/cpe_base_strings/cpe_cache_shard_00.json` through `cpe_cache_shard_15.json` - Individual cache shards
 - `cache/cache_metadata.json` - Shard metadata (count, timestamps)
 
-**NVD Schema Cache**:
-- `cache/nvd_schemas/cpe_api_2.0_schema.json` - CPE API schema (auto-downloaded from NVD)
-- `cache/nvd_schemas/cve_api_2.0_schema.json` - CVE API schema (auto-downloaded from NVD)
+**Schema Cache** (organized by source):
+- `cache/schemas/nvd_project/nvd_cpes_2_0_schema.json` - NVD CPE API 2.0 schema
+- `cache/schemas/nvd_project/nvd_cves_2_0_schema.json` - NVD CVE API 2.0 schema
+- `cache/schemas/nvd_project/nvd_source_2_0_schema.json` - NVD Source API 2.0 schema
+- `cache/schemas/cve_program/cve_cve_5_2_schema.json` - CVE Program List V5.2 schema
+- `cache/schemas/first_cvss/cvss-v*.json` - FIRST CVSS schemas (v2.0, v3.0, v3.1, v4.0)
+- `cache/schemas/analysis_tool/cpe_base_strings_cache_schema.json` - Analysis Tool CPE base strings cache schema (optimized)
 
 **Scripts**:
 - [utilities/refresh_nvd_cpe_base_strings_cache.py](../utilities/refresh_nvd_cpe_base_strings_cache.py) - Manual cache refresh utility

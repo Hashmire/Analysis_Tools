@@ -9,14 +9,12 @@ It handles:
 1. Platform entry notification registry (PENR) for data transfer between processing stages
 2. Placeholder value detection and constants
 3. Source data concern (SDC) detection and analysis
-4. Alias extraction for curator functionality
+4. Alias extraction
 5. Update pattern detection and transformation
 6. CPE-AS generation support functions
 
 The registry pattern enables data collection during CVE processing that is later consumed
 by nvd_ish_collector for integration into enhanced NVD-ish JSON records.
-
-HTML generation code removed in v0.1.1 - this module now focuses solely on data collection.
 """
 from typing import Dict, List, Tuple, Optional, Any
 import html  # For html.escape() in analyze_version_characteristics
