@@ -50,9 +50,12 @@ class CPEDeterminationTestSuite:
         self.passed = 0
         self.total = 8  # Added duplicate vendor/product test
         
-        # Use production CPE cache - isolated cache causes incomplete coverage and NVD API timeouts
-        # Tests run faster with production cache (~38s vs 300s+ with isolated cache)
-        
+        # Set up isolated test CPE cache directory to avoid loading production cache
+        self.test_cache_dir = CACHE_DIR / "temp_test_caches_cpe_det"
+        self.test_cache_dir.mkdir(parents=True, exist_ok=True)
+        os.environ['TEST_CPE_CACHE_DIR'] = str(self.test_cache_dir)
+        os.environ['TEST_NVD_API_DISABLED'] = '1'
+
     def setup_test_environment(self):
         """Set up test environment by copying test files to INPUT cache locations."""
         print("Setting up CPE determination test environment...")
@@ -95,11 +98,11 @@ class CPEDeterminationTestSuite:
                 shutil.copy2(nvd_source, nvd_target)
                 copied_files.append(str(nvd_target))
         
+        # Inject isolated test CPE cache entries to avoid NVD API calls
+        self._inject_cpe_cache_data()
+
         print(f"  * Copied {len(copied_files)} test files to INPUT cache")
-        
-        # Using production CPE cache - no injection needed
-        # Production cache has comprehensive coverage and avoids NVD API calls
-        
+
         return copied_files
     
     def _inject_cpe_cache_data(self):
@@ -113,7 +116,8 @@ class CPEDeterminationTestSuite:
         """
         import datetime
         import hashlib
-        
+        import re
+
         # Sharded cache configuration (use test cache directory)
         cache_shards_dir = self.test_cache_dir / "cpe_base_strings"
         cache_shards_dir.mkdir(parents=True, exist_ok=True)
@@ -151,17 +155,49 @@ class CPEDeterminationTestSuite:
             ("testvendor", "arch_only_product"),
             ("testvendor", "multi_os_product"),
             ("testvendor", "complex_combo_product"),
+            # CVE-1337-4001 packageName entries (queried separately from product field)
+            ("testvendor", "os-and-arch-package"),
+            ("testvendor", "testvendor-multi-platform"),
+            ("testvendor", "complex-combo-pkg"),
         ]
         
+        # N/A sentinel values — tool skips CPE queries for these
+        NA_VALUES = {'n/a', 'n\\/a'}
+
+        # Apply curation rules matching processData.curateCPEAttributes + formatFor23CPE
+        def cull_vendor(v: str) -> str:
+            v = v.lower().replace(' ', '_')
+            v = v.replace('apache_software_foundation', 'apache')
+            v = re.sub(r'[\s_]+inc\.$', '', v)
+            v = re.sub(r'[\s_]+inc$', '', v)
+            return v.rstrip('_')
+
+        def cull_product(p: str) -> str:
+            p = p.lower().replace(' ', '_')
+            p = p.replace('apache_', '')
+            p = p.replace('_software', '').replace('_version', '').replace('_plugin', '')
+            p = re.sub(r'[\s_][\d]+\.[\d]+\.[\d]+$', '', p)
+            p = re.sub(r'[\s_][\d]+\.[\d]+$', '', p)
+            p = re.sub(r'[\s_][\d]+$', '', p)
+            return p.rstrip('_')
+
         timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
         injection_count = 0
         
         for vendor, product in test_combinations:
+            # Skip n/a entries — tool doesn't generate CPE queries for them
+            if vendor.lower() in NA_VALUES or product.lower() in NA_VALUES:
+                continue
+
+            # Apply the same curation that processData.py applies before querying the cache
+            culled_vendor = cull_vendor(vendor)
+            culled_product = cull_product(product)
+
             # Create mock CPE products for this vendor/product
             products_list = [
-                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:1.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-001", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}},
-                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:1.1:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-002", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}},
-                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:2.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-003", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}}
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{culled_vendor}:{culled_product}:1.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{culled_product.upper()[:20]}-001", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}},
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{culled_vendor}:{culled_product}:1.1:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{culled_product.upper()[:20]}-002", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}},
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{culled_vendor}:{culled_product}:2.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{culled_product.upper()[:20]}-003", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}}
             ]
             
             # Create standard cache entry structure
@@ -185,25 +221,27 @@ class CPEDeterminationTestSuite:
             arch_platforms = ["x86", "x64", "arm64"]
             
             search_patterns = []
+            # Vendor-only pattern (no platform variants)
+            search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*:*:*:*:*:*:*:*:*")
             # Product-only patterns (16 total)
-            search_patterns.append(f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:*:*")
+            search_patterns.append(f"cpe:2.3:*:*:*{culled_product}*:*:*:*:*:*:*:*:*")
             for os in os_platforms:
-                search_patterns.append(f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:{os}:*:*")
+                search_patterns.append(f"cpe:2.3:*:*:*{culled_product}*:*:*:*:*:*:{os}:*:*")
             for arch in arch_platforms:
-                search_patterns.append(f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:{arch}:*")
+                search_patterns.append(f"cpe:2.3:*:*:*{culled_product}*:*:*:*:*:*:*:{arch}:*")
             for os in os_platforms:
                 for arch in arch_platforms:
-                    search_patterns.append(f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:{os}:{arch}:*")
+                    search_patterns.append(f"cpe:2.3:*:*:*{culled_product}*:*:*:*:*:*:{os}:{arch}:*")
             
             # Vendor+Product patterns (16 total)
-            search_patterns.append(f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:*:*:*")
+            search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*{culled_product}*:*:*:*:*:*:*:*:*")
             for os in os_platforms:
-                search_patterns.append(f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:{os}:*:*")
+                search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*{culled_product}*:*:*:*:*:*:{os}:*:*")
             for arch in arch_platforms:
-                search_patterns.append(f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:*:{arch}:*")
+                search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*{culled_product}*:*:*:*:*:*:*:{arch}:*")
             for os in os_platforms:
                 for arch in arch_platforms:
-                    search_patterns.append(f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:{os}:{arch}:*")
+                    search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*{culled_product}*:*:*:*:*:*:{os}:{arch}:*")
             
             # Inject all patterns
             for pattern in search_patterns:
@@ -234,6 +272,18 @@ class CPEDeterminationTestSuite:
                 print(f"  WARNING: Could not remove {file_path}: {e}")
         
         print(f"  * Cleaned up {len(copied_files)} test files")
+
+        # Clean up isolated test CPE cache directory
+        try:
+            if hasattr(self, 'test_cache_dir') and self.test_cache_dir.exists():
+                shutil.rmtree(self.test_cache_dir)
+                print(f"  * Cleaned up test CPE cache directory")
+        except Exception as e:
+            print(f"  WARNING: Could not remove test cache directory: {e}")
+        if 'TEST_CPE_CACHE_DIR' in os.environ:
+            del os.environ['TEST_CPE_CACHE_DIR']
+        if 'TEST_NVD_API_DISABLED' in os.environ:
+            del os.environ['TEST_NVD_API_DISABLED']
     
     def run_analysis_tool(self, cve_id: str, additional_args: list = None) -> Tuple[bool, Optional[Path], str, str]:
         """Run the analysis tool and return success status, output path, stdout, stderr."""

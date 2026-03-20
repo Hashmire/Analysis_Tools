@@ -3,7 +3,7 @@
 Concurrent API Test Suite
 
 Tests for concurrent NVD API query functionality including:
-- NVDRateLimiter: Thread-safe rate limiting with safety buffer
+- NVDConcurrentCVERateLimiter: Thread-safe rate limiting with safety buffer
 - Concurrent query functions: query_nvd_cves_concurrent, query_nvd_cves_by_modified_date_concurrent
 - Error handling: Fail-fast behavior on API failures
 - Rate limit enforcement: Smooth pacing and buffer adherence
@@ -26,7 +26,7 @@ sys.path.insert(0, str(project_root))
 
 # Import modules under test
 from src.analysis_tool.core.gatherData import (
-    NVDRateLimiter,
+    NVDConcurrentCVERateLimiter,
     query_nvd_cves_concurrent,
     query_nvd_cves_by_modified_date_concurrent,
     query_nvd_cves_all_concurrent
@@ -38,11 +38,11 @@ logger = get_logger()
 
 
 def test_rate_limiter_initialization():
-    """Test NVDRateLimiter initialization with proper buffer calculation"""
+    """Test NVDConcurrentCVERateLimiter initialization with proper buffer calculation"""
     print("Testing rate limiter initialization...")
     
     # Test with default parameters (50 req/30s with 10% buffer)
-    limiter = NVDRateLimiter(max_requests=50, window_seconds=30, buffer_percent=0.10)
+    limiter = NVDConcurrentCVERateLimiter(max_requests=50, window_seconds=30, buffer_percent=0.10)
     
     # Verify effective limit calculation
     expected_effective = int(50 * 0.9)  # 45 with 10% buffer
@@ -67,7 +67,7 @@ def test_rate_limiter_single_threaded():
     
     # Use small values for fast testing
     # 5 req/2s with 0% buffer = min_spacing of 0.4s
-    limiter = NVDRateLimiter(max_requests=5, window_seconds=2, buffer_percent=0.0)
+    limiter = NVDConcurrentCVERateLimiter(max_requests=5, window_seconds=2, buffer_percent=0.0)
     
     start_time = time.time()
     acquired_times = []
@@ -101,7 +101,7 @@ def test_rate_limiter_blocking_behavior():
     print("Testing rate limiter blocking behavior...")
     
     # Use small values for fast testing (3 req/1s with 0% buffer = 0.333s min_spacing)
-    limiter = NVDRateLimiter(max_requests=3, window_seconds=1, buffer_percent=0.0)
+    limiter = NVDConcurrentCVERateLimiter(max_requests=3, window_seconds=1, buffer_percent=0.0)
     
     # Acquire all 3 permits (will be paced at 0.333s intervals)
     for i in range(3):
@@ -127,7 +127,7 @@ def test_rate_limiter_thread_safety():
     print("Testing rate limiter thread safety...")
     
     # Use reasonable limits for concurrent testing
-    limiter = NVDRateLimiter(max_requests=20, window_seconds=2, buffer_percent=0.1)
+    limiter = NVDConcurrentCVERateLimiter(max_requests=20, window_seconds=2, buffer_percent=0.1)
     acquired_count = [0]
     lock = threading.Lock()
     
@@ -184,7 +184,7 @@ def test_concurrent_query_success():
     
     with patch('src.analysis_tool.core.gatherData.query_nvd_cve_page', side_effect=mock_api_response):
         # Test with 3 pages (30 total CVEs)
-        limiter = NVDRateLimiter(max_requests=50, window_seconds=30, buffer_percent=0.1)
+        limiter = NVDConcurrentCVERateLimiter(max_requests=50, window_seconds=30, buffer_percent=0.1)
         
         result = query_nvd_cves_concurrent(
             base_url="https://services.nvd.nist.gov/rest/json/cves/2.0",
@@ -229,7 +229,7 @@ def test_concurrent_query_partial_failure():
         }
     
     with patch('src.analysis_tool.core.gatherData.query_nvd_cve_page', side_effect=mock_api_response_with_failures):
-        limiter = NVDRateLimiter(max_requests=50, window_seconds=30, buffer_percent=0.1)
+        limiter = NVDConcurrentCVERateLimiter(max_requests=50, window_seconds=30, buffer_percent=0.1)
         
         # Should raise RuntimeError due to failed page
         try:
@@ -360,7 +360,7 @@ def test_rate_limiter_safety_buffer():
     print("Testing rate limiter safety buffer enforcement...")
     
     # 10 req/2s with 20% buffer = 8 effective limit, min_spacing = 2s/8 = 0.25s
-    limiter = NVDRateLimiter(max_requests=10, window_seconds=2, buffer_percent=0.2)
+    limiter = NVDConcurrentCVERateLimiter(max_requests=10, window_seconds=2, buffer_percent=0.2)
     
     if limiter.effective_limit != 8:
         print(f"FAILED: Expected effective_limit=8 (80% of 10), got {limiter.effective_limit}")

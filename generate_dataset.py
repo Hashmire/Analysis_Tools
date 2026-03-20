@@ -1,13 +1,49 @@
 #!/usr/bin/env python3
 """
-NVD CVE Dataset Generator
-This script queries the NVD API for CVEs with specific vulnerability statuses
-and generates a file with one CVE ID per line for use with analysis_tool.py
+generate_dataset.py — NVD CVE Dataset Generator and Analysis Handoff
 
-Enhanced with tracking capabilities and integration with the enhanced dataset generator.
+Entry point: python generate_dataset.py [options]
+
+Purpose
+-------
+Queries the NVD 2.0 API to fetch CVE records,
+populates the local NVD 2.0 and CVE List V5 disk caches, then hands off to
+analysis_tool.py for analysis. analysis_tool only references cached files, 
+generate_dataset ensures those files are cached and current
+
+Generation Modes
+----------------
+--cve <ID>
+    Single targeted CVE. Calls query_nvd_cve_by_id(). Mutually exclusive
+    with all date/status options.
+--last-days N  /  --start-date + --end-date
+    Date-range mode. Calls generate_last_days() or generate_date_range(),
+    which delegate to query_nvd_cves_by_date_range().
+(default)
+    Status-based mode via --statuses. Calls query_nvd_cves_by_status().
+
+Key Functions
+-------------
+query_nvd_cves_by_status()          Status-based bulk fetch.
+query_nvd_cves_by_date_range()      Date-range bulk fetch.
+query_nvd_cve_by_id()               Single targeted CVE fetch + cache write.
+_save_nvd_cve_to_cache_*()          Writes NVD 2.0 records to disk cache.
+_save_cve_list_v5_to_cache_*()      Writes CVE List V5 records to disk cache.
+_flush_cache_batches()              Persists all queued cache writes atomically.
+run_analysis_tool()                 Sole handoff point to analysis_tool.main()
+                                    via sys.argv injection with --file.
+main()                              Argument parsing and mode dispatch.
+
+Important Rules
+---------------
+- All three generation modes converge at run_analysis_tool() before analysis.
+- Cache writes are batched in memory and flushed explicitly; on interrupt,
+  _handle_interrupt() ensures the batch is flushed before exit.
+- --alias-report requires --source-uuid (except in --nvd-ish-only mode).
+- --cve cannot be combined with --last-days, --start-date, --end-date, or
+  --statuses.
 """
 
-import requests
 import json
 import os
 import sys
@@ -16,15 +52,9 @@ from datetime import datetime, timezone, timedelta
 from time import sleep
 import argparse
 from pathlib import Path
+import traceback
 import uuid
 from src.analysis_tool.logging.workflow_logger import get_logger
-
-def get_analysis_tools_root():
-    """Get the absolute path to the Analysis_Tools project root"""
-    current_file = Path(__file__).resolve()
-    # Navigate up from generate_dataset.py to Analysis_Tools/
-    return current_file.parent
-
 
 def _handle_interrupt(signum, frame):
     """Handle interrupt signals - flush cache and exit cleanly"""
@@ -62,7 +92,7 @@ def resolve_output_path(output_file, run_directory=None):
 # Load configuration
 def load_config():
     """Load configuration from config.json"""
-    config_path = os.path.join(os.path.dirname(__file__), 'src', 'analysis_tool', 'config.json')
+    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
     with open(config_path, 'r') as f:
         return json.load(f)
 
@@ -143,7 +173,6 @@ def _flush_nvd_cache_batch():
         return
     
     from src.analysis_tool.core.gatherData import _save_nvd_cve_to_local_file, _update_cache_metadata, load_schema
-    from datetime import datetime
     
     batch = _cache_batch['nvd_updates']
     _cache_batch['nvd_updates'] = []
@@ -188,17 +217,16 @@ def _flush_nvd_cache_batch():
 def _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vulnerability_record):
     """
     Queue NVD CVE record for batch cache update during bulk dataset generation.
-    Only updates cache if API data is newer than existing cached data.
+    Updates cache if API data is newer than existing cached data, or if the cache
+    file is missing, has no timestamp, or is corrupted. Only skips if cached data
+    is already up-to-date (api lastModified <= cached lastModified).
     """
     try:
         # Import cache functions (delayed import to avoid circular dependencies)
         from src.analysis_tool.core.gatherData import _resolve_cve_cache_file_path
-        from datetime import datetime
         
         nvd_config = _get_cached_config('nvd_2_0_cve')
-        if not nvd_config.get('enabled', False):
-            return {'action': 'no_action', 'reason': 'disabled'}
-            
+        
         # Use 'cache/nvd_2.0_cves' as default path (parallel to cve_list_v5)
         nvd_repo_path = nvd_config.get('path', 'cache/nvd_2.0_cves')
         
@@ -225,42 +253,42 @@ def _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vulnerability_record):
             logger.warning(f"NVD 2.0 local cache timestamp parse failed for {cve_id}: {api_last_modified} - No Action", group="CACHE_MANAGEMENT")
             return {'action': 'no_action', 'reason': 'timestamp_parse_error'}
             
-        # Compare NVD API lastModified vs cached lastModified timestamps
+        # Determine queue reason based on cache file state; only 'up-to-date' short-circuits.
+        # All other outcomes (api_newer, missing_timestamp, corrupted, new_or_missing) fall
+        # through to the shared append block below so stale existing files are actually written.
         if nvd_file_path.exists():
             try:
                 with open(nvd_file_path, 'r', encoding='utf-8') as f:
                     cached_data = json.load(f)
                 
-                # Extract cached lastModified timestamp
                 cached_vulns = cached_data.get('vulnerabilities', [])
-                if cached_vulns:
-                    cached_last_modified = cached_vulns[0].get('cve', {}).get('lastModified')
-                    if cached_last_modified:
-                        # Parse cached timestamp
-                        if 'Z' in cached_last_modified:
-                            cached_datetime_str = cached_last_modified.replace('Z', '+00:00')
-                        elif '+' not in cached_last_modified and cached_last_modified.count(':') >= 2:
-                            cached_datetime_str = cached_last_modified + '+00:00'
-                        else:
-                            cached_datetime_str = cached_last_modified
-                        cached_datetime = datetime.fromisoformat(cached_datetime_str)
-                        
-                        # Compare timestamps - ONLY update if API data is newer
-                        if api_datetime > cached_datetime:
-                            return {'action': 'queued', 'reason': 'api_newer'}
-                        else:
-                            # API data is same or older - no update needed
-                            return {'action': 'no_action', 'reason': 'up-to-date'}
+                cached_last_modified = cached_vulns[0].get('cve', {}).get('lastModified') if cached_vulns else None
                 
-                # No cached timestamp found - queue for update
-                logger.warning(f"NVD 2.0 local cache missing lastModified timestamp for {cve_id} - Queued for Update", group="CACHE_MANAGEMENT")
-                return {'action': 'queued', 'reason': 'missing_timestamp'}
+                if cached_last_modified:
+                    # Parse cached timestamp
+                    if 'Z' in cached_last_modified:
+                        cached_datetime_str = cached_last_modified.replace('Z', '+00:00')
+                    elif '+' not in cached_last_modified and cached_last_modified.count(':') >= 2:
+                        cached_datetime_str = cached_last_modified + '+00:00'
+                    else:
+                        cached_datetime_str = cached_last_modified
+                    cached_datetime = datetime.fromisoformat(cached_datetime_str)
+                    
+                    if api_datetime <= cached_datetime:
+                        # API data is same or older — no update needed
+                        return {'action': 'no_action', 'reason': 'up-to-date'}
+                    
+                    queue_reason = 'api_newer'
+                else:
+                    logger.warning(f"NVD 2.0 local cache missing lastModified timestamp for {cve_id} - Queued for Update", group="CACHE_MANAGEMENT")
+                    queue_reason = 'missing_timestamp'
                     
             except (json.JSONDecodeError, IOError) as e:
                 logger.warning(f"NVD 2.0 local cache file corrupted for {cve_id}: {e} - Queued for Update", group="CACHE_MANAGEMENT")
-                return {'action': 'queued', 'reason': 'corrupted'}
+                queue_reason = 'corrupted'
+        else:
+            queue_reason = 'new_or_missing'
         
-        # File doesn't exist or no cached timestamp - queue for update
         # Queue for batch processing instead of immediate write
         _cache_batch['nvd_updates'].append({
             'cve_id': cve_id,
@@ -273,33 +301,25 @@ def _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vulnerability_record):
         if len(_cache_batch['nvd_updates']) >= _cache_batch['batch_size']:
             _flush_nvd_cache_batch()
         
-        return {'action': 'queued', 'reason': 'new_or_missing'}
+        return {'action': 'queued', 'reason': queue_reason}
         
     except Exception as e:
         logger.warning(f"NVD 2.0 local cache update queue failed for {cve_id}: {e}", group="CACHE_MANAGEMENT")
         return {'action': 'no_action', 'reason': 'error'}
 
-def _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified):
+def _save_cve_list_v5_to_cache_during_bulk_generation(cve_id):
     """
     Queue CVE List V5 record for batch cache update during bulk dataset generation.
-    Uses configurable sync behavior - can be disabled via manual_sync_only flag.
     
     Args:
         cve_id: CVE identifier (e.g., "CVE-2024-12345")
-        nvd_last_modified: lastModified timestamp from NVD API response (used for logging only)
     """
     try:
         # Import cache functions (delayed import to avoid circular dependencies)
         from src.analysis_tool.core.gatherData import _resolve_cve_cache_file_path
         
         cve_config = _get_cached_config('cve_list_v5')
-        if not cve_config.get('enabled', False):
-            return {'action': 'no_action', 'reason': 'disabled'}
         
-        # Check if automatic sync is disabled
-        if cve_config.get('manual_sync_only', False):
-            return {'action': 'no_action', 'reason': 'manual_sync_only'}
-            
         # Use 'cache/cve_list_v5' as default path
         cve_repo_path = cve_config.get('path', 'cache/cve_list_v5')
         
@@ -343,7 +363,7 @@ def _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified)
         logger.debug(f"CVE List v5 local cache update queue failed for {cve_id}: {e}", group="CACHE_MANAGEMENT")
         return {'action': 'no_action', 'reason': 'error'}
 
-def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cve_dataset.txt", run_directory=None, source_uuid=None, statuses_explicitly_provided=False, run_id=None):
+def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cve_dataset.txt", run_directory=None, source_uuid=None, statuses_explicitly_provided=False):
     """
     Query NVD API for CVEs with specific vulnerability statuses
     
@@ -355,7 +375,6 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         run_directory (Path): Run directory where dataset should be written
         source_uuid (str): Optional UUID to filter CVEs by sourceIdentifier (server-side filtering)
         statuses_explicitly_provided (bool): Whether user explicitly provided status filters
-        run_id (str): Optional run ID for tracking purposes
     """
     if target_statuses is None:
         target_statuses = ['Received', 'Awaiting Analysis', 'Undergoing Analysis']
@@ -372,20 +391,14 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     
     # Import dataset contents collector functions for progress tracking
     from src.analysis_tool.reporting.dataset_contents_collector import (
-        record_api_call, record_output_file, update_cve_discovery_progress
+        record_api_call, record_api_call_unified, record_output_file, update_cve_discovery_progress
     )
     
     logger.info("=== CVE Record Cache Preparation ===", group="DATASET")
     
+    from src.analysis_tool.core.gatherData import query_nvd_cve_page, build_nvd_api_headers
     base_url = config['api']['endpoints']['nvd_cves']
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": f"{TOOLNAME}/{VERSION}"
-    }
-    
-    # Add API key if provided
-    if api_key:
-        headers["apiKey"] = api_key
+    headers = build_nvd_api_headers(api_key)
     
     # Results per page (max 2000)
     results_per_page = 2000
@@ -395,7 +408,6 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
     api_failure_occurred = False  # Track if API failures prevented complete data collection
     
     logger.info("Starting CVE collection...", group="CVE_QUERY")
-    
     while True:
         # Construct URL with pagination and optional UUID filtering
         url = f"{base_url}?resultsPerPage={results_per_page}&startIndex={start_index}"
@@ -404,8 +416,6 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         
         logger.info(f"Processing CVE dataset queries: Starting at index {start_index}...", group="CVE_QUERY")
         
-        # Use centralized gatherData.py function for API call with retry logic
-        from src.analysis_tool.core.gatherData import query_nvd_cve_page
         page_data = query_nvd_cve_page(url, headers, f"NVD CVE Dataset Collection (index {start_index})")
         
         if page_data is None:
@@ -413,11 +423,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
             # Record failed API call in unified tracking
             if run_directory:
                 record_api_call(0, False)
-                try:
-                    from src.analysis_tool.reporting.dataset_contents_collector import record_api_call_unified
-                    record_api_call_unified("NVD CVE API", success=False)
-                except ImportError:
-                    pass
+                record_api_call_unified("NVD CVE API", success=False)
             api_failure_occurred = True  # Mark that API failure prevented complete collection
             break
         
@@ -426,11 +432,7 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
         if run_directory:
             record_api_call(len(vulnerabilities), False)  # Rate limiting handled internally by query function
             # Also record in unified dashboard tracking
-            try:
-                from src.analysis_tool.reporting.dataset_contents_collector import record_api_call_unified
-                record_api_call_unified("NVD CVE API", success=True)
-            except ImportError:
-                pass
+            record_api_call_unified("NVD CVE API", success=True)
         
         if not vulnerabilities:
             logger.info("No more vulnerabilities found. Collection complete.", group="CVE_QUERY")
@@ -456,18 +458,9 @@ def query_nvd_cves_by_status(api_key=None, target_statuses=None, output_file="cv
             
             # OPTIMIZATION: Cache both NVD and CVE List V5 records now to avoid re-fetching later
             if should_include and cve_id:
-                # Extract NVD 2.0 API lastModified for timestamp comparisons
-                nvd_last_modified = cve_data.get('lastModified', '')
-                
                 # Check cache status for both NVD and CVE List V5
                 nvd_status = _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vuln)
-                cvelist_status = None
-                
-                # Cache CVE List V5 record (only if we have NVD timestamp for comparison)
-                if nvd_last_modified:
-                    cvelist_status = _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified)
-                else:
-                    logger.warning(f"NVD 2.0 API response missing required lastModified field for {cve_id} - skipping CVE List V5 cache (malformed API response)", group="CACHE_MANAGEMENT")
+                cvelist_status = _save_cve_list_v5_to_cache_during_bulk_generation(cve_id)
                 
                 # Log consolidated cache status (single line per CVE)
                 if nvd_status and cvelist_status:
@@ -561,19 +554,14 @@ def generate_last_days(days, api_key=None, output_file="cve_recent_dataset.txt",
     
     logger.info(f"Generating dataset for CVEs modified in the last {days} days", group="DATASET")
     
-    # Extract run_id from run_directory if available
-    run_id = None
-    if run_directory:
-        run_id = os.path.basename(run_directory)
-    
     return query_nvd_cves_by_date_range(
         start_date.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
         end_date.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
-        api_key, output_file, run_directory, source_uuid, run_id
+        api_key, output_file, run_directory, source_uuid
     )
 
 
-def generate_date_range(start_date_str, end_date_str, api_key=None, output_file="cve_range_dataset.txt", run_directory=None, source_uuid=None, run_id=None):
+def generate_date_range(start_date_str, end_date_str, api_key=None, output_file="cve_range_dataset.txt", run_directory=None, source_uuid=None):
     """Generate dataset for CVEs modified in a specific date range"""
     try:
         # Parse dates
@@ -599,7 +587,7 @@ def generate_date_range(start_date_str, end_date_str, api_key=None, output_file=
         return False
 
 
-def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file="cve_dataset.txt", run_directory=None, source_uuid=None, run_id=None):
+def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file="cve_dataset.txt", run_directory=None, source_uuid=None):
     """Query NVD API for CVEs modified within a date range"""
     logger.info(f"Querying CVEs modified between {start_date} and {end_date}", group="DATASET")
     if source_uuid:
@@ -610,17 +598,11 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
         record_api_call, record_output_file, update_cve_discovery_progress
     )
     
-    logger.info("=== END Generate Dataset Initialization Phase ===", group="DATASET")
     logger.info("=== CVE Record Cache Preparation ===", group="DATASET")
     
+    from src.analysis_tool.core.gatherData import query_nvd_cve_page, build_nvd_api_headers
     base_url = config['api']['endpoints']['nvd_cves']
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": f"{TOOLNAME}/{VERSION}"
-    }
-    
-    if api_key:
-        headers["apiKey"] = api_key
+    headers = build_nvd_api_headers(api_key)
     
     results_per_page = 2000
     start_index = 0
@@ -631,6 +613,7 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
     start_date_encoded = start_date.replace('+', '%2B')
     end_date_encoded = end_date.replace('+', '%2B')
     
+    from src.analysis_tool.core.gatherData import query_nvd_cve_page
     while True:
         url = (f"{base_url}?"
                f"lastModStartDate={start_date_encoded}&"
@@ -642,8 +625,6 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
         
         logger.info(f"Querying CVEs modified in date range: Starting at index {start_index}...", group="CVE_QUERY")
         
-        # Use centralized gatherData.py function for API call with retry logic
-        from src.analysis_tool.core.gatherData import query_nvd_cve_page
         page_data = query_nvd_cve_page(url, headers, f"NVD CVE Date Range Query (index {start_index})")
         
         if page_data is None:
@@ -670,18 +651,9 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
             if cve_id:
                 matching_cves.append(cve_id)
                 
-                # Extract NVD 2.0 API lastModified for timestamp comparisons
-                nvd_last_modified = cve_data.get('lastModified', '')
-                
                 # Check cache status for both NVD and CVE List V5
                 nvd_status = _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vuln)
-                cvelist_status = None
-                
-                # Cache CVE List V5 record (only if we have NVD timestamp for comparison)
-                if nvd_last_modified:
-                    cvelist_status = _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified)
-                else:
-                    logger.warning(f"NVD 2.0 API response missing required lastModified field for {cve_id} - skipping CVE List V5 cached record creation (malformed API response)", group="CACHE_MANAGEMENT")
+                cvelist_status = _save_cve_list_v5_to_cache_during_bulk_generation(cve_id)
                 
                 # Log consolidated cache status (single line per CVE)
                 if nvd_status and cvelist_status:
@@ -746,8 +718,76 @@ def query_nvd_cves_by_date_range(start_date, end_date, api_key=None, output_file
         logger.error(f"Failed to write output file: {e}", group="data_processing")
         return False
 
+
+def query_nvd_cve_by_id(cve_id, api_key=None, output_file="cve_dataset.txt", run_directory=None):
+    """Fetch NVD 2.0 + CVE List V5 cache for a single CVE ID, write the ID to the dataset file. Used by --cve."""
+    logger.info(f"Targeted CVE query: {cve_id}", group="DATASET")
+
+    from src.analysis_tool.reporting.dataset_contents_collector import (
+        record_api_call, record_api_call_unified, record_output_file
+    )
+
+    logger.info("=== CVE Record Cache Preparation ===", group="DATASET")
+
+    from src.analysis_tool.core.gatherData import query_nvd_cve_page, build_nvd_api_headers
+    base_url = config['api']['endpoints']['nvd_cves']
+    headers = build_nvd_api_headers(api_key)
+
+    url = f"{base_url}?cveId={cve_id}"
+    page_data = query_nvd_cve_page(url, headers, f"NVD CVE Targeted Query ({cve_id})")
+
+    if page_data is None:
+        logger.error(f"Failed to fetch NVD record for {cve_id}", group="CVE_QUERY")
+        if run_directory:
+            record_api_call_unified("NVD CVE API", success=False)
+        return False
+
+    vulnerabilities = page_data.get('vulnerabilities', [])
+    if not vulnerabilities:
+        logger.warning(f"NVD returned no vulnerability data for {cve_id}", group="CVE_QUERY")
+        return False
+
+    if run_directory:
+        record_api_call(1, False)
+        record_api_call_unified("NVD CVE API", success=True)
+
+    vuln = vulnerabilities[0]
+    nvd_status = _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vuln)
+    cvelist_status = _save_cve_list_v5_to_cache_during_bulk_generation(cve_id)
+
+    if nvd_status and cvelist_status:
+        nvd_msg = f"NVD: {nvd_status['reason']}"
+        if cvelist_status['reason'] == 'stale':
+            cvelist_msg = f"CVE-List: stale ({cvelist_status.get('age_hours', 0):.1f}h > {cvelist_status.get('ttl_hours', 0)}h)"
+        elif cvelist_status['reason'] == 'up-to-date':
+            cvelist_msg = f"CVE-List: up-to-date ({cvelist_status.get('age_hours', 0):.1f}h < {cvelist_status.get('ttl_hours', 0)}h)"
+        else:
+            cvelist_msg = f"CVE-List: {cvelist_status['reason']}"
+        action_nvd = "queued" if nvd_status['action'] == 'queued' else "cached"
+        action_cvelist = "queued" if cvelist_status['action'] == 'queued' else "cached"
+        logger.info(f"Cache: {cve_id} | {nvd_msg} ({action_nvd}) | {cvelist_msg} ({action_cvelist})", group="CACHE_MANAGEMENT")
+
+    _flush_cache_batches()
+    logger.info("=== END CVE Record Cache Preparation ===", group="DATASET")
+
+    output_file_resolved = resolve_output_path(output_file, run_directory)
+    logger.info(f"Writing {cve_id} to {output_file_resolved}...", group="DATASET")
+    try:
+        with open(output_file_resolved, 'w') as f:
+            f.write(f"{cve_id}\n")
+        logger.info("Dataset generated successfully!", group="DATASET")
+        logger.info(f"File saved: {output_file_resolved}", group="DATASET")
+        if run_directory:
+            record_output_file(output_file, str(output_file_resolved), 1)
+    except Exception as e:
+        logger.error(f"Failed to write dataset file: {e}", group="data_processing")
+        return False
+
+    return True
+
+
 def main():
-    """Main function with command line argument parsing"""
+    """Parse arguments and dispatch to the appropriate generation function (--cve, date-range, or status-based), then hand off to run_analysis_tool()."""
     # Register interrupt handler to flush cache on Ctrl+C
     signal.signal(signal.SIGINT, _handle_interrupt)
     signal.signal(signal.SIGTERM, _handle_interrupt)
@@ -771,18 +811,15 @@ def main():
     input_group = parser.add_argument_group('Data Input/Sources', 'Specify input data and data sources')
     input_group.add_argument('--api-key', nargs='?', const='CONFIG_DEFAULT', help='NVD API key. Use without value to use config default, or provide explicit key')
     
-    # Group 3: Processing Control - Control how processing is performed and output is presented
-    control_group = parser.add_argument_group('Processing Control', 'Control processing behavior and output presentation')
-    control_group.add_argument('--external-assets', action='store_true',
-                              help='Enable external assets in analysis (passed through to analysis tool)')
-    
-    # Group 4: Dataset Generation - Control what CVE data is included in the dataset
+    # Group 3: Dataset Generation - Control what CVE data is included in the dataset
     dataset_group = parser.add_argument_group('Dataset Generation', 'Control CVE data selection and dataset creation')
     dataset_group.add_argument('--source-uuid', type=str,
                               help='Filter CVEs by sourceIdentifier (CNA/ADP providerMetadata.orgId) - must be valid UUID format. When used without --statuses, includes all vulnerability statuses.')
     dataset_group.add_argument('--statuses', nargs='+', 
                               default=['Received', 'Awaiting Analysis', 'Undergoing Analysis'],
                               help='Vulnerability statuses to include (default when no UUID: Received, Awaiting Analysis, Undergoing Analysis; default with UUID: all statuses)')
+    dataset_group.add_argument('--cve', type=str,
+                              help='Single CVE ID to target directly (bypasses status/date filtering, populates cache and runs analysis)')
     dataset_group.add_argument('--last-days', type=int,
                               help='Generate dataset for CVEs modified in the last N days')
     dataset_group.add_argument('--start-date', type=str,
@@ -790,7 +827,7 @@ def main():
     dataset_group.add_argument('--end-date', type=str,
                               help='End date for lastModified filter (YYYY-MM-DD or ISO format)')
     
-    # Group 5: Run Organization - Control directory structure for multi-run orchestration
+    # Group 4: Run Organization - Control directory structure for multi-run orchestration
     run_org_group = parser.add_argument_group('Run Organization', 'Control run directory hierarchy')
     run_org_group.add_argument('--parent-run-dir', type=str,
                               help='Parent run directory path - creates this run as child within parent (used by harvest script)')
@@ -807,30 +844,37 @@ def main():
         logger.error("Source UUID must be a valid UUID format", group="DATASET")
         return 1
     
+    # --cve is mutually exclusive with date/status filtering modes
+    if args.cve and any([args.last_days, args.start_date, args.end_date, '--statuses' in sys.argv]):
+        logger.error("--cve cannot be combined with --last-days, --start-date, --end-date, or --statuses", group="DATASET")
+        return 1
+
+    # Validate CVE ID format if provided
+    if args.cve:
+        cve_id = args.cve.strip().upper()
+        if not re.fullmatch(r'^CVE-[0-9]{4}-[0-9]{4,19}$', cve_id):
+            logger.error(f"Invalid CVE ID format: {args.cve}", group="DATASET")
+            return 1
+    
     # Detect if statuses were explicitly provided (not using defaults)
-    import sys
     statuses_explicitly_provided = '--statuses' in sys.argv
     
     # Resolve API key from command line, config, or default to None
-    api_key_source = None
     if args.api_key == 'CONFIG_DEFAULT':
-        resolved_api_key = config['defaults']['default_api_key']
-        api_key_source = "Configuration"
+        resolved_api_key = config['api']['api_key']
         logger.info("NVD API key detected | Source: Configuration", group="DATASET")
     elif args.api_key:
         resolved_api_key = args.api_key
-        api_key_source = "Direct Input"
         logger.info("NVD API key detected | Source: Direct Input", group="DATASET")
     else:
         # No --api-key flag provided, fall back to config
-        resolved_api_key = config['defaults']['default_api_key'] or None
+        resolved_api_key = config['api']['api_key'] or None
         if resolved_api_key:
-            api_key_source = "Configuration"
             logger.info("NVD API key detected | Source: Configuration", group="DATASET")
     
     if not resolved_api_key:
         logger.error("API key is required for dataset generation", group="DATASET")
-        logger.error("Either use --api-key parameter or set default_api_key in config.json", group="DATASET")
+        logger.error("Either use --api-key parameter or set api.api_key in config.json", group="DATASET")
         logger.error("NVD API without a key has severe rate limits that make dataset generation impractical", group="DATASET")
         return 1
     
@@ -847,8 +891,7 @@ def main():
     alias_report = args.alias_report.lower() == 'true'
     cpe_as_generator = args.cpe_as_generator.lower() == 'true'
     nvd_ish_only = args.nvd_ish_only.lower() == 'true'
-    external_assets = args.external_assets
-    
+
     # Handle --nvd-ish-only flag processing (override behavior)
     if nvd_ish_only:
         # Override other output flags (ignore their values)
@@ -857,8 +900,7 @@ def main():
         alias_report = False
         cpe_as_generator = False
         
-        print("NVD-ish only mode enabled: generating complete enriched records without report files")
-        print("Other output flags ignored in NVD-ish only mode")
+        logger.info("NVD-ish only mode enabled: generating complete enriched records without report files", group="DATASET")
     
     # Validate feature combinations
     if alias_report and not args.source_uuid:
@@ -883,19 +925,9 @@ def main():
         return 1
     
     # Generate initial run context with source shortname resolution
-    source_suffix = ""
     if args.source_uuid:
         # Resolve source shortname for better human readability in directory names
-        import sys
-        from pathlib import Path
-        
-        # Add src to path if not already there
-        project_root = Path(__file__).parent
-        src_path = project_root / "src"
-        if str(src_path) not in sys.path:
-            sys.path.insert(0, str(src_path))
-        
-        from analysis_tool.storage.nvd_source_manager import get_or_refresh_source_manager
+        from src.analysis_tool.storage.nvd_source_manager import get_or_refresh_source_manager
         
         # Get NVD source manager (uses cache or refreshes as needed)
         source_manager = get_or_refresh_source_manager(resolved_api_key, log_group="DATASET")
@@ -903,7 +935,6 @@ def main():
         # Get human-readable shortname (capped to 7-8 characters)
         full_shortname = source_manager.get_source_shortname(args.source_uuid)
         source_shortname = full_shortname[:8] if len(full_shortname) > 8 else full_shortname
-        source_suffix = f"_{source_shortname}"
         
         logger.info(f"Resolved source UUID {args.source_uuid[:8]}... to shortname: '{source_shortname}'", group="DATASET")
     else:
@@ -915,7 +946,9 @@ def main():
     
     # Determine range specification
     range_spec = None
-    if args.last_days:
+    if args.cve:
+        range_spec = cve_id  # already normalized
+    elif args.last_days:
         range_spec = f"last_{args.last_days}_days"
     elif args.start_date and args.end_date:
         range_spec = f"range_{args.start_date}_to_{args.end_date}"
@@ -935,7 +968,6 @@ def main():
     
     # Create run directory using enhanced naming
     # If parent_run_dir provided, create this run as child within parent hierarchy
-    from pathlib import Path
     parent_run_path = Path(args.parent_run_dir) if args.parent_run_dir else None
     
     # Determine subdirectories - all dataset runs only need logs
@@ -970,20 +1002,19 @@ def main():
     logger.info("Dataset contents report initialized", group="DATASET")
     
     logger.info("=== Generate Dataset Initialization Phase ===", group="DATASET")
-    if api_key_source:
-        logger.info(f"NVD API key detected | Source: {api_key_source}", group="DATASET")
     if args.source_uuid:
         logger.info(f"Source UUID filter active: {args.source_uuid}", group="DATASET")
     
     # Generate dataset directly in run directory
-    success = False
     output_file = "cve_dataset.txt"  # Fixed filename for dataset generation
     
     # Determine which mode to use - all write directly to run directory
-    if args.last_days:
+    if args.cve:
+        success = query_nvd_cve_by_id(cve_id, resolved_api_key, output_file, run_directory)
+    elif args.last_days:
         success = generate_last_days(args.last_days, resolved_api_key, output_file, run_directory, args.source_uuid)
     elif args.start_date and args.end_date:
-        success = generate_date_range(args.start_date, args.end_date, resolved_api_key, output_file, run_directory, args.source_uuid, run_id)
+        success = generate_date_range(args.start_date, args.end_date, resolved_api_key, output_file, run_directory, args.source_uuid)
     else:
         # Traditional status-based generation
         success = query_nvd_cves_by_status(
@@ -992,8 +1023,7 @@ def main():
             output_file=output_file,
             run_directory=run_directory,
             source_uuid=args.source_uuid,
-            statuses_explicitly_provided=statuses_explicitly_provided,
-            run_id=run_id
+            statuses_explicitly_provided=statuses_explicitly_provided
         )
     
     if success:
@@ -1015,10 +1045,9 @@ def main():
             logger.info(f"CVE Record List Generated: {cve_count} CVEs | /logs/{output_file}", group="DATASET")
         except Exception as e:
             logger.error(f"Failed to read dataset file: {e}", group="data_processing")
-            cve_count = 0
         
         # Run analysis tool with existing run context
-        success = run_analysis_tool(output_file, resolved_api_key, run_directory, run_id, external_assets, sdc_report, cpe_determination, alias_report, cpe_as_generator, nvd_ish_only, args.source_uuid)
+        success = run_analysis_tool(output_file, resolved_api_key, run_directory, sdc_report, cpe_determination, alias_report, cpe_as_generator, nvd_ish_only, args.source_uuid)
         if not success:
             logger.error("Analysis tool execution failed", group="data_processing")
             return 1
@@ -1029,8 +1058,8 @@ def main():
     return 0
 
 
-def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=None, external_assets=False, sdc_report=False, cpe_determination=False, alias_report=False, cpe_as_generator=False, nvd_ish_only=False, source_uuid=None):
-    """Run the analysis tool on the generated dataset within an existing run context (direct integration)"""
+def run_analysis_tool(dataset_file, api_key=None, run_directory=None, sdc_report=False, cpe_determination=False, alias_report=False, cpe_as_generator=False, nvd_ish_only=False, source_uuid=None):
+    """Sole handoff point to analysis_tool.main(). Invokes it via sys.argv injection with --file pointing at run_directory/logs/<dataset_file>."""
     
     try:
         # If we have a run directory context, the dataset should be in that run
@@ -1042,8 +1071,7 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
             raise FileNotFoundError(f"Dataset file not found in run directory: {dataset_path}")
         
         # Report handoff parameters - only show what's enabled
-        if run_directory:
-            logger.info(f"Run directory: {run_directory}", group="DATASET")
+        logger.info(f"Run directory: {run_directory}", group="DATASET")
         
         # Report enabled analysis features for handoff
         enabled_features = []
@@ -1083,15 +1111,11 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
             # Build argument list for analysis tool
             sys.argv = ["analysis_tool.py", "--file", str(dataset_path)]
             
-            # Add run context if available - pass full run directory path as run-id
-            if run_directory:
-                sys.argv.extend(["--run-id", str(run_directory)])
+            # Add run context - pass full run directory path as run-id
+            sys.argv.extend(["--run-id", str(run_directory)])
             
             if api_key:
                 sys.argv.extend(["--api-key", api_key])
-            
-            if external_assets:
-                sys.argv.append("--external-assets")
             
             # Add feature flags
             sys.argv.extend(["--nvd-ish-only", "true" if nvd_ish_only else "false"])
@@ -1110,8 +1134,7 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
             if exit_code == 0:
                 logger.info("-" * 60, group="DATASET")
                 logger.info("Analysis tool completed successfully", group="INIT")
-                if run_directory:
-                    logger.info(f"Results available in: {run_directory}", group="INIT")
+                logger.info(f"Results available in: {run_directory}", group="INIT")
                 
                 return True
             else:
@@ -1124,38 +1147,34 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, run_id=Non
             
             # Finalize dataset contents report
             try:
-                if run_directory:
-                    logger.info("Finalizing dataset contents report...", group="DATASET")
-                    from src.analysis_tool.reporting.dataset_contents_collector import finalize_dataset_contents_report, get_dataset_contents_collector
-                    result = finalize_dataset_contents_report()
-                    if result:
-                        logger.info(f"Dataset contents report finalized: {result}", group="DATASET")
+                logger.info("Finalizing dataset contents report...", group="DATASET")
+                from src.analysis_tool.reporting.dataset_contents_collector import finalize_dataset_contents_report, get_dataset_contents_collector
+                result = finalize_dataset_contents_report()
+                if result:
+                    logger.info(f"Dataset contents report finalized: {result}", group="DATASET")
+                    
+                    # Output statistics for harvest script to capture
+                    try:
+                        collector = get_dataset_contents_collector()
+                        # Count warnings and errors from their respective arrays
+                        total_warnings = sum(len(v) for v in collector.data['warnings'].values())
+                        total_errors = sum(len(v) for v in collector.data['errors'].values())
                         
-                        # Output statistics for harvest script to capture
-                        try:
-                            collector = get_dataset_contents_collector()
-                            # Count warnings and errors from their respective arrays
-                            total_warnings = sum(len(v) for v in collector.data['warnings'].values())
-                            total_errors = sum(len(v) for v in collector.data['errors'].values())
-                            
-                            stats_output = {
-                                'total_cves': collector.data['processing']['total_cves'],
-                                'processed_cves': collector.data['processing']['processed_cves'],
-                                'warnings': total_warnings,
-                                'errors': total_errors,
-                                'runtime': collector.data['performance']['wall_clock_time']
-                            }
-                            # Print structured output for harvest script to parse
-                            print(f"DATASET_STATS: {json.dumps(stats_output)}", flush=True)
-                        except Exception as stats_error:
-                            logger.warning(f"Could not output dataset statistics: {stats_error}", group="DATASET")
-                    else:
-                        logger.warning("Dataset contents report finalization returned None", group="DATASET")
+                        stats_output = {
+                            'total_cves': collector.data['processing']['total_cves'],
+                            'processed_cves': collector.data['processing']['processed_cves'],
+                            'warnings': total_warnings,
+                            'errors': total_errors,
+                            'runtime': collector.data['performance']['wall_clock_time']
+                        }
+                        # Print structured output for harvest script to parse
+                        print(f"DATASET_STATS: {json.dumps(stats_output)}", flush=True)
+                    except Exception as stats_error:
+                        logger.warning(f"Could not output dataset statistics: {stats_error}", group="DATASET")
                 else:
-                    logger.warning("Cannot finalize dataset report - run_directory is None", group="DATASET")
+                    logger.warning("Dataset contents report finalization returned None", group="DATASET")
             except Exception as report_error:
                 logger.error(f"Failed to finalize dataset contents report: {report_error}", group="DATASET")
-                import traceback
                 logger.error(f"Traceback: {traceback.format_exc()}", group="DATASET")
             
     except Exception as e:

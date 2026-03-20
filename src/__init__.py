@@ -12,7 +12,7 @@ from pathlib import Path
 def _get_version():
     """Get version from config.json"""
     try:
-        config_path = Path(__file__).parent / "analysis_tool" / "config.json"
+        config_path = Path(__file__).parent.parent / "config.json"
         with open(config_path, 'r') as f:
             config = json.load(f)
         return config.get("application", {}).get("version", "unknown")

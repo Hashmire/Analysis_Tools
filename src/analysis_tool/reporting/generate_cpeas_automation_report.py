@@ -61,7 +61,7 @@ def load_config() -> Dict:
     """Load configuration file with defaults."""
     try:
         project_root = get_analysis_tools_root()
-        config_path = project_root / "src" / "analysis_tool" / "config.json"
+        config_path = project_root / "config.json"
         
         if config_path.exists():
             with open(config_path, 'r', encoding='utf-8') as f:
@@ -905,7 +905,7 @@ def generate_report(
     source_manager = None
     try:
         from ..storage.nvd_source_manager import get_or_refresh_source_manager
-        api_key = config.get('defaults', {}).get('default_api_key', '')
+        api_key = config.get('api', {}).get('api_key', '')
         source_manager = get_or_refresh_source_manager(api_key, log_group="DATA_PROC")
     except Exception as e:
         if logger:

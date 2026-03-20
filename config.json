@@ -3,16 +3,9 @@
         "toolname": "Hashmire/Analysis_Tools",
         "version": "0.3.0"
     },
-    "defaults": {
-        "default_cve_id": "",
-        "enable_browser_open": true,
-        "default_api_key": ""
-    },
     "cache_settings": {
         "cpe_cache": {
-            "enabled": true,
             "filename": "cpe_base_string_cache.json",
-            "compression": false,
             "auto_save_threshold": 50,
             "max_loaded_shards": 16,
             "description": "NVD CPE API responses with per-entry expiration",
@@ -27,7 +20,6 @@
             }
         },
         "nvd_source_data": {
-            "enabled": true,
             "filename": "nvd_source_data.json",
             "description": "NVD source organization data",
             "refresh_strategy": {
@@ -36,11 +28,8 @@
             }
         },
         "cve_list_v5": {
-            "enabled": true,
-            "path": "cache/cve_list_v5",
-            "fallback_to_api": true,
-            "manual_sync_only": false,
             "cache_missing_only": true,
+            "path": "cache/cve_list_v5",
             "description": "CVE List V5 repository with per-file tracking",
             "refresh_strategy": {
                 "field_path": "cache_metadata.datasets.cve_list_v5.lastManualUpdate",
@@ -48,14 +37,10 @@
             }
         },
         "nvd_2_0_cve": {
-            "enabled": true,
             "path": "cache/nvd_2.0_cves",
-            "filename": "nvd_2_0_cve.json",
             "description": "NVD CVE 2.0 API responses cache with per-file tracking",
             "refresh_strategy": {
-                "field_path": "$.vulnerabilities.*.cve.lastModified",
-                "notify_age_hours": 0,
-                "comment": "File age checking disabled - cache refreshed via NVD lastModified timestamp comparison during bulk harvesting"
+                "field_path": "$.vulnerabilities.*.cve.lastModified"
             }
         }
     },
@@ -70,8 +55,7 @@
     "progress": {
         "enabled": true,
         "show_eta": true,
-        "show_individual_timing": true,
-        "update_frequency": "per_cve"
+        "show_individual_timing": true
     },
     "logging": {
         "enabled": true,
@@ -139,17 +123,18 @@
         "quiet_individual": false
     },
     "api": {
+        "api_key": "",
         "timeouts": {
             "public_ip": 5,
             "nvd_api": 120,
             "cve_org": 120
         },
         "retry": {
-            "max_attempts_nvd": 10,
+            "max_attempts_nvd": 50,
             "max_attempts_cpe": 10,
-            "delay_with_key": 0,
+            "delay_with_key": 1,
             "delay_without_key": 6,
-            "page_delay_with_key": 0,
+            "page_delay_with_key": 1,
             "page_delay_without_key": 1
         },
         "endpoints": {

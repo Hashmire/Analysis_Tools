@@ -39,7 +39,7 @@ import utilities.refresh_nvd_cpe_base_strings_cache as refresh_module
 
 def load_config():
     """Load configuration from config.json"""
-    config_path = project_root / 'src' / 'analysis_tool' / 'config.json'
+    config_path = project_root / 'config.json'
     with open(config_path, 'r') as f:
         return json.load(f)
 
@@ -402,17 +402,11 @@ def test_end_to_end_data_preservation():
     """END-TO-END: Inject test data, verify it persists through save/load cycle"""
     print("Testing end-to-end data preservation with real cache operations...")
     
-    # Get real cache directory
-    cache_dir = project_root / "cache" / "cpe_base_strings"
-    shard_path = cache_dir / "cpe_cache_shard_00.json"
-    
-    # Backup existing shard if it exists
-    backup_path = None
-    if shard_path.exists():
-        backup_path = cache_dir / "cpe_cache_shard_00.json.test_backup"
-        shutil.copy(shard_path, backup_path)
-    
-    try:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir) / "cpe_base_strings"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        shard_path = cache_dir / "cpe_cache_shard_00.json"
+        
         # BEFORE: Inject test data with known query_count and timestamp
         test_cpe = "cpe:2.3:a:test_e2e:preservation_test:*:*:*:*:*:*:*:*"
         old_timestamp = "2026-01-15T12:00:00+00:00"
@@ -423,14 +417,8 @@ def test_end_to_end_data_preservation():
             "total_results": 99
         }
         
-        # Load existing shard or create new
-        if shard_path.exists():
-            shard_data_before = ShardedCPECache.load_shard_from_disk(shard_path)
-        else:
-            shard_data_before = {}
-        
+        shard_data_before = {test_cpe: test_entry}
         original_count = len(shard_data_before)
-        shard_data_before[test_cpe] = test_entry
         ShardedCPECache.save_shard_to_disk(shard_path, shard_data_before)
         
         print(f"  BEFORE: Injected test entry with query_count=7")
@@ -476,15 +464,8 @@ def test_end_to_end_data_preservation():
         print(f"  AFTER: query_count preserved: 7 [OK]")
         print(f"  AFTER: Data updated correctly [OK]")
         print(f"  AFTER: Total entries: {len(shard_data_after)} (>= {original_count}) [OK]")
-        
-        print("[OK] End-to-end data preservation verified")
-        
-    finally:
-        # Restore backup if it exists
-        if backup_path and backup_path.exists():
-            shutil.move(backup_path, shard_path)
-            print("  Restored original shard from backup")
     
+    print("[OK] End-to-end data preservation verified")
     return True
 
 def test_end_to_end_multiple_shards():

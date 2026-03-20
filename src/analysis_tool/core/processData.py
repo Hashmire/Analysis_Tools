@@ -45,7 +45,7 @@ def get_confirmed_mappings_stats():
 # Load configuration
 def load_config():
     """Load configuration from config.json"""
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'config.json')
+    config_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config.json')
     with open(config_path, 'r') as f:
         return json.load(f)
 
@@ -1529,23 +1529,16 @@ def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> Lis
                 json_response, cache_status = cache.get(query_string)
                 
                 if json_response is None:
-                    # Cache miss or expired - make API call
+                    # Cache miss or expired
                     if cache_status == 'miss':
                         cache_misses += 1
-                        logger.debug(f"Cache miss for CPE: {query_string} - Making API call", group="cpe_queries")
+                        logger.debug(f"Cache miss for CPE: {query_string}", group="cpe_queries")
                     elif cache_status == 'expired':
                         cache_expired += 1
-                        logger.debug(f"Cache expired for CPE: {query_string} - Making API call", group="cpe_queries")
-                    
+                        logger.debug(f"Cache expired for CPE: {query_string}", group="cpe_queries")
                     json_response = gatherData.gatherNVDCPEData(apiKey, "cpeMatchString", query_string)
                     api_calls += 1
-                    
-                    # Handle None response (max retries exceeded or other errors)
                     if json_response is None:
-                        logger.error(
-                            f"CPE API call failed after retries: {query_string}",
-                            group="cpe_queries"
-                        )
                         stats = {
                             "matches_found": 0,
                             "status": "error",

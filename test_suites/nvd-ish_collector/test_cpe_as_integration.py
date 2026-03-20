@@ -1294,6 +1294,7 @@ class CPEASIntegrationTestSuite:
         
         # Set environment variable so CPE cache uses test location
         os.environ['TEST_CPE_CACHE_DIR'] = str(self.test_cache_dir)
+        os.environ['TEST_NVD_API_DISABLED'] = '1'
         print(f"Test CPE cache directory: {self.test_cache_dir}")
         
     def setup_test_environment(self) -> List[str]:
@@ -1415,12 +1416,36 @@ class CPEASIntegrationTestSuite:
         timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
         injection_count = 0
         
+        import re
+        
+        def cull_vendor(v):
+            v = v.lower()
+            v = v.replace("apache_software_foundation", "apache")
+            v = re.sub(r"_inc\.?$", "", v)
+            return v
+        
+        def cull_product(p):
+            p = p.lower()
+            p = re.sub(r"^apache_", "", p)
+            p = re.sub(r"_software$", "", p)
+            p = re.sub(r"_version$", "", p)
+            p = re.sub(r"_plugin$", "", p)
+            p = re.sub(r"_v[\d]+.*$", "", p)
+            return p
+        
+        NA_VALUES = {'n/a', 'n\\/a'}
+        
         for vendor, product in test_combinations:
+            if vendor.lower() in NA_VALUES or product.lower() in NA_VALUES:
+                continue
+            culled_vendor = cull_vendor(vendor)
+            culled_product = cull_product(product)
+            
             # Create mock CPE products for this vendor/product
             products_list = [
-                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:1.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-001", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}},
-                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:1.1:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-002", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}},
-                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:2.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-003", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}}
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{culled_vendor}:{culled_product}:1.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{culled_product.upper()[:20]}-001", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}},
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{culled_vendor}:{culled_product}:1.1:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{culled_product.upper()[:20]}-002", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}},
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{culled_vendor}:{culled_product}:2.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{culled_product.upper()[:20]}-003", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}}
             ]
             
             # Create standard cache entry structure
@@ -1442,14 +1467,20 @@ class CPEASIntegrationTestSuite:
             # Inject CPE search patterns that match tool's actual query construction
             # (see processData.py constructSearchString() - product gets wrapped with wildcards)
             
-            # Pattern 1: Product-only (with wildcard prefix AND suffix - tool adds both)
-            product_only_key = f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:*:*"
+            # Pattern 1: Vendor-only (generated before platform processing, no platform variants)
+            vendor_only_key = f"cpe:2.3:*:{culled_vendor}:*:*:*:*:*:*:*:*:*"
+            shard_index = get_shard_index(vendor_only_key)
+            shard_data[shard_index][vendor_only_key] = cache_entry.copy()
+            injection_count += 1
+            
+            # Pattern 2: Product-only (with wildcard prefix AND suffix - tool adds both)
+            product_only_key = f"cpe:2.3:*:*:*{culled_product}*:*:*:*:*:*:*:*:*"
             shard_index = get_shard_index(product_only_key)
             shard_data[shard_index][product_only_key] = cache_entry.copy()
             injection_count += 1
             
-            # Pattern 2: Vendor + wildcarded product (matches actual search pattern)
-            vendor_product_key = f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:*:*:*"
+            # Pattern 3: Vendor + wildcarded product (matches actual search pattern)
+            vendor_product_key = f"cpe:2.3:*:{culled_vendor}:*{culled_product}*:*:*:*:*:*:*:*:*"
             shard_index = get_shard_index(vendor_product_key)
             shard_data[shard_index][vendor_product_key] = cache_entry.copy()
             injection_count += 1
@@ -1463,7 +1494,7 @@ class CPEASIntegrationTestSuite:
             with open(shard_path, 'wb') as f:
                 f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2))
         
-        print(f"  * Injected {injection_count} CPE cache entries into {num_shards} clean shards")  # Should be 24 (12 products × 2 patterns)
+        print(f"  * Injected {injection_count} CPE cache entries into {num_shards} clean shards")  # Should be 36 (12 products × 3 patterns)
     
     def cleanup_test_environment(self, copied_files: List[str]):
         """Clean up test environment by removing copied test files and test cache."""
@@ -1490,6 +1521,8 @@ class CPEASIntegrationTestSuite:
         # Clean up environment variable
         if 'TEST_CPE_CACHE_DIR' in os.environ:
             del os.environ['TEST_CPE_CACHE_DIR']
+        if 'TEST_NVD_API_DISABLED' in os.environ:
+            del os.environ['TEST_NVD_API_DISABLED']
     
     def run_analysis_tool(self, cve_id: str) -> Tuple[bool, Optional[Path], str, str]:
         """Run the analysis tool and return success status, output path, stdout, stderr."""

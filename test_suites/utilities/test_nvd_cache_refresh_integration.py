@@ -45,8 +45,8 @@ def test_full_refresh_integration():
     ]
     
     # Mock all the necessary functions
-    with patch('utilities.refresh_nvd_cves_2_0_cache.query_nvd_cves_all', return_value=mock_vulnerabilities) as mock_query_all, \
-         patch('utilities.refresh_nvd_cves_2_0_cache.query_nvd_cves_by_modified_date') as mock_query_date, \
+    with patch('utilities.refresh_nvd_cves_2_0_cache.query_nvd_cves_all_concurrent', return_value=mock_vulnerabilities) as mock_query_all, \
+         patch('utilities.refresh_nvd_cves_2_0_cache.query_nvd_cves_by_modified_date_concurrent') as mock_query_date, \
          patch('utilities.refresh_nvd_cves_2_0_cache.load_schema', return_value=None), \
          patch('utilities.refresh_nvd_cves_2_0_cache._save_nvd_cve_to_local_file'), \
          patch('utilities.refresh_nvd_cves_2_0_cache._update_cache_metadata'), \
@@ -100,8 +100,8 @@ def test_incremental_refresh_integration():
     ]
     
     # Mock all the necessary functions
-    with patch('utilities.refresh_nvd_cves_2_0_cache.query_nvd_cves_all') as mock_query_all, \
-         patch('utilities.refresh_nvd_cves_2_0_cache.query_nvd_cves_by_modified_date', return_value=mock_vulnerabilities) as mock_query_date, \
+    with patch('utilities.refresh_nvd_cves_2_0_cache.query_nvd_cves_all_concurrent') as mock_query_all, \
+         patch('utilities.refresh_nvd_cves_2_0_cache.query_nvd_cves_by_modified_date_concurrent', return_value=mock_vulnerabilities) as mock_query_date, \
          patch('utilities.refresh_nvd_cves_2_0_cache.load_schema', return_value=None), \
          patch('utilities.refresh_nvd_cves_2_0_cache._save_nvd_cve_to_local_file'), \
          patch('utilities.refresh_nvd_cves_2_0_cache._update_cache_metadata'), \

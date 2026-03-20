@@ -106,6 +106,7 @@ class MultiCVEStateIsolationTestSuite:
         (self.test_cache_dir / "cpe_base_strings").mkdir(parents=True, exist_ok=True)
         
         os.environ['TEST_CPE_CACHE_DIR'] = str(self.test_cache_dir)
+        os.environ['TEST_NVD_API_DISABLED'] = '1'
         print(f"Test CPE cache directory: {self.test_cache_dir}")
     
     def setup_test_environment(self) -> List[str]:
@@ -387,6 +388,8 @@ class MultiCVEStateIsolationTestSuite:
                 print(f"  [WARNING] Failed to clean test source data: {e}")
         
         print(f"  * Removed {removed_count} test files from INPUT cache")
+        if 'TEST_NVD_API_DISABLED' in os.environ:
+            del os.environ['TEST_NVD_API_DISABLED']
         
         # Note: CPE cache directory cleanup is handled by run_all_tests.py for consolidated runs
     

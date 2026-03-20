@@ -82,7 +82,7 @@ class ConfirmedMappingManager:
         if source_manager is None:
             from ..storage.nvd_source_manager import get_or_refresh_source_manager
             config = load_config()
-            api_key = config.get('defaults', {}).get('default_api_key', '')
+            api_key = config.get('api', {}).get('api_key', '')
             
             # get_or_refresh_source_manager() guarantees initialization or raises exception
             self._source_manager = get_or_refresh_source_manager(api_key, log_group="ALIAS_AUDIT")

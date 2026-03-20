@@ -223,15 +223,20 @@ def smart_refresh(args=None):
     
     # Get CVE List V5 config
     cve_config = _get_cached_config('cve_list_v5')
-    if not cve_config.get('enabled', False):
-        logger.warning("CVE List V5 cache is disabled in config - exiting", group="CACHE_REFRESH")
+    if not cve_config:
+        logger.error("Failed to load CVE List V5 config - cannot proceed", group="CACHE_REFRESH")
         return stats
-    
-    if cve_config.get('manual_sync_only', False):
-        logger.warning("CVE List V5 is set to manual_sync_only - this refresh script is the manual sync", group="CACHE_REFRESH")
-    
-    cve_repo_path = cve_config.get('path', 'cache/cve_list_v5')
-    cache_ttl_hours = cve_config.get('refresh_strategy', {}).get('notify_age_hours', 720)
+
+    cve_repo_path = cve_config.get('path')
+    if not cve_repo_path:
+        logger.error("CVE List V5 config missing required 'path' key - cannot proceed", group="CACHE_REFRESH")
+        return stats
+
+    refresh_strategy = cve_config.get('refresh_strategy', {})
+    cache_ttl_hours = refresh_strategy.get('notify_age_hours')
+    if cache_ttl_hours is None:
+        logger.error("CVE List V5 config missing required 'refresh_strategy.notify_age_hours' key - cannot proceed", group="CACHE_REFRESH")
+        return stats
     
     # Determine cutoff date
     cutoff_date = determine_cutoff_date(args)

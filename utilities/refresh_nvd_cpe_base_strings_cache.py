@@ -611,10 +611,10 @@ def main():
     config = load_config()
     
     # Get API key from config
-    api_key = config.get('defaults', {}).get('default_api_key')
+    api_key = config.get('api', {}).get('api_key')
     if not api_key or api_key == 'CONFIG_DEFAULT':
         logger.error(
-            "No NVD API key configured. Please set 'default_api_key' in src/analysis_tool/config.json",
+            "No NVD API key configured. Please set 'api.api_key' in src/analysis_tool/config.json",
             group="CACHE_REFRESH"
         )
         return 1

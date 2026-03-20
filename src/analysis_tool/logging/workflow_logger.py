@@ -73,7 +73,7 @@ class WorkflowLogger:
     def _load_config(self, config_path: Optional[str] = None) -> Dict[str, Any]:
         """Load configuration from config.json"""
         if config_path is None:
-            config_path = os.path.join(os.path.dirname(__file__), '..', 'config.json')
+            config_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config.json')
         
         try:
             with open(config_path, 'r') as f:

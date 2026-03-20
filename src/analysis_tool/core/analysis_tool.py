@@ -1,8 +1,49 @@
 #!/usr/bin/env python3
 """
-CVE Processor Script
+analysis_tool.py — Core CVE Analysis Processor
 
-This script runs analysis_tool.py for a list of CVEs or processes all CVE records.
+Entry point: python -m src.analysis_tool.core.analysis_tool [options]
+(Typically invoked via run_analysis_tool() in generate_dataset.py, not directly.)
+
+Purpose
+-------
+Applies the full analysis rule set to one or more CVE records: Source Data
+Concerns (SDC), CPE determination, alias extraction, and CPE Applicability
+Statement generation. All NVD data is read from the local disk cache — no API
+calls are made at analysis time.
+
+Input Modes
+-----------
+--cve <ID> [...]    Process CVE IDs from the command line. Requires NVD 2.0 and
+                    CVE List V5 cache entries to be pre-populated (e.g. via
+                    generate_dataset.py or a cache-refresh utility).
+--file <path>       Process CVE IDs from a text file (one per line). Same cache
+                    precondition as --cve. Standard handoff path from
+                    generate_dataset.run_analysis_tool() via sys.argv injection.
+--test-file <path>  Process synthetic CVE data from a structured JSON file.
+                    Bypasses all disk-cache reads; the JSON payload IS the
+                    NVD-ish record used for analysis. Used by test suites only.
+
+Key Functions
+-------------
+process_cve()               Full analysis pipeline for a single CVE ID.
+collect_nvd_base_record()   Primary NVD data path — reads directly from
+                            cache/nvd_2.0_cves/; no API fallback.
+process_test_file()         Synthetic-data injection path for test suites.
+audit_global_state()        Checks in-memory state for accumulation issues.
+audit_cache_and_mappings_stats()  Reports cache hit/miss and mapping stats.
+finalize_dashboard_data()   Writes final dashboard JSON after all CVEs processed.
+main()                      Argument parsing, run directory setup, and dispatch.
+
+Important Rules
+---------------
+- gatherNVDCVERecord() is cache-only: on a cache miss it logs an error and
+  returns None. It does NOT fall back to the NVD API.
+- clear_global_html_state() must be called between CVE processing runs to
+  prevent HTML state accumulation across multiple CVEs.
+- --alias-report requires --source-uuid (except in --nvd-ish-only mode).
+- --run-id connects this invocation to an existing run directory created by
+  generate_dataset.py, enabling unified output organization.
 """
 
 import os
@@ -78,7 +119,7 @@ def ensure_project_directory(relative_path):
 # Load configuration
 def load_config():
     """Load configuration from config.json"""
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'config.json')
+    config_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config.json')
     with open(config_path, 'r') as f:
         return json.load(f)
 
@@ -727,7 +768,7 @@ def finalize_dashboard_data():
         return False
 
 def main():
-    """Main function to process CVEs based on command line arguments."""
+    """Parse arguments and process CVEs via --cve/--file (pre-populated cache required) or --test-file (synthetic data, no cache reads)."""
     global current_run_paths
     
     parser = argparse.ArgumentParser(description="Process CVE records with analysis_tool.py")
@@ -853,12 +894,12 @@ def main():
     # Handle API key resolution with config fallback
     if args.api_key == 'CONFIG_DEFAULT' or args.api_key is None:
         # Use config default when --api-key is used without value or not provided
-        nvd_api_key = config['defaults']['default_api_key'] or ""
+        nvd_api_key = config['api']['api_key'] or ""
         if nvd_api_key and args.api_key == 'CONFIG_DEFAULT':
             logger.info(f"NVD API key detected | Source: Configuration", group="initialization")
         elif not nvd_api_key and args.api_key == 'CONFIG_DEFAULT':
-            logger.warning("--api-key used without value but no default_api_key set in config.json", group="initialization")
-            logger.info("Set default_api_key in config.json or provide key directly with --api-key YOUR_KEY", group="initialization")
+            logger.warning("--api-key used without value but no api_key set in config.json", group="initialization")
+            logger.info("Set api.api_key in config.json or provide key directly with --api-key YOUR_KEY", group="initialization")
     else:
         # Use explicitly provided API key
         nvd_api_key = args.api_key
@@ -867,7 +908,7 @@ def main():
     # Warn if no API key is available (for non-test files)
     if not nvd_api_key and not args.test_file:
         logger.warning("No NVD API key available - processing will be MUCH slower due to rate limiting", group="initialization")
-        logger.info("Use --api-key YOUR_KEY or --api-key (for config default) or set default_api_key in config.json", group="initialization")
+        logger.info("Use --api-key YOUR_KEY or --api-key (for config default) or set api.api_key in config.json", group="initialization")
     
     # Get global NVD source manager (uses cache or refreshes as needed)
     from ..storage.nvd_source_manager import get_or_refresh_source_manager
@@ -978,10 +1019,10 @@ def main():
         logger.stop_file_logging()
         
         return
-    # No arguments provided - use config debug defaults
+    # No CVE target provided - fail fast
     if not (args.cve or args.file or args.test_file):
-        logger.info(f"No arguments provided: Processing single CVE {config['defaults']['default_cve_id']} per config defaults", group="initialization")
-        args.cve = [config['defaults']['default_cve_id']]    
+        logger.error("No CVE target specified. Provide --cve <CVE-ID>, --file <path>, or --test-file <path>.", group="initialization")
+        sys.exit(1)
     
     # Create or use existing run directory for this analysis session
     from ..storage.run_organization import create_run_directory, get_current_run_paths

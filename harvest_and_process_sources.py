@@ -5,13 +5,13 @@ This script fetches all source UUIDs from the NVD sources API and processes them
 through generate_dataset.py with the specified parameters.
 """
 
-import requests
 import json
 import subprocess
 import sys
 import argparse
 import time
 import os
+import traceback
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from analysis_tool.logging.workflow_logger import get_logger
 from analysis_tool.storage.run_organization import create_run_directory, get_current_run_paths
 from analysis_tool.core.gatherData import checkSourceCVECount, harvestSourceUUIDs
+from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
 
 logger = get_logger()
 
@@ -35,7 +36,7 @@ def get_analysis_tools_root():
 
 def load_config():
     """Load configuration from config.json"""
-    config_path = os.path.join(os.path.dirname(__file__), 'src', 'analysis_tool', 'config.json')
+    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
     with open(config_path, 'r') as f:
         return json.load(f)
 
@@ -52,7 +53,6 @@ def initialize_source_manager_for_harvest(api_key):
     """
     logger.info("Initializing NVD source manager for harvest session...", group="CACHE_MANAGEMENT")
     
-    sys.path.insert(0, str(get_analysis_tools_root() / "src"))
     from analysis_tool.storage.nvd_source_manager import get_or_refresh_source_manager
     
     # Initialize source manager - fails fast if unable to initialize
@@ -83,7 +83,7 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True,
     
     # Build command
     cmd = [
-        sys.executable, # Unbuffered output (interpreter flag)
+        sys.executable, # Python interpreter path
         "-u",           # -u is mandatory Python interpreter flag (not a script parameter) for unbuffered stdout/stderr
                         # Required for real-time log streaming through subprocess.PIPE
         str(generate_script),
@@ -108,9 +108,6 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True,
         cmd.extend(["--nvd-ish-only"])
     
     # Add optional parameters only if they exist
-    if kwargs.get('external_assets'):
-        cmd.extend(["--external-assets"])
-    
     if 'statuses' in kwargs:
         cmd.extend(["--statuses"] + kwargs['statuses'])
     
@@ -170,19 +167,9 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True,
         
         logger.info(f"[SUCCESS] Successfully processed {source_name}", group="HARVEST")
         
-        # Update harvest index after successful processing
-        if parent_run_dir:
-            try:
-                from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
-                update_harvest_index_incremental(parent_run_dir, {}, current_source_info=None)
-            except Exception as e:
-                logger.warning(f"Failed to update harvest index after successful processing (non-critical): {e}", group="HARVEST")
-        
         return True, dataset_run_dir, None, statistics
         
     except subprocess.CalledProcessError as e:
-        # Clear global subprocess reference on error
-        _active_subprocess = None
         logger.error(f"Error processing {source_name}: {e}", group="HARVEST")
         error_type = f"Exit code {e.returncode}"
         return False, dataset_run_dir, error_type, None
@@ -191,15 +178,6 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True,
         _active_subprocess = None
         logger.error(f"Unexpected error processing {source_name}: {e}", group="HARVEST")
         error_type = f"Unexpected: {type(e).__name__}"
-        
-        # Update harvest index after error
-        if parent_run_dir:
-            try:
-                from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
-                update_harvest_index_incremental(parent_run_dir, {}, current_source_info=None)
-            except Exception as e:
-                logger.warning(f"Failed to update harvest index after error (non-critical): {e}", group="HARVEST")
-        
         return False, None, error_type, None
 
 
@@ -212,13 +190,9 @@ def main():
     try:
         config = load_config()
         harvest_config = config.get('harvest_and_process_sources', {})
-        defaults_config = config.get('defaults', {})
-        local_cve_config = config.get('cache_settings', {}).get('cve_list_v5', {})
     except Exception as e:
         logger.warning(f"Could not load config file: {e}", group="INIT")
         harvest_config = {}
-        defaults_config = {}
-        local_cve_config = {}
     
     # Tool Output - Feature flags
     output_group = parser.add_argument_group('Tool Output', 'Select which analysis outputs to generate')
@@ -265,11 +239,6 @@ def main():
         nargs='?',
         const='CONFIG_DEFAULT',
         help="NVD API key. Use without value to use config default, or provide explicit key"
-    )
-    dataset_group.add_argument(
-        "--external-assets",
-        action="store_true",
-        help="Enable external assets in analysis"
     )
     dataset_group.add_argument(
         "--statuses",
@@ -342,7 +311,6 @@ def main():
     
     # === INTELLIGENT PARAMETER HANDLING ===
     
-    # Process Tool Output parameters (always pass explicit boolean values)
     processed_params = {}
     
     # Handle boolean flags - convert to explicit true/false
@@ -350,40 +318,22 @@ def main():
         flag_value = getattr(args, flag, None)
         if flag_value is not None:
             # Parameter provided - convert to boolean and pass with explicit value
-            processed_params[flag] = flag_value.lower() == 'true' if isinstance(flag_value, str) else flag_value
+            processed_params[flag] = flag_value.lower() == 'true'
         else:
             # No parameter provided - pass as false
             processed_params[flag] = False
-    
-    # Validate that at least one feature is enabled (including nvd-ish-only)
-    feature_enabled = any(processed_params[flag] for flag in ['sdc_report', 'cpe_determination', 'alias_report', 'cpe_as_generator', 'nvd_ish_only'])
-    if not feature_enabled:
-        logger.error("At least one feature must be enabled for harvest processing!", group="HARVEST")
-        logger.info("Available features:", group="HARVEST")
-        logger.info("  --sdc-report               : Generate Source Data Concerns report", group="HARVEST")
-        logger.info("  --cpe-determination          : Generate CPE suggestions via NVD CPE API calls", group="HARVEST")
-        logger.info("  --alias-report             : Generate alias report via curator features", group="HARVEST")
-        logger.info("  --cpe-as-generator         : Generate CPE Applicability Statements", group="HARVEST")
-        logger.info("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files", group="HARVEST")
-        logger.info("", group="HARVEST")
-        logger.info("Example usage:", group="HARVEST")
-        logger.info("  python harvest_and_process_sources.py --sdc-report", group="HARVEST")
-        logger.info("  python harvest_and_process_sources.py --cpe-determination --cpe-as-generator", group="HARVEST")
-        logger.info("  python harvest_and_process_sources.py --nvd-ish-only", group="HARVEST")
-        logger.stop_file_logging()
-        sys.exit(1)
     
     # Handle API key with intelligent config resolution
     api_key = None
     if args.api_key == 'CONFIG_DEFAULT':
         # Parameter provided without value - check config
-        config_key = defaults_config.get('default_api_key')
+        config_key = config.get('api', {}).get('api_key')
         if config_key:
             api_key = config_key
         else:
             logger.error("API key is required for source harvesting and processing", group="HARVEST")
-            logger.info("No API key found in config.json default_api_key setting", group="HARVEST")
-            logger.info("Either provide --api-key <key> or set default_api_key in config.json", group="HARVEST")
+            logger.info("No API key found in config.json api.api_key setting", group="HARVEST")
+            logger.info("Either provide --api-key <key> or set api.api_key in config.json", group="HARVEST")
             logger.stop_file_logging()
             sys.exit(1)
     elif args.api_key:
@@ -391,25 +341,20 @@ def main():
         api_key = args.api_key
     else:
         # No parameter provided - check config
-        config_key = defaults_config.get('default_api_key')
+        config_key = config.get('api', {}).get('api_key')
         if config_key:
             api_key = config_key
         else:
             logger.error("API key is required for source harvesting and processing", group="HARVEST")
-            logger.info("Either use --api-key parameter or set default_api_key in config.json", group="HARVEST")
+            logger.info("Either use --api-key parameter or set api.api_key in config.json", group="HARVEST")
             logger.info("NVD API without a key has severe rate limits that make processing impractical", group="HARVEST")
             logger.stop_file_logging()
             sys.exit(1)
     
     processed_params['api_key'] = api_key
     
-    # Handle local CVE repo with intelligent config resolution
-    # Handle external assets
-    if args.external_assets:
-        processed_params['external_assets'] = True
-    
     # Handle statuses with validation
-    if hasattr(args, 'statuses') and args.statuses is not None:
+    if args.statuses is not None:
         if len(args.statuses) == 0:
             # Parameter provided but no values - warn and don't pass
             logger.warning("--statuses parameter provided without values, ignoring. Will default to 'all statuses'", group="HARVEST")
@@ -437,21 +382,17 @@ def main():
             elif date_param in ['start_date', 'end_date']:
                 # Basic date format validation
                 try:
-                    from datetime import datetime as dt_parser
                     # Try parsing as YYYY-MM-DD first, then ISO format
                     if len(value) == 10 and value.count('-') == 2:
-                        dt_parser.strptime(value, '%Y-%m-%d')
+                        datetime.strptime(value, '%Y-%m-%d')
                     else:
-                        dt_parser.fromisoformat(value.replace('Z', '+00:00'))
+                        datetime.fromisoformat(value.replace('Z', '+00:00'))
                     processed_params[date_param] = value
                 except ValueError:
                     logger.error(f"Invalid date format for --{date_param.replace('_', '-')}: {value}", group="HARVEST")
                     logger.info("Use YYYY-MM-DD or ISO format (e.g., 2024-01-01 or 2024-01-01T00:00:00Z)", group="HARVEST")
                     logger.stop_file_logging()
                     sys.exit(1)
-        # If parameter provided without value, warn and don't pass
-        elif hasattr(args, date_param) and getattr(args, date_param) == '':
-            logger.warning(f"--{date_param.replace('_', '-')} parameter provided without value, ignoring", group="HARVEST")
     
     # Create harvest run directory
     enabled_features_str = "_".join(enabled_features)
@@ -478,7 +419,7 @@ def main():
     logger.info(f"Using API key for enhanced rate limits", group="HARVEST")
     
     # Harvest source UUIDs
-    source_info, api_totals = harvestSourceUUIDs()
+    source_info, api_totals = harvestSourceUUIDs(processed_params['api_key'])
     
     if not source_info:
         logger.warning("No source UUIDs found to process", group="HARVEST")
@@ -491,10 +432,9 @@ def main():
     # Create initial harvest index with metadata before processing starts
     logger.info("Initializing harvest index...", group="HARVEST")
     try:
-        from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
         # Create initial index with all sources marked as not_processed
         initial_sources = []
-        for source_name, source_uuid, last_modified in source_info:
+        for source_name, source_uuid, _ in source_info:
             initial_sources.append({
                 'name': source_name,
                 'uuid': source_uuid,
@@ -508,11 +448,6 @@ def main():
             'duration': 'In Progress',
             'status': 'In Progress',
             'total_sources': len(source_info),
-            'successful': 0,
-            'failed': 0,
-            'skipped': 0,
-            'interrupted': 0,
-            'not_processed': len(source_info),  # All sources start as not_processed
             'sources': initial_sources
         }
         update_harvest_index_incremental(run_directory, initial_stats)
@@ -550,7 +485,6 @@ def main():
             
             # Update harvest index to show this source as in progress
             try:
-                from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
                 update_harvest_index_incremental(run_directory, {}, current_source_info=current_source_info)
             except Exception as e:
                 logger.warning(f"Failed to mark source as in-progress in harvest index (non-critical): {e}", group="HARVEST")
@@ -589,7 +523,6 @@ def main():
                     
                     # Update harvest index with completed source data
                     try:
-                        from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
                         # Build incremental harvest_statistics with completed sources so far
                         current_time = datetime.now(timezone.utc)
                         elapsed = current_time - session_start_time
@@ -598,13 +531,6 @@ def main():
                         duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
                         incremental_stats = {
                             'sources': [],
-                            'total_sources': len(source_info),
-                            'successful': len(successful_sources),
-                            'failed': len(failed_sources),
-                            'skipped': len(skipped_sources),
-                            'interrupted': 0,
-                            'not_processed': len(source_info) - (len(successful_sources) + len(failed_sources) + len(skipped_sources)),
-                            'session_start': session_start_time.isoformat(),
                             'session_end': current_time.isoformat(),
                             'duration': duration_str,
                             'status': 'In Progress'
@@ -666,7 +592,6 @@ def main():
                     
                     # Update harvest index with failed source data
                     try:
-                        from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
                         # Build incremental harvest_statistics with all sources so far
                         current_time = datetime.now(timezone.utc)
                         elapsed = current_time - session_start_time
@@ -675,13 +600,6 @@ def main():
                         duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
                         incremental_stats = {
                             'sources': [],
-                            'total_sources': len(source_info),
-                            'successful': len(successful_sources),
-                            'failed': len(failed_sources),
-                            'skipped': len(skipped_sources),
-                            'interrupted': 0,
-                            'not_processed': len(source_info) - (len(successful_sources) + len(failed_sources) + len(skipped_sources)),
-                            'session_start': session_start_time.isoformat(),
                             'session_end': current_time.isoformat(),
                             'duration': duration_str,
                             'status': 'In Progress'
@@ -759,7 +677,6 @@ def main():
         logger.error("PROCESSING CRASHED", group="HARVEST")
         logger.error("="*60, group="HARVEST")
         logger.error(f"Unexpected error: {e}", group="HARVEST")
-        import traceback
         logger.error(f"Traceback:\n{traceback.format_exc()}", group="HARVEST")
     
     finally:
@@ -773,7 +690,7 @@ def main():
         # last_processed_index is 0-based, so sources from index last_processed_index+1 onward were not attempted
         if last_processed_index < len(source_info) - 1:
             for j in range(last_processed_index + 1, len(source_info)):
-                source_name, source_uuid, last_modified = source_info[j]
+                source_name, source_uuid, _ = source_info[j]
                 not_processed_sources.append((source_name, source_uuid))
     
     # Summary
@@ -858,13 +775,11 @@ def main():
     
     # Calculate session duration
     session_end_time = datetime.now(timezone.utc)
-    duration_str = 'Unknown'
-    if session_start_time:
-        duration_sec = (session_end_time - session_start_time).total_seconds()
-        hours = int(duration_sec // 3600)
-        minutes = int((duration_sec % 3600) // 60)
-        seconds = int(duration_sec % 60)
-        duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    duration_sec = (session_end_time - session_start_time).total_seconds()
+    hours = int(duration_sec // 3600)
+    minutes = int((duration_sec % 3600) // 60)
+    seconds = int(duration_sec % 60)
+    duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
     
     # Determine final session status
     if termination_reason:
@@ -879,9 +794,6 @@ def main():
     # Final harvest index and report generation
     logger.info("Finalizing harvest session reports...", group="HARVEST")
     try:
-        # Import update function to finalize session metadata
-        from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
-        
         # Build final harvest statistics including interrupted and not_processed sources
         final_stats = {
             'sources': [],

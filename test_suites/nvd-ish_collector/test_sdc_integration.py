@@ -56,6 +56,7 @@ class SDCIntegrationTestSuite:
         
         # Set environment variable so CPE cache uses test location
         os.environ['TEST_CPE_CACHE_DIR'] = str(self.test_cache_dir)
+        os.environ['TEST_NVD_API_DISABLED'] = '1'
         print(f"Test CPE cache directory: {self.test_cache_dir}")
         
     def setup_test_environment(self):
@@ -171,10 +172,34 @@ class SDCIntegrationTestSuite:
         timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
         injection_count = 0
         
+        import re
+        
+        def cull_vendor(v):
+            v = v.lower()
+            v = v.replace("apache_software_foundation", "apache")
+            v = re.sub(r"_inc\.?$", "", v)
+            return v
+        
+        def cull_product(p):
+            p = p.lower()
+            p = re.sub(r"^apache_", "", p)
+            p = re.sub(r"_software$", "", p)
+            p = re.sub(r"_version$", "", p)
+            p = re.sub(r"_plugin$", "", p)
+            p = re.sub(r"_v[\d]+.*$", "", p)
+            return p
+        
+        NA_VALUES = {'n/a', 'n\\/a'}
+        
         for vendor, product in test_combinations:
+            if vendor.lower() in NA_VALUES or product.lower() in NA_VALUES:
+                continue
+            culled_vendor = cull_vendor(vendor)
+            culled_product = cull_product(product)
+            
             # Create mock CPE products
             products_list = [
-                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:1.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-001", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}}
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{culled_vendor}:{culled_product}:1.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{culled_product.upper()[:20]}-001", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}}
             ]
             
             # Create standard cache entry structure
@@ -195,10 +220,32 @@ class SDCIntegrationTestSuite:
             
             # Inject CPE search patterns that match tool's actual query construction
             # (see processData.py constructSearchString() - product gets wrapped with wildcards)
-            for pattern in [
-                f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:*:*",  # Product-only (with wildcards)
-                f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:*:*:*"  # Vendor + wildcarded product
-            ]:
+            os_platforms = ["windows", "linux", "macos"]
+            arch_platforms = ["x86", "x64", "arm64"]
+            
+            search_patterns = []
+            # Vendor-only pattern (1 total)
+            search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*:*:*:*:*:*:*:*:*")
+            # Product-only patterns (16 total)
+            search_patterns.append(f"cpe:2.3:*:*:*{culled_product}*:*:*:*:*:*:*:*:*")
+            for os in os_platforms:
+                search_patterns.append(f"cpe:2.3:*:*:*{culled_product}*:*:*:*:*:*:{os}:*:*")
+            for arch in arch_platforms:
+                search_patterns.append(f"cpe:2.3:*:*:*{culled_product}*:*:*:*:*:*:*:{arch}:*")
+            for os in os_platforms:
+                for arch in arch_platforms:
+                    search_patterns.append(f"cpe:2.3:*:*:*{culled_product}*:*:*:*:*:*:{os}:{arch}:*")
+            # Vendor+Product patterns (16 total)
+            search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*{culled_product}*:*:*:*:*:*:*:*:*")
+            for os in os_platforms:
+                search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*{culled_product}*:*:*:*:*:*:{os}:*:*")
+            for arch in arch_platforms:
+                search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*{culled_product}*:*:*:*:*:*:*:{arch}:*")
+            for os in os_platforms:
+                for arch in arch_platforms:
+                    search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*{culled_product}*:*:*:*:*:*:{os}:{arch}:*")
+            
+            for pattern in search_patterns:
                 shard_index = get_shard_index(pattern)
                 shard_data[shard_index][pattern] = cache_entry.copy()
                 injection_count += 1
@@ -232,6 +279,8 @@ class SDCIntegrationTestSuite:
         # Clear environment variable
         if 'TEST_CPE_CACHE_DIR' in os.environ:
             del os.environ['TEST_CPE_CACHE_DIR']
+        if 'TEST_NVD_API_DISABLED' in os.environ:
+            del os.environ['TEST_NVD_API_DISABLED']
         
         print(f"  * Cleaned up {len(copied_files)} test files")
     

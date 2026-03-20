@@ -117,7 +117,7 @@ class UnifiedDashboardCollector:
         try:
             # Use provided config or load from file
             if config_dict is None:
-                config_path = Path(__file__).parent.parent / "config.json"
+                config_path = Path(__file__).parent.parent.parent.parent / "config.json"
                 with open(config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
             else:

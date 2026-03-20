@@ -45,7 +45,7 @@ from src.analysis_tool.storage.cpe_cache import get_global_cache_manager, Global
 
 def load_config():
     """Load configuration from config.json"""
-    config_path = project_root / 'src' / 'analysis_tool' / 'config.json'
+    config_path = project_root / 'config.json'
     with open(config_path, 'r') as f:
         return json.load(f)
 
@@ -371,37 +371,44 @@ def test_cache_miss_workflow():
         print("  [WARNING] Cache disabled in config - skipping test")
         return True
     
-    cache_manager = get_global_cache_manager()
-    if cache_manager.is_initialized():
-        cache_manager.save_and_cleanup()
-    
-    cache = cache_manager.initialize(cache_config)
-    
-    # Create unique CPE
-    unique_cpe = f"cpe:2.3:a:miss_test:product_{int(datetime.now().timestamp())}"
-    
-    # First access - should be MISS
-    result1, status1 = cache.get(unique_cpe)
-    assert status1 == 'miss', f"Expected miss, got {status1}"
-    assert result1 is None, "Miss should return None"
-    
-    # Simulate API call
-    fake_response = {
-        'totalResults': 1,
-        'resultsPerPage': 100,
-        'products': [{'test': 'data'}],
-        'timestamp': datetime.now(timezone.utc).isoformat()
-    }
-    cache.put(unique_cpe, fake_response)
-    
-    # Second access - should be HIT
-    result2, status2 = cache.get(unique_cpe)
-    assert status2 == 'hit', f"Expected hit after put, got {status2}"
-    assert result2 == fake_response, "Retrieved data doesn't match"
-    
-    stats = cache.get_stats()
-    assert stats['session_misses'] >= 1, "Should have at least 1 miss"
-    assert stats['session_hits'] >= 1, "Should have at least 1 hit"
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.environ['TEST_CPE_CACHE_DIR'] = tmpdir
+        try:
+            cache_manager = get_global_cache_manager()
+            if cache_manager.is_initialized():
+                cache_manager.save_and_cleanup()
+            
+            cache = cache_manager.initialize(cache_config)
+            
+            # Create unique CPE
+            unique_cpe = f"cpe:2.3:a:miss_test:product_{int(datetime.now().timestamp())}"
+            
+            # First access - should be MISS
+            result1, status1 = cache.get(unique_cpe)
+            assert status1 == 'miss', f"Expected miss, got {status1}"
+            assert result1 is None, "Miss should return None"
+            
+            # Simulate API call
+            fake_response = {
+                'totalResults': 1,
+                'resultsPerPage': 100,
+                'products': [{'test': 'data'}],
+                'timestamp': datetime.now(timezone.utc).isoformat()
+            }
+            cache.put(unique_cpe, fake_response)
+            
+            # Second access - should be HIT
+            result2, status2 = cache.get(unique_cpe)
+            assert status2 == 'hit', f"Expected hit after put, got {status2}"
+            assert result2 == fake_response, "Retrieved data doesn't match"
+            
+            stats = cache.get_stats()
+            assert stats['session_misses'] >= 1, "Should have at least 1 miss"
+            assert stats['session_hits'] >= 1, "Should have at least 1 hit"
+            
+            cache_manager.save_and_cleanup()
+        finally:
+            del os.environ['TEST_CPE_CACHE_DIR']
     
     print("[OK] Cache MISS workflow validated")
     return True
@@ -451,19 +458,26 @@ def test_cache_disabled_workflow():
     cache_config = config.get('cache_settings', {}).get('cpe_cache', {}).copy()
     cache_config['enabled'] = False
     
-    cache_manager = get_global_cache_manager()
-    if cache_manager.is_initialized():
-        cache_manager.save_and_cleanup()
-    
-    cache = cache_manager.initialize(cache_config)
-    
-    # All operations should return 'disabled'
-    test_cpe = "cpe:2.3:a:disabled_test:product"
-    cache.put(test_cpe, {'totalResults': 1})
-    
-    result, status = cache.get(test_cpe)
-    assert status == 'disabled', f"Expected 'disabled' status, got {status}"
-    assert result is None, "Disabled cache should return None"
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.environ['TEST_CPE_CACHE_DIR'] = tmpdir
+        try:
+            cache_manager = get_global_cache_manager()
+            if cache_manager.is_initialized():
+                cache_manager.save_and_cleanup()
+            
+            cache = cache_manager.initialize(cache_config)
+            
+            # All operations should return 'disabled'
+            test_cpe = "cpe:2.3:a:disabled_test:product"
+            cache.put(test_cpe, {'totalResults': 1})
+            
+            result, status = cache.get(test_cpe)
+            assert status == 'disabled', f"Expected 'disabled' status, got {status}"
+            assert result is None, "Disabled cache should return None"
+            
+            cache_manager.save_and_cleanup()
+        finally:
+            del os.environ['TEST_CPE_CACHE_DIR']
     
     print("[OK] Cache DISABLED workflow validated")
     return True
@@ -603,32 +617,39 @@ def test_cache_persistence_across_runs():
     config = load_config()
     cache_config = config.get('cache_settings', {}).get('cpe_cache', {})
     
-    cache_manager = get_global_cache_manager()
-    if cache_manager.is_initialized():
-        cache_manager.save_and_cleanup()
-    
-    cache = cache_manager.initialize(cache_config)
-    
-    # Add unique test entry
-    test_cpe = f"cpe:2.3:a:persistence_test:run_{datetime.now().timestamp()}"
-    test_data = {'totalResults': 1, 'timestamp': datetime.now(timezone.utc).isoformat()}
-    
-    cache.put(test_cpe, test_data)
-    
-    # Save and evict
-    cache_manager.save_all_shards()
-    cache_manager.evict_all_shards()
-    
-    # Verify eviction cleared memory
-    if hasattr(cache, 'loaded_shards'):
-        shards_in_memory = len(cache.loaded_shards)
-    else:
-        shards_in_memory = -1
-    
-    # Retrieve - should reload from disk
-    retrieved, status = cache.get(test_cpe)
-    
-    success = status == 'hit' and retrieved == test_data
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.environ['TEST_CPE_CACHE_DIR'] = tmpdir
+        try:
+            cache_manager = get_global_cache_manager()
+            if cache_manager.is_initialized():
+                cache_manager.save_and_cleanup()
+            
+            cache = cache_manager.initialize(cache_config)
+            
+            # Add unique test entry
+            test_cpe = f"cpe:2.3:a:persistence_test:run_{datetime.now().timestamp()}"
+            test_data = {'totalResults': 1, 'timestamp': datetime.now(timezone.utc).isoformat()}
+            
+            cache.put(test_cpe, test_data)
+            
+            # Save and evict
+            cache_manager.save_all_shards()
+            cache_manager.evict_all_shards()
+            
+            # Verify eviction cleared memory
+            if hasattr(cache, 'loaded_shards'):
+                shards_in_memory = len(cache.loaded_shards)
+            else:
+                shards_in_memory = -1
+            
+            # Retrieve - should reload from disk
+            retrieved, status = cache.get(test_cpe)
+            
+            success = status == 'hit' and retrieved == test_data
+            
+            cache_manager.save_and_cleanup()
+        finally:
+            del os.environ['TEST_CPE_CACHE_DIR']
     
     print("[OK] Cache persistence validated")
     print(f"  - After eviction: {shards_in_memory} shards in memory")

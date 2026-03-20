@@ -1,3 +1,7 @@
+"""
+gatherData.py — Data Retrieval, Cache Management, and Orchestration
+"""
+
 # Import Python dependencies
 import requests
 import pandas as pd
@@ -7,17 +11,16 @@ import json
 import threading
 from time import sleep, time
 from pathlib import Path
-from typing import Optional, List, Tuple, Dict, Any
-from datetime import datetime
+from typing import Optional, List, Tuple, Any
+from datetime import datetime, timezone
+from urllib.parse import urlencode
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Import Analysis Tool 
+# Import Analysis Tool
 from . import processData
 
-# Import the new logging system
-from ..logging.workflow_logger import get_logger, LogGroup
-
-# Import storage utilities
+# Import logging and storage utilities
+from ..logging.workflow_logger import get_logger
 from ..storage.run_organization import get_analysis_tools_root
 
 # Get logger instance
@@ -29,17 +32,17 @@ class HTTPResponseError(Exception):
     pass
 
 
-class NVDRateLimiter:
+class NVDConcurrentCVERateLimiter:
     """
-    Thread-safe rate limiter for NVD API requests.
-    
-    Tracks requests in a sliding 30-second window to ensure compliance with
-    NVD API rate limits (50 req/30s with key, 5 req/30s without key).
-    
-    Uses intelligent pacing to smooth requests across the window and maintain
-    a safety buffer to avoid hitting the actual limit.
-    
-    Thread-safe for concurrent use with ThreadPoolExecutor.
+    Thread-safe rate limiter for concurrent NVD /cves/ API queries.
+
+    Coordinates request pacing across all workers in a ThreadPoolExecutor to
+    ensure compliance with NVD API rate limits (50 req/30s with key, 5 req/30s
+    without key). Not used by sequential paths (CPE, source, single-CVE fetches).
+
+    Tracks requests in a sliding window and enforces minimum per-request spacing
+    to smooth bursts across the window and maintain a safety buffer below the
+    actual limit.
     """
     
     def __init__(self, max_requests: int = 50, window_seconds: int = 30, buffer_percent: float = 0.10):
@@ -160,7 +163,9 @@ def validate_http_response(response: requests.Response, context: str, max_size_m
         response.raise_for_status()
     except requests.exceptions.HTTPError as e:
         status_code = response.status_code
-        error_msg = f"HTTP {status_code} error: {e} - {context}"
+        cf_ray = response.headers.get('CF-RAY', '')
+        cf_details = f" [CF-RAY: {cf_ray}]" if cf_ray else ""
+        error_msg = f"HTTP {status_code} error: {e}{cf_details} - {context}"
         logger.error(error_msg, group="DATA_PROC")
         raise HTTPResponseError(error_msg) from e
     except Exception as e:
@@ -214,13 +219,28 @@ def validate_http_response(response: requests.Response, context: str, max_size_m
 # Load configuration
 def load_config():
     """Load configuration from config.json"""
-    config_path = os.path.join(os.path.dirname(__file__), '..', 'config.json')
+    config_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config.json')
     with open(config_path, 'r') as f:
-        return json.load(f)
+        config = json.load(f)
+    if os.environ.get('TEST_NVD_API_DISABLED'):
+        config['api']['retry']['max_attempts_nvd'] = 0
+        config['api']['retry']['max_attempts_cpe'] = 0
+    return config
 
 config = load_config()
 VERSION = config['application']['version']
 TOOLNAME = config['application']['toolname']
+
+
+def build_nvd_api_headers(api_key=None):
+    """Build standard NVD API request headers. Pass api_key for authenticated rate limits."""
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": f"{TOOLNAME}/{VERSION}"
+    }
+    if api_key:
+        headers["apiKey"] = api_key
+    return headers
 
 
 # ============================================================================
@@ -595,8 +615,6 @@ def _update_schema_metadata(schema_name: str, schema_filename: str, schema_sourc
         schema_source: Schema source subdirectory (e.g., 'nvd', 'cve_program', 'analysis_tool', 'first')
     """
     try:
-        from datetime import datetime, timezone
-        from pathlib import Path
         import orjson
         
         project_root = Path(__file__).parent.parent.parent.parent
@@ -677,40 +695,6 @@ def _get_cached_config(cache_type):
         _config_cache[cache_type] = get_cache_config(cache_type)
     return _config_cache[cache_type]
 
-# CONSOLIDATED CACHE CONFIGURATION FUNCTIONS
-def _get_cache_defaults(cache_type):
-    """Get default configuration for cache type"""
-    defaults = {
-        'cve_list_v5': {
-            'enabled': False,
-            'path': 'cache/cve_list_v5',
-            'fallback_to_api': True,
-            'cache_missing_only': True,
-            'description': 'CVE List V5 repository with per-file tracking',
-            'refresh_strategy': {
-                'field_path': '$.cveMetadata.dateUpdated',
-                'notify_age_hours': 168
-            }
-        },
-        'nvd_2_0_cve': {
-            'enabled': True,
-            'path': 'cache/nvd_2.0_cves',
-            'filename': 'nvd_2_0_cve.json',
-            'description': 'NVD CVE 2.0 API responses cache with per-file tracking',
-            'refresh_strategy': {
-                'field_path': '$.vulnerabilities.*.cve.lastModified',
-                'notify_age_hours': 24
-            }
-        }
-    }
-    return defaults.get(cache_type, {})
-
-def _get_cache_descriptions():
-    """Get standard descriptions for cache types"""
-    return {
-        'cve_list_v5': 'CVE List V5 local repository with per-file tracking',
-        'nvd_2_0_cve': 'NVD CVE 2.0 API responses with directory organization'
-    }
 
 def _update_cache_metadata(cache_type, repo_path):
     """
@@ -721,9 +705,6 @@ def _update_cache_metadata(cache_type, repo_path):
         repo_path: Path to the cache directory
     """
     try:
-        from datetime import datetime, timezone
-        from pathlib import Path
-        
         # Get project root for cache metadata file
         project_root = Path(__file__).parent.parent.parent.parent
         cache_dir = project_root / "cache"
@@ -762,9 +743,8 @@ def _update_cache_metadata(cache_type, repo_path):
         if 'created' not in cache_data and total_files > 0:
             cache_data['created'] = current_time.isoformat()
             
-        # Get description for this cache type
-        descriptions = _get_cache_descriptions()
-        description = descriptions.get(cache_type, f'{cache_type} cache')
+        # Get description from config
+        description = _get_cached_config(cache_type).get('description', f'{cache_type} cache')
             
         cache_data.update({
             'description': description,
@@ -795,9 +775,6 @@ def _update_manual_refresh_timestamp(cache_type):
         cache_type: Type of cache ('cpe_cache', 'nvd_2_0_cve', etc.)
     """
     try:
-        from datetime import datetime, timezone
-        from pathlib import Path
-        
         # Get project root for cache metadata file
         project_root = Path(__file__).parent.parent.parent.parent
         metadata_file = project_root / "cache" / "cache_metadata.json"
@@ -846,9 +823,6 @@ def _get_cache_metadata_last_update(cache_type='nvd_2_0_cve') -> Optional[dateti
         Datetime of last manual update (timezone-aware), or None if unavailable
     """
     try:
-        from pathlib import Path
-        from datetime import datetime
-        
         project_root = Path(__file__).parent.parent.parent.parent
         metadata_file = project_root / "cache" / "cache_metadata.json"
         
@@ -891,8 +865,6 @@ def _transform_nvd_vulnerability_to_response(vuln_record: dict, cve_id: str) -> 
     Returns:
         Complete NVD API response dict with single vulnerability
     """
-    from datetime import datetime, timezone
-    
     return {
         "resultsPerPage": 1,
         "startIndex": 0,
@@ -906,33 +878,34 @@ def _transform_nvd_vulnerability_to_response(vuln_record: dict, cve_id: str) -> 
 
 def get_cache_config(cache_type):
     """
-    Unified cache configuration getter with explicit fallback logging.
-    
+    Unified cache configuration getter. Fails fast if config is missing or malformed.
+
     Args:
         cache_type: Type of cache ('cve_list_v5', 'nvd_2_0_cve')
-        
+
     Returns:
-        Cache configuration dictionary with defaults
+        Cache configuration dictionary from config.json
+
+    Raises:
+        RuntimeError: If config cannot be loaded or required cache section is missing
     """
     try:
         config = load_config()
-        
-        # Check if cache_settings section exists
-        if 'cache_settings' not in config:
-            logger.warning(f"Config file missing 'cache_settings' section for {cache_type}, using defaults", group="CACHE_MANAGEMENT")
-            return _get_cache_defaults(cache_type)
-        
-        # Check if specific cache type exists
-        if cache_type not in config['cache_settings']:
-            logger.warning(f"Config file missing '{cache_type}' cache settings, using defaults", group="CACHE_MANAGEMENT")
-            return _get_cache_defaults(cache_type)
-        
-        # Return config
-        return config['cache_settings'][cache_type]
-        
     except Exception as e:
-        logger.warning(f"Could not load config file for {cache_type}, using defaults: {e}", group="CACHE_MANAGEMENT")
-        return _get_cache_defaults(cache_type)
+        logger.error(f"Failed to load config file for cache type '{cache_type}': {e}", group="CACHE_MANAGEMENT")
+        raise RuntimeError(f"Cannot load config for cache type '{cache_type}': {e}") from e
+
+    if 'cache_settings' not in config:
+        msg = f"Config file is missing required 'cache_settings' section (needed for '{cache_type}')"
+        logger.error(msg, group="CACHE_MANAGEMENT")
+        raise RuntimeError(msg)
+
+    if cache_type not in config['cache_settings']:
+        msg = f"Config file 'cache_settings' is missing required '{cache_type}' entry"
+        logger.error(msg, group="CACHE_MANAGEMENT")
+        raise RuntimeError(msg)
+
+    return config['cache_settings'][cache_type]
 
 
 
@@ -942,7 +915,8 @@ def get_public_ip():
         response = requests.get(config['api']['endpoints']['public_ip'], 
                               timeout=config['api']['timeouts']['public_ip'])
         return response.text if response.status_code == 200 else "Unknown"
-    except Exception as e:        return f"Could not retrieve IP: {str(e)}"
+    except Exception as e:
+        return f"Could not retrieve IP: {str(e)}"
 
 def _resolve_cve_cache_file_path(cve_id, repo_base_path):
     """
@@ -1014,9 +988,6 @@ def _extract_cache_metadata_value(cache_metadata_path):
         List of matching values (for consistency with _extract_field_value)
     """
     try:
-        import json
-        from pathlib import Path
-        
         # Get project root and load cache metadata
         project_root = Path(__file__).parent.parent.parent.parent
         metadata_file = project_root / "cache" / "cache_metadata.json"
@@ -1107,14 +1078,16 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
         targetCve: CVE ID to check for sync (e.g., "CVE-2024-12345")
     """
     try:
-        from datetime import datetime
-        
         logger.debug(f"Performing staleness check for {targetCve}: comparing NVD vs cache timestamps", group="CACHE_MANAGEMENT")
         
         # Get NVD data for date comparison
-        nvd_data = gatherNVDCVERecord(config.get('api', {}).get('keys', {}).get('nvd_api'), targetCve)
+        nvd_data = gatherNVDCVERecord(targetCve)
         if not nvd_data:
-            logger.debug(f"No NVD data available for sync check: {targetCve}", group="CACHE_MANAGEMENT")
+            logger.error(
+                f"Staleness check skipped for {targetCve}: NVD record not in cache. "
+                f"CVE List V5 record may be stale — NVD-ish record generation will also fail.",
+                group="CACHE_MANAGEMENT"
+            )
             return
         
         # Extract NVD lastModified date using config field path
@@ -1196,8 +1169,6 @@ def _refresh_cvelist_from_mitre_api(targetCve, local_file_path, refresh_reason="
         update_metadata: Whether to update cache metadata after individual save (default True, set False for batch operations)
     """
     try:
-        import os
-        
         # Load cache config once for this operation
         cve_config = _get_cached_config('cve_list_v5')
         cve_repo_path = cve_config.get('path', 'cache/cve_list_v5')
@@ -1293,12 +1264,8 @@ def _save_nvd_cve_to_local_file(targetCve, nvd_data, cve_schema=None, update_met
         str: Status of operation - "skipped", "updated", or "failed"
     """
     try:
-        from datetime import datetime
-        
         nvd_config = _get_cached_config('nvd_2_0_cve')
-        if not nvd_config.get('enabled', False):
-            return "failed"
-            
+        
         # Use 'cache/nvd_2.0_cves' as default path (parallel to cve_list_v5)
         nvd_repo_path = nvd_config.get('path', 'cache/nvd_2.0_cves')
         
@@ -1380,62 +1347,46 @@ def _save_nvd_cve_to_local_file(targetCve, nvd_data, cve_schema=None, update_met
 
 
 
-# Update gatherCVEListRecord function
 def gatherCVEListRecord(targetCve):
     """
-    Main CVE record gathering with config-driven local repository integration.
-    Checks local CVE List V5 first (if enabled), with sync detection and API fallback.
+    Main CVE record gathering with local cache consultation and staleness-driven refresh.
     """
     cve_config = _get_cached_config('cve_list_v5')
     
-    # Log cache strategy selection for audit trail
-    enabled = cve_config.get('enabled', False)
     cache_missing_only = cve_config.get('cache_missing_only', False)
-    fallback_to_api = cve_config.get('fallback_to_api', True)
     cache_path = cve_config.get('path', 'cache/cve_list_v5')
     
-    logger.info(f"CVE cache strategy for {targetCve}: enabled={enabled}, cache_missing_only={cache_missing_only}, fallback_to_api={fallback_to_api}, path={cache_path}", group="CACHE_MANAGEMENT")
+    logger.info(f"CVE cache strategy for {targetCve}: cache_missing_only={cache_missing_only}, path={cache_path}", group="CACHE_MANAGEMENT")
     
-    # If local repository is enabled, attempt local loading with sync detection
-    if enabled:
-        local_repo_path = cache_path
-        logger.info(f"CVE List V5 cache enabled - attempting local load: {targetCve}", group="CACHE_MANAGEMENT")
-        
-        cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
-        if cve_file_path:
-            logger.debug(f"Cache file path resolved: {cve_file_path}", group="CACHE_MANAGEMENT")
-            # Check cache_missing_only setting
-            if cache_missing_only:
-                logger.debug(f"Using cache-missing-only strategy (no staleness check): {targetCve}", group="CACHE_MANAGEMENT")
-                # Only check if file exists, don't sync with NVD for staleness
-                if cve_file_path.exists():
-                    local_data = _load_cve_from_local_file(cve_file_path)
-                    if local_data:
-                        logger.info(f"Cache hit (cache-missing-only mode): {targetCve} loaded from {cve_file_path}", group="CACHE_MANAGEMENT")
-                        return local_data
-                # File doesn't exist - will fall through to API call
-                logger.info(f"Cache miss (file missing): {targetCve} not found at {cve_file_path}", group="CACHE_MANAGEMENT")
-            else:
-                # Normal sync behavior - check for staleness and refresh if needed
-                logger.debug(f"Using full sync strategy (with staleness check): {targetCve}", group="CACHE_MANAGEMENT")
-                _sync_cvelist_with_nvd_dataset(targetCve)
-                
+    # Always attempt local load first
+    local_repo_path = cache_path
+    cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
+    if cve_file_path:
+        logger.debug(f"Cache file path resolved: {cve_file_path}", group="CACHE_MANAGEMENT")
+        if cache_missing_only:
+            logger.debug(f"Using cache-missing-only strategy (no staleness check): {targetCve}", group="CACHE_MANAGEMENT")
+            # Only check file presence — no cross-source staleness comparison
+            if cve_file_path.exists():
                 local_data = _load_cve_from_local_file(cve_file_path)
                 if local_data:
-                    logger.info(f"Cache hit (full sync mode): {targetCve} loaded from {cve_file_path} after staleness check", group="CACHE_MANAGEMENT")
+                    logger.info(f"Cache hit (cache-missing-only mode): {targetCve} loaded from {cve_file_path}", group="CACHE_MANAGEMENT")
                     return local_data
-        
-        # Local loading failed - check fallback policy
-        if not cve_config.get('fallback_to_api', True):
-            logger.error(f"CVE List V5 local load failed and API fallback disabled: {targetCve}", group="cve_queries")
-            return None
-        
-        logger.warning(f"Local CVE load failed for {targetCve} - falling back to MITRE API", group="cve_queries")
-    else:
-        # Cache is disabled - log the bypass
-        logger.info(f"CVE List V5 cache disabled - using direct API call: {targetCve}", group="CACHE_MANAGEMENT")
+            # Cache miss — proceed to API fetch
+            logger.info(f"Cache miss (file missing): {targetCve} not found at {cve_file_path}", group="CACHE_MANAGEMENT")
+        else:
+            # Full sync strategy — cross-source staleness check before returning cached data
+            logger.debug(f"Using full sync strategy (with staleness check): {targetCve}", group="CACHE_MANAGEMENT")
+            _sync_cvelist_with_nvd_dataset(targetCve)
+            
+            local_data = _load_cve_from_local_file(cve_file_path)
+            if local_data:
+                logger.info(f"Cache hit (full sync mode): {targetCve} loaded from {cve_file_path} after staleness check", group="CACHE_MANAGEMENT")
+                return local_data
     
-    # Direct API call (either config disabled or fallback triggered)
+    # Cache miss or staleness-triggered refresh — fetch from MITRE API
+    logger.info(f"Fetching {targetCve} from MITRE API", group="CACHE_MANAGEMENT")
+    
+    # Direct API fetch
     cveOrgJSON = config['api']['endpoints']['cve_list']
     simpleCveRequestUrl = cveOrgJSON + targetCve
     
@@ -1449,35 +1400,32 @@ def gatherCVEListRecord(targetCve):
         
         logger.api_response("MITRE CVE API", "Success", group="cve_queries")
         
-        # Save to cache if CVE List V5 cache is enabled
+        # Always persist API response to local cache
         cve_config = _get_cached_config('cve_list_v5')
-        if cve_config.get('enabled', False):
+        try:
+            # Validate before caching
             try:
-                # Validate before caching
-                try:
-                    from .schema_validator import validate_cve_record_v5
-                    cve_schema = load_schema('cve_cve_5_2')
-                    validated_data = validate_cve_record_v5(cveRecordDict, targetCve, cve_schema)
-                    cveRecordDict = validated_data
-                except Exception as validation_error:
-                    logger.warning(f"CVE List V5 validation failed for {targetCve}: {validation_error} - Caching without validation", group="CACHE_MANAGEMENT")
+                from .schema_validator import validate_cve_record_v5
+                cve_schema = load_schema('cve_cve_5_2')
+                validated_data = validate_cve_record_v5(cveRecordDict, targetCve, cve_schema)
+                cveRecordDict = validated_data
+            except Exception as validation_error:
+                logger.warning(f"CVE List V5 validation failed for {targetCve}: {validation_error} - Caching without validation", group="CACHE_MANAGEMENT")
+            
+            local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
+            cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
+            if cve_file_path:
+                # Ensure directory exists
+                os.makedirs(os.path.dirname(cve_file_path), exist_ok=True)
                 
-                local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
-                cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
-                if cve_file_path:
-                    # Ensure directory exists
-                    import os
-                    os.makedirs(os.path.dirname(cve_file_path), exist_ok=True)
-                    
-                    # Save to cache
-                    import json
-                    with open(cve_file_path, 'w') as f:
-                        json.dump(cveRecordDict, f, indent=2)
-                    
-                    logger.debug(f"API response saved to cache: {targetCve} at {cve_file_path} (source: MITRE API fallback)", group="CACHE_MANAGEMENT")
-                    
-            except Exception as e:
-                logger.warning(f"Failed to save CVE {targetCve} to cache: {e}", group="cve_queries")
+                # Save to cache
+                with open(cve_file_path, 'w') as f:
+                    json.dump(cveRecordDict, f, indent=2)
+                
+                logger.debug(f"API response persisted to cache: {targetCve} at {cve_file_path}", group="CACHE_MANAGEMENT")
+                
+        except Exception as e:
+            logger.warning(f"Failed to save CVE {targetCve} to cache: {e}", group="cve_queries")
         
         return cveRecordDict
     except requests.exceptions.RequestException as e:
@@ -1496,8 +1444,9 @@ def gatherCVEListRecord(targetCve):
 
 def gatherCVEListRecordLocal(targetCve):
     """
-    Load CVE record from local cache with API fallback.
-    Uses configured CVE List V5 cache path automatically.
+    Load CVE record from local cache, escalating to full gatherCVEListRecord orchestration
+    on cache miss. Does not perform a staleness check — use gatherCVEListRecord directly
+    when staleness-driven refresh is required.
     
     Args:
         targetCve: CVE ID to load (e.g., "CVE-2024-12345")
@@ -1505,335 +1454,91 @@ def gatherCVEListRecordLocal(targetCve):
     Returns:
         CVE record dict or None if loading fails
     """
-    # Get configured cache path
     cve_config = _get_cached_config('cve_list_v5')
-    if cve_config.get('enabled', False):
-        local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
-        
-        cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
-        if cve_file_path:
-            local_data = _load_cve_from_local_file(cve_file_path)
-            if local_data:
-                logger.info(f"CVE record loaded from local cache: {targetCve}", group="DATASET")
-                return local_data
-        
-        # Local loading failed - fall back to API
-        logger.warning(f"Local CVE load failed for {targetCve} - falling back to MITRE API", group="cve_queries")
+    local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
     
-    # Always attempt API fallback
-    logger.info(f"Using MITRE API for CVE: {targetCve}", group="cve_queries")
+    cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
+    if cve_file_path:
+        local_data = _load_cve_from_local_file(cve_file_path)
+        if local_data:
+            logger.info(f"CVE record loaded from local cache: {targetCve}", group="DATASET")
+            return local_data
+    
+    # Cache miss — escalate to full orchestration
+    logger.info(f"Cache miss for {targetCve} - escalating to full orchestration", group="CACHE_MANAGEMENT")
     return gatherCVEListRecord(targetCve)
 
-# Using provided CVE-ID, get the CVE data from the NVD API 
-def gatherNVDCVERecord(apiKey, targetCve):
+def gatherNVDCVERecord(targetCve):
     """
-    Get CVE data from NVD API with local caching support.
-    Checks local NVD cache first (if enabled), then fetches from API and saves to cache.
-    Implements age-based staleness checking - re-fetches records older than notify_age_hours.
+    Load NVD CVE record from local cache for use in CVE List V5 staleness checks.
+    Cache miss is an error — it indicates bulk dataset generation was not run or
+    the NVD cache was partially cleared. Downstream NVD-ish record generation will
+    also fail for the same CVE, so the root cause is surfaced here as an error.
     """
-    from datetime import datetime, timezone
-    
     nvd_config = _get_cached_config('nvd_2_0_cve')
-    
-    # If NVD cache is enabled, attempt local loading first
-    if nvd_config.get('enabled', False):
-        nvd_repo_path = nvd_config.get('path', 'cache/nvd_2.0_cves')
-        logger.debug(f"NVD CVE cache enabled - attempting local load: {targetCve}", group="cve_queries")
-        
-        nvd_file_path = _resolve_cve_cache_file_path(targetCve, nvd_repo_path)
-        if nvd_file_path:
-            local_nvd_data = _load_nvd_cve_from_local_file(nvd_file_path)
-            if local_nvd_data:
-                # Staleness check: Verify cache entry isn't too old
-                max_age_hours = nvd_config.get('refresh_strategy', {}).get('notify_age_hours', 24)
-                
-                if max_age_hours > 0 and nvd_file_path.exists():
-                    file_modified_time = datetime.fromtimestamp(nvd_file_path.stat().st_mtime, tz=timezone.utc)
-                    file_age_hours = (datetime.now(timezone.utc) - file_modified_time).total_seconds() / 3600
-                    
-                    if file_age_hours > max_age_hours:
-                        logger.warning(
-                            f"NVD CVE cache entry stale for {targetCve}: "
-                            f"{file_age_hours:.1f}h old (threshold: {max_age_hours}h) - re-fetching from API",
-                            group="cve_queries"
-                        )
-                        # Fall through to API fetch below (don't return cached data)
-                    else:
-                        logger.debug(
-                            f"Successfully loaded NVD 2.0 CVE record from local cache: {targetCve} "
-                            f"(age: {file_age_hours:.1f}h, threshold: {max_age_hours}h)",
-                            group="cve_queries"
-                        )
-                        return local_nvd_data
-                else:
-                    # Age checking disabled (max_age_hours <= 0) or file doesn't exist
-                    logger.debug(f"Successfully loaded NVD 2.0 CVE record from local cache: {targetCve}", group="cve_queries")
-                    return local_nvd_data
-        
-        logger.debug(f"NVD 2.0 CVE record not found in local cache - fetching from API: {targetCve}", group="cve_queries")
-    
-    # Fetch from NVD API
-    logger.api_call("NVD CVE API", {"cve_id": targetCve}, group="cve_queries")
-   
-    url = config['api']['endpoints']['nvd_cves'] + "?cveId=" + targetCve
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": f"{TOOLNAME}/{VERSION}"
-    }
-      # Only add API key to headers if one was provided
-    if apiKey:
-        headers["apiKey"] = apiKey
-   
-    max_retries = config['api']['retry']['max_attempts_nvd']
-    for attempt in range(max_retries):
-        try:
-            response = requests.get(url, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
-            nvd_data = validate_http_response(response, f"NVD CVE API: {targetCve}")
-            logger.api_response("NVD CVE API", "Success", group="cve_queries")
-            
-            # Save to local cache if enabled
-            _save_nvd_cve_to_local_file(targetCve, nvd_data)
-            
-            return nvd_data
-        except requests.exceptions.RequestException as e:
-            public_ip = get_public_ip()
-            logger.error(f"NVD CVE API request failed: Unable to fetch CVE record for {targetCve} (Attempt {attempt + 1}/{max_retries}) - {e}", group="cve_queries")
-            logger.debug(f"Current public IP address: {public_ip}", group="cve_queries")            
-            if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
-                logger.error(f"NVD API Message: {e.response.headers['message']}", group="cve_queries")
-            
-            # Record failed API call in unified dashboard tracking (only once per final failure)
-            if attempt == max_retries - 1:  # Only on final attempt
-                try:
-                    from ..reporting.dataset_contents_collector import record_api_call_unified
-                    record_api_call_unified("NVD CVE API", success=False)
-                except ImportError:
-                    pass  # Fallback for testing environments
-            
-            if attempt < max_retries - 1:
-                wait_time = config['api']['retry']['delay_without_key'] if not apiKey else config['api']['retry']['delay_with_key']
-                logger.warning(f"Waiting {wait_time} seconds before retry...", group="cve_queries")
-                sleep(wait_time)
-            else:
-                logger.error(f"NVD CVE API request failed: Maximum retry attempts ({max_retries}) reached for CVE {targetCve}", group="cve_queries")
-                return None
+    nvd_repo_path = nvd_config.get('path', 'cache/nvd_2.0_cves')
 
-def query_nvd_cve_page(url, headers, context_msg="NVD CVE API"):
-    """
-    Query NVD CVE API endpoint with retry logic.
-    Centralizes all NVD CVE API requests to ensure consistent error handling and retry behavior.
-    
-    Args:
-        url: Complete NVD CVE API URL with query parameters
-        headers: HTTP headers including API key if available
-        context_msg: Context message for logging (default: "NVD CVE API")
-    
-    Returns:
-        dict: API response data, or None if all retries failed
-    """
+    nvd_file_path = _resolve_cve_cache_file_path(targetCve, nvd_repo_path)
+    if nvd_file_path:
+        local_nvd_data = _load_nvd_cve_from_local_file(nvd_file_path)
+        if local_nvd_data:
+            logger.debug(f"NVD CVE record loaded from cache: {targetCve}", group="cve_queries")
+            return local_nvd_data
+
+    logger.error(
+        f"NVD CVE cache miss for {targetCve} — staleness check skipped. "
+        f"Run bulk dataset generation to populate the NVD cache.",
+        group="cve_queries"
+    )
+    return None
+
+def _query_nvd_page(url, headers, context_msg, log_group):
+    """Shared retry logic for all NVD API single-page queries."""
     max_retries = config['api']['retry']['max_attempts_nvd']
-    
+
     for attempt in range(max_retries):
         try:
             response = requests.get(url, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
             response.raise_for_status()
             return response.json()
-            
+
         except requests.exceptions.RequestException as e:
             public_ip = get_public_ip()
-            logger.error(f"{context_msg} request failed (Attempt {attempt + 1}/{max_retries}): {e}", group="cve_queries")
-            logger.debug(f"Current public IP address: {public_ip}", group="cve_queries")
-            
+            logger.error(f"{context_msg} request failed (Attempt {attempt + 1}/{max_retries}): {e}", group=log_group)
+            logger.debug(f"Current public IP address: {public_ip}", group=log_group)
+
             if hasattr(e, 'response') and e.response is not None:
                 if 'message' in e.response.headers:
-                    logger.error(f"NVD API Message: {e.response.headers['message']}", group="cve_queries")
+                    logger.error(f"NVD API Message: {e.response.headers['message']}", group=log_group)
                 if hasattr(e.response, 'status_code'):
-                    logger.error(f"Response status code: {e.response.status_code}", group="cve_queries")
-            
+                    logger.error(f"Response status code: {e.response.status_code}", group=log_group)
+
             if attempt < max_retries - 1:
-                # Determine wait time based on API key presence
                 has_api_key = 'apiKey' in headers
                 wait_time = config['api']['retry']['delay_with_key'] if has_api_key else config['api']['retry']['delay_without_key']
-                logger.info(f"Waiting {wait_time} seconds before retry...", group="cve_queries")
+                logger.info(f"Waiting {wait_time} seconds before retry...", group=log_group)
                 sleep(wait_time)
             else:
-                logger.error(f"{context_msg} request failed: Maximum retry attempts ({max_retries}) reached", group="cve_queries")
+                logger.error(f"{context_msg} request failed: Maximum retry attempts ({max_retries}) reached", group=log_group)
                 return None
-    
+
     return None
 
 
-def query_nvd_cves_by_modified_date(start_date: datetime, end_date: datetime, api_key: Optional[str] = None) -> List[dict]:
+def query_nvd_cve_page(url, headers, context_msg="NVD CVE API"):
     """
-    Query NVD CVE API for all CVEs modified within a date range (batch query with pagination).
-    
-    Used for cache refresh operations to efficiently identify and retrieve CVEs that have
-    changed since the last update. Automatically paginates through all results (2000 per page).
-    
-    Args:
-        start_date: Start of date range (timezone-aware datetime)
-        end_date: End of date range (timezone-aware datetime)
-        api_key: NVD API key (optional, recommended for better rate limits)
-    
-    Returns:
-        List of vulnerability records (each contains full CVE data from NVD API)
-    
-    Example:
-        from datetime import datetime, timezone, timedelta
-        end = datetime.now(timezone.utc)
-        start = end - timedelta(days=7)
-        vulns = query_nvd_cves_by_modified_date(start, end, api_key="your-key")
-    """
-    base_url = config['api']['endpoints']['nvd_cves']
-    results_per_page = 2000  # NVD API maximum
-    
-    # Format dates for NVD API (ISO format)
-    start_str = start_date.strftime('%Y-%m-%dT%H:%M:%S.000')
-    end_str = end_date.strftime('%Y-%m-%dT%H:%M:%S.999')
-    
-    # Prepare headers
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": f"{TOOLNAME}/{VERSION}"
-    }
-    
-    if api_key:
-        headers["apiKey"] = api_key
-        logger.debug("Using API key for NVD CVE batch query", group="cve_queries")
-    
-    all_vulnerabilities = []
-    start_index = 0
-    total_results = None
-    
-    logger.info(f"Querying NVD for CVEs modified {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}", group="cve_queries")
-    
-    while total_results is None or start_index < total_results:
-        # Build query URL with lastModStartDate/lastModEndDate parameters
-        url = f"{base_url}?lastModStartDate={start_str}&lastModEndDate={end_str}&startIndex={start_index}"
-        
-        logger.debug(f"Fetching page: startIndex={start_index}, totalResults={total_results or '?'}", group="cve_queries")
-        
-        # Query API with centralized retry logic
-        data = query_nvd_cve_page(url, headers, context_msg="NVD CVE API (modified date query)")
-        
-        if not data:
-            logger.error(f"API query failed at startIndex {start_index} - aborting", group="cve_queries")
-            break
-        
-        # Extract total on first page
-        if total_results is None:
-            total_results = data.get("totalResults", 0)
-            logger.info(f"NVD reports {total_results:,} CVEs modified in date range", group="cve_queries")
-            
-            if total_results == 0:
-                logger.info("No CVEs found in specified date range", group="cve_queries")
-                break
-        
-        # Collect vulnerability records
-        vulnerabilities = data.get("vulnerabilities", [])
-        all_vulnerabilities.extend(vulnerabilities)
-        
-        logger.debug(f"Collected {len(vulnerabilities)} CVEs (running total: {len(all_vulnerabilities)}/{total_results})", group="cve_queries")
-        
-        # Move to next page
-        start_index += results_per_page
-        
-        # Rate limiting between pages (use page-specific delays from config)
-        if start_index < total_results:
-            delay = config['api']['retry']['page_delay_with_key'] if api_key else config['api']['retry']['page_delay_without_key']
-            if delay > 0:
-                sleep(delay)
-    
-    logger.info(f"Batch query complete: {len(all_vulnerabilities):,} CVE records retrieved", group="cve_queries")
-    return all_vulnerabilities
+    Query NVD CVE API endpoint with retry logic.
+    Centralizes all NVD CVE API requests to ensure consistent error handling and retry behavior.
 
-
-def query_nvd_cves_all(api_key: Optional[str] = None) -> List[dict]:
-    """
-    Query NVD CVE API for ALL CVEs (complete database refresh with pagination).
-    
-    Used for proactive complete cache population. Queries entire NVD dataset without
-    date filters, automatically paginating through all results.
-    
-    WARNING: This operation queries the entire NVD dataset and may take a long time.
-    to complete depending on API rate limits. Use sparingly for complete cache refreshes.
-    
     Args:
-        api_key: NVD API key (HIGHLY recommended - required for reasonable completion time)
-    
+        url: Complete NVD CVE API URL with query parameters
+        headers: HTTP headers including API key if available
+        context_msg: Context message for logging (default: "NVD CVE API")
+
     Returns:
-        List of vulnerability records (each contains full CVE data from NVD API)
-    
-    Example:
-        vulns = query_nvd_cves_all(api_key="your-key") 
+        dict: API response data, or None if all retries failed
     """
-    base_url = config['api']['endpoints']['nvd_cves']
-    results_per_page = 2000  # NVD API maximum
-    
-    # Prepare headers
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": f"{TOOLNAME}/{VERSION}"
-    }
-    
-    if api_key:
-        headers["apiKey"] = api_key
-        logger.debug("Using API key for NVD CVE complete database query", group="cve_queries")
-    else:
-        logger.warning("No API key provided - complete database query will be VERY slow", group="cve_queries")
-    
-    all_vulnerabilities = []
-    start_index = 0
-    total_results = None
-    
-    logger.info("Querying NVD for ALL CVEs (complete database refresh)", group="cve_queries")
-    logger.warning("This is a FULL DATABASE QUERY and will take 30-60 minutes", group="cve_queries")
-    
-    while total_results is None or start_index < total_results:
-        # Build query URL with only pagination (NO date filters)
-        url = f"{base_url}?startIndex={start_index}"
-        
-        logger.debug(f"Fetching page: startIndex={start_index}, totalResults={total_results or '?'}", group="cve_queries")
-        
-        # Query API with centralized retry logic
-        data = query_nvd_cve_page(url, headers, context_msg="NVD CVE API (complete database query)")
-        
-        if not data:
-            logger.error(f"API query failed at startIndex {start_index} - aborting", group="cve_queries")
-            break
-        
-        # Extract total on first page
-        if total_results is None:
-            total_results = data.get("totalResults", 0)
-            logger.info(f"NVD reports {total_results:,} total CVEs in database", group="cve_queries")
-            
-            if total_results == 0:
-                logger.warning("NVD returned 0 total results - this is unexpected", group="cve_queries")
-                break
-            
-            # Calculate estimated time
-            estimated_pages = (total_results + results_per_page - 1) // results_per_page
-            delay = config['api']['retry']['page_delay_with_key'] if api_key else config['api']['retry']['page_delay_without_key']
-            estimated_minutes = (estimated_pages * delay) / 60
-            logger.info(f"Estimated completion time: {estimated_minutes:.1f} minutes ({estimated_pages} pages)", group="cve_queries")
-        
-        # Collect vulnerability records
-        vulnerabilities = data.get("vulnerabilities", [])
-        all_vulnerabilities.extend(vulnerabilities)
-        
-        logger.debug(f"Collected {len(vulnerabilities)} CVEs (running total: {len(all_vulnerabilities)}/{total_results})", group="cve_queries")
-        
-        # Move to next page
-        start_index += results_per_page
-        
-        # Rate limiting between pages (use page-specific delays from config)
-        if start_index < total_results:
-            delay = config['api']['retry']['page_delay_with_key'] if api_key else config['api']['retry']['page_delay_without_key']
-            if delay > 0:
-                sleep(delay)
-    
-    logger.info(f"Complete database query finished: {len(all_vulnerabilities):,} CVE records retrieved", group="cve_queries")
-    return all_vulnerabilities
+    return _query_nvd_page(url, headers, context_msg, log_group="cve_queries")
 
 
 def query_nvd_cves_concurrent(
@@ -1842,7 +1547,7 @@ def query_nvd_cves_concurrent(
     total_results: int,
     results_per_page: int = 2000,
     max_workers: int = 15,
-    rate_limiter: Optional[NVDRateLimiter] = None,
+    rate_limiter: Optional[NVDConcurrentCVERateLimiter] = None,
     context_msg: str = "NVD CVE API",
     start_offset: int = 0
 ) -> List[dict]:
@@ -1857,7 +1562,7 @@ def query_nvd_cves_concurrent(
         total_results: Total number of results to fetch
         results_per_page: Results per page (default: 2000, NVD max)
         max_workers: Maximum concurrent requests (default: 15)
-        rate_limiter: NVDRateLimiter instance (optional, created if not provided)
+        rate_limiter: NVDConcurrentCVERateLimiter instance (optional, created if not provided)
         context_msg: Context for logging
         start_offset: Starting offset for pagination (default: 0, used when first page already fetched)
     
@@ -1867,7 +1572,7 @@ def query_nvd_cves_concurrent(
     if rate_limiter is None:
         # Default to 50 req/30s if API key present, 5 req/30s otherwise
         max_requests = 50 if 'apiKey' in headers else 5
-        rate_limiter = NVDRateLimiter(max_requests=max_requests, window_seconds=30)
+        rate_limiter = NVDConcurrentCVERateLimiter(max_requests=max_requests, window_seconds=30)
     
     # Calculate all page offsets starting from start_offset
     page_offsets = list(range(start_offset, start_offset + total_results, results_per_page))
@@ -1956,17 +1661,11 @@ def query_nvd_cves_by_modified_date_concurrent(
     start_str = start_date.strftime('%Y-%m-%dT%H:%M:%S.000')
     end_str = end_date.strftime('%Y-%m-%dT%H:%M:%S.999')
     
-    # Prepare headers
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": f"{TOOLNAME}/{VERSION}"
-    }
-    if api_key:
-        headers["apiKey"] = api_key
+    headers = build_nvd_api_headers(api_key)
     
     # Create rate limiter
     max_requests = 50 if api_key else 5
-    rate_limiter = NVDRateLimiter(max_requests=max_requests, window_seconds=30)
+    rate_limiter = NVDConcurrentCVERateLimiter(max_requests=max_requests, window_seconds=30)
     
     # First, fetch page 0 to get total results
     logger.info(f"Querying NVD for CVEs modified between {start_date.strftime('%Y-%m-%d')} and {end_date.strftime('%Y-%m-%d')}", group="cve_queries")
@@ -2029,18 +1728,11 @@ def query_nvd_cves_all_concurrent(api_key: Optional[str] = None, max_workers: in
     """
     base_url = config['api']['endpoints']['nvd_cves']
     results_per_page = 2000  # NVD API maximum
-    
-    # Prepare headers
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": f"{TOOLNAME}/{VERSION}"
-    }
-    if api_key:
-        headers["apiKey"] = api_key
+    headers = build_nvd_api_headers(api_key)
     
     # Create rate limiter
     max_requests = 50 if api_key else 5
-    rate_limiter = NVDRateLimiter(max_requests=max_requests, window_seconds=30)
+    rate_limiter = NVDConcurrentCVERateLimiter(max_requests=max_requests, window_seconds=30)
     
     # First, fetch page 0 to get total results
     logger.info("Querying NVD for ALL CVEs (full database)", group="cve_queries")
@@ -2121,14 +1813,8 @@ def query_nvd_cpematch_by_modified_date(start_date: datetime, end_date: datetime
     start_str = start_date.strftime('%Y-%m-%dT%H:%M:%S.000+00:00')
     end_str = end_date.strftime('%Y-%m-%dT%H:%M:%S.000+00:00')
     
-    # Prepare headers
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": f"{TOOLNAME}/{VERSION}"
-    }
-    
+    headers = build_nvd_api_headers(api_key)
     if api_key:
-        headers["apiKey"] = api_key
         logger.debug("Using API key for NVD CPE Match batch query", group="cpe_queries")
     
     all_match_strings = []
@@ -2140,7 +1826,6 @@ def query_nvd_cpematch_by_modified_date(start_date: datetime, end_date: datetime
     
     while total_results is None or start_index < total_results:
         # Build query URL with lastModStartDate/lastModEndDate parameters
-        from urllib.parse import urlencode
         params = {
             'lastModStartDate': start_str,
             'lastModEndDate': end_str,
@@ -2202,58 +1887,21 @@ def query_nvd_cpematch_page(url, headers, context_msg="NVD CPE Match API"):
     """
     Query NVD CPE Match API endpoint with retry logic.
     Centralizes all NVD CPE Match API requests for cache refresh operations.
-    
+
     Args:
         url: Complete NVD CPE Match API URL with query parameters
         headers: HTTP headers including API key if available
         context_msg: Context message for logging (default: "NVD CPE Match API")
-    
+
     Returns:
         dict: API response data, or None if all retries failed
     """
-    max_retries = config['api']['retry']['max_attempts_nvd']
-    
-    for attempt in range(max_retries):
-        try:
-            response = requests.get(url, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
-            response.raise_for_status()
-            return response.json()
-            
-        except requests.exceptions.RequestException as e:
-            public_ip = get_public_ip()
-            logger.error(f"{context_msg} request failed (Attempt {attempt + 1}/{max_retries}): {e}", group="cpe_queries")
-            logger.debug(f"Current public IP address: {public_ip}", group="cpe_queries")
-            
-            if hasattr(e, 'response') and e.response is not None:
-                if 'message' in e.response.headers:
-                    logger.error(f"NVD API Message: {e.response.headers['message']}", group="cpe_queries")
-                if hasattr(e.response, 'status_code'):
-                    logger.error(f"Response status code: {e.response.status_code}", group="cpe_queries")
-            
-            if attempt < max_retries - 1:
-                # Determine wait time based on API key presence
-                has_api_key = 'apiKey' in headers
-                wait_time = config['api']['retry']['delay_with_key'] if has_api_key else config['api']['retry']['delay_without_key']
-                logger.info(f"Waiting {wait_time} seconds before retry...", group="cpe_queries")
-                sleep(wait_time)
-            else:
-                logger.error(f"{context_msg} request failed: Maximum retry attempts ({max_retries}) reached", group="cpe_queries")
-                return None
-    
-    return None
-    
-# Query NVD /source/ API for data and return a dataframe of the response content
+    return _query_nvd_page(url, headers, context_msg, log_group="cpe_queries")
+
 def gatherNVDSourceData(apiKey):
     def fetch_nvd_data():
         url = config['api']['endpoints']['nvd_sources']
-        headers = {
-            "Accept": "application/json",
-            "User-Agent": f"{TOOLNAME}/{VERSION}"
-        }
-        
-        # Only add API key to headers if one was provided
-        if apiKey:
-            headers["apiKey"] = apiKey
+        headers = build_nvd_api_headers(apiKey)
        
         max_retries = config['api']['retry']['max_attempts_nvd']
         for attempt in range(max_retries):
@@ -2288,18 +1936,16 @@ def gatherNVDSourceData(apiKey):
    
     return create_dataframe()
 
-# Query the NVD /cpes/ API for information Supported parameters:  cpeMatchString
 def gatherNVDCPEData(apiKey, case, query_string):
     match case:
         case 'cpeMatchString':
             nvd_cpes_url = config['api']['endpoints']['nvd_cpes']
-            headers = {"user-agent": f"{TOOLNAME}/{VERSION}"}
-            
-            # Only add API key to headers if one was provided
-            if apiKey:
-                headers["apiKey"] = apiKey
+            headers = build_nvd_api_headers(apiKey)
            
             max_retries = config['api']['retry']['max_attempts_cpe']
+            if max_retries == 0:
+                logger.warning(f"NVD CPE API calls disabled (max_attempts_cpe=0): skipping query for {query_string}", group="cpe_queries")
+                return None
             for attempt in range(max_retries):
                 try:
                     # Initial request to get total results
@@ -2386,7 +2032,7 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                 except ImportError:
                                     pass  # Fallback for testing environments
                                 
-                                  # Check for message header and display if present - error response
+                                # Check for message header and display if present - error response
                                 if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
                                     error_message = e.response.headers['message']
                                     logger.error(f"NVD API Message: {error_message}", group="cve_queries")
@@ -2409,8 +2055,10 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                         return consolidated_data
                                 
                                 if page_attempt < max_retries - 1:
-                                    wait_time = config['api']['retry']['delay_without_key'] if not apiKey else config['api']['retry']['delay_with_key']
-                                    logger.warning(f"Waiting {wait_time} seconds before retry...", group="cpe_queries")
+                                    # Same exponential backoff as initial request error retries.
+                                    base_delay = config['api']['retry']['delay_without_key'] if not apiKey else config['api']['retry']['delay_with_key']
+                                    wait_time = max(base_delay, 2 ** page_attempt)
+                                    logger.warning(f"Waiting {wait_time} seconds before retry (backoff attempt {page_attempt + 1})...", group="cpe_queries")
                                     sleep(wait_time)
                                 else:
                                     logger.error(f"NVD CPE API paginated request failed: Maximum retry attempts ({max_retries}) reached for page data", group="cve_queries")
@@ -2466,17 +2114,20 @@ def gatherNVDCPEData(apiKey, case, query_string):
                                 "status": "invalid_cpe"                            }
                     
                     if attempt < max_retries - 1:
-                        wait_time = config['api']['retry']['delay_without_key'] if not apiKey else config['api']['retry']['delay_with_key']
-                        logger.warning(f"Waiting {wait_time} seconds before retry...", group="cpe_queries")
+                        # Use exponential backoff for error retries regardless of key status.
+                        # delay_with_key=0 is intentional for normal paging but wrong for
+                        # connection-level errors (e.g. Cloudflare TCP reset under rate limiting).
+                        base_delay = config['api']['retry']['delay_without_key'] if not apiKey else config['api']['retry']['delay_with_key']
+                        wait_time = max(base_delay, 2 ** attempt)
+                        logger.warning(f"Waiting {wait_time} seconds before retry (backoff attempt {attempt + 1})...", group="cpe_queries")
                         sleep(wait_time)
                     else:
-                        logger.error(f"NVD CPE API request failed: Maximum retry attempts ({max_retries}) reached", group="cve_queries")
+                        logger.error(f"NVD CPE API request failed: Maximum retry attempts ({max_retries}) reached for '{query_string}'", group="cve_queries")
                         return None
         
         case _:
             return None
 
-# Creates the primary dataframe to be referenced and modified as needed throughout the process
 def gatherPrimaryDataframe():
     data = {
         'sourceID': '',
@@ -2490,114 +2141,69 @@ def gatherPrimaryDataframe():
     # Create DataFrame
     return pd.DataFrame(data)
 
-def gatherAllCVEIDs(apiKey):
+def harvestSourceUUIDs(api_key=None):
     """
-    Gather all CVE IDs from the NVD API with proper retry mechanism.
-    
-    Args:
-        apiKey: NVD API key for authentication
-        
-    Returns:
-        List of all CVE IDs
-    """    
-    
-    base_url = config['api']['endpoints']['nvd_cves']
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": f"{TOOLNAME}/{VERSION}"
-    }
-    
-    # Add API key to headers if provided
-    if apiKey:
-        headers["apiKey"] = apiKey
-    
-    params = {
-        "startIndex": 0,
-    }
-    all_cves = []
-    total_results = None
-    results_per_page = 2000  # Default NVD API page size
-    start_index = 0
-    
-    # Define retry parameters
-    max_retries = config['api']['retry']['max_attempts_nvd']
-    
-    while total_results is None or start_index < total_results:
-        params["startIndex"] = start_index
-        
-        for attempt in range(max_retries):
-            try:
-                current_page = start_index // results_per_page + 1
-                pages_estimate = total_results // results_per_page + 1 if total_results else "?"
-                
-                if total_results:
-                    progress = min(start_index, total_results) / total_results * 100
-                    logger.info(f"Processing CVE queries: Page {current_page}/{pages_estimate} ({progress:.1f}%) - {len(all_cves)} CVE records collected so far", group="cve_queries")
-                else:
-                    logger.info(f"Processing CVE queries: Page {current_page}/? - Determining total count...", group="cve_queries")
-                
-                response = requests.get(base_url, params=params, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
-                data = validate_http_response(response, f"NVD CVE List API page {current_page}")
-                
-                if total_results is None:
-                    total_results = data.get("totalResults", 0)
-                    logger.info(f"Found {total_results} total results in NVD database", group="cve_queries")
-                
-                # Extract CVE IDs from current page
-                for vuln in data.get("vulnerabilities", []):
-                    if "cve" in vuln and "id" in vuln["cve"]:
-                        all_cves.append(vuln["cve"]["id"])
-                
-                # Move to next page
-                start_index += results_per_page
-                  # Rate limiting
-                if not headers.get("apiKey"):
-                    sleep(1)  
-                else:                    sleep(0)  
-                    
-                break
-                
-            except requests.exceptions.RequestException as e:
-                public_ip = get_public_ip()
-                logger.error(f"NVD CVE list API request failed: Unable to fetch CVE list page {current_page} (Attempt {attempt + 1}/{max_retries}) - {e}", group="cve_queries")
-                logger.debug(f"Current public IP address: {public_ip}", group="cve_queries")
-                
-                # Check for message header and display if present
-                if hasattr(e, 'response') and e.response is not None and 'message' in e.response.headers:
-                    error_message = e.response.headers['message']
-                    logger.error(f"NVD API Message: {error_message}", group="cve_queries")
-                
-                if attempt < max_retries - 1:
-                    wait_time = config['api']['retry']['delay_without_key'] if not apiKey else config['api']['retry']['delay_with_key']
-                    logger.warning(f"Waiting {wait_time} seconds before retry...", group="cve_queries")
-                    sleep(wait_time)
-                else:
-                    logger.warning(f"NVD CVE list API request failed: Maximum retry attempts ({max_retries}) reached for page {current_page} - skipping to next page", group="cve_queries")
-                    # Move to next page even if failed
-                    start_index += results_per_page
-    
-    logger.info(f"Processing CVE collection completed: {len(all_cves)} CVE records collected", group="cve_queries")
-    return all_cves
+    Get all source UUIDs, using local cache first.
+    Loads from nvd_source_data.json if present and within notify_age_hours threshold;
+    falls back to NVD Sources API only on cache miss or staleness.
 
-
-def harvestSourceUUIDs():
-    """
-    Fetch all source UUIDs from the NVD sources API.
-    This is used by harvest scripts to get the list of all available sources.
-    
     Returns:
         tuple: (source_info_list, api_totals_dict)
         where source_info_list is [(source_name, source_uuid, last_modified), ...]
         and api_totals_dict contains counts for reporting
     """
-    logger.stage_start("Source UUID Harvesting", "Querying NVD Sources API", group="cve_queries")
-    
+    # --- Cache-first load ---
+    source_data_config = config.get('cache_settings', {}).get('nvd_source_data', {})
+    notify_age_hours = source_data_config.get('refresh_strategy', {}).get('notify_age_hours', 24)
+    cache_filename = source_data_config.get('filename', 'nvd_source_data.json')
+    project_root = get_analysis_tools_root()
+    cache_file = project_root / 'cache' / cache_filename
+
+    sources = None
+    cache_source = None
+
+    if cache_file.exists():
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                cached = json.load(f)
+            records = cached.get('source_data', [])
+            if records and isinstance(records, list):
+                created_at_str = cached.get('created_at')
+                if created_at_str:
+                    created_at = datetime.fromisoformat(created_at_str)
+                    if created_at.tzinfo is None:
+                        created_at = created_at.replace(tzinfo=timezone.utc)
+                    age_hours = (datetime.now(timezone.utc) - created_at).total_seconds() / 3600
+                    if age_hours <= notify_age_hours:
+                        sources = records
+                        cache_source = f'local cache ({age_hours:.1f}h old)'
+                    else:
+                        logger.info(
+                            f'NVD source data cache is stale ({age_hours:.1f}h old, threshold: {notify_age_hours}h) - fetching from API',
+                            group='cve_queries'
+                        )
+                else:
+                    sources = records
+                    cache_source = 'local cache (age unknown)'
+        except Exception as e:
+            logger.warning(f'Failed to load nvd_source_data cache: {e} - fetching from API', group='cve_queries')
+
+    if sources is None:
+        try:
+            logger.stage_start('Source UUID Harvesting', 'Querying NVD Sources API', group='cve_queries')
+            url = config['api']['endpoints']['nvd_sources']
+            headers = build_nvd_api_headers(api_key)
+            response = requests.get(url, headers=headers, timeout=config['api']['timeouts']['nvd_api'])
+            data = validate_http_response(response, 'NVD Source API - harvest UUIDs')
+            sources = data.get('sources', [])
+            cache_source = 'NVD API'
+        except Exception as e:
+            logger.error(f'Error fetching source data: {e}', group='cve_queries')
+            return None, None
+    else:
+        logger.stage_start('Source UUID Harvesting', f'Loading from {cache_source}', group='cve_queries')
+
     try:
-        url = config['api']['endpoints']['nvd_sources']
-        response = requests.get(url, timeout=config['api']['timeouts']['nvd_api'])
-        data = validate_http_response(response, "NVD Source API - harvest UUIDs")
-        sources = data.get('sources', [])
-        
         source_info = []
         seen_uuids = set()
         duplicates_found = 0
@@ -2629,7 +2235,7 @@ def harvestSourceUUIDs():
         
         # Report filtering results
         logger.info(f"Source Filtering Summary:", group="cve_queries")
-        logger.info(f"Total sources from API: {len(sources)}", group="cve_queries")
+        logger.info(f"Total sources from {cache_source}: {len(sources)}", group="cve_queries")
         logger.info(f"Sources without UUID: {len(no_uuid_sources)} (filtered out)", group="cve_queries")
         if no_uuid_sources:
             logger.debug(f"   Sources without UUID: {', '.join(no_uuid_sources)}", group="cve_queries")
@@ -2643,7 +2249,6 @@ def harvestSourceUUIDs():
         
         logger.stage_end("Source UUID Harvesting", f"Harvested {len(source_info)} unique source UUIDs (sorted by lastModified, newest first)", group="cve_queries")
         
-        # Return both the source info and the totals for reporting
         api_totals = {
             'total_from_api': len(sources),
             'sources_without_uuid': len(no_uuid_sources),
@@ -2653,12 +2258,9 @@ def harvestSourceUUIDs():
         }
         
         return source_info, api_totals
-        
-    except requests.RequestException as e:
-        logger.error(f"Error fetching source data: {e}", group="cve_queries")
-        return None, None
-    except json.JSONDecodeError as e:
-        logger.error(f"Error parsing JSON response: {e}", group="cve_queries")
+
+    except Exception as e:
+        logger.error(f"Error processing source data: {e}", group="cve_queries")
         return None, None
 
 
@@ -2680,13 +2282,7 @@ def checkSourceCVECount(source_uuid, api_key, max_count=None, min_count=None):
     
     try:
         url = config['api']['endpoints']['nvd_cves']
-        headers = {
-            "Accept": "application/json",
-            "User-Agent": f"{TOOLNAME}/{VERSION}"
-        }
-        
-        if api_key:
-            headers["apiKey"] = api_key
+        headers = build_nvd_api_headers(api_key)
         
         params = {
             "sourceIdentifier": source_uuid,

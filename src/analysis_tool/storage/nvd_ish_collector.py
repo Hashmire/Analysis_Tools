@@ -36,9 +36,8 @@ except ImportError:
 
 # Import configuration loader
 try:
-    from ..core.gatherData import get_cache_config, _resolve_cve_cache_file_path
+    from ..core.gatherData import _resolve_cve_cache_file_path
 except ImportError:
-    get_cache_config = None
     _resolve_cve_cache_file_path = None
 
 # Import global source manager for attribution and alias mapping
@@ -92,7 +91,7 @@ class NVDishCollector:
             from pathlib import Path
             import json
             
-            config_path = Path(__file__).parent.parent / "config.json"
+            config_path = Path(__file__).parent.parent.parent.parent / "config.json"
             with open(config_path, 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
             

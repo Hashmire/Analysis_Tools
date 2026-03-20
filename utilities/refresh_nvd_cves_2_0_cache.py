@@ -33,13 +33,8 @@ from src.analysis_tool.core.gatherData import (
     _get_cache_metadata_last_update,
     _transform_nvd_vulnerability_to_response,
     load_schema,
-    query_nvd_cves_by_modified_date,
-    query_nvd_cves_all,
     query_nvd_cves_by_modified_date_concurrent,
     query_nvd_cves_all_concurrent,
-    TOOLNAME,
-    VERSION,
-    config
 )
 
 logger = get_logger()
@@ -390,7 +385,7 @@ Note: Default behavior is --auto (query from last cache update).
     
     # Get API key from config
     config = load_config()
-    api_key = config.get('defaults', {}).get('default_api_key')
+    api_key = config.get('api', {}).get('api_key')
     if not api_key or api_key == "CONFIG_DEFAULT":
         api_key = None
         logger.warning("No API key configured - refresh will be slower", group="CACHE_REFRESH")

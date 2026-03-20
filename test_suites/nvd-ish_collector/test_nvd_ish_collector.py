@@ -88,10 +88,12 @@ class NVDishCollectorTestSuite:
             "CVE-1337-1005",  # Skip logic validation (clean data)
         ]
         
-        # Use production CPE cache - isolated cache causes incomplete coverage and NVD API timeouts
-        # Production cache has comprehensive coverage (~220,000 entries) and prevents API calls
-        # Tests complete faster with production cache (~38s vs 180s+ timeouts with isolated cache)
-        
+        # Set up isolated test CPE cache directory to avoid loading production cache
+        self.test_cache_dir = CACHE_DIR / "temp_test_caches"
+        self.test_cache_dir.mkdir(parents=True, exist_ok=True)
+        os.environ['TEST_CPE_CACHE_DIR'] = str(self.test_cache_dir)
+        os.environ['TEST_NVD_API_DISABLED'] = '1'
+
     def setup_test_environment(self) -> List[str]:
         """Set up test environment by copying test files to INPUT cache locations."""
         print("Setting up test environment...")
@@ -243,20 +245,30 @@ class NVDishCollectorTestSuite:
             except Exception as e:
                 print(f"  [WARNING] Failed to inject test source data: {e}")
         
-        # Using production CPE cache - no injection needed
-        # Production cache has comprehensive coverage and prevents NVD API calls
-        
+        # Inject isolated test CPE cache entries to avoid NVD API calls
+        self._inject_cpe_cache_data()
+
         print(f"Setup complete. Copied {len(copied_files)} test files.")
         return copied_files
     
     def _inject_cpe_cache_data(self):
-        """Inject minimal CPE cache entries to avoid loading production cache.
-        
-        This creates lightweight test CPE data to prevent timeouts from API queries.
+        """Inject minimal CPE cache entries to avoid NVD API calls during tests.
+
+        For each test vendor/product, injects cache entries for all three query
+        patterns that processData.py generates:
+          1. Vendor-only: cpe:2.3:*:{culled_vendor}:*:*:*:*:*:*:*:*:*
+          2. Product-only: cpe:2.3:*:*:*{culled_product}*:*:*:*:*:*:*:*:*
+          3. Vendor+product: cpe:2.3:*:{culled_vendor}:*{culled_product}*:*:*:*:*:*:*:*:*
+        Plus platform (OS/arch) variants of patterns 2 and 3.
+
+        IMPORTANT: Uses curated names (via inline curation rules matching
+        curateCPEAttributes/formatFor23CPE in processData.py) so cache keys
+        match what the tool actually queries.
         """
         import datetime
         import hashlib
         import orjson
+        import re
         
         # Sharded cache configuration (use test cache directory)
         cache_shards_dir = self.test_cache_dir / "cpe_base_strings"
@@ -338,14 +350,42 @@ class NVDishCollectorTestSuite:
             ("test_vendor", "test_product"),
         ]
         
+        # Apply curation rules matching processData.curateCPEAttributes + formatFor23CPE
+        def cull_vendor(v: str) -> str:
+            v = v.lower().replace(' ', '_')
+            v = v.replace('apache_software_foundation', 'apache')
+            v = re.sub(r'[\s_]+inc\.$', '', v)
+            v = re.sub(r'[\s_]+inc$', '', v)
+            return v.rstrip('_')
+
+        def cull_product(p: str) -> str:
+            p = p.lower().replace(' ', '_')
+            p = p.replace('apache_', '')
+            p = p.replace('_software', '').replace('_version', '').replace('_plugin', '')
+            p = re.sub(r'[\s_][\d]+\.[\d]+\.[\d]+$', '', p)
+            p = re.sub(r'[\s_][\d]+\.[\d]+$', '', p)
+            p = re.sub(r'[\s_][\d]+$', '', p)
+            return p.rstrip('_')
+
+        # N/A sentinel values — tool skips CPE queries for these
+        NA_VALUES = {'n/a', 'n\\/a'}
+
         timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
         injection_count = 0
-        
+
         for vendor, product in test_combinations:
+            # Skip n/a entries — tool doesn't generate CPE queries for them
+            if vendor.lower() in NA_VALUES or product.lower() in NA_VALUES:
+                continue
+
+            # Apply the same curation that processData.py applies before querying the cache
+            culled_vendor = cull_vendor(vendor)
+            culled_product = cull_product(product)
+
             # Create mock CPE products for this vendor/product
             products_list = [
-                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:1.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-001", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}},
-                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{vendor}:{product}:2.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{product.upper()}-002", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}}
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{culled_vendor}:{culled_product}:1.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{culled_product.upper()[:20]}-001", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}},
+                {"cpe": {"deprecated": False, "cpeName": f"cpe:2.3:a:{culled_vendor}:{culled_product}:2.0:*:*:*:*:*:*:*", "cpeNameId": f"TEST-UUID-{culled_product.upper()[:20]}-002", "lastModified": "2026-01-01T00:00:00.000", "created": "2026-01-01T00:00:00.000", "titles": "", "refs": ""}}
             ]
             
             # Create standard cache entry structure
@@ -364,30 +404,32 @@ class NVDishCollectorTestSuite:
                 "total_results": 2
             }
             
-            # Build platform-aware CPE patterns (--nvd-ish-only enables CPE determination with platform queries)
+            # Build platform-aware CPE patterns using CURATED names — must match processData.py query keys
             os_platforms = ["windows", "linux", "macos"]
             arch_platforms = ["x86", "x64", "arm64"]
             
             search_patterns = []
+            # Vendor-only pattern (1 total: generated before platform processing, no variants)
+            search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*:*:*:*:*:*:*:*:*")
             # Product-only patterns (16 total: 1 base + 3 OS + 3 arch + 9 combos)
-            search_patterns.append(f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:*:*")
+            search_patterns.append(f"cpe:2.3:*:*:*{culled_product}*:*:*:*:*:*:*:*:*")
             for os in os_platforms:
-                search_patterns.append(f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:{os}:*:*")
+                search_patterns.append(f"cpe:2.3:*:*:*{culled_product}*:*:*:*:*:*:{os}:*:*")
             for arch in arch_platforms:
-                search_patterns.append(f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:*:{arch}:*")
+                search_patterns.append(f"cpe:2.3:*:*:*{culled_product}*:*:*:*:*:*:*:{arch}:*")
             for os in os_platforms:
                 for arch in arch_platforms:
-                    search_patterns.append(f"cpe:2.3:*:*:*{product}*:*:*:*:*:*:{os}:{arch}:*")
+                    search_patterns.append(f"cpe:2.3:*:*:*{culled_product}*:*:*:*:*:*:{os}:{arch}:*")
             
             # Vendor+Product patterns (16 total: 1 base + 3 OS + 3 arch + 9 combos)
-            search_patterns.append(f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:*:*:*")
+            search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*{culled_product}*:*:*:*:*:*:*:*:*")
             for os in os_platforms:
-                search_patterns.append(f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:{os}:*:*")
+                search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*{culled_product}*:*:*:*:*:*:{os}:*:*")
             for arch in arch_platforms:
-                search_patterns.append(f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:*:{arch}:*")
+                search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*{culled_product}*:*:*:*:*:*:*:{arch}:*")
             for os in os_platforms:
                 for arch in arch_platforms:
-                    search_patterns.append(f"cpe:2.3:*:{vendor}:*{product}*:*:*:*:*:*:{os}:{arch}:*")
+                    search_patterns.append(f"cpe:2.3:*:{culled_vendor}:*{culled_product}*:*:*:*:*:*:{os}:{arch}:*")
             
             # Inject all patterns
             for pattern in search_patterns:
@@ -493,6 +535,18 @@ class NVDishCollectorTestSuite:
                 removed_count += 1
                 print(f"  [OK] Removed leftover mapping file: {active_mapping.name}")
         
+        # Clean up isolated test CPE cache directory
+        try:
+            if hasattr(self, 'test_cache_dir') and self.test_cache_dir.exists():
+                shutil.rmtree(self.test_cache_dir)
+                print(f"  * Cleaned up test CPE cache directory")
+        except Exception as e:
+            print(f"  WARNING: Could not remove test cache directory: {e}")
+        if 'TEST_CPE_CACHE_DIR' in os.environ:
+            del os.environ['TEST_CPE_CACHE_DIR']
+        if 'TEST_NVD_API_DISABLED' in os.environ:
+            del os.environ['TEST_NVD_API_DISABLED']
+
         print(f"Cleanup complete. Removed {removed_count} test files.")
     
     def run_analysis_tool(self, cve_id: str, additional_params: str = "", additional_args: List[str] = None) -> tuple:
