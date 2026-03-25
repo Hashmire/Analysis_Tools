@@ -49,11 +49,10 @@ class NVDCacheRefreshStats:
         self.date_range_end: Optional[datetime] = None
         self.total_cves_found: int = 0
         self.cves_processed: int = 0
-        self.cves_cached: int = 0
+        self.cves_added: int = 0
         self.cves_updated: int = 0
         self.cves_current: int = 0
-        self.validation_failures: int = 0
-        self.cache_failures: int = 0
+        self.error_count: int = 0
         self.api_calls: int = 0
         self.batches_processed: int = 0
         self.errors: List[str] = []
@@ -71,10 +70,10 @@ class NVDCacheRefreshStats:
             f"Date range:                {self.date_range_start.strftime('%Y-%m-%d') if self.date_range_start else 'FULL REFRESH'} to {self.date_range_end.strftime('%Y-%m-%d') if self.date_range_end else 'FULL REFRESH'}",
             f"Total CVEs found:          {self.total_cves_found:,}",
             f"CVEs processed:            {self.cves_processed:,}",
-            f"  - Cached (new):          {self.cves_cached:,}",
+            f"  - Errors:                {self.error_count:,}",
+            f"  - Added:                 {self.cves_added:,}",
             f"  - Updated:               {self.cves_updated:,}",
             f"  - Current:               {self.cves_current:,}",
-            f"  - Failed:                {self.cache_failures:,}",
             f"API calls made:            {self.api_calls:,}",
             f"Batches processed:         {self.batches_processed:,}",
             f"Elapsed time:              {minutes}m {seconds}s",
@@ -105,33 +104,33 @@ def determine_date_range(args) -> Optional[tuple[Optional[datetime], Optional[da
     
     # Full database refresh (no date filters)
     if args.full_refresh:
-        logger.warning("FULL REFRESH MODE: Will query entire NVD dataset", group="CACHE_REFRESH")
-        logger.warning("This operation will take 30-60 minutes to complete", group="CACHE_REFRESH")
+        logger.warning("FULL REFRESH MODE: Will query entire NVD dataset", group="CACHE_MANAGEMENT")
+        logger.warning("This operation will take 30-60 minutes to complete", group="CACHE_MANAGEMENT")
         return (None, None)  # Signal for full refresh
     
     # Auto-detect from cache metadata (default behavior)
     if args.auto or (not args.days and not args.start_date and not args.full_refresh):
         last_update = _get_cache_metadata_last_update('nvd_2_0_cve')
         if last_update:
-            logger.info(f"Cache metadata shows last update: {last_update.strftime('%Y-%m-%d %H:%M:%S %Z')}", group="CACHE_REFRESH")
-            logger.info(f"Query range: {last_update.strftime('%Y-%m-%d')} to {now.strftime('%Y-%m-%d')} (from cache metadata)", group="CACHE_REFRESH")
+            logger.info(f"Cache metadata shows last update: {last_update.strftime('%Y-%m-%d %H:%M:%S %Z')}", group="CACHE_MANAGEMENT")
+            logger.info(f"Query range: {last_update.strftime('%Y-%m-%d')} to {now.strftime('%Y-%m-%d')} (from cache metadata)", group="CACHE_MANAGEMENT")
             return last_update, now
         else:
-            logger.warning("Auto-detection failed - no cache metadata found", group="CACHE_REFRESH")
-            logger.error("Cannot proceed without date range. Use --days N or --start-date/--end-date", group="CACHE_REFRESH")
+            logger.warning("Auto-detection failed - no cache metadata found", group="CACHE_MANAGEMENT")
+            logger.error("Cannot proceed without date range. Use --days N or --start-date/--end-date", group="CACHE_MANAGEMENT")
             return None
     
     # Manual date range specified (testing/recovery)
     if args.start_date and args.end_date:
         start = datetime.strptime(args.start_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
         end = datetime.strptime(args.end_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59, tzinfo=timezone.utc)
-        logger.info(f"Query range: {start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')} (manual)", group="CACHE_REFRESH")
+        logger.info(f"Query range: {start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')} (manual)", group="CACHE_MANAGEMENT")
         return start, end
     
     # Days back specified (testing/recovery)
     if args.days:
         start = now - timedelta(days=args.days)
-        logger.info(f"Query range: {start.strftime('%Y-%m-%d')} to {now.strftime('%Y-%m-%d')} (last {args.days} days)", group="CACHE_REFRESH")
+        logger.info(f"Query range: {start.strftime('%Y-%m-%d')} to {now.strftime('%Y-%m-%d')} (last {args.days} days)", group="CACHE_MANAGEMENT")
         return start, now
     
     return None
@@ -178,39 +177,42 @@ def process_api_page(vulnerabilities: List[Dict[str, Any]], nvd_schema: Any, sta
         total_pages: Total number of pages
         max_workers: Number of parallel workers (default: 20)
     """
-    logger.info(f"Processing API page {page_num}/{total_pages} ({len(vulnerabilities)} CVEs) with {max_workers} workers", group="CACHE_REFRESH")
+    logger.info(f"{len(vulnerabilities)} NVD 2.0 records require cache operations", group="CACHE_MANAGEMENT")
     
     # Thread-safe lock for stats updates
     stats_lock = threading.Lock()
     
     # Process CVEs in parallel
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all CVEs to worker pool
+    executor = ThreadPoolExecutor(max_workers=max_workers)
+    try:
         futures = {executor.submit(_process_single_cve, vuln, nvd_schema): vuln for vuln in vulnerabilities}
-        
-        # Collect results as they complete
+
         for future in as_completed(futures):
             cve_id, status, error = future.result()
-            
-            # Thread-safe stats update
+
             with stats_lock:
                 stats.cves_processed += 1
-                
-                # Track and log status
+
                 if status == "cached":
-                    stats.cves_cached += 1
-                    logger.info(f"[{stats.cves_processed:>4}/{stats.total_cves_found}] {cve_id:<20} CACHED", group="CACHE_REFRESH")
+                    stats.cves_added += 1
+                    logger.info(f"NVD 2.x  {cve_id:<20} ADDED", group="CACHE_MANAGEMENT")
                 elif status == "updated":
                     stats.cves_updated += 1
-                    logger.info(f"[{stats.cves_processed:>4}/{stats.total_cves_found}] {cve_id:<20} UPDATED", group="CACHE_REFRESH")
-                elif status == "skipped":
+                    logger.info(f"NVD 2.x  {cve_id:<20} UPDATED", group="CACHE_MANAGEMENT")
+                elif status == "up-to-date":
                     stats.cves_current += 1
-                    logger.info(f"[{stats.cves_processed:>4}/{stats.total_cves_found}] {cve_id:<20} CURRENT", group="CACHE_REFRESH")
+                    logger.info(f"NVD 2.x  {cve_id:<20} CURRENT", group="CACHE_MANAGEMENT")
                 else:  # failed
-                    stats.cache_failures += 1
-                    logger.info(f"[{stats.cves_processed:>4}/{stats.total_cves_found}] {cve_id:<20} FAILED", group="CACHE_REFRESH")
+                    stats.error_count += 1
+                    logger.info(f"NVD 2.x  {cve_id:<20} ERROR", group="CACHE_MANAGEMENT")
                     if error:
                         stats.errors.append(error)
+    except KeyboardInterrupt:
+        logger.warning("Interrupt received — cancelling pending CVE workers...", group="CACHE_MANAGEMENT")
+        executor.shutdown(wait=False, cancel_futures=True)
+        raise
+    finally:
+        executor.shutdown(wait=False)
     
     stats.batches_processed += 1
 
@@ -237,7 +239,7 @@ def smart_refresh(api_key: Optional[str], args=None, max_workers: int = 20, api_
     # Determine date range
     date_range = determine_date_range(args)
     if date_range is None:
-        logger.error("Failed to determine date range - cannot proceed", group="CACHE_REFRESH")
+        logger.error("Failed to determine date range - cannot proceed", group="CACHE_MANAGEMENT")
         return stats
     
     start_date, end_date = date_range
@@ -245,56 +247,56 @@ def smart_refresh(api_key: Optional[str], args=None, max_workers: int = 20, api_
     stats.date_range_end = end_date
     
     # Phase 1: Query NVD for CVEs (CONCURRENT)
-    logger.info("\n--- PHASE 1: DISCOVERY (CONCURRENT) ---", group="CACHE_REFRESH")
+    logger.info("\n--- PHASE 1: DISCOVERY (CONCURRENT) ---", group="CACHE_MANAGEMENT")
     
     # Full refresh or incremental refresh?
     if start_date is None and end_date is None:
-        logger.info(f"Querying NVD for ALL CVEs with {api_workers} concurrent workers", group="CACHE_REFRESH")
+        logger.info(f"Querying NVD for ALL CVEs with {api_workers} concurrent workers", group="CACHE_MANAGEMENT")
         vulnerabilities = query_nvd_cves_all_concurrent(api_key, max_workers=api_workers)
     else:
-        logger.info(f"Querying NVD for CVEs modified since {start_date.strftime('%Y-%m-%d')} with {api_workers} concurrent workers", group="CACHE_REFRESH")
+        logger.info(f"Querying NVD for CVEs modified since {start_date.strftime('%Y-%m-%d')} with {api_workers} concurrent workers", group="CACHE_MANAGEMENT")
         vulnerabilities = query_nvd_cves_by_modified_date_concurrent(start_date, end_date, api_key, max_workers=api_workers)
     stats.total_cves_found = len(vulnerabilities)
     stats.api_calls = (len(vulnerabilities) + 1999) // 2000 if vulnerabilities else 1
     
     if not vulnerabilities:
         if stats.total_cves_found == 0:
-            logger.info("Cache is up to date - no changes detected", group="CACHE_REFRESH")
+            logger.info("Cache is up to date - no changes detected", group="CACHE_MANAGEMENT")
         else:
-            logger.warning("No CVE records retrieved - check errors", group="CACHE_REFRESH")
+            logger.warning("No CVE records retrieved - check errors", group="CACHE_MANAGEMENT")
         return stats
     
     # Phase 2: Pre-load schema and process CVEs
-    logger.info("\n--- PHASE 2: VALIDATION & UPDATE ---", group="CACHE_REFRESH")
-    logger.info("Pre-loading NVD CVE 2.0 schema for batch validation", group="CACHE_REFRESH")
+    logger.info("\n--- PHASE 2: VALIDATION & UPDATE ---", group="CACHE_MANAGEMENT")
+    logger.info("Pre-loading NVD CVE 2.0 schema for batch validation", group="CACHE_MANAGEMENT")
     try:
         nvd_schema = load_schema('nvd_cves_2_0')
-        logger.info("Schema loaded - will validate all CVEs before caching", group="CACHE_REFRESH")
+        logger.info("Schema loaded - will validate all CVEs before caching", group="CACHE_MANAGEMENT")
     except Exception as e:
-        logger.error(f"Failed to load schema: {e} - Proceeding without validation", group="CACHE_REFRESH")
+        logger.error(f"Failed to load schema: {e} - Proceeding without validation", group="CACHE_MANAGEMENT")
         nvd_schema = None
         stats.errors.append(f"Schema load failed: {str(e)[:100]}")
     
-    logger.info(f"Processing {len(vulnerabilities):,} CVEs", group="CACHE_REFRESH")
+    logger.info(f"Processing {len(vulnerabilities):,} CVEs", group="CACHE_MANAGEMENT")
     process_api_page(vulnerabilities, nvd_schema, stats, page_num=1, total_pages=1, max_workers=max_workers)
     
     # Phase 3: Finalize
-    logger.info("\n--- PHASE 3: FINALIZE ---", group="CACHE_REFRESH")
+    logger.info("\n--- PHASE 3: FINALIZE ---", group="CACHE_MANAGEMENT")
     try:
         nvd_config = _get_cached_config('nvd_2_0_cve')
         nvd_repo_path = nvd_config.get('path', 'cache/nvd_2.0_cves')
         _update_cache_metadata('nvd_2_0_cve', nvd_repo_path)
-        logger.info("Cache metadata updated with refresh timestamp", group="CACHE_REFRESH")
+        logger.info("Cache metadata updated with refresh timestamp", group="CACHE_MANAGEMENT")
     except Exception as e:
-        logger.warning(f"Failed to update cache metadata: {e}", group="CACHE_REFRESH")
+        logger.warning(f"Failed to update cache metadata: {e}", group="CACHE_MANAGEMENT")
         stats.errors.append(f"Metadata update failed: {str(e)[:100]}")
     
     # Update lastManualUpdate timestamp for manual refresh tracking
     try:
         _update_manual_refresh_timestamp('nvd_2_0_cve')
-        logger.info("NVD CVE cache lastManualUpdate timestamp updated", group="CACHE_REFRESH")
+        logger.info("NVD CVE cache lastManualUpdate timestamp updated", group="CACHE_MANAGEMENT")
     except Exception as e:
-        logger.warning(f"Failed to update lastManualUpdate timestamp: {e}", group="CACHE_REFRESH")
+        logger.warning(f"Failed to update lastManualUpdate timestamp: {e}", group="CACHE_MANAGEMENT")
         stats.errors.append(f"Manual timestamp update failed: {str(e)[:100]}")
     
     return stats
@@ -388,32 +390,32 @@ Note: Default behavior is --auto (query from last cache update).
     api_key = config.get('api', {}).get('api_key')
     if not api_key or api_key == "CONFIG_DEFAULT":
         api_key = None
-        logger.warning("No API key configured - refresh will be slower", group="CACHE_REFRESH")
+        logger.warning("No API key configured - refresh will be slower", group="CACHE_MANAGEMENT")
     
     # Execute refresh
     try:
-        logger.info("Starting NVD CVE cache refresh", group="CACHE_REFRESH")
+        logger.info("Starting NVD CVE cache refresh", group="CACHE_MANAGEMENT")
         stats = smart_refresh(api_key, args, max_workers=args.workers, api_workers=args.api_workers)
         
         # Print final report
         print(stats.report())
         
         # Return exit code based on results
-        if stats.errors and stats.cves_cached == 0:
-            logger.error("Refresh failed - no CVEs were cached", group="CACHE_REFRESH")
+        if stats.errors and stats.cves_added == 0 and stats.cves_updated == 0:
+            logger.error("Refresh failed - no CVEs were cached", group="CACHE_MANAGEMENT")
             return 1
         elif stats.errors:
-            logger.warning(f"Refresh completed with {len(stats.errors)} errors", group="CACHE_REFRESH")
+            logger.warning(f"Refresh completed with {len(stats.errors)} errors", group="CACHE_MANAGEMENT")
             return 0  # Partial success
         else:
-            logger.info("Cache refresh completed successfully", group="CACHE_REFRESH")
+            logger.info("Cache refresh completed successfully", group="CACHE_MANAGEMENT")
             return 0
         
     except KeyboardInterrupt:
-        logger.warning("\nRefresh interrupted by user", group="CACHE_REFRESH")
+        logger.warning("\nRefresh interrupted by user", group="CACHE_MANAGEMENT")
         return 1
     except Exception as e:
-        logger.error(f"Refresh failed: {e}", group="CACHE_REFRESH")
+        logger.error(f"Refresh failed: {e}", group="CACHE_MANAGEMENT")
         import traceback
         traceback.print_exc()
         return 1

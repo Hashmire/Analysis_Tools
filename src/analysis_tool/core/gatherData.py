@@ -772,8 +772,28 @@ def _update_manual_refresh_timestamp(cache_type):
     - Automatic pipeline updates (last_updated) - used for cache metadata tracking
     
     Args:
-        cache_type: Type of cache ('cpe_cache', 'nvd_2_0_cve', etc.)
+        cache_type: Type of cache ('cpe_cache', 'nvd_2_0_cve', 'cve_list_v5', etc.)
     """
+    current_time = datetime.now(timezone.utc)
+
+    if cache_type == 'cve_list_v5':
+        try:
+            project_root = Path(__file__).parent.parent.parent.parent
+            config_file = project_root / "config.json"
+
+            with open(config_file, 'r') as f:
+                cfg = json.load(f)
+
+            cfg['cache_settings']['cve_list_v5']['refresh_strategy']['last_manual_update'] = current_time.isoformat()
+
+            with open(config_file, 'w') as f:
+                json.dump(cfg, f, indent=4)
+
+            logger.info(f"Updated cve_list_v5 last_manual_update in config.json: {current_time.isoformat()}", group="CACHE_MANAGEMENT")
+        except Exception as e:
+            logger.warning(f"Could not update cve_list_v5 last_manual_update in config.json: {e}", group="CACHE_MANAGEMENT")
+        return
+
     try:
         # Get project root for cache metadata file
         project_root = Path(__file__).parent.parent.parent.parent
@@ -798,7 +818,6 @@ def _update_manual_refresh_timestamp(cache_type):
             return
         
         # Update lastManualUpdate timestamp
-        current_time = datetime.now(timezone.utc)
         metadata['datasets'][cache_type]['lastManualUpdate'] = current_time.isoformat()
         metadata['last_updated'] = current_time.isoformat()
         
@@ -1072,8 +1091,6 @@ def _extract_field_value(data, simple_path):
 def _sync_cvelist_with_nvd_dataset(targetCve):
     """
     Check if CVE List V5 local data needs sync with NVD dataset based on modification dates.
-    Business rule: If NVD lastModified > CVE List V5 dateUpdated, refresh from MITRE API.
-    
     Args:
         targetCve: CVE ID to check for sync (e.g., "CVE-2024-12345")
     """
@@ -1101,7 +1118,6 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
             return
             
         nvd_last_modified = max(nvd_dates)  # Take most recent if multiple matches
-        # Handle various datetime formats and ensure timezone awareness
         if 'Z' in nvd_last_modified:
             nvd_datetime_str = nvd_last_modified.replace('Z', '+00:00')
         elif '+' not in nvd_last_modified and nvd_last_modified.count(':') >= 2:
@@ -1110,50 +1126,69 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
             nvd_datetime_str = nvd_last_modified
         nvd_datetime = datetime.fromisoformat(nvd_datetime_str)
         
-        # Get CVE List V5 local data for comparison
         cve_config = _get_cached_config('cve_list_v5')
         local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
+        refresh_strategy = cve_config.get('refresh_strategy', {})
         
-        cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
-        if not cve_file_path or not cve_file_path.exists():
-            logger.debug(f"No local CVE file exists for sync check: {targetCve}", group="CACHE_MANAGEMENT")
-            return
+        last_manual_update_str = refresh_strategy.get('last_manual_update')
+        
+        if last_manual_update_str:
+            # Fast path: last_manual_update is a direct config value — already in memory, no I/O
+            if 'Z' in last_manual_update_str:
+                lmu_datetime_str = last_manual_update_str.replace('Z', '+00:00')
+            elif '+' not in last_manual_update_str and last_manual_update_str.count(':') >= 2:
+                lmu_datetime_str = last_manual_update_str + '+00:00'
+            else:
+                lmu_datetime_str = last_manual_update_str
+            lmu_datetime = datetime.fromisoformat(lmu_datetime_str)
             
-        local_data = _load_cve_from_local_file(cve_file_path)
-        if not local_data:
-            logger.debug(f"Could not load local CVE data for sync check: {targetCve}", group="CACHE_MANAGEMENT")
-            return
+            if nvd_datetime <= lmu_datetime:
+                # NVD has not been modified since the last bulk V5 refresh — record is current
+                logger.debug(f"CVE List V5 cache current for {targetCve} (NVD lastModified: {nvd_last_modified} <= last_manual_update: {last_manual_update_str})", group="CACHE_MANAGEMENT")
+                return
+            
+            # NVD was modified after the last bulk refresh — this CVE's V5 record needs updating
+            logger.info(f"NVD lastModified newer than CVE List V5 last_manual_update — refreshing {targetCve} (NVD: {nvd_last_modified}, last_manual_update: {last_manual_update_str})", group="CACHE_MANAGEMENT")
+            cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
+            if cve_file_path:
+                _refresh_cvelist_from_mitre_api(targetCve, cve_file_path, "NVD newer than last_manual_update")
         
-        # Extract CVE List V5 dateUpdated using config field path
-        cvelist_field_path = cve_config.get('refresh_strategy', {}).get('field_path', '$.cveMetadata.dateUpdated')
-        
-        # Check if this is a cache metadata path vs CVE record path
-        if cvelist_field_path.startswith('cache_metadata.'):
-            cvelist_dates = _extract_cache_metadata_value(cvelist_field_path)
         else:
+            # Fallback path: per-CVE JSONPath comparison — load V5 file and compare per-record dates
+            cvelist_field_path = refresh_strategy.get('field_path', '$.cveMetadata.dateUpdated')
+            cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
+            if not cve_file_path or not cve_file_path.exists():
+                logger.debug(f"No local CVE file exists for sync check: {targetCve}", group="CACHE_MANAGEMENT")
+                return
+                
+            local_data = _load_cve_from_local_file(cve_file_path)
+            if not local_data:
+                logger.debug(f"Could not load local CVE data for sync check: {targetCve}", group="CACHE_MANAGEMENT")
+                return
+            
             cvelist_dates = _extract_field_value(local_data, cvelist_field_path)
-        
-        if not cvelist_dates:
-            logger.debug(f"No CVE List V5 date found for {targetCve} using path {cvelist_field_path}", group="DATASET")
-            return
             
-        cvelist_date_updated = cvelist_dates[0]  # Should be single match
-        # Handle various datetime formats and ensure timezone awareness
-        if 'Z' in cvelist_date_updated:
-            cvelist_datetime_str = cvelist_date_updated.replace('Z', '+00:00')
-        elif '+' not in cvelist_date_updated and cvelist_date_updated.count(':') >= 2:
-            cvelist_datetime_str = cvelist_date_updated + '+00:00'
-        else:
-            cvelist_datetime_str = cvelist_date_updated
-        cvelist_datetime = datetime.fromisoformat(cvelist_datetime_str)
-        
-        # Compare dates and refresh if NVD is newer
-        if nvd_datetime > cvelist_datetime:
-            logger.info(f"NVD 2.0 API record newer than CVE List V5 cached record - refreshing CVE List V5 cached record for {targetCve} (NVD 2.0 API Record: {nvd_last_modified}, CVE List V5 Cached Record: {cvelist_date_updated})", group="CACHE_MANAGEMENT")
-            _refresh_cvelist_from_mitre_api(targetCve, cve_file_path, "NVD newer than cache")
-        else:
-            logger.debug(f"CVE List V5 cached record current for {targetCve} (NVD 2.0 API Record: {nvd_last_modified}, CVE List V5 Cached Record: {cvelist_date_updated})", group="CACHE_MANAGEMENT")
+            if not cvelist_dates:
+                logger.debug(f"No CVE List V5 date found for {targetCve} using path {cvelist_field_path}", group="DATASET")
+                return
+                
+            cvelist_date_updated = cvelist_dates[0]  # Should be single match
+            if 'Z' in cvelist_date_updated:
+                cvelist_datetime_str = cvelist_date_updated.replace('Z', '+00:00')
+            elif '+' not in cvelist_date_updated and cvelist_date_updated.count(':') >= 2:
+                cvelist_datetime_str = cvelist_date_updated + '+00:00'
+            else:
+                cvelist_datetime_str = cvelist_date_updated
+            cvelist_datetime = datetime.fromisoformat(cvelist_datetime_str)
+            
+            if nvd_datetime > cvelist_datetime:
+                logger.info(f"NVD 2.0 API record newer than CVE List V5 cached record - refreshing CVE List V5 cached record for {targetCve} (NVD 2.0 API Record: {nvd_last_modified}, CVE List V5 Cached Record: {cvelist_date_updated})", group="CACHE_MANAGEMENT")
+                _refresh_cvelist_from_mitre_api(targetCve, cve_file_path, "NVD newer than cache")
+            else:
+                logger.debug(f"CVE List V5 cached record current for {targetCve} (NVD 2.0 API Record: {nvd_last_modified}, CVE List V5 Cached Record: {cvelist_date_updated})", group="CACHE_MANAGEMENT")
     
+    except Exception as e:
+        logger.warning(f"CVE List V5 sync check failed for {targetCve}: {e}", group="CACHE_MANAGEMENT")   
     except Exception as e:
         logger.warning(f"CVE List V5 sync check failed for {targetCve}: {e}", group="CACHE_MANAGEMENT")
 
@@ -1206,21 +1241,21 @@ def _refresh_cvelist_from_mitre_api(targetCve, local_file_path, refresh_reason="
             json.dump(fresh_cve_data, f, indent=2)
         
         # Single-line status logging (similar to NVD cache updates)
-        status = "CACHED" if is_new else "UPDATED"
-        logger.info(f"{targetCve:<20} {status}", group="CACHE_MANAGEMENT")
+        status = "ADDED" if is_new else "UPDATED"
+        logger.info(f"CVE 5.x  {targetCve:<20} {status}", group="CACHE_MANAGEMENT")
         
         # Update cache metadata (skip for batch operations - will update once at end)
         if update_metadata:
             _update_cache_metadata('cve_list_v5', cve_repo_path)
         
     except requests.exceptions.RequestException as e:
-        logger.info(f"{targetCve:<20} FAILED (API error)", group="CACHE_MANAGEMENT")
+        logger.info(f"CVE 5.x  {targetCve:<20} ERROR (API error)", group="CACHE_MANAGEMENT")
         logger.error(f"MITRE API refresh failed for {targetCve}: {e}", group="CACHE_MANAGEMENT")
     except (IOError, OSError) as e:
-        logger.info(f"{targetCve:<20} FAILED (file write)", group="CACHE_MANAGEMENT")
+        logger.info(f"CVE 5.x  {targetCve:<20} ERROR (file write)", group="CACHE_MANAGEMENT")
         logger.error(f"File write failed during CVE refresh for {targetCve}: {e}", group="CACHE_MANAGEMENT")
     except Exception as e:
-        logger.info(f"{targetCve:<20} FAILED", group="CACHE_MANAGEMENT")
+        logger.info(f"CVE 5.x  {targetCve:<20} ERROR", group="CACHE_MANAGEMENT")
         logger.error(f"Unexpected error during CVE refresh for {targetCve}: {e}", group="CACHE_MANAGEMENT")
 
 
@@ -1261,7 +1296,8 @@ def _save_nvd_cve_to_local_file(targetCve, nvd_data, cve_schema=None, update_met
         update_metadata: Whether to update cache metadata after individual save (default True, set False for batch operations)
     
     Returns:
-        str: Status of operation - "skipped", "updated", or "failed"
+        str: Status of operation - "up-to-date" (no write needed), "cached" (new file created),
+             "updated" (existing file overwritten), or "failed"
     """
     try:
         nvd_config = _get_cached_config('nvd_2_0_cve')
@@ -1307,7 +1343,7 @@ def _save_nvd_cve_to_local_file(targetCve, nvd_data, cve_schema=None, update_met
                     
                     # Skip update if cached version is already current
                     if cached_dt >= api_dt:
-                        return "skipped"  # Skip validation and write - cached data is up-to-date
+                        return "up-to-date"  # Cached data is current, no write needed
                         
             except Exception as comparison_error:
                 # If timestamp comparison fails, proceed with update to be safe
@@ -1349,39 +1385,27 @@ def _save_nvd_cve_to_local_file(targetCve, nvd_data, cve_schema=None, update_met
 
 def gatherCVEListRecord(targetCve):
     """
-    Main CVE record gathering with local cache consultation and staleness-driven refresh.
+    Load a CVE List V5 record from the local cache, then fall back to the MITRE API on a
+    cache miss. Cache-only path: no staleness checks are performed here; freshness is managed
+    upstream by _save_cve_list_v5_to_cache_during_bulk_generation during dataset generation.
     """
     cve_config = _get_cached_config('cve_list_v5')
-    
-    cache_missing_only = cve_config.get('cache_missing_only', False)
     cache_path = cve_config.get('path', 'cache/cve_list_v5')
     
-    logger.info(f"CVE cache strategy for {targetCve}: cache_missing_only={cache_missing_only}, path={cache_path}", group="CACHE_MANAGEMENT")
+    logger.info(f"CVE cache strategy for {targetCve}: path={cache_path}", group="CACHE_MANAGEMENT")
     
     # Always attempt local load first
     local_repo_path = cache_path
     cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
     if cve_file_path:
         logger.debug(f"Cache file path resolved: {cve_file_path}", group="CACHE_MANAGEMENT")
-        if cache_missing_only:
-            logger.debug(f"Using cache-missing-only strategy (no staleness check): {targetCve}", group="CACHE_MANAGEMENT")
-            # Only check file presence — no cross-source staleness comparison
-            if cve_file_path.exists():
-                local_data = _load_cve_from_local_file(cve_file_path)
-                if local_data:
-                    logger.info(f"Cache hit (cache-missing-only mode): {targetCve} loaded from {cve_file_path}", group="CACHE_MANAGEMENT")
-                    return local_data
-            # Cache miss — proceed to API fetch
-            logger.info(f"Cache miss (file missing): {targetCve} not found at {cve_file_path}", group="CACHE_MANAGEMENT")
-        else:
-            # Full sync strategy — cross-source staleness check before returning cached data
-            logger.debug(f"Using full sync strategy (with staleness check): {targetCve}", group="CACHE_MANAGEMENT")
-            _sync_cvelist_with_nvd_dataset(targetCve)
-            
+        if cve_file_path.exists():
             local_data = _load_cve_from_local_file(cve_file_path)
             if local_data:
-                logger.info(f"Cache hit (full sync mode): {targetCve} loaded from {cve_file_path} after staleness check", group="CACHE_MANAGEMENT")
+                logger.info(f"Cache hit: {targetCve} loaded from {cve_file_path}", group="CACHE_MANAGEMENT")
                 return local_data
+        # Cache miss — proceed to API fetch
+        logger.info(f"Cache miss (file missing): {targetCve} not found at {cve_file_path}", group="CACHE_MANAGEMENT")
     
     # Cache miss or staleness-triggered refresh — fetch from MITRE API
     logger.info(f"Fetching {targetCve} from MITRE API", group="CACHE_MANAGEMENT")

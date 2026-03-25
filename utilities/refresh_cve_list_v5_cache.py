@@ -15,10 +15,12 @@ Usage:
 
 import sys
 import argparse
+import threading
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 
 from src.analysis_tool.logging.workflow_logger import get_logger
 from src.analysis_tool.storage.run_organization import get_analysis_tools_root
@@ -27,7 +29,6 @@ from src.analysis_tool.core.gatherData import (
     _get_cached_config,
     _update_cache_metadata,
     _update_manual_refresh_timestamp,
-    _get_cache_metadata_last_update,
     _resolve_cve_cache_file_path,
     _refresh_cvelist_from_mitre_api,
     load_schema,
@@ -51,9 +52,10 @@ class CVEListRefreshStats:
         self.delta_log_entries: int = 0
         self.cves_in_range: int = 0
         self.cves_checked: int = 0
-        self.cves_skipped_fresh: int = 0
-        self.cves_refreshed: int = 0
-        self.refresh_failures: int = 0
+        self.cves_current: int = 0
+        self.cves_added: int = 0
+        self.cves_updated: int = 0
+        self.error_count: int = 0
         self.errors: List[str] = []
     
     def report(self) -> str:
@@ -69,10 +71,11 @@ class CVEListRefreshStats:
             f"Cutoff date:               {self.cutoff_date.strftime('%Y-%m-%d %H:%M:%S %Z') if self.cutoff_date else 'N/A'}",
             f"DeltaLog entries found:    {self.delta_log_entries:,}",
             f"CVEs in date range:        {self.cves_in_range:,}",
-            f"CVEs checked:              {self.cves_checked:,}",
-            f"CVEs skipped (fresh):      {self.cves_skipped_fresh:,}",
-            f"CVEs refreshed:            {self.cves_refreshed:,}",
-            f"Refresh failures:          {self.refresh_failures:,}",
+            f"CVEs processed:              {self.cves_checked:,}",
+            f"  - Errors:                    {self.error_count:,}",
+            f"  - Added:                {self.cves_added:,}",
+            f"  - Updated:              {self.cves_updated:,}",
+            f"  - Current:              {self.cves_current:,}",
             f"Elapsed time:              {minutes}m {seconds}s",
         ]
         
@@ -95,7 +98,7 @@ def fetch_delta_log() -> Optional[Dict[str, Any]]:
         Parsed deltaLog.json data or None on failure
     """
     try:
-        logger.info(f"Fetching deltaLog.json from CVE Project repository...", group="CACHE_REFRESH")
+        logger.info(f"Fetching deltaLog.json from CVE Project repository...", group="CACHE_MANAGEMENT")
         headers = {
             "Accept": "application/json",
             "User-Agent": f"{TOOLNAME}/{VERSION}"
@@ -105,14 +108,14 @@ def fetch_delta_log() -> Optional[Dict[str, Any]]:
         response.raise_for_status()
         
         delta_log = response.json()
-        logger.info(f"Successfully fetched deltaLog.json", group="CACHE_REFRESH")
+        logger.info(f"Successfully fetched deltaLog.json", group="CACHE_MANAGEMENT")
         return delta_log
         
     except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to fetch deltaLog.json: {e}", group="CACHE_REFRESH")
+        logger.error(f"Failed to fetch deltaLog.json: {e}", group="CACHE_MANAGEMENT")
         return None
     except Exception as e:
-        logger.error(f"Error parsing deltaLog.json: {e}", group="CACHE_REFRESH")
+        logger.error(f"Error parsing deltaLog.json: {e}", group="CACHE_MANAGEMENT")
         return None
 
 
@@ -131,21 +134,30 @@ def determine_cutoff_date(args) -> Optional[datetime]:
     # Manual days override
     if args.days:
         cutoff = now - timedelta(days=args.days)
-        logger.info(f"Cutoff date: {cutoff.strftime('%Y-%m-%d %H:%M:%S %Z')} (last {args.days} days)", group="CACHE_REFRESH")
+        logger.info(f"Cutoff date: {cutoff.strftime('%Y-%m-%d %H:%M:%S %Z')} (last {args.days} days)", group="CACHE_MANAGEMENT")
         return cutoff
     
-    # Auto-detect from cache metadata (default behavior)
-    last_update = _get_cache_metadata_last_update('cve_list_v5')
-    if last_update:
-        logger.info(f"Cache metadata shows last update: {last_update.strftime('%Y-%m-%d %H:%M:%S %Z')}", group="CACHE_REFRESH")
-        logger.info(f"Cutoff date: {last_update.strftime('%Y-%m-%d %H:%M:%S %Z')} (from cache metadata)", group="CACHE_REFRESH")
-        return last_update
-    else:
-        # No cache metadata - default to last 30 days
-        cutoff = now - timedelta(days=30)
-        logger.warning(f"No cache metadata found - defaulting to last 30 days", group="CACHE_REFRESH")
-        logger.info(f"Cutoff date: {cutoff.strftime('%Y-%m-%d %H:%M:%S %Z')} (default 30 days)", group="CACHE_REFRESH")
-        return cutoff
+    # Auto-detect from config.json last_manual_update (default behavior)
+    cve_config = _get_cached_config('cve_list_v5')
+    last_manual_update_str = cve_config.get('refresh_strategy', {}).get('last_manual_update')
+    if last_manual_update_str:
+        try:
+            if 'Z' in last_manual_update_str:
+                last_manual_update_str = last_manual_update_str.replace('Z', '+00:00')
+            elif '+' not in last_manual_update_str and last_manual_update_str.count(':') >= 2:
+                last_manual_update_str = last_manual_update_str + '+00:00'
+            last_update = datetime.fromisoformat(last_manual_update_str)
+            logger.info(f"Config last_manual_update: {last_update.strftime('%Y-%m-%d %H:%M:%S %Z')}", group="CACHE_MANAGEMENT")
+            logger.info(f"Cutoff date: {last_update.strftime('%Y-%m-%d %H:%M:%S %Z')} (from config.json)", group="CACHE_MANAGEMENT")
+            return last_update
+        except ValueError as e:
+            logger.warning(f"Could not parse last_manual_update from config: {e}", group="CACHE_MANAGEMENT")
+    
+    # No valid timestamp in config — default to last 30 days
+    cutoff = now - timedelta(days=30)
+    logger.warning(f"No last_manual_update in config — defaulting to last 30 days. Run: python -m utilities.refresh_cve_list_v5_cache --days N to establish a baseline.", group="CACHE_MANAGEMENT")
+    logger.info(f"Cutoff date: {cutoff.strftime('%Y-%m-%d %H:%M:%S %Z')} (default 30 days)", group="CACHE_MANAGEMENT")
+    return cutoff
 
 
 def parse_delta_log_for_changes(delta_log: Dict[str, Any], cutoff_date: datetime, stats: CVEListRefreshStats) -> List[str]:
@@ -161,61 +173,118 @@ def parse_delta_log_for_changes(delta_log: Dict[str, Any], cutoff_date: datetime
         List of CVE IDs that need refreshing
     """
     cves_to_refresh = set()
-    
-    # DeltaLog structure: Array of objects with {cveId, state, dateUpdated, dateReserved, ...}
-    delta_entries = delta_log if isinstance(delta_log, list) else delta_log.get('cves', [])
-    stats.delta_log_entries = len(delta_entries)
-    
-    logger.info(f"Parsing {len(delta_entries):,} deltaLog entries...", group="CACHE_REFRESH")
-    
-    for entry in delta_entries:
+
+    # DeltaLog structure: Array of batch records, each with:
+    #   {fetchTime, numberOfChanges, new: [{cveId, dateUpdated, ...}], updated: [...], error: [...]}
+    delta_batches = delta_log if isinstance(delta_log, list) else delta_log.get('cves', [])
+    stats.delta_log_entries = len(delta_batches)
+
+    logger.info(f"Parsing {len(delta_batches):,} deltaLog batches...", group="CACHE_MANAGEMENT")
+
+    for batch in delta_batches:
         try:
-            cve_id = entry.get('cveId')
-            date_updated = entry.get('dateUpdated')
-            
-            if not cve_id or not date_updated:
+            fetch_time_str = batch.get('fetchTime')
+            if not fetch_time_str:
                 continue
-            
-            # Parse dateUpdated timestamp
+
+            # Batch-level time filter: skip batches entirely older than cutoff
             try:
-                if 'Z' in date_updated:
-                    date_str = date_updated.replace('Z', '+00:00')
-                elif '+' not in date_updated:
-                    date_str = date_updated + '+00:00'
-                else:
-                    date_str = date_updated
-                
-                update_datetime = datetime.fromisoformat(date_str)
-                
-                # Check if updated after cutoff
-                if update_datetime > cutoff_date:
-                    cves_to_refresh.add(cve_id)
-                    
-            except ValueError as parse_error:
-                logger.debug(f"Failed to parse dateUpdated for {cve_id}: {date_updated}", group="CACHE_REFRESH")
+                ft_str = fetch_time_str.replace('Z', '+00:00') if 'Z' in fetch_time_str else fetch_time_str
+                if '+' not in ft_str:
+                    ft_str = ft_str + '+00:00'
+                fetch_time = datetime.fromisoformat(ft_str)
+                if fetch_time <= cutoff_date:
+                    continue
+            except ValueError:
                 continue
-                
-        except Exception as entry_error:
-            logger.debug(f"Error parsing deltaLog entry: {entry_error}", group="CACHE_REFRESH")
+
+            # Process individual CVE entries within this batch
+            for cve_entry in batch.get('new', []) + batch.get('updated', []):
+                try:
+                    cve_id = cve_entry.get('cveId')
+                    date_updated = cve_entry.get('dateUpdated')
+
+                    if not cve_id or not date_updated:
+                        continue
+
+                    try:
+                        date_str = date_updated.replace('Z', '+00:00') if 'Z' in date_updated else date_updated
+                        if '+' not in date_str:
+                            date_str = date_str + '+00:00'
+                        update_datetime = datetime.fromisoformat(date_str)
+
+                        if update_datetime > cutoff_date:
+                            cves_to_refresh.add(cve_id)
+
+                    except ValueError as parse_error:
+                        logger.debug(f"Failed to parse dateUpdated for {cve_id}: {date_updated}", group="CACHE_MANAGEMENT")
+                        continue
+
+                except Exception as cve_error:
+                    logger.debug(f"Error parsing CVE entry in deltaLog batch: {cve_error}", group="CACHE_MANAGEMENT")
+                    continue
+
+        except Exception as batch_error:
+            logger.debug(f"Error parsing deltaLog batch: {batch_error}", group="CACHE_MANAGEMENT")
             continue
-    
+
     stats.cves_in_range = len(cves_to_refresh)
-    logger.info(f"Found {len(cves_to_refresh):,} CVEs modified since cutoff date", group="CACHE_REFRESH")
-    
+    logger.info(f"Found {len(cves_to_refresh):,} CVEs modified since cutoff date", group="CACHE_MANAGEMENT")
+
     return sorted(cves_to_refresh)
 
 
-def smart_refresh(args=None):
+def _process_single_cve_v5(
+    cve_id: str,
+    cve_repo_path: str,
+    cache_ttl_hours: float,
+    cve_schema: Any
+) -> Tuple[str, str]:
+    """
+    Process a single CVE record (thread-safe worker function).
+
+    Returns (cve_id, status) where status is one of:
+        'current'  — within TTL, no refresh needed
+        'added'    — new file written
+        'updated'  — existing file refreshed
+        'error'    — path resolution failed (logged by caller)
+    """
+    cve_file_path = _resolve_cve_cache_file_path(cve_id, cve_repo_path)
+    if not cve_file_path:
+        return cve_id, "error"
+
+    file_existed = cve_file_path.exists()
+
+    if file_existed:
+        file_age_hours = (
+            datetime.now(timezone.utc)
+            - datetime.fromtimestamp(cve_file_path.stat().st_mtime, tz=timezone.utc)
+        ).total_seconds() / 3600
+        if file_age_hours < cache_ttl_hours:
+            return cve_id, "current"
+
+    _refresh_cvelist_from_mitre_api(
+        cve_id,
+        cve_file_path,
+        refresh_reason="deltaLog change detected",
+        cve_schema=cve_schema,
+        update_metadata=False,
+    )
+    return cve_id, "updated" if file_existed else "added"
+
+
+def smart_refresh(args=None, max_workers: int = 20):
     """
     Main refresh orchestration: fetch deltaLog, identify changes, refresh stale caches.
-    
+
     Phase 1: Discovery - Fetch deltaLog and identify changed CVEs
-    Phase 2: Validation & Update - Check staleness and refresh as needed (TTL-based)
+    Phase 2: Validation & Update - Check staleness and refresh as needed (TTL-based, parallel)
     Phase 3: Finalize - Update metadata
-    
+
     Args:
         args: Parsed command-line arguments
-    
+        max_workers: Number of parallel workers for CVE fetching (default: 20)
+
     Returns:
         CVEListRefreshStats object with operation results
     """
@@ -224,127 +293,112 @@ def smart_refresh(args=None):
     # Get CVE List V5 config
     cve_config = _get_cached_config('cve_list_v5')
     if not cve_config:
-        logger.error("Failed to load CVE List V5 config - cannot proceed", group="CACHE_REFRESH")
+        logger.error("Failed to load CVE List V5 config - cannot proceed", group="CACHE_MANAGEMENT")
         return stats
 
     cve_repo_path = cve_config.get('path')
     if not cve_repo_path:
-        logger.error("CVE List V5 config missing required 'path' key - cannot proceed", group="CACHE_REFRESH")
+        logger.error("CVE List V5 config missing required 'path' key - cannot proceed", group="CACHE_MANAGEMENT")
         return stats
 
     refresh_strategy = cve_config.get('refresh_strategy', {})
     cache_ttl_hours = refresh_strategy.get('notify_age_hours')
     if cache_ttl_hours is None:
-        logger.error("CVE List V5 config missing required 'refresh_strategy.notify_age_hours' key - cannot proceed", group="CACHE_REFRESH")
+        logger.error("CVE List V5 config missing required 'refresh_strategy.notify_age_hours' key - cannot proceed", group="CACHE_MANAGEMENT")
         return stats
     
     # Determine cutoff date
     cutoff_date = determine_cutoff_date(args)
     if not cutoff_date:
-        logger.error("Failed to determine cutoff date - cannot proceed", group="CACHE_REFRESH")
+        logger.error("Failed to determine cutoff date - cannot proceed", group="CACHE_MANAGEMENT")
         return stats
     
     stats.cutoff_date = cutoff_date
     
     # Phase 1: Fetch deltaLog and identify changed CVEs
-    logger.info("\n--- PHASE 1: DISCOVERY ---", group="CACHE_REFRESH")
+    logger.info("\n--- PHASE 1: DISCOVERY ---", group="CACHE_MANAGEMENT")
     delta_log = fetch_delta_log()
     if not delta_log:
-        logger.error("Failed to fetch deltaLog.json - cannot proceed", group="CACHE_REFRESH")
+        logger.error("Failed to fetch deltaLog.json - cannot proceed", group="CACHE_MANAGEMENT")
         return stats
     
     cves_to_check = parse_delta_log_for_changes(delta_log, cutoff_date, stats)
     if not cves_to_check:
-        logger.info("No CVE changes detected since cutoff date - cache is up to date", group="CACHE_REFRESH")
+        logger.info("No CVE changes detected since cutoff date - cache is up to date", group="CACHE_MANAGEMENT")
         return stats
     
     # Phase 2: Check staleness and refresh as needed
-    logger.info("\n--- PHASE 2: VALIDATION & UPDATE ---", group="CACHE_REFRESH")
-    logger.info("Pre-loading CVE List V5 schema for batch validation", group="CACHE_REFRESH")
+    logger.info("\n--- PHASE 2: VALIDATION & UPDATE ---", group="CACHE_MANAGEMENT")
+    logger.info("Pre-loading CVE List V5 schema for batch validation", group="CACHE_MANAGEMENT")
     try:
         cve_schema = load_schema('cve_cve_5_2')
-        logger.info("Schema loaded - will validate all CVEs before caching", group="CACHE_REFRESH")
+        logger.info("Schema loaded - will validate all CVEs before caching", group="CACHE_MANAGEMENT")
     except Exception as e:
-        logger.error(f"Failed to load schema: {e} - Proceeding without validation", group="CACHE_REFRESH")
+        logger.error(f"Failed to load schema: {e} - Proceeding without validation", group="CACHE_MANAGEMENT")
         cve_schema = None
         stats.errors.append(f"Schema load failed: {str(e)[:100]}")
     
-    logger.info(f"Checking {len(cves_to_check):,} CVEs for staleness (TTL: {cache_ttl_hours}h)", group="CACHE_REFRESH")
-    
-    for cve_id in cves_to_check:
-        try:
-            stats.cves_checked += 1
-            
-            # Resolve cache file path
-            cve_file_path = _resolve_cve_cache_file_path(cve_id, cve_repo_path)
-            if not cve_file_path:
-                logger.debug(f"Path resolution failed for {cve_id} - skipping", group="CACHE_REFRESH")
-                continue
-            
-            should_refresh = False
-            
-            if cve_file_path.exists():
-                # TTL-based staleness check
-                file_modified_time = datetime.fromtimestamp(cve_file_path.stat().st_mtime, tz=timezone.utc)
-                file_age_hours = (datetime.now(timezone.utc) - file_modified_time).total_seconds() / 3600
-                
-                if file_age_hours < cache_ttl_hours:
-                    # Fresh cache - skip refresh
-                    stats.cves_skipped_fresh += 1
-                    if stats.cves_skipped_fresh % 100 == 0:
-                        logger.info(f"Progress: {stats.cves_checked}/{len(cves_to_check)} checked, {stats.cves_skipped_fresh} fresh, {stats.cves_refreshed} refreshed", group="CACHE_REFRESH")
-                    continue
-                else:
-                    should_refresh = True
-            else:
-                # Missing cache file
-                should_refresh = True
-            
-            # Refresh from MITRE API
-            if should_refresh:
-                try:
-                    _refresh_cvelist_from_mitre_api(
-                        cve_id,
-                        cve_file_path,
-                        refresh_reason="deltaLog change detected",
-                        cve_schema=cve_schema,
-                        update_metadata=False  # Disable per-file updates, will update once at end
-                    )
-                    stats.cves_refreshed += 1
-                    
-                    if stats.cves_refreshed % 50 == 0:
-                        logger.info(f"Progress: {stats.cves_checked}/{len(cves_to_check)} checked, {stats.cves_refreshed} refreshed", group="CACHE_REFRESH")
-                        
-                except Exception as refresh_error:
-                    stats.refresh_failures += 1
-                    logger.warning(f"Refresh failed for {cve_id}: {refresh_error}", group="CACHE_REFRESH")
-                    stats.errors.append(f"Refresh failed for {cve_id}: {str(refresh_error)[:100]}")
-                    
-        except Exception as e:
-            logger.debug(f"Error processing {cve_id}: {e}", group="CACHE_REFRESH")
-            stats.errors.append(f"Processing error for {cve_id}: {str(e)[:100]}")
+    logger.info(f"{len(cves_to_check)} CVE List v5 records require cache operations", group="CACHE_MANAGEMENT")
+
+    stats_lock = threading.Lock()
+
+    executor = ThreadPoolExecutor(max_workers=max_workers)
+    try:
+        futures = {
+            executor.submit(_process_single_cve_v5, cve_id, cve_repo_path, cache_ttl_hours, cve_schema): cve_id
+            for cve_id in cves_to_check
+        }
+
+        for future in as_completed(futures):
+            try:
+                cve_id, status = future.result()
+                with stats_lock:
+                    stats.cves_checked += 1
+                    if status == "current":
+                        stats.cves_current += 1
+                    elif status == "added":
+                        stats.cves_added += 1
+                    elif status == "updated":
+                        stats.cves_updated += 1
+                    else:  # error
+                        stats.error_count += 1
+                        logger.warning(f"CVE 5.x  {cve_id:<20} ERROR (path resolution failed)", group="CACHE_MANAGEMENT")
+                        stats.errors.append(f"Path resolution failed for {cve_id}")
+            except Exception as e:
+                cve_id = futures[future]
+                with stats_lock:
+                    stats.cves_checked += 1
+                    stats.error_count += 1
+                    stats.errors.append(f"Processing error for {cve_id}: {str(e)[:100]}")
+                logger.debug(f"Error processing {cve_id}: {e}", group="CACHE_MANAGEMENT")
+    except KeyboardInterrupt:
+        logger.warning("Interrupt received — cancelling pending CVE workers...", group="CACHE_MANAGEMENT")
+        executor.shutdown(wait=False, cancel_futures=True)
+        raise
+    finally:
+        executor.shutdown(wait=False)
     
     # Phase 3: Finalize
-    logger.info("\n--- PHASE 3: FINALIZE ---", group="CACHE_REFRESH")
+    logger.info("\n--- PHASE 3: FINALIZE ---", group="CACHE_MANAGEMENT")
     
     # Update cache metadata
-    if stats.cves_refreshed > 0:
+    if stats.cves_added + stats.cves_updated > 0:
         try:
             _update_cache_metadata('cve_list_v5', cve_repo_path)
-            logger.info("Cache metadata updated with refresh timestamp", group="CACHE_REFRESH")
+            logger.info("Cache metadata updated with refresh timestamp", group="CACHE_MANAGEMENT")
         except Exception as e:
-            logger.warning(f"Failed to update cache metadata: {e}", group="CACHE_REFRESH")
+            logger.warning(f"Failed to update cache metadata: {e}", group="CACHE_MANAGEMENT")
             stats.errors.append(f"Metadata update failed: {str(e)[:100]}")
         
         # Update lastManualUpdate timestamp for manual refresh tracking
         try:
             _update_manual_refresh_timestamp('cve_list_v5')
-            logger.info("CVE List V5 cache lastManualUpdate timestamp updated", group="CACHE_REFRESH")
+            logger.info("CVE List V5 cache lastManualUpdate timestamp updated", group="CACHE_MANAGEMENT")
         except Exception as e:
-            logger.warning(f"Failed to update lastManualUpdate timestamp: {e}", group="CACHE_REFRESH")
+            logger.warning(f"Failed to update lastManualUpdate timestamp: {e}", group="CACHE_MANAGEMENT")
             stats.errors.append(f"Manual timestamp update failed: {str(e)[:100]}")
     else:
-        logger.info("No CVEs refreshed - metadata unchanged", group="CACHE_REFRESH")
+        logger.info("No CVEs refreshed - metadata unchanged", group="CACHE_MANAGEMENT")
     
     return stats
 
@@ -374,29 +428,36 @@ Note: Default behavior queries deltaLog.json for changes since last manual updat
         metavar='N',
         help='Force refresh of CVEs changed in last N days (overrides cache metadata)'
     )
-    
+    parser.add_argument(
+        '--workers',
+        type=int,
+        default=20,
+        metavar='N',
+        help='Number of parallel workers for CVE fetching (default: 20)'
+    )
+
     args = parser.parse_args()
     
     # Display banner
-    logger.info("="*80, group="CACHE_REFRESH")
-    logger.info("CVE List V5 Cache Refresh Utility", group="CACHE_REFRESH")
-    logger.info("="*80, group="CACHE_REFRESH")
+    logger.info("="*80, group="CACHE_MANAGEMENT")
+    logger.info("CVE List V5 Cache Refresh Utility", group="CACHE_MANAGEMENT")
+    logger.info("="*80, group="CACHE_MANAGEMENT")
     
     # Run refresh
-    stats = smart_refresh(args)
+    stats = smart_refresh(args, max_workers=args.workers)
     
     # Display results
     print(stats.report())
     
     # Exit with appropriate code
-    if stats.refresh_failures > 0 and stats.cves_refreshed == 0:
-        logger.error("Refresh failed - no CVEs were successfully updated", group="CACHE_REFRESH")
+    if stats.error_count > 0 and stats.cves_added == 0 and stats.cves_updated == 0:
+        logger.error("Refresh failed - no CVEs were successfully updated", group="CACHE_MANAGEMENT")
         return 1
-    elif stats.refresh_failures > 0:
-        logger.warning(f"Refresh completed with {stats.refresh_failures} failures", group="CACHE_REFRESH")
+    elif stats.error_count > 0:
+        logger.warning(f"Refresh completed with {stats.error_count} errors", group="CACHE_MANAGEMENT")
         return 0  # Partial success
     else:
-        logger.info("Refresh completed successfully", group="CACHE_REFRESH")
+        logger.info("Refresh completed successfully", group="CACHE_MANAGEMENT")
         return 0
 
 

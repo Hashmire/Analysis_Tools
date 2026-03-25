@@ -341,6 +341,10 @@ class TestSuiteRunner:
                 'name': 'NVD Cache Staleness Detection',
                 'command': ['python', 'test_suites\\tool_infrastructure\\test_nvd_cache_staleness.py']
             },
+            {
+                'name': 'CVE List V5 Cache Staleness Detection',
+                'command': ['python', 'test_suites\\tool_infrastructure\\test_cvelist_cache_staleness.py']
+            },
             # === NVD-ish Record Processing Flow (Ordered by Execution) ===
             # Step 1: Core record collection and structure
             {

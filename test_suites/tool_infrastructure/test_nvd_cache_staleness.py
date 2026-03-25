@@ -161,7 +161,7 @@ def test_api_newer_than_cache():
             )
         
         assert result['action'] == 'queued', f"Expected queued, got {result['action']}"
-        assert result['reason'] == 'api_newer', f"Expected api_newer, got {result['reason']}"
+        assert result['reason'] == 'stale', f"Expected stale, got {result['reason']}"
         
         print(f"  ✓ Cache queued for update when API timestamp newer (timestamp comparison only, file age ignored)")
         return True
@@ -251,7 +251,7 @@ def test_corrupted_cache_file():
     """Corrupted JSON cache file should queue for update"""
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_path = Path(tmpdir) / "nvd_2.0_cves" / "2024" / "1xxx"
-        cache_file = cache_path / "CVE-2024-5555.json"
+        cache_file = cache_path / "CVE-2024-1555.json"
         
         # Create corrupted JSON file
         cache_file.parent.mkdir(parents=True, exist_ok=True)
@@ -259,7 +259,7 @@ def test_corrupted_cache_file():
             f.write("{invalid json content here")
         
         api_timestamp = "2024-02-01T12:00:00.000"
-        api_response = create_nvd_api_response("CVE-2024-5555", api_timestamp)
+        api_response = create_nvd_api_response("CVE-2024-1555", api_timestamp)
         
         # Import and configure
         sys.path.insert(0, str(project_root))
@@ -274,13 +274,13 @@ def test_corrupted_cache_file():
             }
             
             result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
-                "CVE-2024-5555",
+                "CVE-2024-1555",
                 api_response
             )
         
-        # Corrupted files are queued for update (reason can be 'corrupted' or batch processing triggers 'new_or_missing')
+        # Corrupted files are always queued with reason 'corrupted' — no flush occurs during a unit test call
         assert result['action'] == 'queued', f"Expected queued for corrupted file, got {result['action']}"
-        assert result['reason'] in ['corrupted', 'new_or_missing'], f"Expected corrupted or new_or_missing, got {result['reason']}"
+        assert result['reason'] == 'corrupted', f"Expected corrupted, got {result['reason']}"
         
         print(f"  ✓ Corrupted cache file queued for update ({result['reason']})")
         return True
@@ -290,14 +290,14 @@ def test_missing_cached_timestamp():
     """Cache file without lastModified should queue for update"""
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_path = Path(tmpdir) / "nvd_2.0_cves" / "2024" / "1xxx"
-        cache_file = cache_path / "CVE-2024-6666.json"
+        cache_file = cache_path / "CVE-2024-1666.json"
         
         # Create cache file WITHOUT lastModified field
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         invalid_data = {
             "vulnerabilities": [{
                 "cve": {
-                    "id": "CVE-2024-6666",
+                    "id": "CVE-2024-1666",
                     "descriptions": [{"lang": "en", "value": "Test"}]
                     # Missing lastModified!
                 }
@@ -307,7 +307,7 @@ def test_missing_cached_timestamp():
             json.dump(invalid_data, f)
         
         api_timestamp = "2024-02-01T12:00:00.000"
-        api_response = create_nvd_api_response("CVE-2024-6666", api_timestamp)
+        api_response = create_nvd_api_response("CVE-2024-1666", api_timestamp)
         
         # Import and configure
         sys.path.insert(0, str(project_root))
@@ -322,13 +322,13 @@ def test_missing_cached_timestamp():
             }
             
             result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
-                "CVE-2024-6666",
+                "CVE-2024-1666",
                 api_response
             )
         
-        # Missing timestamp files are queued (reason can be 'missing_timestamp' or batch processing 'new_or_missing')
+        # Files with missing lastModified are always queued with reason 'missing_timestamp' — no flush occurs during a unit test call
         assert result['action'] == 'queued', f"Expected queued for missing timestamp, got {result['action']}"
-        assert result['reason'] in ['missing_timestamp', 'new_or_missing'], f"Expected missing_timestamp or new_or_missing, got {result['reason']}"
+        assert result['reason'] == 'missing_timestamp', f"Expected missing_timestamp, got {result['reason']}"
         
         print(f"  ✓ Cache file without lastModified queued for update ({result['reason']})")
         return True
@@ -373,42 +373,110 @@ def test_missing_api_timestamp():
 
 @test("Timestamp with 'Z' timezone suffix parsed correctly")
 def test_timestamp_parsing_z_suffix():
-    """Verify timestamps with 'Z' suffix are handled correctly"""
+    """Verify timestamps with 'Z' suffix parsed and compared correctly — API newer → stale"""
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_path = Path(tmpdir) / "nvd_2.0_cves" / "2024" / "1xxx"
-        cache_file = cache_path / "CVE-2024-8888.json"
-        
+        cache_file = cache_path / "CVE-2024-1888.json"
+
         # Cache with Z-suffixed timestamp
         cached_timestamp = "2024-01-01T12:00:00.000Z"
-        create_nvd_cache_file(cache_file, "CVE-2024-8888", cached_timestamp)
-        
+        create_nvd_cache_file(cache_file, "CVE-2024-1888", cached_timestamp)
+
         # API with Z-suffixed timestamp (newer)
         api_timestamp = "2024-02-01T12:00:00.000Z"
-        api_response = create_nvd_api_response("CVE-2024-8888", api_timestamp)
-        
-        # Import and configure
+        api_response = create_nvd_api_response("CVE-2024-1888", api_timestamp)
+
         sys.path.insert(0, str(project_root))
         import generate_dataset
         generate_dataset._config_cache = {}
-        
+
         with patch('generate_dataset._get_cached_config') as mock_config:
             mock_config.return_value = {
                 'enabled': True,
                 'path': str(cache_path.parent.parent),
                 'refresh_strategy': {'notify_age_hours': 0}
             }
-            
+
             result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
-                "CVE-2024-8888",
+                "CVE-2024-1888",
                 api_response
             )
-        
-        # Z-timestamp should either update as 'api_newer' or batch queue as 'new_or_missing'
+
         assert result['action'] == 'queued', f"Expected queued when API Z-timestamp newer, got {result['action']}"
-        assert result['reason'] in ['api_newer', 'new_or_missing'], f"Expected api_newer or new_or_missing, got {result['reason']}"
-        
+        assert result['reason'] == 'stale', f"Expected stale, got {result['reason']}"
+
         print(f"  ✓ Timestamps with 'Z' suffix parsed and compared correctly ({result['reason']})")
         return True
+
+
+@test("path_resolution_failed → no_action")
+def test_path_resolution_failed():
+    """When _resolve_cve_cache_file_path returns None (invalid CVE ID), function returns no_action."""
+    sys.path.insert(0, str(project_root))
+    import generate_dataset
+    generate_dataset._config_cache = {}
+
+    # Patch the source module — _resolve_cve_cache_file_path is imported inside the
+    # function body via delayed import, so it is not an attribute on generate_dataset.
+    with patch('generate_dataset._get_cached_config') as mock_config, \
+         patch('src.analysis_tool.core.gatherData._resolve_cve_cache_file_path', return_value=None):
+
+        mock_config.return_value = {
+            'enabled': True,
+            'path': '/nonexistent/path',
+            'refresh_strategy': {'notify_age_hours': 0}
+        }
+
+        api_response = create_nvd_api_response("CVE-2024-1111", "2024-02-01T12:00:00.000")
+        result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
+            "CVE-2024-1111",
+            api_response
+        )
+
+    assert result['action'] == 'no_action', f"Expected no_action, got {result['action']}"
+    assert result['reason'] == 'path_resolution_failed', f"Expected path_resolution_failed, got {result['reason']}"
+
+    print("  ✓ path_resolution_failed → no_action")
+    return True
+
+
+@test("Unparseable API timestamp → timestamp_parse_error, no_action")
+def test_timestamp_parse_error():
+    """API lastModified that cannot be parsed returns no_action with timestamp_parse_error."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "2024" / "1xxx"
+
+        sys.path.insert(0, str(project_root))
+        import generate_dataset
+        generate_dataset._config_cache = {}
+
+        # API response with a malformed timestamp (not ISO 8601)
+        api_response = {
+            "cve": {
+                "id": "CVE-2024-1222",
+                "lastModified": "not-a-real-timestamp",
+                "descriptions": [{"lang": "en", "value": "Test"}]
+            }
+        }
+
+        with patch('generate_dataset._get_cached_config') as mock_config:
+            mock_config.return_value = {
+                'enabled': True,
+                'path': str(cache_path.parent.parent),
+                'refresh_strategy': {'notify_age_hours': 0}
+            }
+
+            result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
+                "CVE-2024-1222",
+                api_response
+            )
+
+    assert result['action'] == 'no_action', f"Expected no_action, got {result['action']}"
+    assert result['reason'] == 'timestamp_parse_error', f"Expected timestamp_parse_error, got {result['reason']}"
+
+    print("  ✓ Unparseable API timestamp → timestamp_parse_error, no_action")
+    return True
+
 
 def run_all_tests():
     """Execute all registered tests"""

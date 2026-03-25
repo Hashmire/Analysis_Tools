@@ -555,12 +555,13 @@ def smart_refresh(
     refreshed = 0
     
     for cpe_base in unique_bases:
+        try:
             # Query NVD for updated CPE data
             api_response = query_nvd_cpes_api(api_key, cpe_base, stats, nvd_cpe_api)
-            
+
             if api_response is None:
                 continue  # Error already logged
-            
+
             # Build cache entry matching ShardedCPECache.put() format
             now = datetime.now(timezone.utc).isoformat()
             total_results = api_response.get('totalResults', 0)
@@ -570,12 +571,12 @@ def smart_refresh(
                 'query_count': 1,  # Will be updated during flush if entry exists
                 'total_results': total_results
             }
-            
+
             shard_idx = get_shard_index(cpe_base, num_shards)
             staged_updates[shard_idx][cpe_base] = cache_entry
             refreshed += 1
             stats.entries_refreshed += 1
-            
+
             # Periodic flush to prevent memory bloat and provide incremental progress
             if refreshed % 50 == 0:
                 flushed = flush_staged_updates(staged_updates, cache_dir, stats, num_shards)
@@ -585,6 +586,12 @@ def smart_refresh(
                     group="CACHE_REFRESH"
                 )
                 # Rate limiting is handled by gatherNVDCPEData internally
+
+        except Exception as e:
+            error_msg = f"Processing failed for {cpe_base}: {type(e).__name__}: {e}"
+            logger.error(error_msg, group="CACHE_REFRESH")
+            stats.errors.append(error_msg)
+            # Cache not updated for this entry - continue to next
     
     # Phase 3: Finalize
     logger.info("\n--- PHASE 3: FINALIZE ---", group="CACHE_REFRESH")

@@ -28,11 +28,10 @@
             }
         },
         "cve_list_v5": {
-            "cache_missing_only": true,
             "path": "cache/cve_list_v5",
             "description": "CVE List V5 repository with per-file tracking",
             "refresh_strategy": {
-                "field_path": "cache_metadata.datasets.cve_list_v5.lastManualUpdate",
+                "last_manual_update": "1970-01-01T00:00:00+00:00",
                 "notify_age_hours": 720
             }
         },
