@@ -52,41 +52,10 @@ from ..logging.workflow_logger import get_logger
 # Get logger instance
 logger = get_logger()
 
-def get_nvd_source_data_config() -> Dict[str, Any]:
-    """Get nvd_source_data configuration settings from config.json"""
-    try:
-        from ..core.processData import load_config
-        config = load_config()
-        return config.get('cache_settings', {}).get('nvd_source_data', {
-            'enabled': True,
-            'filename': 'nvd_source_data.json',
-            'description': 'NVD source organization data',
-            'refresh_strategy': {
-                'field_path': '$.created_at',
-                'notify_age_hours': 24
-            }
-        })
-    except Exception as e:
-        logger.warning(f"Could not load nvd_source_data config, using defaults: {e}", group="CACHE_MANAGEMENT")
-        return {
-            'enabled': True,
-            'filename': 'nvd_source_data.json',
-            'description': 'NVD source organization data',
-            'refresh_strategy': {
-                'field_path': '$.created_at',
-                'notify_age_hours': 24
-            }
-        }
-
-def is_caching_enabled() -> bool:
-    """Check if NVD source data caching is enabled in config"""
-    config = get_nvd_source_data_config()
-    return config.get('enabled', True)
-
 def get_cache_age_threshold() -> float:
     """Get cache age threshold from config (in hours)"""
-    config = get_nvd_source_data_config()
-    refresh_strategy = config.get('refresh_strategy', {})
+    from ..core.gatherData import config
+    refresh_strategy = config['cache_settings']['nvd_source_data'].get('refresh_strategy', {})
     return refresh_strategy.get('notify_age_hours', 24)
 
 def is_cache_stale(age_hours: float) -> bool:
@@ -285,10 +254,6 @@ class GlobalNVDSourceManager:
         if not self._initialized:
             raise RuntimeError("Cannot create cache: NVD Source Manager not initialized")
         
-        if not is_caching_enabled():
-            logger.warning("NVD source data caching disabled in config - skipping cache creation", group="CACHE_MANAGEMENT")
-            raise RuntimeError("Cannot create cache: NVD source data caching disabled in config")
-        
         # Determine cache directory - use project cache directory like CPE cache
         if cache_dir:
             cache_path = Path(cache_dir)
@@ -301,8 +266,9 @@ class GlobalNVDSourceManager:
             cache_path.mkdir(parents=True, exist_ok=True)
         
         # Use filename from config settings
-        config = get_nvd_source_data_config()
-        cache_filename = config.get('filename', 'nvd_source_data.json')
+        from ..core.gatherData import config
+        nvd_source_cfg = config['cache_settings']['nvd_source_data']
+        cache_filename = nvd_source_cfg.get('filename', 'nvd_source_data.json')
         cache_file_path = cache_path / cache_filename
         
         try:
@@ -452,11 +418,12 @@ class GlobalNVDSourceManager:
             if "datasets" not in metadata:
                 metadata["datasets"] = {}
             
-            config = get_nvd_source_data_config()
+            from ..core.gatherData import config
+            nvd_source_cfg = config['cache_settings']['nvd_source_data']
             nvd_metadata = metadata["datasets"].get("nvd_source_data", {
-                "filename": config.get('filename', 'nvd_source_data.json'),
+                "filename": nvd_source_cfg.get('filename', 'nvd_source_data.json'),
                 "created": None,
-                "description": config.get('description', 'NVD source organization data for cross-process sharing')
+                "description": nvd_source_cfg.get('description', 'NVD source organization data for cross-process sharing')
             })
             
             # Update with current information

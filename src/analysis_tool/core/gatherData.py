@@ -216,15 +216,21 @@ def validate_http_response(response: requests.Response, context: str, max_size_m
     
     return data
 
+# Session-level config cache to avoid repeated file reads
+_config_cache = {}
+
 # Load configuration
-def load_config():
-    """Load configuration from config.json"""
+def load_config(force_reload=False):
+    """Load configuration from config.json. Results are memoized after the first load."""
+    if not force_reload and '__full__' in _config_cache:
+        return _config_cache['__full__']
     config_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config.json')
     with open(config_path, 'r') as f:
         config = json.load(f)
     if os.environ.get('TEST_NVD_API_DISABLED'):
         config['api']['retry']['max_attempts_nvd'] = 0
         config['api']['retry']['max_attempts_cpe'] = 0
+    _config_cache['__full__'] = config
     return config
 
 config = load_config()
@@ -686,16 +692,6 @@ def clear_schema_cache():
     logger.debug("Schema cache cleared", group="CACHE_MANAGEMENT")
 
 
-# Session-level cache for config lookups
-_config_cache = {}
-
-def _get_cached_config(cache_type):
-    """Get cache config with session-level caching to avoid repeated file reads"""
-    if cache_type not in _config_cache:
-        _config_cache[cache_type] = get_cache_config(cache_type)
-    return _config_cache[cache_type]
-
-
 def _update_cache_metadata(cache_type, repo_path):
     """
     Unified cache metadata updater for all cache types.
@@ -744,7 +740,7 @@ def _update_cache_metadata(cache_type, repo_path):
             cache_data['created'] = current_time.isoformat()
             
         # Get description from config
-        description = _get_cached_config(cache_type).get('description', f'{cache_type} cache')
+        description = config['cache_settings'][cache_type].get('description', f'{cache_type} cache')
             
         cache_data.update({
             'description': description,
@@ -895,37 +891,25 @@ def _transform_nvd_vulnerability_to_response(vuln_record: dict, cve_id: str) -> 
     }
 
 
-def get_cache_config(cache_type):
+def get_nvd_ish_config() -> dict:
     """
-    Unified cache configuration getter. Fails fast if config is missing or malformed.
-
-    Args:
-        cache_type: Type of cache ('cve_list_v5', 'nvd_2_0_cve')
-
-    Returns:
-        Cache configuration dictionary from config.json
-
-    Raises:
-        RuntimeError: If config cannot be loaded or required cache section is missing
+    Get the merged 'nvd_ish_output' + application identity configuration.
+    Raises RuntimeError if either required section is missing.
     """
-    try:
-        config = load_config()
-    except Exception as e:
-        logger.error(f"Failed to load config file for cache type '{cache_type}': {e}", group="CACHE_MANAGEMENT")
-        raise RuntimeError(f"Cannot load config for cache type '{cache_type}': {e}") from e
-
-    if 'cache_settings' not in config:
-        msg = f"Config file is missing required 'cache_settings' section (needed for '{cache_type}')"
-        logger.error(msg, group="CACHE_MANAGEMENT")
-        raise RuntimeError(msg)
-
-    if cache_type not in config['cache_settings']:
-        msg = f"Config file 'cache_settings' is missing required '{cache_type}' entry"
-        logger.error(msg, group="CACHE_MANAGEMENT")
-        raise RuntimeError(msg)
-
-    return config['cache_settings'][cache_type]
-
+    config = load_config()
+    if 'cache_settings' not in config or 'nvd_ish_output' not in config['cache_settings']:
+        raise RuntimeError("Config file is missing required 'cache_settings.nvd_ish_output' section")
+    if 'application' not in config:
+        raise RuntimeError("Config file is missing required 'application' section")
+    merged = config['cache_settings']['nvd_ish_output'].copy()
+    merged.update({
+        'attribution_source': config['application']['toolname'].lower(),
+        'format': 'NVD_CVE_Enhanced',
+        'version': '2.0',
+        'tool_name': config['application']['toolname'],
+        'tool_version': config['application']['version']
+    })
+    return merged
 
 
 def get_public_ip():
@@ -1108,7 +1092,7 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
             return
         
         # Extract NVD lastModified date using config field path
-        nvd_config = _get_cached_config('nvd_2_0_cve')
+        nvd_config = config['cache_settings']['nvd_2_0_cve']
         nvd_field_path = nvd_config.get('refresh_strategy', {}).get('field_path', '$.vulnerabilities.*.cve.lastModified')
         
         nvd_dates = _extract_field_value(nvd_data, nvd_field_path)
@@ -1126,7 +1110,7 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
             nvd_datetime_str = nvd_last_modified
         nvd_datetime = datetime.fromisoformat(nvd_datetime_str)
         
-        cve_config = _get_cached_config('cve_list_v5')
+        cve_config = config['cache_settings']['cve_list_v5']
         local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
         refresh_strategy = cve_config.get('refresh_strategy', {})
         
@@ -1205,7 +1189,7 @@ def _refresh_cvelist_from_mitre_api(targetCve, local_file_path, refresh_reason="
     """
     try:
         # Load cache config once for this operation
-        cve_config = _get_cached_config('cve_list_v5')
+        cve_config = config['cache_settings']['cve_list_v5']
         cve_repo_path = cve_config.get('path', 'cache/cve_list_v5')
         
         # Set the API Endpoint target for direct MITRE API call
@@ -1300,7 +1284,7 @@ def _save_nvd_cve_to_local_file(targetCve, nvd_data, cve_schema=None, update_met
              "updated" (existing file overwritten), or "failed"
     """
     try:
-        nvd_config = _get_cached_config('nvd_2_0_cve')
+        nvd_config = config['cache_settings']['nvd_2_0_cve']
         
         # Use 'cache/nvd_2.0_cves' as default path (parallel to cve_list_v5)
         nvd_repo_path = nvd_config.get('path', 'cache/nvd_2.0_cves')
@@ -1389,7 +1373,7 @@ def gatherCVEListRecord(targetCve):
     cache miss. Cache-only path: no staleness checks are performed here; freshness is managed
     upstream by _save_cve_list_v5_to_cache_during_bulk_generation during dataset generation.
     """
-    cve_config = _get_cached_config('cve_list_v5')
+    cve_config = config['cache_settings']['cve_list_v5']
     cache_path = cve_config.get('path', 'cache/cve_list_v5')
     
     logger.info(f"CVE cache strategy for {targetCve}: path={cache_path}", group="CACHE_MANAGEMENT")
@@ -1425,7 +1409,7 @@ def gatherCVEListRecord(targetCve):
         logger.api_response("MITRE CVE API", "Success", group="cve_queries")
         
         # Always persist API response to local cache
-        cve_config = _get_cached_config('cve_list_v5')
+        cve_config = config['cache_settings']['cve_list_v5']
         try:
             # Validate before caching
             try:
@@ -1478,7 +1462,7 @@ def gatherCVEListRecordLocal(targetCve):
     Returns:
         CVE record dict or None if loading fails
     """
-    cve_config = _get_cached_config('cve_list_v5')
+    cve_config = config['cache_settings']['cve_list_v5']
     local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
     
     cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
@@ -1499,7 +1483,7 @@ def gatherNVDCVERecord(targetCve):
     the NVD cache was partially cleared. Downstream NVD-ish record generation will
     also fail for the same CVE, so the root cause is surfaced here as an error.
     """
-    nvd_config = _get_cached_config('nvd_2_0_cve')
+    nvd_config = config['cache_settings']['nvd_2_0_cve']
     nvd_repo_path = nvd_config.get('path', 'cache/nvd_2.0_cves')
 
     nvd_file_path = _resolve_cve_cache_file_path(targetCve, nvd_repo_path)
@@ -2177,7 +2161,7 @@ def harvestSourceUUIDs(api_key=None):
         and api_totals_dict contains counts for reporting
     """
     # --- Cache-first load ---
-    source_data_config = config.get('cache_settings', {}).get('nvd_source_data', {})
+    source_data_config = config['cache_settings']['nvd_source_data']
     notify_age_hours = source_data_config.get('refresh_strategy', {}).get('notify_age_hours', 24)
     cache_filename = source_data_config.get('filename', 'nvd_source_data.json')
     project_root = get_analysis_tools_root()

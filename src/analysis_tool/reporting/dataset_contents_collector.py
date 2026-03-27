@@ -31,12 +31,9 @@ class UnifiedDashboardCollector:
     Maintains dashboard-compatible data structure throughout the complete workflow.
     """
     
-    def __init__(self, config_dict=None):
+    def __init__(self):
         """
         Initialize the dataset contents collector.
-        
-        Args:
-            config_dict: Optional pre-loaded config dictionary to avoid re-reading file.
         """
         self.data = self._initialize_data_structure()
         self.output_file_path: Optional[str] = None
@@ -64,8 +61,8 @@ class UnifiedDashboardCollector:
         self._temp_query_tracking = {}
         self._temp_cve_tracking = {}
         
-        # Load and inject configuration data (use provided config or read from file)
-        self._inject_config_data(config_dict)
+        # Load and inject configuration data
+        self._inject_config_data()
         
         # Install logger hook to capture warnings/errors automatically
         self._install_logger_hook()
@@ -107,47 +104,26 @@ class UnifiedDashboardCollector:
             # Don't break initialization if logger hook fails
             pass
     
-    def _inject_config_data(self, config_dict=None):
+    def _inject_config_data(self):
         """
-        Load configuration and inject into metadata.
+        Inject application metadata from config into consolidated metadata.
+        Uses deferred local import to avoid circular imports.
+        """
+        from ..core.gatherData import load_config
+        config = load_config()
+        app_config = config['application']
+        toolname = app_config['toolname']
+        version = app_config['version']
         
-        Args:
-            config_dict: Optional pre-loaded config dictionary. If None, reads from file.
-        """
-        try:
-            # Use provided config or load from file
-            if config_dict is None:
-                config_path = Path(__file__).parent.parent.parent.parent / "config.json"
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-            else:
-                config = config_dict
-            
-            # Extract application info
-            app_config = config.get('application', {})
-            toolname = app_config.get('toolname', 'Analysis_Tools')
-            version = app_config.get('version', 'Unknown')
-            
-            # Set in consolidated_metadata (source of truth for metadata fields)
-            self.consolidated_metadata["toolname"] = toolname
-            self.consolidated_metadata["version"] = version
-            self.consolidated_metadata["config_loaded"] = True
-            
-            # Only log config file read once per session to avoid log spam
-            # Don't log when using pre-loaded config (already logged elsewhere)
-            if logger and not hasattr(self.__class__, '_config_logged') and config_dict is None:
-                logger.info(f"Configuration File Loaded:  {toolname} v{version}", group="INIT")
-                self.__class__._config_logged = True
-                
-        except Exception as e:
-            # GRACEFUL DEGRADATION: Dashboard metadata defaults for presentation layer
-            self.consolidated_metadata["toolname"] = "Analysis_Tools"
-            self.consolidated_metadata["version"] = "Unknown"
-            self.consolidated_metadata["config_loaded"] = False
-            self.consolidated_metadata["config_error"] = str(e)
-            
-            if logger:
-                logger.warning(f"Could not load config for injection: {e}", group="INIT")
+        # Set in consolidated_metadata (source of truth for metadata fields)
+        self.consolidated_metadata["toolname"] = toolname
+        self.consolidated_metadata["version"] = version
+        self.consolidated_metadata["config_loaded"] = True
+        
+        # Only log config file read once per session to avoid log spam
+        if logger and not hasattr(self.__class__, '_config_logged'):
+            logger.info(f"Configuration File Loaded:  {toolname} v{version}", group="INIT")
+            self.__class__._config_logged = True
     
     def _json_datetime_handler(self, obj):
         """
@@ -1401,17 +1377,13 @@ class UnifiedDashboardCollector:
 # Global collector instance
 _dataset_contents_collector = None
 
-def get_dataset_contents_collector(config_dict=None) -> UnifiedDashboardCollector:
+def get_dataset_contents_collector() -> UnifiedDashboardCollector:
     """
     Get the global dataset contents collector instance.
-    
-    Args:
-        config_dict: Optional pre-loaded config dictionary to avoid re-reading file.
-                    Only used if collector doesn't exist yet.
     """
     global _dataset_contents_collector
     if _dataset_contents_collector is None:
-        _dataset_contents_collector = UnifiedDashboardCollector(config_dict=config_dict)
+        _dataset_contents_collector = UnifiedDashboardCollector()
     return _dataset_contents_collector
 
 def clear_dataset_contents_collector():

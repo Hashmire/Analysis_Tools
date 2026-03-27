@@ -45,6 +45,7 @@ import html
 # CRITICAL IMPORTS - must succeed or script fails
 from ..logging.workflow_logger import get_logger
 from ..storage.run_organization import get_analysis_tools_root
+from ..core.gatherData import config
 logger = get_logger()
 
 # Presentation-layer imports with graceful degradation
@@ -52,23 +53,6 @@ try:
     from .. import __version__
 except ImportError:
     __version__ = "unknown"
-
-
-def load_config() -> Dict:
-    """Load configuration file with defaults."""
-    try:
-        project_root = get_analysis_tools_root()
-        config_path = project_root / "config.json"
-        
-        if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        else:
-            logger.warning(f"Config file not found at {config_path}, using hardcoded defaults", group="SDC_REPORT")
-            return {}
-    except Exception as e:
-        logger.warning(f"Failed to load config: {e}, using hardcoded defaults", group="SDC_REPORT")
-        return {}
 
 
 class SDCReportBuilder:
@@ -514,8 +498,7 @@ def generate_report(
         raise FileNotFoundError(f"Cache directory not found: {cache_path}")
     
     # Get progress interval from config
-    config = load_config()
-    progress_interval = config.get('sdc_report', {}).get('progress_interval', 2000)
+    progress_interval = config['logging']['sdc_report'].get('progress_interval', 2000)
     
     if logger:
         logger.info(f"Starting SDC report generation from NVD-ish cache", group="SDC_REPORT")
@@ -529,7 +512,7 @@ def generate_report(
         from ..storage.nvd_source_manager import get_or_refresh_source_manager
         
         # Get API key from config for potential cache refresh
-        api_key = config.get('api', {}).get('api_key', '')
+        api_key = config['api'].get('api_key', '')
         
         # Get source manager using intelligent cache management
         source_manager = get_or_refresh_source_manager(api_key, log_group="SDC_REPORT")
@@ -954,8 +937,7 @@ def main():
             return run_dir
     
     # Load config for defaults
-    config = load_config()
-    default_cache_name = config.get('nvd_ish_output', {}).get('cache_name', 'nvd-ish_2.0_cves')
+    default_cache_name = Path(config['cache_settings']['nvd_ish_output']['path']).name
     
     parser = argparse.ArgumentParser(
         description="Generate Source Data Concern report from NVD-ish cache",

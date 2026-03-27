@@ -63,6 +63,7 @@ from ..core.platform_entry_registry import (
     ALL_TEXT_COMPARATOR_PATTERNS,
     TEXT_COMPARATOR_REGEX_PATTERNS
 )
+from ..core.gatherData import config
 
 logger = get_logger()
 
@@ -71,30 +72,6 @@ try:
     from .. import __version__
 except ImportError:
     __version__ = "unknown"
-
-
-def load_config() -> Dict:
-    """
-    Load configuration from config.json with fallback to defaults.
-    
-    Returns:
-        Configuration dictionary
-    """
-    try:
-        project_root = get_analysis_tools_root()
-        config_path = project_root / "config.json"
-        
-        if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        else:
-            if logger:
-                logger.warning(f"Config file not found at {config_path}, using defaults", group="ALIAS_REPORT")
-            return {}
-    except Exception as e:
-        if logger:
-            logger.warning(f"Failed to load config: {e}, using defaults", group="ALIAS_REPORT")
-        return {}
 
 
 def generate_alias_html_report(report_data: Dict, output_path: Path, report_template_path: Path, tool_version: str = "unknown") -> None:
@@ -788,12 +765,11 @@ def generate_report(
     if not cache_path.exists():
         raise FileNotFoundError(f"Cache directory not found: {cache_path}")
     
-    config = load_config()
-    progress_interval = config.get('alias_report', {}).get('progress_interval', 2000)
+    progress_interval = config['logging']['alias_report'].get('progress_interval', 2000)
     
     try:
         from ..reporting.dataset_contents_collector import get_dataset_contents_collector
-        get_dataset_contents_collector(config_dict=config)
+        get_dataset_contents_collector()
     except ImportError:
         if logger:
             logger.debug("Dataset contents collector not available - skipping initialization", group="ALIAS_REPORT")
@@ -803,7 +779,7 @@ def generate_report(
     
     if logger:
         logger.info(f"Starting Alias Extraction report generation from NVD-ish cache", group="ALIAS_REPORT")
-        logger.info(f"  Configuration loaded: {config.get('application', {}).get('toolname', 'Analysis_Tools')} v{config.get('application', {}).get('version', 'unknown')}", group="ALIAS_REPORT")
+        logger.info(f"  Configuration loaded: {config['application'].get('toolname', 'unknown')} v{config['application'].get('version', 'unknown')}", group="ALIAS_REPORT")
         logger.info(f"  Cache name: {cache_name}", group="ALIAS_REPORT")
         logger.info(f"  Cache path: {cache_path}", group="ALIAS_REPORT")
         if source_uuid:
@@ -815,7 +791,7 @@ def generate_report(
         from ..storage.nvd_source_manager import get_or_refresh_source_manager
         
         # Get API key from config for potential cache refresh
-        api_key = config.get('api', {}).get('api_key', '')
+        api_key = config['api'].get('api_key', '')
         
         # Get source manager using intelligent cache management
         source_manager = get_or_refresh_source_manager(api_key, log_group="ALIAS_REPORT")
@@ -1342,9 +1318,7 @@ def main():
     """Command-line interface for standalone execution."""
     import argparse
     
-    # Load config for defaults
-    config = load_config()
-    default_cache_name = config.get('nvd_ish_output', {}).get('cache_name', 'nvd-ish_2.0_cves')
+    default_cache_name = Path(config['cache_settings']['nvd_ish_output']['path']).name
     
     parser = argparse.ArgumentParser(
         description="Generate Alias Extraction report from NVD-ish cache",

@@ -1060,28 +1060,10 @@ class TestAuditSystemConfiguration(LoggingSystemTestSuite):
         self.assertIsNotNone(logger)
         
         # Test that logger has required configuration attributes
-        required_attrs = ['enabled', 'level', 'format_string', 'groups']
+        required_attrs = ['enabled', 'level', 'format_string']
         for attr in required_attrs:
             self.assertTrue(hasattr(logger, attr), 
                           f"Logger missing configuration attribute: {attr}")
-                          
-    def test_group_configuration_completeness(self):        
-        """Test that all groups have proper configuration."""
-        logger = WorkflowLogger()
-        
-        # Verify groups configuration exists
-        self.assertIsNotNone(logger.groups, "Groups configuration missing")
-          # Test that we can access group configurations
-        expected_groups = ['INIT', 'CVE_QUERY', 'UNIQUE_CPE', 'CPE_QUERY', 
-                          'BADGE_GEN', 'REPORT_GEN', 'DATA_PROC']
-        
-        # Each group should have some form of configuration available
-        for group in expected_groups:
-            # This tests that the group system is properly configured
-            try:
-                logger.info(f"Testing configuration for {group}", group=group.lower())
-            except Exception as e:
-                self.fail(f"Group {group} configuration invalid: {e}")
 
 def run_logging_tests():
     """Run the complete logging system test suite."""
@@ -1125,11 +1107,10 @@ def run_logging_tests():
     # Run tests
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
-    
-    # Summary    print("\n" + "=" * 60)
-    # Print basic summary for manual inspection if needed
+
+    print("\n" + "=" * 60)
     tests_passed = result.testsRun - len(result.failures) - len(result.errors)
-    
+
     # Only show failures/errors for debugging
     if result.failures or result.errors:
         print(f"\nTest Issues Found:")
@@ -1153,10 +1134,5 @@ def run_logging_tests():
     return result.wasSuccessful()
 
 if __name__ == "__main__":
-    import argparse
-    
-    parser = argparse.ArgumentParser(description='Test logging system functionality')
-    args = parser.parse_args()
-    
     success = run_logging_tests()
     sys.exit(0 if success else 1)

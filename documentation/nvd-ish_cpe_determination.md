@@ -779,8 +779,7 @@ This stage operates as an independent feature within the `--cpe-determination` p
 
 **Function**: `load_mapping_file(source_id)`
 
-1. **Configuration Check**: Verify `confirmed_mappings.enabled` is true in config
-2. **File Discovery**: Search the configured mappings directory for JSON files
+1. **File Discovery**: Search the configured mappings directory for JSON files
 3. **CNA ID Matching**: Load and check each file for matching `cnaId` field
 4. **Structure Validation**: Ensure the mapping file contains a `confirmedMappings` array
 

@@ -37,7 +37,7 @@ def test_full_refresh_integration():
     # Mock the query_nvd_cves_all function to return test data
     mock_vulnerabilities = [
         {
-            'cve': {'id': f'CVE-2024-{i:05d}'},
+            'cve': {'id': f'CVE-1337-{i:05d}'},
             'lastModifiedDate': '2024-01-01T00:00:00.000',
             'published': '2024-01-01T00:00:00.000'
         }
@@ -92,7 +92,7 @@ def test_incremental_refresh_integration():
     # Mock data
     mock_vulnerabilities = [
         {
-            'cve': {'id': f'CVE-2024-{i:05d}'},
+            'cve': {'id': f'CVE-1337-{i:05d}'},
             'lastModifiedDate': '2024-01-01T00:00:00.000',
             'published': '2024-01-01T00:00:00.000'
         }

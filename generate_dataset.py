@@ -56,6 +56,7 @@ from pathlib import Path
 import traceback
 import uuid
 from src.analysis_tool.logging.workflow_logger import get_logger
+from src.analysis_tool.core.gatherData import config
 
 def _handle_interrupt(signum, frame):
     """Handle interrupt signals - flush cache and exit cleanly"""
@@ -90,14 +91,6 @@ def resolve_output_path(output_file, run_directory=None):
         # No run directory provided - fail fast
         raise RuntimeError("Run directory required for dataset generation - standalone usage not supported")
 
-# Load configuration
-def load_config():
-    """Load configuration from config.json"""
-    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
-    with open(config_path, 'r') as f:
-        return json.load(f)
-
-config = load_config()
 VERSION = config['application']['version']
 TOOLNAME = config['application']['toolname']
 
@@ -109,16 +102,6 @@ _cache_batch = {
     'nvd_updates': [],
     'cve_list_updates': []
 }
-
-# Cache for config lookups (loaded once per session)
-_config_cache = {}
-
-def _get_cached_config(cache_type):
-    """Get cache config with session-level caching to avoid repeated file reads"""
-    if cache_type not in _config_cache:
-        from src.analysis_tool.core.gatherData import get_cache_config
-        _config_cache[cache_type] = get_cache_config(cache_type)
-    return _config_cache[cache_type]
 
 def _flush_cache_batches():
     """Process all pending cache updates in batches"""
@@ -161,7 +144,7 @@ def _flush_cve_list_cache_batch():
     # Single metadata update for entire batch
     if batch:
         try:
-            cve_config = _get_cached_config('cve_list_v5')
+            cve_config = config['cache_settings']['cve_list_v5']
             cve_repo_path = cve_config.get('path', 'cache/cve_list_v5')
             _update_cache_metadata('cve_list_v5', cve_repo_path)
         except Exception as e:
@@ -228,7 +211,7 @@ def _save_nvd_cve_to_cache_during_bulk_generation(cve_id, vulnerability_record):
         # Import cache functions (delayed import to avoid circular dependencies)
         from src.analysis_tool.core.gatherData import _resolve_cve_cache_file_path
         
-        nvd_config = _get_cached_config('nvd_2_0_cve')
+        nvd_config = config['cache_settings']['nvd_2_0_cve']
         
         # Use 'cache/nvd_2.0_cves' as default path (parallel to cve_list_v5)
         nvd_repo_path = nvd_config.get('path', 'cache/nvd_2.0_cves')
@@ -319,7 +302,7 @@ def _save_cve_list_v5_to_cache_during_bulk_generation(cve_id, nvd_last_modified=
         # Import cache functions (delayed import to avoid circular dependencies)
         from src.analysis_tool.core.gatherData import _resolve_cve_cache_file_path
         
-        cve_config = _get_cached_config('cve_list_v5')
+        cve_config = config['cache_settings']['cve_list_v5']
         
         # Use 'cache/cve_list_v5' as default path
         cve_repo_path = cve_config.get('path', 'cache/cve_list_v5')
@@ -1015,7 +998,7 @@ def main():
     # Initialize dataset contents report immediately for periodic updates
     from src.analysis_tool.reporting.dataset_contents_collector import initialize_dataset_contents_report, get_dataset_contents_collector
     # Pre-initialize collector with config before calling initialize_dataset_contents_report
-    get_dataset_contents_collector(config_dict=config)
+    get_dataset_contents_collector()
     initialize_dataset_contents_report(str(logs_dir), source_uuid=args.source_uuid, run_id=run_id)
     logger.info("Dataset contents report initialized", group="DATASET")
     

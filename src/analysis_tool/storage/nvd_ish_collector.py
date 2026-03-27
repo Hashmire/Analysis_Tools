@@ -36,9 +36,10 @@ except ImportError:
 
 # Import configuration loader
 try:
-    from ..core.gatherData import _resolve_cve_cache_file_path
+    from ..core.gatherData import _resolve_cve_cache_file_path, get_nvd_ish_config
 except ImportError:
     _resolve_cve_cache_file_path = None
+    get_nvd_ish_config = None
 
 # Import global source manager for attribution and alias mapping
 try:
@@ -60,10 +61,10 @@ class NVDishCollector:
         self.current_record: Optional[Dict] = None
         self.processing_metadata: Dict[str, Any] = {}
         
-        # Configuration from config.json
-        self.config = self._load_config()
-        self.attribution_source = self.config.get('attribution_source', 'hashmire/analysis_tools')
-        self.output_path = Path(self.config.get('path', 'cache/nvd-ish_2.0_cves'))
+        # Configuration merged from config.json cache_settings.nvd_ish_output + application sections
+        self.config = get_nvd_ish_config()
+        self.attribution_source = self.config['attribution_source']
+        self.output_path = Path(self.config['path'])
         
         # Processing state tracking
         self.data_collected = {
@@ -84,41 +85,6 @@ class NVDishCollector:
         
         # Ensure output directory exists
         self.output_path.mkdir(parents=True, exist_ok=True)
-    def _load_config(self) -> Dict[str, Any]:
-        """Load configuration from config.json"""
-        try:
-            # Import here to avoid circular dependencies
-            from pathlib import Path
-            import json
-            
-            config_path = Path(__file__).parent.parent.parent.parent / "config.json"
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config_data = json.load(f)
-            
-            # Merge application config with nvd_ish_output config
-            app_config = config_data.get('application', {})
-            nvd_ish_config = config_data.get('nvd_ish_output', {})
-            
-            # Combine both sections for easy access
-            combined_config = nvd_ish_config.copy()
-            combined_config.update({
-                'tool_name': app_config.get('toolname', 'Hashmire/Analysis_Tools'),
-                'tool_version': app_config.get('version', '0.2.0')
-            })
-            
-            return combined_config
-            
-        except Exception as e:
-            if logger:
-                logger.warning(f"Failed to load nvd_ish_output config, using defaults: {e}", group="INIT")
-            return {
-                'enabled': True,
-                'path': 'cache/nvd-ish_2.0_cves',
-                'attribution_source': 'hashmire/analysis_tools',
-                'format': 'NVD_CVE_Enhanced',
-                'version': '2.0'
-            }
-    
     def resolve_source_alias(self, source_id: str, nvd_source_identifier: str = None) -> str:
         """
         Resolve UUID to the actual sourceIdentifier used in NVD records.
@@ -213,8 +179,8 @@ class NVDishCollector:
             Complete cpeDetermination structure with all required fields
         """
         # Get tool identification information
-        tool_name = self.config.get('tool_name', 'Hashmire/Analysis_Tools')
-        tool_version = self.config.get('tool_version', '0.2.0')
+        tool_name = self.config['tool_name']
+        tool_version = self.config['tool_version']
         source_id = f"{tool_name} v{tool_version}"
         
         # Determine the affected entry index if available
@@ -249,9 +215,6 @@ class NVDishCollector:
         Args:
             cve_id: CVE identifier being processed
         """
-        if not self.config.get('enabled', True):
-            return
-        
         self.current_cve_id = cve_id
         self.current_record = None
         self.processing_metadata = {
@@ -284,7 +247,7 @@ class NVDishCollector:
         Args:
             nvd_record_data: Complete NVD 2.0 API response data. If None, loads from cache.
         """
-        if not self.current_cve_id or not self.config.get('enabled', True):
+        if not self.current_cve_id:
             return
         
         try:
@@ -303,7 +266,7 @@ class NVDishCollector:
             
             # Update format identification for enhanced records
             if 'format' in self.current_record:
-                self.current_record['format'] = self.config.get('format', 'NVD_CVE_Enhanced')
+                self.current_record['format'] = self.config['format']
             
             # Initialize enhanced_data structure in the CVE node
             if 'vulnerabilities' in self.current_record and len(self.current_record['vulnerabilities']) > 0:
@@ -311,8 +274,8 @@ class NVDishCollector:
                 
                 # Add enhanced data extensions section
                 cve_data['enhanced_data'] = {
-                    'format_version': self.config.get('version', '2.0'),
-                    'attribution_source': self.config.get('attribution_source', 'hashmire/analysis_tools'),
+                    'format_version': self.config['version'],
+                    'attribution_source': self.config['attribution_source'],
                     'processing_timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ'),
                     'data_sources': {
                         'nvd_2_0': {
@@ -430,7 +393,7 @@ class NVDishCollector:
             cve_list_data: CVE List V5 record data. If None, loads from cache.
             source_attribution: Source orgId from providerMetadata (if available)
         """
-        if not self.current_cve_id or not self.config.get('enabled', True):
+        if not self.current_cve_id:
             return
         
         if not self.current_record:
@@ -564,7 +527,7 @@ class NVDishCollector:
             confirmed_mappings = cpe_determination.get('confirmedMappings', [])
             
             cpe_as_data = {
-                'sourceId': self.config.get('tool_name', 'Hashmire/Analysis_Tools') + ' v' + self.config.get('tool_version', '0.2.0'),
+                'sourceId': self.config['tool_name'] + ' v' + self.config['tool_version'],
                 'cvelistv5AffectedEntryIndex': cpe_determination.get('cvelistv5AffectedEntryIndex', 'unknown'),
                 'cpeMatchObjects': []
             }
@@ -694,7 +657,7 @@ class NVDishCollector:
         Args:
             registry_instance: Optional registry instance to use instead of the imported one
         """
-        if not self.current_cve_id or not self.config.get('enabled', True):
+        if not self.current_cve_id:
             return
         
         # Registry instance is required for source data concerns integration
@@ -730,8 +693,8 @@ class NVDishCollector:
                         concerns_data = registry_entry.get('concerns', {})
                         
                         # Get the tool identification information 
-                        tool_name = self.config.get('tool_name', 'Hashmire/Analysis_Tools')
-                        tool_version = self.config.get('tool_version', '0.2.0')
+                        tool_name = self.config['tool_name']
+                        tool_version = self.config['tool_version']
                         source_id = f"{tool_name} v{tool_version}"
                         
                         # Get the affected entry index from the originAffectedEntry
@@ -749,8 +712,8 @@ class NVDishCollector:
                             logger.debug(f"Integrated source data concerns for affected entry {entry_idx}: {concern_count} concerns", group="data_processing")
                     else:
                         # No concerns found for this entry - leave empty placeholder following documented format
-                        tool_name = self.config.get('tool_name', 'Hashmire/Analysis_Tools')
-                        tool_version = self.config.get('tool_version', '0.2.0')
+                        tool_name = self.config['tool_name']
+                        tool_version = self.config['tool_version']
                         source_id = f"{tool_name} v{tool_version}"
                         affected_entry_index = analysis_entry.get('originAffectedEntry', {}).get('cvelistv5AffectedEntryIndex', 'unknown')
                         
@@ -793,7 +756,7 @@ class NVDishCollector:
             sdc_concerns_data: Structured concerns data from badge generation
             affected_entry_mapping: Optional mapping to associate concerns with specific affected entries
         """
-        if not self.current_cve_id or not self.config.get('enabled', True):
+        if not self.current_cve_id:
             return
         
         if not self.current_record:
@@ -842,7 +805,7 @@ class NVDishCollector:
         Args:
             cpe_determination_data: CPE determination and NVD API results
         """
-        if not self.current_cve_id or not self.config.get('enabled', True):
+        if not self.current_cve_id:
             return
         
         if not self.current_record:
@@ -907,7 +870,7 @@ class NVDishCollector:
         Args:
             registry_instance: Optional registry instance to use instead of the imported one
         """
-        if not self.current_cve_id or not self.config.get('enabled', True):
+        if not self.current_cve_id:
             return
         
         # Registry instance is required for CPE determination integration
@@ -1093,8 +1056,8 @@ class NVDishCollector:
         """
         try:
             # Get the tool identification information following documented format
-            tool_name = self.config.get('tool_name', 'Hashmire/Analysis_Tools')
-            tool_version = self.config.get('tool_version', '0.2.0')
+            tool_name = self.config['tool_name']
+            tool_version = self.config['tool_version']
             source_id = f"{tool_name} v{tool_version}"
             
             cpe_suggestions = {
@@ -1253,7 +1216,7 @@ class NVDishCollector:
         Args:
             registry_instance: Optional registry instance to use instead of the imported one
         """
-        if not self.current_cve_id or not self.config.get('enabled', True):
+        if not self.current_cve_id:
             return
         
         # Registry instance is required for confirmed mappings integration
@@ -1389,7 +1352,7 @@ class NVDishCollector:
         Args:
             cpe_as_data: Extracted CPE-AS data from processing
         """
-        if not self.current_cve_id or not self.config.get('enabled', True):
+        if not self.current_cve_id:
             return
         
         if not self.current_record:
@@ -1444,9 +1407,7 @@ class NVDishCollector:
         if logger:
             logger.debug(f"DEBUG: Starting collect_alias_extraction_from_registry for {self.current_cve_id}", group="data_processing")
             
-        if not self.current_cve_id or not self.config.get('enabled', True):
-            if logger:
-                logger.debug(f"DEBUG: Skipping alias extraction - current_cve_id: {self.current_cve_id}, enabled: {self.config.get('enabled', True)}", group="data_processing")
+        if not self.current_cve_id:
             return
 
         try:
@@ -1519,8 +1480,8 @@ class NVDishCollector:
                             entry_index_path = origin_entry.get('cvelistv5AffectedEntryIndex', f'unknown_index_{entry_index}')
                             
                             # Get tool identification information following documented format
-                            tool_name = self.config.get('tool_name', 'Hashmire/Analysis_Tools')
-                            tool_version = self.config.get('tool_version', '0.2.0')
+                            tool_name = self.config['tool_name']
+                            tool_version = self.config['tool_version']
                             source_id = f"{tool_name} v{tool_version}"
                             
                             entry['aliasExtraction'] = {
@@ -1577,7 +1538,7 @@ class NVDishCollector:
         if logger:
             logger.debug(f"Starting collect_cpe_as_generation_from_registry for {self.current_cve_id}", group="data_processing")
             
-        if not self.current_cve_id or not self.config.get('enabled', True):
+        if not self.current_cve_id:
             return
 
         try:
@@ -1734,9 +1695,6 @@ class NVDishCollector:
         Args:
             execution_metadata: Tool execution timestamps and parameters
         """
-        if not self.config.get('enabled', True):
-            return
-        
         try:
             # Start with existing metadata (preserves previous timestamps)
             existing_metadata = self.enriched_record_data.get('toolExecutionMetadata', {})
@@ -1744,8 +1702,8 @@ class NVDishCollector:
             # Update toolName and toolVersion (these can change)
             tool_metadata = dict(existing_metadata)
             tool_metadata.update({
-                'toolName': self.config.get('tool_name', 'Hashmire/Analysis_Tools'),
-                'toolVersion': self.config.get('tool_version', '0.2.0')
+                'toolName': self.config['tool_name'],
+                'toolVersion': self.config['tool_version']
             })
             
             # Add/update per-argument timestamps if provided
@@ -1782,9 +1740,9 @@ class NVDishCollector:
         Returns:
             True if save successful, False otherwise
         """
-        if not self.current_cve_id or not self.config.get('enabled', True):
+        if not self.current_cve_id:
             if logger:
-                logger.debug(f"Skipping complete_cve_processing: current_cve_id={self.current_cve_id}, enabled={self.config.get('enabled', True)}", group="data_processing")
+                logger.debug(f"Skipping complete_cve_processing: current_cve_id={self.current_cve_id}", group="data_processing")
             return False
         
         if not self.current_record:

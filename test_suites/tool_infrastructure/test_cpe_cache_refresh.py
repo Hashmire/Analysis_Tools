@@ -33,15 +33,10 @@ sys.path.insert(0, str(project_root))
 from src.analysis_tool.storage.cpe_cache import ShardedCPECache
 from src.analysis_tool.logging.workflow_logger import get_logger
 import orjson
+from src.analysis_tool.core.gatherData import load_config
 
 # Import refresh script functions for testing
 import utilities.refresh_nvd_cpe_base_strings_cache as refresh_module
-
-def load_config():
-    """Load configuration from config.json"""
-    config_path = project_root / 'config.json'
-    with open(config_path, 'r') as f:
-        return json.load(f)
 
 # =============================================================================
 # DATA INTEGRITY TESTS: Load Failure Protection
@@ -848,7 +843,7 @@ def test_refresh_script_imports():
     
     required_imports = [
         'from src.analysis_tool.storage.cpe_cache import ShardedCPECache',
-        'from src.analysis_tool.core.analysis_tool import load_config',
+        'from src.analysis_tool.core.gatherData import config, query_nvd_cpematch_by_modified_date, gatherNVDCPEData',
         'from src.analysis_tool.logging.workflow_logger import get_logger',
         'from src.analysis_tool.storage.run_organization import get_analysis_tools_root'
     ]
@@ -867,8 +862,7 @@ def test_configuration_independence():
     """Integration test: Verify refresh script operates independently of notify_age_hours"""
     print("Testing configuration independence...")
     
-    config = load_config()
-    notify_age = config.get('cache_settings', {}).get('cpe_cache', {}).get('refresh_strategy', {}).get('notify_age_hours', 100)
+    notify_age = load_config()['cache_settings']['cpe_cache']['refresh_strategy'].get('notify_age_hours', 100)
     
     # Refresh script should NOT be limited by notify_age_hours
     # It queries from oldest cache entry timestamp

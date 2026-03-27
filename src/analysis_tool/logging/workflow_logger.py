@@ -47,8 +47,7 @@ class WorkflowLogger:
         self.logging_config = self.config.get('logging', {})
         self.enabled = self.logging_config.get('enabled', True)
         self.level = LogLevel(self.logging_config.get('level', 'INFO'))
-        self.format_string = self.logging_config.get('format', '[{timestamp}] [{level}] {message}')
-        self.groups = self.logging_config.get('groups', {})
+        self.format_string = '[{timestamp}] [{level}] {message}'
         
         # File logging setup
         self.log_file = None
@@ -106,15 +105,10 @@ class WorkflowLogger:
                 self.start_file_logging(self._current_params)
     
     def _should_log(self, level: LogLevel, group: LogGroup) -> bool:
-        """Determine if we should log based on level and group settings"""
+        """Determine if we should log based on level settings"""
         if not self.enabled:
             return False
-        # Check if group is enabled
-        group_key = group.value if hasattr(group, 'value') else group
-        group_config = self.groups.get(group_key, {})
-        if not group_config.get('enabled', True):
-            return False
-        
+
         # Check log level hierarchy
         level_hierarchy = {
             LogLevel.DEBUG: 0,
@@ -136,41 +130,16 @@ class WorkflowLogger:
             level=level.value,
             message=message
         )
-        
-        # Add colors if supported (use group color for stage banners only)
-        if self.use_colors and ("===" in message):  # Only colorize stage banners
-            group_key = group.value if hasattr(group, 'value') else group
-            group_config = self.groups.get(group_key, {})
-            color = self.colors.get(group_config.get('color', 'white'), '')
-            reset = self.colors['reset']
-            formatted = f"{color}{formatted}{reset}"
-        
         return formatted
     
     def _format_banner(self, group: LogGroup, message: str) -> str:
         """Format stage banners without log level prefix for cleaner visual separation"""
-        formatted = f"[{self._get_timestamp()}] {message}"
-        
-        # Add colors if supported
-        if self.use_colors:
-            group_key = group.value if hasattr(group, 'value') else group
-            group_config = self.groups.get(group_key, {})
-            color = self.colors.get(group_config.get('color', 'white'), '')
-            reset = self.colors['reset']
-            formatted = f"{color}{formatted}{reset}"
-        
-        return formatted
+        return f"[{self._get_timestamp()}] {message}"
     
     def _log_banner(self, group: str, message: str):
         """Log a stage banner without log level prefix"""
         if not self.enabled:
             return
-        
-        # Check group filtering
-        group_config = self.groups.get(group, {})
-        if not group_config.get('enabled', True):
-            return
-          # Use banner formatting instead of standard message formatting
         formatted = self._format_banner(group, message)
         self._print_message(formatted)
     

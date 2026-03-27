@@ -227,6 +227,10 @@ class TestSuiteRunner:
                 'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_logging_system.py']
             },
             {
+                'name': 'Config System',
+                'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_config_system.py']
+            },
+            {
                 'name': 'CPE Format Conversion',
                 'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_cpe_format_conversion.py']
             },

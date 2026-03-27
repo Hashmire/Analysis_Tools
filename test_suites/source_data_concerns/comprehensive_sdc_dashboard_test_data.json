@@ -40,7 +40,7 @@
   },
   "cve_data": [
     {
-      "cve_id": "CVE-1999-00001",
+      "cve_id": "CVE-1337-80001",
       "platform_entries": [
         {
           "platform_entry_id": "entry_0",
@@ -152,7 +152,7 @@
       ]
     },
     {
-      "cve_id": "CVE-1199-00001",
+      "cve_id": "CVE-1337-80002",
       "platform_entries": [
         {
           "platform_entry_id": "entry_0",
@@ -335,7 +335,7 @@
       }
     },
     {
-      "cve_id": "CVE-1999-00003",
+      "cve_id": "CVE-1337-80003",
       "platform_entries": [
         {
           "platform_entry_id": "entry_0",
@@ -544,7 +544,7 @@
       }
     },
     {
-      "cve_id": "CVE-1999-00004",
+      "cve_id": "CVE-1337-80004",
       "platform_entries": [
         {
           "platform_entry_id": "entry_0",
@@ -738,7 +738,7 @@
       }
     },
     {
-      "cve_id": "CVE-1999-00005",
+      "cve_id": "CVE-1337-80005",
       "platform_entries": [
         {
           "platform_entry_id": "entry_0",
@@ -871,7 +871,7 @@
       }
     },
     {
-      "cve_id": "CVE-1999-88888",
+      "cve_id": "CVE-1337-80006",
       "platform_entries": [
         {
           "platform_entry_id": "entry_0",

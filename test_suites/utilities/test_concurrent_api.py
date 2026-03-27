@@ -177,7 +177,7 @@ def test_concurrent_query_success():
         """Return mock API data"""
         return {
             'vulnerabilities': [
-                {'cve': {'id': f'CVE-2024-{i:05d}'}}
+                {'cve': {'id': f'CVE-1337-{i:05d}'}}
                 for i in range(10)  # 10 CVEs per page
             ]
         }
@@ -223,7 +223,7 @@ def test_concurrent_query_partial_failure():
             return None
         return {
             'vulnerabilities': [
-                {'cve': {'id': f'CVE-2024-{i:05d}'}}
+                {'cve': {'id': f'CVE-1337-{i:05d}'}}
                 for i in range(10)
             ]
         }
@@ -266,21 +266,21 @@ def test_concurrent_date_query():
     mock_first_response = {
         'totalResults': 4500,
         'vulnerabilities': [
-            {'cve': {'id': f'CVE-2024-{i:05d}'}}
+            {'cve': {'id': f'CVE-1337-{i:05d}'}}
             for i in range(results_per_page)
         ]
     }
     
     mock_second_response = {
         'vulnerabilities': [
-            {'cve': {'id': f'CVE-2024-{i+2000:05d}'}}
+            {'cve': {'id': f'CVE-1337-{i+2000:05d}'}}
             for i in range(results_per_page)
         ]
     }
     
     mock_third_response = {
         'vulnerabilities': [
-            {'cve': {'id': f'CVE-2024-{i+4000:05d}'}}
+            {'cve': {'id': f'CVE-1337-{i+4000:05d}'}}
             for i in range(500)  # Last page has only 500
         ]
     }
@@ -323,14 +323,14 @@ def test_concurrent_full_database_query():
     mock_first_response = {
         'totalResults': 3000,
         'vulnerabilities': [
-            {'cve': {'id': f'CVE-2024-{i:05d}'}}
+            {'cve': {'id': f'CVE-1337-{i:05d}'}}
             for i in range(results_per_page)
         ]
     }
     
     mock_second_response = {
         'vulnerabilities': [
-            {'cve': {'id': f'CVE-2024-{i+2000:05d}'}}
+            {'cve': {'id': f'CVE-1337-{i+2000:05d}'}}
             for i in range(1000)  # Last page has 1000
         ]
     }

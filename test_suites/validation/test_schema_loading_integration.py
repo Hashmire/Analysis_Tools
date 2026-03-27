@@ -210,7 +210,7 @@ def test_cve_record_validation_with_schema():
     
     minimal_record = {
         "cveMetadata": {
-            "cveId": "CVE-2024-TEST",
+            "cveId": "CVE-1337-9999",
             "state": "PUBLISHED"
         },
         "containers": {
@@ -222,7 +222,7 @@ def test_cve_record_validation_with_schema():
     }
     
     # Without schema (should pass basic structure checks)
-    result = validate_cve_record_v5(minimal_record, "CVE-2024-TEST", schema=None)
+    result = validate_cve_record_v5(minimal_record, "CVE-1337-9999", schema=None)
     assert result == minimal_record
     print(f"    ✓ CVE Record V5 validation pipeline working")
 
@@ -260,7 +260,7 @@ def test_cve_api_validation_with_schema():
     }
     
     # Should pass validation without schema
-    result = validate_cve_data(valid_cve_data, "CVE-2024-TEST", schema=None)
+    result = validate_cve_data(valid_cve_data, "CVE-1337-9999", schema=None)
     assert result == valid_cve_data
     print(f"    ✓ CVE API validation pipeline working")
 
@@ -316,7 +316,7 @@ def test_cve_record_cache_entry():
     # Simulate the generate_dataset.py validation flow
     cve_record_data = {
         "cveMetadata": {
-            "cveId": "CVE-2024-TEST",
+            "cveId": "CVE-1337-9999",
             "state": "PUBLISHED",
             "assignerShortName": "test",
             "datePublished": "2024-01-01T00:00:00.000Z"
@@ -342,7 +342,7 @@ def test_cve_record_cache_entry():
     try:
         schema = load_schema('cve_cve_5_2')
         # Note: Full schema validation would fail with minimal record, so we skip schema
-        validated = validate_cve_record_v5(cve_record_data, "CVE-2024-TEST", schema=None)
+        validated = validate_cve_record_v5(cve_record_data, "CVE-1337-9999", schema=None)
         assert validated == cve_record_data
         print(f"    ✓ CVE Record V5 cache entry point validated")
     except Exception as e:
@@ -414,7 +414,7 @@ def test_nvd_cve_cache_entry():
         "timestamp": "2024-01-01T00:00:00.000",
         "vulnerabilities": [{
             "cve": {
-                "id": "CVE-2024-1234",
+                "id": "CVE-1337-1234",
                 "sourceIdentifier": "test@test.com",
                 "published": "2024-01-01T00:00:00.000",
                 "lastModified": "2024-01-01T00:00:00.000",
@@ -432,11 +432,11 @@ def test_nvd_cve_cache_entry():
     
     try:
         # Simulate gatherNVDCVERecord flow
-        data = validate_http_response(response, "NVD CVE API: CVE-2024-1234")
-        validated = validate_cve_data(data, "CVE-2024-1234", schema=None)
+        data = validate_http_response(response, "NVD CVE API: CVE-1337-1234")
+        validated = validate_cve_data(data, "CVE-1337-1234", schema=None)
         
         assert validated["totalResults"] == 1
-        assert validated["vulnerabilities"][0]["cve"]["id"] == "CVE-2024-1234"
+        assert validated["vulnerabilities"][0]["cve"]["id"] == "CVE-1337-1234"
         print(f"    ✓ NVD CVE cache entry point validated")
     except Exception as e:
         raise AssertionError(f"NVD CVE cache entry validation failed: {e}")
@@ -490,7 +490,7 @@ def test_invalid_data_rejected():
     }
     
     try:
-        validate_cve_record_v5(invalid_record, "CVE-2024-TEST", schema=None)
+        validate_cve_record_v5(invalid_record, "CVE-1337-9999", schema=None)
         assert False, "Should have rejected invalid CVE record"
     except NVDSchemaValidationError:
         print(f"    ✓ Invalid data correctly rejected at cache boundary")
@@ -508,12 +508,12 @@ def test_cve_list_validator_production_integration():
     mock_cve_data = {
         "dataType": "CVE_RECORD",
         "dataVersion": "5.1.0",
-        "cveMetadata": {"cveId": "CVE-2024-TEST", "state": "PUBLISHED"},
+        "cveMetadata": {"cveId": "CVE-1337-9999", "state": "PUBLISHED"},
         "containers": {"cna": {}}
     }
     
     with tempfile.TemporaryDirectory() as tmpdir:
-        cache_file = Path(tmpdir) / "2024" / "1xxx" / "CVE-2024-TEST.json"
+        cache_file = Path(tmpdir) / "1337" / "9xxx" / "CVE-1337-9999.json"
         
         # Mock HTTP response
         mock_response = Mock()
@@ -532,7 +532,7 @@ def test_cve_list_validator_production_integration():
         with patch('src.analysis_tool.core.gatherData.requests.get', return_value=mock_response):
             with patch('src.analysis_tool.core.gatherData.processData.integrityCheckCVE'):
                 with patch('src.analysis_tool.core.schema_validator.validate_cve_record_v5', side_effect=track_validator):
-                    _refresh_cvelist_from_mitre_api("CVE-2024-TEST", cache_file, "test")
+                    _refresh_cvelist_from_mitre_api("CVE-1337-9999", cache_file, "test")
                     assert validator_called, "validate_cve_record_v5 NOT called - architectural disconnection!"
                     print(f"    ✓ Validator integrated into production cache refresh path")
 
@@ -545,12 +545,12 @@ def test_cve_list_batch_schema_optimization():
     mock_cve_data = {
         "dataType": "CVE_RECORD",
         "dataVersion": "5.1.0",
-        "cveMetadata": {"cveId": "CVE-2024-TEST", "state": "PUBLISHED"},
+        "cveMetadata": {"cveId": "CVE-1337-9999", "state": "PUBLISHED"},
         "containers": {"cna": {}}
     }
     
     with tempfile.TemporaryDirectory() as tmpdir:
-        cache_file = Path(tmpdir) / "2024" / "1xxx" / "CVE-2024-TEST.json"
+        cache_file = Path(tmpdir) / "1337" / "9xxx" / "CVE-1337-9999.json"
         cve_schema = load_schema('cve_cve_5_2')
         
         mock_response = Mock()
@@ -564,7 +564,7 @@ def test_cve_list_batch_schema_optimization():
                 with patch('src.analysis_tool.core.gatherData.load_schema', wraps=load_schema) as mock_load:
                     with patch('src.analysis_tool.core.schema_validator.validate_cve_record_v5', return_value=mock_cve_data):
                         # With pre-loaded schema, should NOT load again
-                        _refresh_cvelist_from_mitre_api("CVE-2024-TEST", cache_file, "test", cve_schema=cve_schema)
+                        _refresh_cvelist_from_mitre_api("CVE-1337-9999", cache_file, "test", cve_schema=cve_schema)
                         mock_load.assert_not_called()
                         print(f"    ✓ Pre-loaded schema optimization working")
 
@@ -577,12 +577,12 @@ def test_cve_list_schema_loading_fallback():
     mock_cve_data = {
         "dataType": "CVE_RECORD",
         "dataVersion": "5.1.0",
-        "cveMetadata": {"cveId": "CVE-2024-TEST", "state": "PUBLISHED"},
+        "cveMetadata": {"cveId": "CVE-1337-9999", "state": "PUBLISHED"},
         "containers": {"cna": {}}
     }
     
     with tempfile.TemporaryDirectory() as tmpdir:
-        cache_file = Path(tmpdir) / "2024" / "1xxx" / "CVE-2024-TEST.json"
+        cache_file = Path(tmpdir) / "1337" / "9xxx" / "CVE-1337-9999.json"
         
         mock_response = Mock()
         mock_response.status_code = 200
@@ -595,7 +595,7 @@ def test_cve_list_schema_loading_fallback():
                 with patch('src.analysis_tool.core.gatherData.load_schema', wraps=load_schema) as mock_load:
                     with patch('src.analysis_tool.core.schema_validator.validate_cve_record_v5', return_value=mock_cve_data):
                         # Without pre-loaded schema, should load it
-                        _refresh_cvelist_from_mitre_api("CVE-2024-TEST", cache_file, "test", cve_schema=None)
+                        _refresh_cvelist_from_mitre_api("CVE-1337-9999", cache_file, "test", cve_schema=None)
                         mock_load.assert_called_with('cve_cve_5_2')
                         print(f"    ✓ Schema loading fallback working")
 

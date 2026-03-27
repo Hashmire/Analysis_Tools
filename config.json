@@ -1,18 +1,17 @@
 {
     "application": {
         "toolname": "Hashmire/Analysis_Tools",
-        "version": "0.3.0"
+        "version": "0.4.0"
     },
     "cache_settings": {
         "cpe_cache": {
             "filename": "cpe_base_string_cache.json",
             "auto_save_threshold": 50,
             "max_loaded_shards": 16,
-            "description": "NVD CPE API responses with per-entry expiration",
+            "description": "NVD CPE API responses with per-entry expiration, sharding for better scaling across organizational dataset volume",
             "sharding": {
                 "enabled": true,
-                "num_shards": 16,
-                "description": "Hash-based sharding for improved memory management and scalability"
+                "num_shards": 16
             },
             "refresh_strategy": {
                 "field_path": "$.*.last_queried",
@@ -21,10 +20,10 @@
         },
         "nvd_source_data": {
             "filename": "nvd_source_data.json",
-            "description": "NVD source organization data",
+            "description": "NVD source organization data, derived from the NVD /source/ API",
             "refresh_strategy": {
                 "field_path": "$.created_at",
-                "notify_age_hours": 24
+                "notify_age_hours": 168
             }
         },
         "cve_list_v5": {
@@ -41,81 +40,29 @@
             "refresh_strategy": {
                 "field_path": "$.vulnerabilities.*.cve.lastModified"
             }
+        },
+        "nvd_ish_output": {
+            "path": "cache/nvd-ish_2.0_cves",
+            "description": "Enhanced NVD 2.0 format records with integrated CVE List V5 data and analysis tool processing outputs"
+        },
+        "confirmed_mappings": {
+            "path": "cache/alias_mappings",
+            "description": "Confirmed CPE base string mappings for platform entries"
         }
-    },
-    "nvd_ish_output": {
-        "enabled": true,
-        "path": "cache/nvd-ish_2.0_cves",
-        "description": "Enhanced NVD 2.0 format records with integrated CVE List V5 data and analysis tool processing outputs",
-        "attribution_source": "hashmire/analysis_tools",
-        "format": "NVD_CVE_Enhanced",
-        "version": "2.0"
-    },
-    "progress": {
-        "enabled": true,
-        "show_eta": true,
-        "show_individual_timing": true
     },
     "logging": {
         "enabled": true,
         "level": "DEBUG",
-        "format": "[{timestamp}] [{level}] {message}",
-        "groups": {
-            "HARVEST": {
-                "name": "Source Harvesting",
-                "description": "Multi-source harvesting, UUID collection, batch processing orchestration",
-                "enabled": true
-            },
-            "INIT": {
-                "name": "Initialization",
-                "description": "System startup, configuration loading",
-                "enabled": true
-            },
-            "CACHE_MANAGEMENT": {
-                "name": "Cache Management",
-                "description": "Cache loading, validation, refreshing, and cleanup",
-                "enabled": true
-            },
-            "DATASET": {
-                "name": "Dataset Generation",
-                "description": "Cache Preparation, Source Identification, Environment Setup",
-                "enabled": true
-            },
-            "CVE_QUERY": {
-                "name": "CVE Queries",
-                "description": "CVE record retrieval from MITRE, NVD CVE API, source data gathering",
-                "enabled": true
-            },
-            "UNIQUE_CPE": {
-                "name": "Unique CPE Generation",
-                "description": "CPE base string extraction, deduplication, validation",
-                "enabled": true
-            },
-            "CPE_QUERY": {
-                "name": "CPE Queries",
-                "description": "NVD CPE API queries, product matching, result processing",
-                "enabled": true
-            },
-            "BADGE_GEN": {
-                "name": "Badge Generation",
-                "description": "Confirmed mappings processing, data validation, badge preparation",
-                "enabled": true
-            },
-            "PAGE_GEN": {
-                "name": "Page Generation",
-                "description": "HTML generation, template processing, file output",
-                "enabled": true
-            },
-            "DATA_PROC": {
-                "name": "Data Processing",
-                "description": "Data transformation, validation, cleanup operations",
-                "enabled": true
-            }
+        "description": "Log format: [{timestamp}] [{level}] {message}. Available levels (most to least verbose): DEBUG, INFO, WARNING, ERROR.",
+        "sdc_report": {
+            "progress_interval": 2000
+        },
+        "alias_report": {
+            "progress_interval": 2000
+        },
+        "cpeas_automation_report": {
+            "progress_interval": 2000
         }
-    },
-    "confirmed_mappings": {
-        "enabled": true,
-        "mappings_directory": "cache/alias_mappings"
     },
     "harvest_and_process_sources": {
         "max_cves_per_source": 30000,
@@ -129,9 +76,9 @@
             "cve_org": 120
         },
         "retry": {
-            "max_attempts_nvd": 50,
+            "max_attempts_nvd": 10,
             "max_attempts_cpe": 10,
-            "delay_with_key": 1,
+            "delay_with_key": 0,
             "delay_without_key": 6,
             "page_delay_with_key": 1,
             "page_delay_without_key": 1

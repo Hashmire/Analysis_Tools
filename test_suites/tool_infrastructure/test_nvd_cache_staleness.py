@@ -87,32 +87,29 @@ def create_nvd_api_response(cve_id, last_modified):
 def test_api_older_than_cache():
     """API has older lastModified - should NOT update cache"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "2024" / "1xxx"
-        cache_file = cache_path / "CVE-2024-1234.json"
+        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "1337" / "1xxx"
+        cache_file = cache_path / "CVE-1337-1234.json"
         
         # Cache has newer timestamp
         cached_timestamp = "2024-02-01T12:00:00.000"
-        create_nvd_cache_file(cache_file, "CVE-2024-1234", cached_timestamp, file_age_days=100)
+        create_nvd_cache_file(cache_file, "CVE-1337-1234", cached_timestamp, file_age_days=100)
         
         # API has older timestamp
         api_timestamp = "2024-01-01T12:00:00.000"
-        api_response = create_nvd_api_response("CVE-2024-1234", api_timestamp)
+        api_response = create_nvd_api_response("CVE-1337-1234", api_timestamp)
         
         # Import and configure the function
         sys.path.insert(0, str(project_root))
         import generate_dataset
-        generate_dataset._config_cache = {}
         
         # Mock config to use temp directory
-        with patch('generate_dataset._get_cached_config') as mock_config:
-            mock_config.return_value = {
+        with patch('generate_dataset.config', {'cache_settings': {'nvd_2_0_cve': {
                 'enabled': True,
                 'path': str(cache_path.parent.parent),
                 'refresh_strategy': {'notify_age_hours': 0}
-            }
-            
+            }}}):
             result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
-                "CVE-2024-1234",
+                "CVE-1337-1234",
                 api_response
             )
         
@@ -131,32 +128,29 @@ def test_api_older_than_cache():
 def test_api_newer_than_cache():
     """API has newer lastModified - should update cache"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "2024" / "1xxx"
-        cache_file = cache_path / "CVE-2024-1234.json"
+        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "1337" / "1xxx"
+        cache_file = cache_path / "CVE-1337-1234.json"
         
         # Cache has older timestamp
         cached_timestamp = "2024-01-01T12:00:00.000"
-        create_nvd_cache_file(cache_file, "CVE-2024-1234", cached_timestamp, file_age_days=100)
+        create_nvd_cache_file(cache_file, "CVE-1337-1234", cached_timestamp, file_age_days=100)
         
         # API has newer timestamp
         api_timestamp = "2024-02-01T12:00:00.000"
-        api_response = create_nvd_api_response("CVE-2024-1234", api_timestamp)
+        api_response = create_nvd_api_response("CVE-1337-1234", api_timestamp)
         
         # Import and configure
         sys.path.insert(0, str(project_root))
         import generate_dataset
-        generate_dataset._config_cache = {}
         
         # Mock config
-        with patch('generate_dataset._get_cached_config') as mock_config:
-            mock_config.return_value = {
+        with patch('generate_dataset.config', {'cache_settings': {'nvd_2_0_cve': {
                 'enabled': True,
                 'path': str(cache_path.parent.parent),
                 'refresh_strategy': {'notify_age_hours': 0}
-            }
-            
+            }}}):
             result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
-                "CVE-2024-1234",
+                "CVE-1337-1234",
                 api_response
             )
         
@@ -170,31 +164,28 @@ def test_api_newer_than_cache():
 def test_old_file_not_updated_if_timestamps_match():
     """1000-day-old cache file should NOT update if timestamps match"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "2021" / "1xxx"
-        cache_file = cache_path / "CVE-2021-1234.json"
+        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "1337" / "1xxx"
+        cache_file = cache_path / "CVE-1337-1234.json"
         
         # Create very old cache file (1000 days)
         timestamp = "2021-06-01T12:00:00.000"
-        create_nvd_cache_file(cache_file, "CVE-2021-1234", timestamp, file_age_days=1000)
+        create_nvd_cache_file(cache_file, "CVE-1337-1234", timestamp, file_age_days=1000)
         
         # API has SAME timestamp
-        api_response = create_nvd_api_response("CVE-2021-1234", timestamp)
+        api_response = create_nvd_api_response("CVE-1337-1234", timestamp)
         
         # Import and configure
         sys.path.insert(0, str(project_root))
         import generate_dataset
-        generate_dataset._config_cache = {}
         
         # Mock config with TTL disabled
-        with patch('generate_dataset._get_cached_config') as mock_config:
-            mock_config.return_value = {
+        with patch('generate_dataset.config', {'cache_settings': {'nvd_2_0_cve': {
                 'enabled': True,
                 'path': str(cache_path.parent.parent),
                 'refresh_strategy': {'notify_age_hours': 0}
-            }
-            
+            }}}):
             result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
-                "CVE-2021-1234",
+                "CVE-1337-1234",
                 api_response
             )
         
@@ -214,29 +205,26 @@ def test_old_file_not_updated_if_timestamps_match():
 def test_missing_cache_file():
     """Non-existent cache file should queue for creation"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "2024" / "1xxx"
-        cache_file = cache_path / "CVE-2024-9999.json"
+        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "1337" / "1xxx"
+        cache_file = cache_path / "CVE-1337-9999.json"
         
         # File does NOT exist
         assert not cache_file.exists()
         
         api_timestamp = "2024-02-01T12:00:00.000"
-        api_response = create_nvd_api_response("CVE-2024-9999", api_timestamp)
+        api_response = create_nvd_api_response("CVE-1337-9999", api_timestamp)
         
         # Import and configure
         sys.path.insert(0, str(project_root))
         import generate_dataset
-        generate_dataset._config_cache = {}
         
-        with patch('generate_dataset._get_cached_config') as mock_config:
-            mock_config.return_value = {
+        with patch('generate_dataset.config', {'cache_settings': {'nvd_2_0_cve': {
                 'enabled': True,
                 'path': str(cache_path.parent.parent),
                 'refresh_strategy': {'notify_age_hours': 0}
-            }
-            
+            }}}):
             result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
-                "CVE-2024-9999",
+                "CVE-1337-9999",
                 api_response
             )
         
@@ -250,8 +238,8 @@ def test_missing_cache_file():
 def test_corrupted_cache_file():
     """Corrupted JSON cache file should queue for update"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "2024" / "1xxx"
-        cache_file = cache_path / "CVE-2024-1555.json"
+        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "1337" / "1xxx"
+        cache_file = cache_path / "CVE-1337-1555.json"
         
         # Create corrupted JSON file
         cache_file.parent.mkdir(parents=True, exist_ok=True)
@@ -259,22 +247,19 @@ def test_corrupted_cache_file():
             f.write("{invalid json content here")
         
         api_timestamp = "2024-02-01T12:00:00.000"
-        api_response = create_nvd_api_response("CVE-2024-1555", api_timestamp)
+        api_response = create_nvd_api_response("CVE-1337-1555", api_timestamp)
         
         # Import and configure
         sys.path.insert(0, str(project_root))
         import generate_dataset
-        generate_dataset._config_cache = {}
         
-        with patch('generate_dataset._get_cached_config') as mock_config:
-            mock_config.return_value = {
+        with patch('generate_dataset.config', {'cache_settings': {'nvd_2_0_cve': {
                 'enabled': True,
                 'path': str(cache_path.parent.parent),
                 'refresh_strategy': {'notify_age_hours': 0}
-            }
-            
+            }}}):
             result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
-                "CVE-2024-1555",
+                "CVE-1337-1555",
                 api_response
             )
         
@@ -289,15 +274,15 @@ def test_corrupted_cache_file():
 def test_missing_cached_timestamp():
     """Cache file without lastModified should queue for update"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "2024" / "1xxx"
-        cache_file = cache_path / "CVE-2024-1666.json"
+        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "1337" / "1xxx"
+        cache_file = cache_path / "CVE-1337-1666.json"
         
         # Create cache file WITHOUT lastModified field
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         invalid_data = {
             "vulnerabilities": [{
                 "cve": {
-                    "id": "CVE-2024-1666",
+                    "id": "CVE-1337-1666",
                     "descriptions": [{"lang": "en", "value": "Test"}]
                     # Missing lastModified!
                 }
@@ -307,22 +292,19 @@ def test_missing_cached_timestamp():
             json.dump(invalid_data, f)
         
         api_timestamp = "2024-02-01T12:00:00.000"
-        api_response = create_nvd_api_response("CVE-2024-1666", api_timestamp)
+        api_response = create_nvd_api_response("CVE-1337-1666", api_timestamp)
         
         # Import and configure
         sys.path.insert(0, str(project_root))
         import generate_dataset
-        generate_dataset._config_cache = {}
         
-        with patch('generate_dataset._get_cached_config') as mock_config:
-            mock_config.return_value = {
+        with patch('generate_dataset.config', {'cache_settings': {'nvd_2_0_cve': {
                 'enabled': True,
                 'path': str(cache_path.parent.parent),
                 'refresh_strategy': {'notify_age_hours': 0}
-            }
-            
+            }}}):
             result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
-                "CVE-2024-1666",
+                "CVE-1337-1666",
                 api_response
             )
         
@@ -337,12 +319,12 @@ def test_missing_cached_timestamp():
 def test_missing_api_timestamp():
     """API response without lastModified should return no_action"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "2024" / "1xxx"
+        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "1337" / "1xxx"
         
         # API response WITHOUT lastModified
         api_response = {
             "cve": {
-                "id": "CVE-2024-7777",
+                "id": "CVE-1337-7777",
                 "descriptions": [{"lang": "en", "value": "Test"}]
                 # Missing lastModified!
             }
@@ -351,17 +333,14 @@ def test_missing_api_timestamp():
         # Import and configure
         sys.path.insert(0, str(project_root))
         import generate_dataset
-        generate_dataset._config_cache = {}
         
-        with patch('generate_dataset._get_cached_config') as mock_config:
-            mock_config.return_value = {
+        with patch('generate_dataset.config', {'cache_settings': {'nvd_2_0_cve': {
                 'enabled': True,
                 'path': str(cache_path.parent.parent),
                 'refresh_strategy': {'notify_age_hours': 0}
-            }
-            
+            }}}):
             result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
-                "CVE-2024-7777",
+                "CVE-1337-7777",
                 api_response
             )
         
@@ -375,30 +354,27 @@ def test_missing_api_timestamp():
 def test_timestamp_parsing_z_suffix():
     """Verify timestamps with 'Z' suffix parsed and compared correctly — API newer → stale"""
     with tempfile.TemporaryDirectory() as tmpdir:
-        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "2024" / "1xxx"
-        cache_file = cache_path / "CVE-2024-1888.json"
+        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "1337" / "1xxx"
+        cache_file = cache_path / "CVE-1337-1888.json"
 
         # Cache with Z-suffixed timestamp
         cached_timestamp = "2024-01-01T12:00:00.000Z"
-        create_nvd_cache_file(cache_file, "CVE-2024-1888", cached_timestamp)
+        create_nvd_cache_file(cache_file, "CVE-1337-1888", cached_timestamp)
 
         # API with Z-suffixed timestamp (newer)
         api_timestamp = "2024-02-01T12:00:00.000Z"
-        api_response = create_nvd_api_response("CVE-2024-1888", api_timestamp)
+        api_response = create_nvd_api_response("CVE-1337-1888", api_timestamp)
 
         sys.path.insert(0, str(project_root))
         import generate_dataset
-        generate_dataset._config_cache = {}
 
-        with patch('generate_dataset._get_cached_config') as mock_config:
-            mock_config.return_value = {
+        with patch('generate_dataset.config', {'cache_settings': {'nvd_2_0_cve': {
                 'enabled': True,
                 'path': str(cache_path.parent.parent),
                 'refresh_strategy': {'notify_age_hours': 0}
-            }
-
+            }}}):
             result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
-                "CVE-2024-1888",
+                "CVE-1337-1888",
                 api_response
             )
 
@@ -414,22 +390,19 @@ def test_path_resolution_failed():
     """When _resolve_cve_cache_file_path returns None (invalid CVE ID), function returns no_action."""
     sys.path.insert(0, str(project_root))
     import generate_dataset
-    generate_dataset._config_cache = {}
 
     # Patch the source module — _resolve_cve_cache_file_path is imported inside the
     # function body via delayed import, so it is not an attribute on generate_dataset.
-    with patch('generate_dataset._get_cached_config') as mock_config, \
-         patch('src.analysis_tool.core.gatherData._resolve_cve_cache_file_path', return_value=None):
-
-        mock_config.return_value = {
+    with patch('generate_dataset.config', {'cache_settings': {'nvd_2_0_cve': {
             'enabled': True,
             'path': '/nonexistent/path',
             'refresh_strategy': {'notify_age_hours': 0}
-        }
+        }}}), \
+         patch('src.analysis_tool.core.gatherData._resolve_cve_cache_file_path', return_value=None):
 
-        api_response = create_nvd_api_response("CVE-2024-1111", "2024-02-01T12:00:00.000")
+        api_response = create_nvd_api_response("CVE-1337-1111", "2024-02-01T12:00:00.000")
         result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
-            "CVE-2024-1111",
+            "CVE-1337-1111",
             api_response
         )
 
@@ -444,30 +417,27 @@ def test_path_resolution_failed():
 def test_timestamp_parse_error():
     """API lastModified that cannot be parsed returns no_action with timestamp_parse_error."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "2024" / "1xxx"
+        cache_path = Path(tmpdir) / "nvd_2.0_cves" / "1337" / "1xxx"
 
         sys.path.insert(0, str(project_root))
         import generate_dataset
-        generate_dataset._config_cache = {}
 
         # API response with a malformed timestamp (not ISO 8601)
         api_response = {
             "cve": {
-                "id": "CVE-2024-1222",
+                "id": "CVE-1337-1222",
                 "lastModified": "not-a-real-timestamp",
                 "descriptions": [{"lang": "en", "value": "Test"}]
             }
         }
 
-        with patch('generate_dataset._get_cached_config') as mock_config:
-            mock_config.return_value = {
+        with patch('generate_dataset.config', {'cache_settings': {'nvd_2_0_cve': {
                 'enabled': True,
                 'path': str(cache_path.parent.parent),
                 'refresh_strategy': {'notify_age_hours': 0}
-            }
-
+            }}}):
             result = generate_dataset._save_nvd_cve_to_cache_during_bulk_generation(
-                "CVE-2024-1222",
+                "CVE-1337-1222",
                 api_response
             )
 

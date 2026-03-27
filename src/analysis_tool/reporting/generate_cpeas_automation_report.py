@@ -48,6 +48,7 @@ from ..core.cpe_as_generator import (
     is_version_placeholder,
     has_real_version_data
 )
+from ..core.gatherData import config
 logger = get_logger()
 
 # Presentation-layer imports with graceful degradation
@@ -55,23 +56,6 @@ try:
     from .. import __version__
 except ImportError:
     __version__ = "unknown"
-
-
-def load_config() -> Dict:
-    """Load configuration file with defaults."""
-    try:
-        project_root = get_analysis_tools_root()
-        config_path = project_root / "config.json"
-        
-        if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        else:
-            logger.warning(f"Config file not found at {config_path}, using hardcoded defaults", group="DATA_PROC")
-            return {}
-    except Exception as e:
-        logger.warning(f"Failed to load config: {e}, using hardcoded defaults", group="DATA_PROC")
-        return {}
 
 
 class CPEASAutomationReportBuilder:
@@ -894,8 +878,7 @@ def generate_report(
         raise FileNotFoundError(f"Cache directory not found: {cache_path}")
     
     # Get progress interval from config
-    config = load_config()
-    progress_interval = config.get('cpeas_automation_report', {}).get('progress_interval', 2000)
+    progress_interval = config['logging']['cpeas_automation_report'].get('progress_interval', 2000)
     
     if logger:
         logger.info(f"Starting CPE automation report generation", group="DATA_PROC")
@@ -905,7 +888,7 @@ def generate_report(
     source_manager = None
     try:
         from ..storage.nvd_source_manager import get_or_refresh_source_manager
-        api_key = config.get('api', {}).get('api_key', '')
+        api_key = config['api'].get('api_key', '')
         source_manager = get_or_refresh_source_manager(api_key, log_group="DATA_PROC")
     except Exception as e:
         if logger:

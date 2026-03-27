@@ -42,12 +42,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.analysis_tool.storage.cpe_cache import get_global_cache_manager, GlobalCPECacheManager, ShardedCPECache
-
-def load_config():
-    """Load configuration from config.json"""
-    config_path = project_root / 'config.json'
-    with open(config_path, 'r') as f:
-        return json.load(f)
+from src.analysis_tool.core.gatherData import load_config
 
 # =============================================================================
 # UNIT TESTS: Sharded Cache Implementation
@@ -364,8 +359,7 @@ def test_cache_miss_workflow():
     """Integration test: Verify cache miss triggers API call and caches result (MISS workflow)"""
     print("Testing cache MISS workflow...")
     
-    config = load_config()
-    cache_config = config.get('cache_settings', {}).get('cpe_cache', {})
+    cache_config = load_config()['cache_settings']['cpe_cache']
     
     if not cache_config.get('enabled', True):
         print("  [WARNING] Cache disabled in config - skipping test")
@@ -417,8 +411,7 @@ def test_cache_expiration_workflow():
     """Integration test: Verify expired cache entries are detected (EXPIRED workflow)"""
     print("Testing cache EXPIRATION workflow...")
     
-    config = load_config()
-    cache_config = config.get('cache_settings', {}).get('cpe_cache', {}).copy()
+    cache_config = load_config()['cache_settings']['cpe_cache'].copy()
     cache_config['refresh_strategy'] = {'notify_age_hours': 0.001}  # ~3.6 seconds
     cache_config['sharding'] = {'enabled': True, 'num_shards': 16}
     
@@ -454,8 +447,7 @@ def test_cache_disabled_workflow():
     """Integration test: Verify system works when cache is disabled (DISABLED workflow)"""
     print("Testing cache DISABLED workflow...")
     
-    config = load_config()
-    cache_config = config.get('cache_settings', {}).get('cpe_cache', {}).copy()
+    cache_config = load_config()['cache_settings']['cpe_cache'].copy()
     cache_config['enabled'] = False
     
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -591,8 +583,7 @@ def test_cache_mode_compatibility():
     """Integration test: Verify sharded cache mode works correctly"""
     print("Testing sharded cache mode compatibility...")
     
-    config = load_config()
-    cache_config = config.get('cache_settings', {}).get('cpe_cache', {})
+    cache_config = load_config()['cache_settings']['cpe_cache']
     
     # Sharding is now mandatory - verify it's configured
     sharding_enabled = cache_config.get('sharding', {}).get('enabled', True)
@@ -614,9 +605,8 @@ def test_cache_persistence_across_runs():
     """Integration test: Verify cache data persists across multiple runs"""
     print("Testing cache persistence across runs...")
     
-    config = load_config()
-    cache_config = config.get('cache_settings', {}).get('cpe_cache', {})
-    
+    cache_config = load_config()['cache_settings']['cpe_cache']
+
     with tempfile.TemporaryDirectory() as tmpdir:
         os.environ['TEST_CPE_CACHE_DIR'] = tmpdir
         try:

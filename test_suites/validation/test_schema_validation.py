@@ -225,7 +225,7 @@ def test_cve_valid():
         "timestamp": "2024-01-01T00:00:00.000",
         "vulnerabilities": [{
             "cve": {
-                "id": "CVE-2024-1234",
+                "id": "CVE-1337-1234",
                 "sourceIdentifier": "test@test.com",
                 "published": "2024-01-01T00:00:00.000",
                 "lastModified": "2024-01-01T00:00:00.000",
@@ -244,7 +244,7 @@ def test_cve_valid():
     # HTTP validation
     data = validate_http_response(response, "CVE API test")
     # Schema validation
-    data = validate_cve_data(data, "CVE-2024-1234", schema=None)
+    data = validate_cve_data(data, "CVE-1337-1234", schema=None)
     assert data["totalResults"] == 1
 
 
@@ -295,7 +295,7 @@ def test_cve_record_missing_metadata():
     }
     
     try:
-        validate_cve_record_v5(invalid_record, "CVE-2024-1234", schema=None)
+        validate_cve_record_v5(invalid_record, "CVE-1337-1234", schema=None)
         assert False, "Should have raised NVDSchemaValidationError"
     except NVDSchemaValidationError:
         pass  # Expected
@@ -304,7 +304,7 @@ def test_cve_record_missing_metadata():
 @test("CVE Record V5 - Non-dict type fails")
 def test_cve_record_wrong_type():
     try:
-        validate_cve_record_v5("not-a-dict", "CVE-2024-1234", schema=None)
+        validate_cve_record_v5("not-a-dict", "CVE-1337-1234", schema=None)
         assert False, "Should have raised NVDSchemaValidationError"
     except NVDSchemaValidationError:
         pass  # Expected
@@ -313,7 +313,7 @@ def test_cve_record_wrong_type():
 @test("CVE Record V5 - Array type fails")
 def test_cve_record_array_type():
     try:
-        validate_cve_record_v5([], "CVE-2024-1234", schema=None)
+        validate_cve_record_v5([], "CVE-1337-1234", schema=None)
         assert False, "Should have raised NVDSchemaValidationError"
     except NVDSchemaValidationError:
         pass  # Expected

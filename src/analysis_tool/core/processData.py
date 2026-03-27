@@ -42,13 +42,6 @@ def get_confirmed_mappings_stats():
     global confirmed_mappings_stats
     return confirmed_mappings_stats.copy()
 
-# Load configuration
-def load_config():
-    """Load configuration from config.json"""
-    config_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config.json')
-    with open(config_path, 'r') as f:
-        return json.load(f)
-
 def normalize_string_for_comparison(s: str) -> str:
     """Normalize string for case-insensitive comparison with Unicode normalization"""
     import unicodedata
@@ -131,12 +124,6 @@ def check_alias_match(alias: dict, raw_platform_data: dict) -> bool:
 
 def find_confirmed_mappings(raw_platform_data: dict, source_id: str) -> List[str]:
     """Find confirmed CPE mappings for given raw platform data and source ID"""
-    config = load_config()
-    
-    # Check if confirmed mappings are enabled
-    if not config.get('confirmed_mappings', {}).get('enabled', True):
-        return []
-    
     # Use confirmed mapping manager for O(1) lookup
     from ..storage.confirmed_mapping_manager import get_global_mapping_manager
     
@@ -189,12 +176,6 @@ def extract_confirmed_mappings_for_affected_entry(affected_entry: dict) -> List[
         List of mapping objects with 'cpeBaseString' key for CPE-AS generation
         Format: [{'cpeBaseString': 'cpe:2.3:a:vendor:product:*:*:*:*:*:*:*:*'}, ...]
     """
-    config = load_config()
-    
-    # Check if confirmed mappings are enabled
-    if not config.get('confirmed_mappings', {}).get('enabled', True):
-        return []
-    
     # Validate input - must be a dictionary with required fields
     if not isinstance(affected_entry, dict):
         return []
@@ -262,11 +243,6 @@ def extract_confirmed_mappings_for_affected_entry(affected_entry: dict) -> List[
 
 def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
     """Process confirmed mappings for all rows in the dataset"""
-    config = load_config()      # Check if confirmed mappings are enabled
-    if not config.get('confirmed_mappings', {}).get('enabled', True):
-        logger.info("Confirmed mappings are disabled in configuration", group="badge_gen")
-        return rawDataset
-    
     tempDataset = rawDataset.copy()
       # Track confirmed mappings statistics
     total_processed = 0
@@ -1485,11 +1461,9 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
 # Calls for NVD API Query and processes statistics and other useful data based on the results
 def bulkQueryandProcessNVDCPEs(apiKey, rawDataSet, query_list: List[str]) -> List[Dict[str, Any]]:
     bulk_results = []
-    config = load_config()
-      # Get global cache instance
+    # Get global cache instance
     cache_manager = get_global_cache_manager()
-    if not cache_manager.is_initialized():
-        cache_manager.initialize(config.get('cache_settings', {}).get('cpe_cache', {}))
+    cache_manager.initialize(gatherData.config['cache_settings']['cpe_cache'])
     cache = cache_manager.get_cache()
     logger.debug("Using global CPE cache instance", group="cpe_queries")
     

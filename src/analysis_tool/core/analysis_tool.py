@@ -116,15 +116,6 @@ def ensure_project_directory(relative_path):
     dir_path.mkdir(parents=True, exist_ok=True)
     return dir_path
 
-# Load configuration
-def load_config():
-    """Load configuration from config.json"""
-    config_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config.json')
-    with open(config_path, 'r') as f:
-        return json.load(f)
-
-config = load_config()
-
 def process_test_file(test_file_path):
     """Process a test file containing CVE data for testing modular rules."""
     logger.info(f"Processing test file: {test_file_path}", group="DATA_PROC")
@@ -885,8 +876,7 @@ def main():
         # No arguments provided - use config debug defaults
         params = "config_defaults"
     
-    # Load configuration (logging will be started after run directory is created)
-    config = processData.load_config()
+    config = gatherData.config
     
     # Get API key (shared by both test file and CVE processing)
     nvd_api_key = ""
@@ -930,11 +920,11 @@ def main():
     if args.no_cache:
         logger.info("Cache disabled for testing mode", group="initialization")
         # Initialize with disabled cache configuration
-        cache_config = config.get('cache_settings', {}).get('cpe_cache', {}).copy()
+        cache_config = config['cache_settings']['cpe_cache'].copy()
         cache_config['enabled'] = False
         cache_manager.initialize(cache_config)
     else:
-        cache_manager.initialize(config.get('cache_settings', {}).get('cpe_cache', {}))
+        cache_manager.initialize(config['cache_settings']['cpe_cache'])
     
     # Initialize confirmed mapping manager (requires NVD source manager)
     from ..storage.confirmed_mapping_manager import get_global_mapping_manager
@@ -1173,7 +1163,7 @@ def main():
     
     # Initialize real-time dashboard collector
     from ..reporting.dataset_contents_collector import get_dataset_contents_collector
-    get_dataset_contents_collector(config_dict=config)
+    get_dataset_contents_collector()
     
     # Determine processing mode for dashboard tracking
     processing_mode = "sdc-only" if (sdc_report and not cpe_determination and not alias_report and not cpe_as_generator) else ("test" if args.test_file else "full")
@@ -1225,37 +1215,31 @@ def main():
     skipped_reasons = {}
     success_count = 0
     start_time = time.time()
-    progress_config = config.get('progress', {})
-    show_progress = progress_config.get('enabled', True)
-    show_eta = progress_config.get('show_eta', True)
-    show_timing = progress_config.get('show_individual_timing', True)
     
-    if show_progress:
-        logger.info("=== Starting CVE Record Processing Loop ===", group="INIT")
+    logger.info("=== Starting CVE Record Processing Loop ===", group="INIT")
     
     for index, cve in enumerate(cves_to_process):
         cve_start_time = time.time()
         current_cve_num = index + 1
         
         # Calculate progress and time estimates
-        if show_progress:
-            elapsed_time = time.time() - start_time
-            if index > 0 and show_eta:  # Avoid division by zero
-                avg_time_per_cve = elapsed_time / index
-                remaining_cves = total_cves - index
-                estimated_remaining_time = avg_time_per_cve * remaining_cves
-                eta = datetime.now(timezone.utc) + dt.timedelta(seconds=estimated_remaining_time)
+        elapsed_time = time.time() - start_time
+        if index > 0:
+            avg_time_per_cve = elapsed_time / index
+            remaining_cves = total_cves - index
+            estimated_remaining_time = avg_time_per_cve * remaining_cves
+            eta = datetime.now(timezone.utc) + dt.timedelta(seconds=estimated_remaining_time)
 
-                # Format time estimates
-                elapsed_str = str(dt.timedelta(seconds=int(elapsed_time)))
-                remaining_str = str(dt.timedelta(seconds=int(estimated_remaining_time)))
-                eta_str = eta.strftime("%H:%M:%S")
-                progress_msg = (f"Processing CVE {current_cve_num}/{total_cves} ({cve}) | "
-                              f"Progress: {(current_cve_num-1)/total_cves*100:.1f}% | "
-                              f"Elapsed: {elapsed_str} | ETA: {eta_str} | Remaining: {remaining_str}")
-            else:
-                progress_msg = f"Processing CVE {current_cve_num}/{total_cves} ({cve}) | Progress: {(current_cve_num-1)/total_cves*100:.1f}%"            
-            logger.info(progress_msg, group="cve_queries")
+            # Format time estimates
+            elapsed_str = str(dt.timedelta(seconds=int(elapsed_time)))
+            remaining_str = str(dt.timedelta(seconds=int(estimated_remaining_time)))
+            eta_str = eta.strftime("%H:%M:%S")
+            progress_msg = (f"Processing CVE {current_cve_num}/{total_cves} ({cve}) | "
+                          f"Progress: {(current_cve_num-1)/total_cves*100:.1f}% | "
+                          f"Elapsed: {elapsed_str} | ETA: {eta_str} | Remaining: {remaining_str}")
+        else:
+            progress_msg = f"Processing CVE {current_cve_num}/{total_cves} ({cve}) | Progress: {(current_cve_num-1)/total_cves*100:.1f}%"            
+        logger.info(progress_msg, group="cve_queries")
         
         try:
             logger.info(f"Processing {cve}...", group="processing")
@@ -1321,11 +1305,8 @@ def main():
                     if result.get('cve_as_generator'): feature_names.append("CPE-AS")
                     feature_suffix = f" ({', '.join(feature_names)})" if feature_names else ""
                     
-                    if show_timing:
-                        cve_elapsed = time.time() - cve_start_time
-                        logger.info(f"Successfully processed {cve}{feature_suffix} in {cve_elapsed:.2f}s", group="processing")
-                    else:
-                        logger.info(f"Successfully processed {cve}{feature_suffix}", group="processing")
+                    cve_elapsed = time.time() - cve_start_time
+                    logger.info(f"Successfully processed {cve}{feature_suffix} in {cve_elapsed:.2f}s", group="processing")
                     
                     success_count += 1
                     
@@ -1338,11 +1319,8 @@ def main():
                         
                 elif result.get('skipped'):
                     # CVE was skipped (e.g., REJECTED status)
-                    if show_timing:
-                        cve_elapsed = time.time() - cve_start_time
-                        logger.info(f"Skipped {cve} ({result.get('reason', 'unknown reason')}) in {cve_elapsed:.2f}s", group="processing")
-                    else:
-                        logger.info(f"Skipped {cve} ({result.get('reason', 'unknown reason')})", group="processing")
+                    cve_elapsed = time.time() - cve_start_time
+                    logger.info(f"Skipped {cve} ({result.get('reason', 'unknown reason')}) in {cve_elapsed:.2f}s", group="processing")
                     
                     # Mark as skipped in progress tracker
                     try:

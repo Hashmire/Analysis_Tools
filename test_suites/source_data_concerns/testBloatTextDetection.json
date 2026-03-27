@@ -2,7 +2,7 @@
   "dataType": "CVE_RECORD",
   "dataVersion": "5.1.1",
   "cveMetadata": {
-    "cveId": "CVE-9999-00006",
+    "cveId": "CVE-1337-00006",
     "assignerOrgId": "bloat-text-test-org-12345",
     "state": "PUBLISHED",
     "assignerShortName": "BloatTextTestOrg",

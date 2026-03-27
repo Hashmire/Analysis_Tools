@@ -24,9 +24,7 @@ from typing import Dict, List, Optional, Any, Tuple
 
 from src.analysis_tool.logging.workflow_logger import get_logger
 from src.analysis_tool.storage.run_organization import get_analysis_tools_root
-from src.analysis_tool.core.analysis_tool import load_config
 from src.analysis_tool.core.gatherData import (
-    _get_cached_config,
     _update_cache_metadata,
     _update_manual_refresh_timestamp,
     _resolve_cve_cache_file_path,
@@ -138,7 +136,7 @@ def determine_cutoff_date(args) -> Optional[datetime]:
         return cutoff
     
     # Auto-detect from config.json last_manual_update (default behavior)
-    cve_config = _get_cached_config('cve_list_v5')
+    cve_config = config['cache_settings']['cve_list_v5']
     last_manual_update_str = cve_config.get('refresh_strategy', {}).get('last_manual_update')
     if last_manual_update_str:
         try:
@@ -291,7 +289,7 @@ def smart_refresh(args=None, max_workers: int = 20):
     stats = CVEListRefreshStats()
     
     # Get CVE List V5 config
-    cve_config = _get_cached_config('cve_list_v5')
+    cve_config = config['cache_settings']['cve_list_v5']
     if not cve_config:
         logger.error("Failed to load CVE List V5 config - cannot proceed", group="CACHE_MANAGEMENT")
         return stats

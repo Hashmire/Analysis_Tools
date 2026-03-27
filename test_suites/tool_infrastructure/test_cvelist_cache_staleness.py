@@ -81,13 +81,10 @@ def test_missing_file():
         repo_path = Path(tmpdir) / "cve_list_v5"
 
         import generate_dataset
-        generate_dataset._config_cache = {}
 
-        with patch('generate_dataset._get_cached_config') as mock_cfg:
-            mock_cfg.return_value = make_config(repo_path)
-
+        with patch('generate_dataset.config', {'cache_settings': {'cve_list_v5': make_config(repo_path)}}):
             result = generate_dataset._save_cve_list_v5_to_cache_during_bulk_generation(
-                "CVE-2024-1234",
+                "CVE-1337-1234",
                 nvd_last_modified="2024-06-01T12:00:00.000Z"
             )
 
@@ -102,23 +99,20 @@ def test_fast_path_current():
     """NVD lastModified is older than last_manual_update — file is current without TTL check."""
     with tempfile.TemporaryDirectory() as tmpdir:
         repo_path = Path(tmpdir) / "cve_list_v5"
-        cache_file = repo_path / "2024" / "1xxx" / "CVE-2024-1234.json"
+        cache_file = repo_path / "1337" / "1xxx" / "CVE-1337-1234.json"
         # File exists but is very old (would fail TTL check if fast path didn't short-circuit)
-        create_v5_cache_file(cache_file, "CVE-2024-1234", file_age_hours=9999)
+        create_v5_cache_file(cache_file, "CVE-1337-1234", file_age_hours=9999)
 
         import generate_dataset
-        generate_dataset._config_cache = {}
 
         # last_manual_update is AFTER the NVD timestamp — fast path should fire
-        with patch('generate_dataset._get_cached_config') as mock_cfg:
-            mock_cfg.return_value = make_config(
+        with patch('generate_dataset.config', {'cache_settings': {'cve_list_v5': make_config(
                 repo_path,
                 last_manual_update="2025-01-01T00:00:00+00:00",
                 notify_age_hours=1  # TTL is 1h — file would be stale without fast path
-            )
-
+            )}}):
             result = generate_dataset._save_cve_list_v5_to_cache_during_bulk_generation(
-                "CVE-2024-1234",
+                "CVE-1337-1234",
                 nvd_last_modified="2024-06-01T12:00:00.000Z"
             )
 
@@ -134,23 +128,20 @@ def test_fast_path_bypassed_falls_to_ttl():
     """NVD lastModified is newer than last_manual_update — fast path does not fire, TTL decides."""
     with tempfile.TemporaryDirectory() as tmpdir:
         repo_path = Path(tmpdir) / "cve_list_v5"
-        cache_file = repo_path / "2024" / "1xxx" / "CVE-2024-1234.json"
+        cache_file = repo_path / "1337" / "1xxx" / "CVE-1337-1234.json"
         # File is fresh (10 hours old), TTL is 168h — within TTL
-        create_v5_cache_file(cache_file, "CVE-2024-1234", file_age_hours=10)
+        create_v5_cache_file(cache_file, "CVE-1337-1234", file_age_hours=10)
 
         import generate_dataset
-        generate_dataset._config_cache = {}
 
         # last_manual_update is BEFORE the NVD timestamp — fast path bypassed
-        with patch('generate_dataset._get_cached_config') as mock_cfg:
-            mock_cfg.return_value = make_config(
+        with patch('generate_dataset.config', {'cache_settings': {'cve_list_v5': make_config(
                 repo_path,
                 last_manual_update="2023-01-01T00:00:00+00:00",
                 notify_age_hours=168
-            )
-
+            )}}):
             result = generate_dataset._save_cve_list_v5_to_cache_during_bulk_generation(
-                "CVE-2024-1234",
+                "CVE-1337-1234",
                 nvd_last_modified="2024-06-01T12:00:00.000Z"
             )
 
@@ -165,18 +156,15 @@ def test_no_last_manual_update_within_ttl():
     """When last_manual_update is absent, falls through to TTL. File is fresh."""
     with tempfile.TemporaryDirectory() as tmpdir:
         repo_path = Path(tmpdir) / "cve_list_v5"
-        cache_file = repo_path / "2024" / "1xxx" / "CVE-2024-1234.json"
-        create_v5_cache_file(cache_file, "CVE-2024-1234", file_age_hours=10)
+        cache_file = repo_path / "1337" / "1xxx" / "CVE-1337-1234.json"
+        create_v5_cache_file(cache_file, "CVE-1337-1234", file_age_hours=10)
 
         import generate_dataset
-        generate_dataset._config_cache = {}
 
         # No last_manual_update key at all
-        with patch('generate_dataset._get_cached_config') as mock_cfg:
-            mock_cfg.return_value = make_config(repo_path, notify_age_hours=168)
-
+        with patch('generate_dataset.config', {'cache_settings': {'cve_list_v5': make_config(repo_path, notify_age_hours=168)}}):
             result = generate_dataset._save_cve_list_v5_to_cache_during_bulk_generation(
-                "CVE-2024-1234",
+                "CVE-1337-1234",
                 nvd_last_modified="2024-06-01T12:00:00.000Z"
             )
 
@@ -191,18 +179,15 @@ def test_ttl_exceeded_stale():
     """File older than notify_age_hours (and fast path unavailable) → queued as stale."""
     with tempfile.TemporaryDirectory() as tmpdir:
         repo_path = Path(tmpdir) / "cve_list_v5"
-        cache_file = repo_path / "2024" / "1xxx" / "CVE-2024-1234.json"
+        cache_file = repo_path / "1337" / "1xxx" / "CVE-1337-1234.json"
         # File is 200 hours old, TTL is 168h
-        create_v5_cache_file(cache_file, "CVE-2024-1234", file_age_hours=200)
+        create_v5_cache_file(cache_file, "CVE-1337-1234", file_age_hours=200)
 
         import generate_dataset
-        generate_dataset._config_cache = {}
 
-        with patch('generate_dataset._get_cached_config') as mock_cfg:
-            mock_cfg.return_value = make_config(repo_path, notify_age_hours=168)
-
+        with patch('generate_dataset.config', {'cache_settings': {'cve_list_v5': make_config(repo_path, notify_age_hours=168)}}):
             result = generate_dataset._save_cve_list_v5_to_cache_during_bulk_generation(
-                "CVE-2024-1234",
+                "CVE-1337-1234",
                 nvd_last_modified=None  # No fast path available
             )
 
@@ -220,23 +205,20 @@ def test_no_nvd_last_modified_uses_ttl():
     """nvd_last_modified=None disables the fast path entirely; TTL is the only gate."""
     with tempfile.TemporaryDirectory() as tmpdir:
         repo_path = Path(tmpdir) / "cve_list_v5"
-        cache_file = repo_path / "2024" / "1xxx" / "CVE-2024-1234.json"
+        cache_file = repo_path / "1337" / "1xxx" / "CVE-1337-1234.json"
         # File is fresh — within TTL
-        create_v5_cache_file(cache_file, "CVE-2024-1234", file_age_hours=5)
+        create_v5_cache_file(cache_file, "CVE-1337-1234", file_age_hours=5)
 
         import generate_dataset
-        generate_dataset._config_cache = {}
 
-        with patch('generate_dataset._get_cached_config') as mock_cfg:
-            mock_cfg.return_value = make_config(
+        with patch('generate_dataset.config', {'cache_settings': {'cve_list_v5': make_config(
                 repo_path,
                 last_manual_update="2025-01-01T00:00:00+00:00",  # Would fire fast path if nvd_dt provided
                 notify_age_hours=168
-            )
-
+            )}}):
             # No nvd_last_modified — fast path is skipped regardless of last_manual_update
             result = generate_dataset._save_cve_list_v5_to_cache_during_bulk_generation(
-                "CVE-2024-1234",
+                "CVE-1337-1234",
                 nvd_last_modified=None
             )
 
@@ -251,21 +233,18 @@ def test_fast_path_unparseable_timestamp_fallback():
     """If either timestamp is unparseable, fast path silently falls through to TTL."""
     with tempfile.TemporaryDirectory() as tmpdir:
         repo_path = Path(tmpdir) / "cve_list_v5"
-        cache_file = repo_path / "2024" / "1xxx" / "CVE-2024-1234.json"
-        create_v5_cache_file(cache_file, "CVE-2024-1234", file_age_hours=10)
+        cache_file = repo_path / "1337" / "1xxx" / "CVE-1337-1234.json"
+        create_v5_cache_file(cache_file, "CVE-1337-1234", file_age_hours=10)
 
         import generate_dataset
-        generate_dataset._config_cache = {}
 
-        with patch('generate_dataset._get_cached_config') as mock_cfg:
-            mock_cfg.return_value = make_config(
+        with patch('generate_dataset.config', {'cache_settings': {'cve_list_v5': make_config(
                 repo_path,
                 last_manual_update="NOT-A-VALID-DATE",
                 notify_age_hours=168
-            )
-
+            )}}):
             result = generate_dataset._save_cve_list_v5_to_cache_during_bulk_generation(
-                "CVE-2024-1234",
+                "CVE-1337-1234",
                 nvd_last_modified="ALSO-NOT-A-DATE"
             )
 
@@ -280,17 +259,14 @@ def test_fast_path_unparseable_timestamp_fallback():
 def test_path_resolution_failed():
     """When _resolve_cve_cache_file_path returns None, function returns no_action."""
     import generate_dataset
-    generate_dataset._config_cache = {}
 
     # _resolve_cve_cache_file_path is imported inside the function body from gatherData,
     # so we must patch its source module — not an attribute on generate_dataset.
-    with patch('generate_dataset._get_cached_config') as mock_cfg, \
+    with patch('generate_dataset.config', {'cache_settings': {'cve_list_v5': make_config("/nonexistent/path")}}), \
          patch('src.analysis_tool.core.gatherData._resolve_cve_cache_file_path', return_value=None):
 
-        mock_cfg.return_value = make_config("/nonexistent/path")
-
         result = generate_dataset._save_cve_list_v5_to_cache_during_bulk_generation(
-            "CVE-2024-9999",
+            "CVE-1337-9999",
             nvd_last_modified="2024-06-01T12:00:00.000Z"
         )
 

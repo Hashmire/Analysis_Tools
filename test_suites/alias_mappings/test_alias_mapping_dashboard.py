@@ -50,7 +50,7 @@ class AliasMappingDashboardTestSuite(unittest.TestCase):
                     {"vendor": "microsoft", "product": "windows 10 1903"}
                 ],
                 "frequency": 45,
-                "cves": ["CVE-2024-20515", "CVE-2024-20516"]
+                "cves": ["CVE-1337-20515", "CVE-1337-20516"]
             }
         ]
         
@@ -65,7 +65,7 @@ class AliasMappingDashboardTestSuite(unittest.TestCase):
                     {"vendor": "vendor", "product": "product", "platform": "unknown"}
                 ],
                 "frequency": 12,
-                "cves": ["CVE-2024-20517"],
+                "cves": ["CVE-1337-20517"],
                 "concerns": ["non_specific_values"]
             }
         ]
@@ -118,7 +118,7 @@ class AliasMappingDashboardTestSuite(unittest.TestCase):
                     {"vendor": "microsoft", "product": "windows 10 1903"}
                 ],
                 "frequency": 45,
-                "cves": ["CVE-2024-20515", "CVE-2024-20516"]
+                "cves": ["CVE-1337-20515", "CVE-1337-20516"]
             }
         ]
         
@@ -133,7 +133,7 @@ class AliasMappingDashboardTestSuite(unittest.TestCase):
                     {"vendor": "vendor", "product": "product", "platform": "unknown"}
                 ],
                 "frequency": 12,
-                "cves": ["CVE-2024-20517"],
+                "cves": ["CVE-1337-20517"],
                 "concerns": ["non_specific_values"]
             }
         ]
@@ -590,14 +590,14 @@ class AliasMappingDashboardTestSuite(unittest.TestCase):
                             "product": "windows test",
                             "version": "10.0",
                             "aliasGroup": "microsoft_windows_test",
-                            "source_cve": ["CVE-2024-001", "CVE-2024-002"],
+                            "source_cve": ["CVE-1337-001", "CVE-1337-002"],
                             "alias": "windows test alias"
                         },
                         {
                             "vendor": "unknown",  # This should go to concern dataset
                             "product": "problematic product", 
                             "aliasGroup": "microsoft_windows_test",
-                            "source_cve": ["CVE-2024-003"]
+                            "source_cve": ["CVE-1337-003"]
                         }
                     ]
                 }
@@ -609,7 +609,7 @@ class AliasMappingDashboardTestSuite(unittest.TestCase):
                         {
                             "vendor": "microsoft",
                             "product": "windows confirmed",
-                            "source_cve": ["CVE-2024-004"],
+                            "source_cve": ["CVE-1337-004"],
                             "frequency": 100
                         }
                     ]

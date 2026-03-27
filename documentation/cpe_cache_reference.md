@@ -186,21 +186,20 @@ python -m utilities.refresh_nvd_cpe_base_strings_cache
 ```
 
 **Requirements**:
-- Valid NVD API key in `src/analysis_tool/config.json` (`default_api_key` setting)
+- Valid NVD API key in `config.json` (`default_api_key` setting)
 - Existing cache directory: `cache/cpe_base_strings/`
 
 ---
 
 ## Configuration
 
-**Configuration File**: [src/analysis_tool/config.json](../src/analysis_tool/config.json)
+**Configuration File**: [config.json](../config.json)
 
 **Relevant Settings**:
 ```json
 {
   "cache_settings": {
     "cpe_cache": {
-      "enabled": true,
       "sharding": {
         "num_shards": 16
       },
@@ -215,7 +214,6 @@ python -m utilities.refresh_nvd_cpe_base_strings_cache
 ```
 
 **Key Parameters**:
-- `enabled`: Enable/disable CPE caching (default: true)
 - `num_shards`: Number of shard files (default: 16)
 - `max_loaded_shards`: Memory limit in shards (default: 4 ≈ 1.2GB)
 - `auto_save_threshold`: Trigger auto-save after N new entries (default: 50)

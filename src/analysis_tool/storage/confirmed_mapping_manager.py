@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 from ..logging.workflow_logger import get_logger
-from ..core.gatherData import load_config  # Import early to load configuration upfront
+from ..core.gatherData import load_config  # Deferred import used inside __init__ to avoid circular imports
 
 logger = get_logger()
 
@@ -66,12 +66,13 @@ class ConfirmedMappingManager:
             logger.debug("Confirmed mapping manager already initialized", group="ALIAS_AUDIT")
             return self
         
+        config = load_config()
+
         # Auto-detect mappings directory if not provided
         if mappings_dir is None:
             from ..storage.run_organization import get_analysis_tools_root
-            config = load_config()  # Already imported at module level
             project_root = get_analysis_tools_root()
-            mappings_dir = project_root / config['confirmed_mappings']['mappings_directory']
+            mappings_dir = project_root / config['cache_settings']['confirmed_mappings']['path']
         
         if not mappings_dir.exists():
             logger.warning(f"Confirmed mappings directory not found: {mappings_dir}", group="ALIAS_AUDIT")
@@ -81,8 +82,7 @@ class ConfirmedMappingManager:
         # Get source manager for validation - REQUIRED for data integrity
         if source_manager is None:
             from ..storage.nvd_source_manager import get_or_refresh_source_manager
-            config = load_config()
-            api_key = config.get('api', {}).get('api_key', '')
+            api_key = config['api'].get('api_key', '')
             
             # get_or_refresh_source_manager() guarantees initialization or raises exception
             self._source_manager = get_or_refresh_source_manager(api_key, log_group="ALIAS_AUDIT")

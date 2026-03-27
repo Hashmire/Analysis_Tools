@@ -214,7 +214,7 @@ class SourceDataConcernDashboardDisplayTestSuite:
             },
             "cve_data": [
                 {
-                    "cve_id": "CVE-2024-DASHBOARD-TEST-001",
+                    "cve_id": "CVE-1337-5001",
                     "platform_entries": [
                         {
                             "platform_entry_id": "entry_0",
@@ -294,7 +294,7 @@ class SourceDataConcernDashboardDisplayTestSuite:
                     }
                 },
                 {
-                    "cve_id": "CVE-2024-DASHBOARD-TEST-002",
+                    "cve_id": "CVE-1337-5002",
                     "platform_entries": [
                         {
                             "platform_entry_id": "entry_0",
@@ -331,7 +331,7 @@ class SourceDataConcernDashboardDisplayTestSuite:
                     }
                 },
                 {
-                    "cve_id": "CVE-2024-DASHBOARD-TEST-003",
+                    "cve_id": "CVE-1337-5003",
                     "platform_entries": [
                         {
                             "platform_entry_id": "entry_0",

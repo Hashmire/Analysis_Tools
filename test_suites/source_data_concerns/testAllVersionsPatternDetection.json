@@ -2,7 +2,7 @@
   "dataType": "CVE_RECORD",
   "dataVersion": "5.1.1",
   "cveMetadata": {
-    "cveId": "CVE-9999-00005",
+    "cveId": "CVE-1337-00005",
     "assignerOrgId": "all-versions-test-org-12345",
     "state": "PUBLISHED",
     "assignerShortName": "AllVersionsTestOrg",

@@ -35,8 +35,7 @@ from typing import Dict, List, Set, Tuple, Optional, Any
 from src.analysis_tool.logging.workflow_logger import get_logger
 from src.analysis_tool.storage.run_organization import get_analysis_tools_root
 from src.analysis_tool.storage.cpe_cache import ShardedCPECache
-from src.analysis_tool.core.analysis_tool import load_config
-from src.analysis_tool.core.gatherData import query_nvd_cpematch_by_modified_date, gatherNVDCPEData
+from src.analysis_tool.core.gatherData import config, query_nvd_cpematch_by_modified_date, gatherNVDCPEData
 
 logger = get_logger()
 
@@ -613,12 +612,9 @@ def smart_refresh(
 
 def main():
     """Main entry point for cache refresh script"""
-    
-    # Load configuration
-    config = load_config()
-    
+
     # Get API key from config
-    api_key = config.get('api', {}).get('api_key')
+    api_key = config['api'].get('api_key')
     if not api_key or api_key == 'CONFIG_DEFAULT':
         logger.error(
             "No NVD API key configured. Please set 'api.api_key' in src/analysis_tool/config.json",
@@ -627,7 +623,7 @@ def main():
         return 1
     
     # Get API endpoints from config
-    api_endpoints = config.get('api', {}).get('endpoints', {})
+    api_endpoints = config['api'].get('endpoints', {})
     nvd_cpe_api = api_endpoints.get('nvd_cpes')
     
     if not nvd_cpe_api:
@@ -638,7 +634,7 @@ def main():
         return 1
     
     # Get cache settings
-    cache_config = config.get('cache_settings', {}).get('cpe_cache', {})
+    cache_config = config['cache_settings']['cpe_cache']
     num_shards = cache_config.get('sharding', {}).get('num_shards', 16)
     
     # Determine cache directory using same logic as ShardedCPECache

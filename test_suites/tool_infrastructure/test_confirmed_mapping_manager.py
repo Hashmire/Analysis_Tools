@@ -69,7 +69,7 @@ class TestConfirmedMappingManager:
             if not source_manager.is_initialized():
                 # Get API key from config for potential refresh
                 config = load_config()
-                api_key = config.get('api', {}).get('api_key', '')
+                api_key = config['api'].get('api_key', '')
                 
                 # Get source manager - will use cache or refresh as needed
                 try:

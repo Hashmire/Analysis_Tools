@@ -632,7 +632,7 @@ class SourceDataConcernJSONTestSuite:
         initialize_badge_contents_report(logs_dir)
         
         # Create realistic test data that mirrors actual dashboard usage
-        start_cve_collection("CVE-2024-DASHBOARD-TEST")
+        start_cve_collection("CVE-1337-5000")
         collector = get_badge_contents_collector()
         
         # Simulate real concern types found in actual CVEs

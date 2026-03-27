@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from analysis_tool.logging.workflow_logger import get_logger
 from analysis_tool.storage.run_organization import create_run_directory, get_current_run_paths
-from analysis_tool.core.gatherData import checkSourceCVECount, harvestSourceUUIDs
+from analysis_tool.core.gatherData import checkSourceCVECount, harvestSourceUUIDs, config
 from analysis_tool.reporting.generate_dataset_report import update_harvest_index_incremental
 
 logger = get_logger()
@@ -32,14 +32,6 @@ def get_analysis_tools_root():
     """Get the absolute path to the Analysis_Tools project root"""
     current_file = Path(__file__).resolve()
     return current_file.parent
-
-
-def load_config():
-    """Load configuration from config.json"""
-    config_path = os.path.join(os.path.dirname(__file__), 'config.json')
-    with open(config_path, 'r') as f:
-        return json.load(f)
-
 
 def initialize_source_manager_for_harvest(api_key):
     """
@@ -188,8 +180,7 @@ def main():
     
     # Load configuration first to get defaults
     try:
-        config = load_config()
-        harvest_config = config.get('harvest_and_process_sources', {})
+        harvest_config = config['harvest_and_process_sources']
     except Exception as e:
         logger.warning(f"Could not load config file: {e}", group="INIT")
         harvest_config = {}
@@ -327,7 +318,7 @@ def main():
     api_key = None
     if args.api_key == 'CONFIG_DEFAULT':
         # Parameter provided without value - check config
-        config_key = config.get('api', {}).get('api_key')
+        config_key = config['api'].get('api_key')
         if config_key:
             api_key = config_key
         else:
@@ -341,7 +332,7 @@ def main():
         api_key = args.api_key
     else:
         # No parameter provided - check config
-        config_key = config.get('api', {}).get('api_key')
+        config_key = config['api'].get('api_key')
         if config_key:
             api_key = config_key
         else:

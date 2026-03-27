@@ -24,10 +24,9 @@ from typing import Dict, List, Optional, Any, Tuple
 
 from src.analysis_tool.logging.workflow_logger import get_logger
 from src.analysis_tool.storage.run_organization import get_analysis_tools_root
-from src.analysis_tool.core.analysis_tool import load_config
 from src.analysis_tool.core.gatherData import (
     _save_nvd_cve_to_local_file,
-    _get_cached_config,
+    config,
     _update_cache_metadata,
     _update_manual_refresh_timestamp,
     _get_cache_metadata_last_update,
@@ -283,7 +282,7 @@ def smart_refresh(api_key: Optional[str], args=None, max_workers: int = 20, api_
     # Phase 3: Finalize
     logger.info("\n--- PHASE 3: FINALIZE ---", group="CACHE_MANAGEMENT")
     try:
-        nvd_config = _get_cached_config('nvd_2_0_cve')
+        nvd_config = config['cache_settings']['nvd_2_0_cve']
         nvd_repo_path = nvd_config.get('path', 'cache/nvd_2.0_cves')
         _update_cache_metadata('nvd_2_0_cve', nvd_repo_path)
         logger.info("Cache metadata updated with refresh timestamp", group="CACHE_MANAGEMENT")
@@ -386,8 +385,7 @@ Note: Default behavior is --auto (query from last cache update).
         parser.error("--api-workers must be between 1 and 25")
     
     # Get API key from config
-    config = load_config()
-    api_key = config.get('api', {}).get('api_key')
+    api_key = config['api'].get('api_key')
     if not api_key or api_key == "CONFIG_DEFAULT":
         api_key = None
         logger.warning("No API key configured - refresh will be slower", group="CACHE_MANAGEMENT")

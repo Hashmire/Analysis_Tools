@@ -2,7 +2,7 @@
   "dataType": "CVE_RECORD",
   "dataVersion": "5.1.1",
   "cveMetadata": {
-    "cveId": "CVE-9999-00002",
+    "cveId": "CVE-1337-00002",
     "assignerOrgId": "comparator-detection-test-org-12345",
     "state": "PUBLISHED",
     "assignerShortName": "ComparatorTestOrg",
