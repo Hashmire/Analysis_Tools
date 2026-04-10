@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Test Suite: CPE-AS Automation Report Generation
 
@@ -15,6 +16,12 @@ import tempfile
 import shutil
 from pathlib import Path
 from typing import Dict, Any
+
+# Force UTF-8 output encoding for Windows compatibility
+if sys.platform == 'win32':
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
 # Add project root to path
 project_root = Path(__file__).resolve().parent.parent.parent

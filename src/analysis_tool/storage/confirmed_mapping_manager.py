@@ -84,7 +84,7 @@ class ConfirmedMappingManager:
             from ..storage.nvd_source_manager import get_or_refresh_source_manager
             api_key = config['api'].get('api_key', '')
             
-            # get_or_refresh_source_manager() guarantees initialization or raises exception
+            # get_or_refresh_source_manager() returns initialized manager or raises on missing/corrupted cache with no API key
             self._source_manager = get_or_refresh_source_manager(api_key, log_group="ALIAS_AUDIT")
         else:
             # Verify provided source manager is initialized - fail fast if not

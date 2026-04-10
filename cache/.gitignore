@@ -7,3 +7,8 @@
 # Exception: Track alias_mappings directory and all its contents
 !alias_mappings/
 !alias_mappings/**
+
+# Exception: Track tool specific schemas
+!schemas/
+!schemas/analysis_tool/
+!schemas/analysis_tool/**

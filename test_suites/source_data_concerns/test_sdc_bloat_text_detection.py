@@ -143,7 +143,7 @@ def get_test_cases():
             "vendor": "Test Vendor",
             "product": "Test Product",
             "detectedPattern": "version",
-            "field": "changes[0].at",
+            "field": "versions[0].changes[0].at",
             "sourceValue": "version 5.2.3"
         },
         {

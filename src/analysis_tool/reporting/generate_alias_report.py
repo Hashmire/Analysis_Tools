@@ -50,7 +50,7 @@ Usage:
 import json
 import sys
 import traceback
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -63,6 +63,7 @@ from ..core.platform_entry_registry import (
     ALL_TEXT_COMPARATOR_PATTERNS,
     TEXT_COMPARATOR_REGEX_PATTERNS
 )
+from ..core.cpe_as_generator import validate_cpe_23_format
 from ..core.gatherData import config
 
 logger = get_logger()
@@ -223,17 +224,21 @@ class AliasReportBuilder:
             'cve_ids': set(),
             'source_ids': set()
         })
+        self._cve_nvd_cpe_strings: Dict[str, set] = {}
     
-    def add_cve_aliases(self, cve_id: str, entries: List[Dict]) -> None:
+    def add_cve_aliases(self, cve_id: str, entries: List[Dict], nvd_cpe_set: Optional[set] = None) -> None:
         """
         Process alias extraction data from one CVE's affected entries.
         Groups aliases by organization name (consolidated across all source identifiers).
         Preserves sourceDataConcerns for each alias.
+        Stores NVD CPE base strings for this CVE for later topNvdCpeBaseStrings aggregation.
         
         Args:
             cve_id: CVE identifier
             entries: List of cveListV5AffectedEntries from NVD-ish record
+            nvd_cpe_set: Optional set of NVD-assigned CPE base strings for this CVE
         """
+        self._cve_nvd_cpe_strings[cve_id] = nvd_cpe_set or set()
         entries_by_org = defaultdict(list)
         org_source_ids = {}
         
@@ -334,30 +339,22 @@ class AliasReportBuilder:
     def _generate_alias_key(self, alias: Dict) -> str:
         """
         Generate deduplication key from alias properties.
-        
-        Must match platform_entry_registry._create_alias_data() logic:
-        - Sort keys alphabetically
-        - Exclude 'source_cve' from key
-        - Lowercase all values
-        - Format: 'field1:value1||field2:value2||...'
+
+        Delegates to module-level _build_alias_dedup_key() for a single source of truth.
+        Called before source_cve / _sdc_concerns are added, so only alias fields are present.
         
         Args:
-            alias: Alias dictionary from NVD-ish record
+            alias: Alias dictionary from NVD-ish record (no metadata fields yet)
             
         Returns:
             Deduplication key string
         """
-        key_parts = []
-        for field in sorted(alias.keys()):
-            if field != 'source_cve':
-                value = str(alias[field]).lower()
-                key_parts.append(f"{field}:{value}")
+        return _build_alias_dedup_key(alias)
         
-        return '||'.join(key_parts)
     
     def _extract_alias_concerns(self, alias: Dict, sdc_concerns: Dict) -> Dict:
         """
-        Extract relevant SDC concerns for alias fields (vendor, product, platform, packageName, collectionURL, repo).
+        Extract relevant SDC concerns for alias fields (vendor, product, platform, packageName, collectionURL, packageURL, repo).
         
         Includes ALL concern categories that apply to the alias fields, matching JavaScript detection.
         
@@ -384,6 +381,12 @@ class AliasReportBuilder:
                 elif concern_field == 'product' and alias.get('product') == source_value:
                     alias_relevant.append(concern)
                 elif concern_field == 'packageName' and alias.get('packageName') == source_value:
+                    alias_relevant.append(concern)
+                elif concern_field == 'collectionURL' and alias.get('collectionURL') == source_value:
+                    alias_relevant.append(concern)
+                elif concern_field == 'packageURL' and alias.get('packageURL') == source_value:
+                    alias_relevant.append(concern)
+                elif concern_field == 'repo' and alias.get('repo') == source_value:
                     alias_relevant.append(concern)
                 elif concern_field.startswith('platforms[') or concern_field == 'platform':
                     alias_platform = alias.get('platform') or alias.get('platforms', '')
@@ -431,10 +434,24 @@ class AliasReportBuilder:
             for group_key, aliases in consolidated_groups.items():
                 # Sort aliases by CVE count (most referenced first)
                 aliases.sort(key=lambda x: len(x.get('source_cve', [])), reverse=True)
-                
+
+                # Compute topNvdCpeBaseStrings per-alias (not per-group).
+                # Each alias sees only the CPE base strings assigned by NVD to its own CVEs,
+                # so counts can never exceed that alias's CVE count.
+                for alias in aliases:
+                    alias_cve_ids = set(alias.get('source_cve', []))
+                    cpe_counter: Counter = Counter()
+                    for cve_id in alias_cve_ids:
+                        for cpe in self._cve_nvd_cpe_strings.get(cve_id, set()):
+                            cpe_counter[cpe] += 1
+                    alias['topNvdCpeBaseStrings'] = [
+                        {'cpeBaseString': cpe, 'cveCount': count}
+                        for cpe, count in cpe_counter.most_common(5)
+                    ]
+
                 alias_groups.append({
                     'alias_group': group_key,
-                    'aliases': aliases
+                    'aliases': aliases,
                 })
             
             # Sort alias groups by total alias count (largest first)
@@ -490,6 +507,44 @@ class AliasReportBuilder:
         return per_source_reports
 
 
+def _extract_nvd_cpe_base_strings(configurations: list) -> set:
+    """
+    Extract and normalize NVD-assigned CPE base strings from a record's configurations.
+
+    Iterates configurations → nodes → cpeMatch entries where vulnerable is True.
+    Normalizes each criteria string to a CPE base string by wildcarding only the
+    VERSION (component index 5) and UPDATE (component index 6) attributes, while
+    preserving all other attributes (part, vendor, product, edition, language,
+    sw_edition, target_sw, target_hw, other).
+
+    Criteria strings that do not conform to the CPE 2.3 format (exactly 13
+    colon-separated components) are skipped.
+
+    Args:
+        configurations: The 'configurations' list from an NVD-ish record
+
+    Returns:
+        Set of unique CPE base strings (e.g. 'cpe:2.3:a:vendor:product:*:*:*:*:*:*:*:*')
+    """
+    base_strings = set()
+    for config in configurations:
+        for node in config.get('nodes', []):
+            for match in node.get('cpeMatch', []):
+                if not match.get('vulnerable', False):
+                    continue
+                criteria = match.get('criteria', '')
+                if not criteria:
+                    continue
+                is_valid, _ = validate_cpe_23_format(criteria)
+                if not is_valid:
+                    continue
+                parts = criteria.split(':')
+                parts[5] = '*'  # version
+                parts[6] = '*'  # update
+                base_strings.add(':'.join(parts))
+    return base_strings
+
+
 def scan_nvd_ish_cache(cache_dir: Path) -> List[Path]:
     """
     Scan NVD-ish cache directory for CVE JSON files.
@@ -516,16 +571,20 @@ def scan_nvd_ish_cache(cache_dir: Path) -> List[Path]:
 def extract_aliases_from_record(
     json_file: Path,
     source_uuid_filter: Optional[str] = None
-) -> Tuple[Optional[str], List[Dict]]:
+) -> Tuple[Optional[str], List[Dict], set]:
     """
     Load NVD-ish record and extract alias extraction data.
-    
+
+    Also extracts NVD-assigned CPE base strings from the record's configurations
+    field for use in topNvdCpeBaseStrings aggregation.
+
     Args:
         json_file: Path to NVD-ish JSON file
         source_uuid_filter: Optional source UUID to filter entries
-        
+
     Returns:
-        Tuple of (cve_id, affected_entries_with_aliases) or (None, []) on error
+        Tuple of (cve_id, affected_entries_with_aliases, nvd_cpe_base_strings)
+        or (None, [], set()) on error
     """
     try:
         with open(json_file, 'r', encoding='utf-8') as f:
@@ -535,13 +594,15 @@ def extract_aliases_from_record(
         if not cve_id:
             if logger:
                 logger.warning(f"No CVE ID found in {json_file.name}", group="ALIAS_REPORT")
-            return None, []
-        
+            return None, [], set()
+
+        nvd_cpe_set = _extract_nvd_cpe_base_strings(record.get('configurations', []))
+
         enriched = record.get('enrichedCVEv5Affected', {})
         if not enriched:
             if logger:
                 logger.debug(f"No enrichedCVEv5Affected in {cve_id}", group="ALIAS_REPORT")
-            return cve_id, []
+            return cve_id, [], nvd_cpe_set
         
         entries = enriched.get('cveListV5AffectedEntries', [])
         
@@ -555,18 +616,18 @@ def extract_aliases_from_record(
                 if source_id == source_uuid_filter:
                     filtered_entries.append(entry)
             
-            return cve_id, filtered_entries
+            return cve_id, filtered_entries, nvd_cpe_set
         
-        return cve_id, entries
+        return cve_id, entries, nvd_cpe_set
         
     except json.JSONDecodeError as e:
         if logger:
             logger.warning(f"Invalid JSON in {json_file.name}: {e}", group="ALIAS_REPORT")
-        return None, []
+        return None, [], set()
     except Exception as e:
         if logger:
             logger.warning(f"Failed to process {json_file.name}: {e}", group="ALIAS_REPORT")
-        return None, []
+        return None, [], set()
 
 
 def _has_alias_concerns(alias: dict) -> bool:
@@ -589,10 +650,12 @@ def _has_alias_concerns(alias: dict) -> bool:
     VALID_VERSION_PATTERN = re.compile(r'^(\*|[a-zA-Z0-9]+[-*_:.+()~a-zA-Z0-9]*)$')
     INVALID_CHARS_FINDER = re.compile(r'[^a-zA-Z0-9\-*_:.+()~]')
     
-    # === FIELD LIST (matching JavaScript aliasFields) ===
-    fields_to_check = ['vendor', 'product', 'platform', 'packageName', 'collectionURL', 'repo']
+    # === FIELD LISTS (matching JavaScript aliasFields / identifierFields) ===
+    # URL fields (collectionURL, packageURL, repo) are exempt from invalidCharacters check.
+    alias_fields = ['vendor', 'product', 'platform', 'packageName', 'collectionURL', 'packageURL', 'repo']
+    identifier_fields = ['vendor', 'product', 'platform', 'packageName']
     
-    for field_name in fields_to_check:
+    for field_name in alias_fields:
         field_value = alias.get(field_name, '')
         if not field_value or not isinstance(field_value, str):
             continue
@@ -621,11 +684,13 @@ def _has_alias_concerns(alias: dict) -> bool:
             if regex_pattern['pattern'].search(field_value):
                 return True
         
-        # === 4. INVALID CHARACTER DETECTION ===
-        if not VALID_VERSION_PATTERN.match(field_value) and field_value != '*':
-            invalid_chars = INVALID_CHARS_FINDER.findall(field_value)
-            if invalid_chars:
-                return True
+        # === 4. INVALID CHARACTER DETECTION (identifier fields only) ===
+        # URL fields intentionally excluded: collectionURL, packageURL, repo contain '/' by design.
+        if field_name in identifier_fields:
+            if not VALID_VERSION_PATTERN.match(field_value) and field_value != '*':
+                invalid_chars = INVALID_CHARS_FINDER.findall(field_value)
+                if invalid_chars:
+                    return True
     
     # === 5. BLOAT TEXT DETECTION (vendor redundancy) ===
     vendor = alias.get('vendor', '')
@@ -647,6 +712,35 @@ def _has_alias_concerns(alias: dict) -> bool:
                     return True
     
     return False
+
+
+def _build_alias_dedup_key(alias: dict) -> str:
+    """
+    Build a canonical deduplication key from all alias properties.
+
+    Matches the JavaScript buildAliasDedupKey() logic in the template:
+    - Excludes metadata-only fields (source_cve, _sdc_concerns)
+    - Sorts fields alphabetically
+    - Lowercases all values
+    - Joins with '||'
+
+    Args:
+        alias: Alias dictionary (may contain source_cve / _sdc_concerns tracking fields)
+
+    Returns:
+        Deduplication key string
+    """
+    _exclude = {'source_cve', '_sdc_concerns'}
+    key_parts = []
+    for field in sorted(alias.keys()):
+        if field not in _exclude:
+            value = alias[field]
+            if isinstance(value, list):
+                value = '|'.join(sorted(str(v).lower() for v in value))
+            else:
+                value = str(value).lower()
+            key_parts.append(f"{field}:{value}")
+    return '||'.join(key_parts)
 
 
 def calculate_alias_statistics(report_data: dict) -> dict:
@@ -675,11 +769,7 @@ def calculate_alias_statistics(report_data: dict) -> dict:
     
     for group in alias_groups:
         for alias in group.get('aliases', []):
-            vendor = alias.get('vendor', '').strip()
-            product = alias.get('product', '').strip()
-            platform = alias.get('platform', alias.get('platforms', '')).strip()
-            key = f"{vendor.lower()}:{product.lower()}:{platform.lower()}"
-            
+            key = _build_alias_dedup_key(alias)
             unconfirmed_aliases.append(alias)
             unconfirmed_keys.add(key)
     
@@ -688,11 +778,7 @@ def calculate_alias_statistics(report_data: dict) -> dict:
     
     for mapping in confirmed_mappings:
         for alias in mapping.get('aliases', []):
-            vendor = alias.get('vendor', '').strip()
-            product = alias.get('product', '').strip()
-            platform = alias.get('platform', alias.get('platforms', '')).strip()
-            key = f"{vendor.lower()}:{product.lower()}:{platform.lower()}"
-            
+            key = _build_alias_dedup_key(alias)
             confirmed_aliases.append(alias)
             confirmed_keys.add(key)
     
@@ -708,11 +794,7 @@ def calculate_alias_statistics(report_data: dict) -> dict:
     unconfirmed_with_concerns = 0
     unconfirmed_count = 0
     for alias in unconfirmed_aliases:
-        vendor = alias.get('vendor', '').strip()
-        product = alias.get('product', '').strip()
-        platform = alias.get('platform', alias.get('platforms', '')).strip()
-        key = f"{vendor.lower()}:{product.lower()}:{platform.lower()}"
-        
+        key = _build_alias_dedup_key(alias)
         if key in actual_unconfirmed_keys:
             unconfirmed_count += 1
             if _has_alias_concerns(alias):
@@ -795,15 +877,20 @@ def generate_report(
         
         # Get source manager using intelligent cache management
         source_manager = get_or_refresh_source_manager(api_key, log_group="ALIAS_REPORT")
-    except ImportError:
+    except ImportError as e:
         if logger:
-            logger.warning("Source manager module not available - organization UUIDs will be displayed as-is", group="ALIAS_REPORT")
-        source_manager = None
+            logger.error(f"Source manager dependencies not available: {e}", group="ALIAS_REPORT")
+        raise ImportError(f"Required dependencies for source manager not available: {e}")
+    except ValueError:
+        # No usable cache (missing or corrupted) and no API key - hard failure for alias reports.
+        # Unlike SDC/cpeas, the alias report uses source data to validate confirmed mapping files
+        # for data integrity, not just for display labels. It cannot degrade to UUID-only output.
+        raise
     except Exception as e:
         if logger:
-            logger.warning(f"Source manager initialization failed: {e}", group="ALIAS_REPORT")
-            logger.debug(f"Source manager error details: {e.__class__.__name__}", group="ALIAS_REPORT")
-        source_manager = None
+            logger.error(f"Source manager initialization failed: {e}", group="ALIAS_REPORT")
+            logger.debug(f"Traceback: {__import__('traceback').format_exc()}", group="ALIAS_REPORT")
+        raise RuntimeError(f"Failed to initialize source manager: {e}")
     
     # Initialize confirmed mapping manager (REQUIRED for alias reports)
     mapping_manager = None
@@ -813,14 +900,6 @@ def generate_report(
         mapping_manager = get_global_mapping_manager()
         
         if not mapping_manager.is_initialized():
-            if not source_manager or not source_manager.is_initialized():
-                if logger:
-                    logger.error("Cannot initialize confirmed mapping manager - source manager not available", group="ALIAS_REPORT")
-                raise RuntimeError(
-                    "Source manager must be initialized before confirmed mapping manager. "
-                    "Unable to generate alias report without mapping manager."
-                )
-            
             mapping_manager.initialize(source_manager=source_manager)
             if not mapping_manager.is_initialized():
                 if logger:
@@ -851,7 +930,7 @@ def generate_report(
     aliases_found_count = 0
     
     for idx, json_file in enumerate(json_files, 1):
-        cve_id, entries = extract_aliases_from_record(json_file, source_uuid_filter=source_uuid)
+        cve_id, entries, nvd_cpe_set = extract_aliases_from_record(json_file, source_uuid_filter=source_uuid)
         
         if cve_id is None:
             skipped_count += 1
@@ -863,7 +942,7 @@ def generate_report(
         )
         
         if has_aliases:
-            builder.add_cve_aliases(cve_id, entries)
+            builder.add_cve_aliases(cve_id, entries, nvd_cpe_set)
             aliases_found_count += 1
         
         processed_count += 1
@@ -1393,11 +1472,17 @@ Examples:
         
         return 0
         
+    except ValueError:
+        logger.error(
+            "NVD source cache missing/corrupted with no API key — alias report cannot run. "
+            "Source data is required for mapping file validation. "
+            "Add api.api_key to config.json or restore the cache.",
+            group="ALIAS_REPORT"
+        )
+        return 1
     except Exception as e:
-        if logger:
-            logger.error(f"Report generation failed: {e}", group="ALIAS_REPORT")
-        print(f"\nError: {e}", file=sys.stderr)
-        traceback.print_exc()
+        logger.error(f"Report generation failed: {e}", group="ALIAS_REPORT")
+        logger.debug(f"Traceback: {traceback.format_exc()}", group="ALIAS_REPORT")
         return 1
 
 

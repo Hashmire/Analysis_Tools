@@ -146,7 +146,7 @@ def get_test_cases():
         },
         {
             "description": "Pattern 'any version' in changes.at field",
-            "expected_field": "changes[0].at",
+            "expected_field": "versions[0].changes[0].at",
             "expected_source_value": "any version",
             "expected_detected_value": "any version",
             "expected_concerns": 1,
@@ -170,7 +170,7 @@ def get_test_cases():
         },
         {
             "description": "Pattern 'any' in changes.at field",
-            "expected_field": "changes[0].at",
+            "expected_field": "versions[0].changes[0].at",
             "expected_source_value": "any",
             "expected_detected_value": "any",
             "expected_concerns": 1,

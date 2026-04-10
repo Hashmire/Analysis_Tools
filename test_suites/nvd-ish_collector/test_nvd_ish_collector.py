@@ -205,13 +205,16 @@ class NVDishCollectorTestSuite:
         else:
             print(f"  [WARNING] Test mapping file not found: {test_mapping_source_3002}")
         
-        # Inject test source data into NVD source cache for confirmed mapping validation
+        # Build an isolated copy of the NVD source cache with test entries appended.
+        # The copy is placed under temp_test_caches so the production
+        # nvd_source_data.json is NEVER modified.
         source_cache_path = PROJECT_ROOT / "cache" / "nvd_source_data.json"
+        test_source_cache_path = self.test_cache_dir / "test_nvd_source_data.json"
         if source_cache_path.exists():
             try:
                 with open(source_cache_path, 'r', encoding='utf-8') as f:
                     source_data = json.load(f)
-                
+
                 # Add test source entries if not already present
                 test_sources = [
                     {
@@ -225,25 +228,24 @@ class NVDishCollectorTestSuite:
                         "sourceIdentifiers": ["bbbbbbbb-cccc-dddd-eeee-ffffffffffff", "testorg@example.com", "testorg"]
                     }
                 ]
-                
-                # Use correct cache structure key: 'source_data' not 'sources'
+
                 existing_identifiers = {
-                    identifier 
-                    for s in source_data.get('source_data', []) 
+                    identifier
+                    for s in source_data.get('source_data', [])
                     for identifier in s.get('sourceIdentifiers', [])
                 }
                 for test_source in test_sources:
-                    # Check if any of this test source's identifiers already exist
                     if not any(ident in existing_identifiers for ident in test_source['sourceIdentifiers']):
                         source_data.setdefault('source_data', []).append(test_source)
-                
-                # Write back with test sources
-                with open(source_cache_path, 'w', encoding='utf-8') as f:
+
+                with open(test_source_cache_path, 'w', encoding='utf-8') as f:
                     json.dump(source_data, f, indent=2)
-                
-                print(f"  * Injected test source data into NVD source cache")
+
+                # Point subprocesses at the isolated copy via env var
+                os.environ['NVD_SOURCE_CACHE_FILE'] = str(test_source_cache_path)
+                print(f"  * Created isolated test source cache")
             except Exception as e:
-                print(f"  [WARNING] Failed to inject test source data: {e}")
+                print(f"  [WARNING] Failed to create isolated test source cache: {e}")
         
         # Inject isolated test CPE cache entries to avoid NVD API calls
         self._inject_cpe_cache_data()
@@ -498,36 +500,14 @@ class NVDishCollectorTestSuite:
             print(f"  [OK] Removed test mapping file: {test_mapping_3002.name}")
         
         # Remove test source data from NVD source cache
-        source_cache_path = PROJECT_ROOT / "cache" / "nvd_source_data.json"
-        if source_cache_path.exists():
-            try:
-                with open(source_cache_path, 'r', encoding='utf-8') as f:
-                    source_data = json.load(f)
-                
-                # Remove test source identifiers
-                test_identifiers = {
-                    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-                    "test@example.com", 
-                    "bbbbbbbb-cccc-dddd-eeee-ffffffffffff",
-                    "testorg@example.com"
-                }
-                original_count = len(source_data.get('source_data', []))
-                
-                # Remove sources that have ANY test identifiers
-                source_data['source_data'] = [
-                    s for s in source_data.get('source_data', [])
-                    if not any(ident in test_identifiers for ident in s.get('sourceIdentifiers', []))
-                ]
-                
-                removed = original_count - len(source_data['source_data'])
-                
-                if removed > 0:
-                    with open(source_cache_path, 'w', encoding='utf-8') as f:
-                        json.dump(source_data, f, indent=2)
-                    print(f"  [OK] Removed {removed} test source entries from NVD source cache")
-            except Exception as e:
-                print(f"  [WARNING] Failed to clean test source data: {e}")
-        
+        test_source_cache_path_str = os.environ.pop('NVD_SOURCE_CACHE_FILE', None)
+        if test_source_cache_path_str:
+            test_source_cache_path = Path(test_source_cache_path_str)
+            if test_source_cache_path.exists():
+                test_source_cache_path.unlink()
+                removed_count += 1
+                print(f"  [OK] Removed isolated test source cache")
+
         # Also clean up any other leftover active mapping files (in case of test failures)
         if mappings_dir.exists():
             for active_mapping in mappings_dir.glob("*_active.json"):

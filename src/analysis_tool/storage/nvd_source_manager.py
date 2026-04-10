@@ -536,7 +536,7 @@ def get_or_refresh_source_manager(api_key: str, log_group: str = "CACHE_MANAGEME
         Initialized GlobalNVDSourceManager instance
         
     Raises:
-        ValueError: If API key is missing when refresh is needed
+        ValueError: If API key is missing AND no usable cache exists (missing or corrupted)
         RuntimeError: If cache is corrupted or initialization fails
         ImportError: If required dependencies (pandas) are not available
     """
@@ -555,7 +555,14 @@ def get_or_refresh_source_manager(api_key: str, log_group: str = "CACHE_MANAGEME
     # Determine project root and cache paths
     current_file = Path(__file__).resolve()
     project_root = current_file.parent.parent.parent.parent
-    cache_file = project_root / "cache" / "nvd_source_data.json"
+    # Allow tests to redirect to an isolated copy without touching production data
+    _env_cache_file = os.environ.get('NVD_SOURCE_CACHE_FILE')
+    if _env_cache_file:
+        cache_file = Path(_env_cache_file)
+        if not cache_file.is_absolute():
+            cache_file = project_root / cache_file
+    else:
+        cache_file = project_root / "cache" / "nvd_source_data.json"
     cache_metadata_file = project_root / "cache" / "cache_metadata.json"
     
     should_refresh = True
@@ -625,7 +632,20 @@ def get_or_refresh_source_manager(api_key: str, log_group: str = "CACHE_MANAGEME
     # Refresh cache if needed (stale, corrupted, or missing)
     if should_refresh:
         if not api_key:
-            raise ValueError("NVD API key required to refresh cache but not provided")
+            if cache_data is not None:
+                # Stale but structurally valid cache — warn and use it rather than failing
+                logger.warning(
+                    "NVD source cache is stale and no API key is configured — using stale data. "
+                    "Set api.api_key in config.json to enable automatic refresh.",
+                    group=log_group
+                )
+                sources_df = pd.DataFrame(cache_data['source_data'])
+                source_manager.initialize(sources_df)
+                logger.info(f"Source manager initialized with {source_manager.get_source_count()} sources (from stale cache)", group=log_group)
+                return source_manager
+            else:
+                # No usable cache at all (missing or corrupted) and no API key — hard fail
+                raise ValueError("NVD API key required to refresh cache but not provided")
         
         logger.info(f"Fetching fresh NVD source data from API...", group=log_group)
         source_data = gatherNVDSourceData(api_key)

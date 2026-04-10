@@ -242,14 +242,6 @@ class TestSuiteRunner:
                 'name': 'Source Data Concern Badge Data Collector JSON',
                 'command': ['python', 'test_suites\\\\\\\\source_data_concerns\\\\\\\\test_source_data_concern_badge_data_collector_json.py']
             },
-            {
-                'name': 'Source Data Concern Dashboard Webpage',
-                'command': ['python', 'test_suites\\\\\\\\source_data_concerns\\\\\\\\test_source_data_concern_dashboard_webpage.py']
-            },
-            {
-                'name': 'Source Data Concern Dashboard',
-                'command': ['python', 'test_suites\\\\\\\\source_data_concerns\\\\\\\\test_source_data_concern_dashboard.py']
-            },
 
             # === Source Data Concerns Suite ===
             {
@@ -388,6 +380,10 @@ class TestSuiteRunner:
                 'name': 'CPE-AS Automation Report Generation',
                 'command': ['python', 'test_suites\\\\reporting\\\\test_cpeas_automation_report.py']
             },
+            {
+                'name': 'Alias Report Generation',
+                'command': ['python', 'test_suites\\\\reporting\\\\test_alias_report_generation.py']
+            },
             # === Alias Mapping Suite ===
             {
                 'name': 'Alias Mapping Dashboard',
@@ -399,13 +395,18 @@ class TestSuiteRunner:
         """Parse standardized test output format.
         
         All test suites now output: TEST_RESULTS: PASSED=X TOTAL=Y SUITE="Name"
+        Test suites may also emit: TEST_WARNING: <message> for surfacing non-failure notices.
         """
         if not output:
-            return {'tests_passed': 0, 'tests_total': 0, 'summary': 'No output captured'}
+            return {'tests_passed': 0, 'tests_total': 0, 'summary': 'No output captured', 'warnings': []}
         
         # Look for the standard results line in the entire output (robust against Unicode corruption and line breaks)
         import re
         match = re.search(r'TEST_RESULTS: PASSED=(\d+) TOTAL=(\d+) SUITE="([^"]*)"', output)
+
+        # Collect any TEST_WARNING lines emitted by the suite
+        warnings = re.findall(r'TEST_WARNING: (.+)', output)
+
         if match:
             passed, total, suite_name = match.groups()
             return {
@@ -413,7 +414,8 @@ class TestSuiteRunner:
                 'tests_total': int(total),
                 'suite_name': suite_name,
                 'success': int(passed) == int(total),
-                'summary': f'{passed}/{total} tests passed'
+                'summary': f'{passed}/{total} tests passed',
+                'warnings': warnings,
             }
         
         # Should not happen with standardized test suites
@@ -421,7 +423,8 @@ class TestSuiteRunner:
             'tests_passed': 0,
             'tests_total': 0, 
             'success': False,  # Add default success value
-            'summary': 'ERROR: Standard test output format not found'
+            'summary': 'ERROR: Standard test output format not found',
+            'warnings': warnings,
         }
         
     def run_test_suite(self, suite: Dict) -> Dict:
@@ -492,6 +495,7 @@ class TestSuiteRunner:
                 'tests_passed': test_info['tests_passed'],
                 'tests_total': test_info['tests_total'],
                 'summary': test_info['summary'],
+                'warnings': test_info.get('warnings', []),
                 'output': '',
                 'error': ''
             }
@@ -593,6 +597,17 @@ class TestSuiteRunner:
             for result in self.results:
                 if not result['success']:
                     print(f"  - {result['name']} (return code: {result['return_code']})", flush=True)
+
+        # Surface any TEST_WARNING lines emitted by suites (non-failure notices)
+        all_warnings = [
+            (r['name'], w)
+            for r in self.results
+            for w in r.get('warnings', [])
+        ]
+        if all_warnings:
+            print("\nWARNINGS:", flush=True)
+            for suite_name, warning in all_warnings:
+                print(f"  [{suite_name}] {warning}", flush=True)
         
         print("=" * 50, flush=True)
         

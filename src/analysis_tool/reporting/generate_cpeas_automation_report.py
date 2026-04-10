@@ -35,6 +35,7 @@ Usage:
 
 import json
 import sys
+import traceback
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Any
@@ -322,6 +323,22 @@ class CPEASAutomationReportBuilder:
                     })
                     cpe_as_breakdown['none'] += 1
         
+        # Check if the affected entry has Source Data Concerns and inject sdcDetected.
+        # Non-actionable versions are a sub-class of SDC detections and retain their
+        # existing 'nonActionable' status without being additionally flagged.
+        sdc_data = entry.get('sourceDataConcerns', {})
+        sdc_concerns_data = sdc_data.get('concerns', {})
+        if any(v for v in sdc_concerns_data.values() if isinstance(v, list)):
+            sdc_injected = False
+            for version_entry in versions:
+                if version_entry['cpe_as_status'] == 'nonActionable':
+                    continue  # Non-actionable is its own SDC sub-class; leave untouched
+                if 'sdcDetected' not in version_entry['concerns']:
+                    version_entry['concerns'] = list(version_entry['concerns']) + ['sdcDetected']
+                sdc_injected = True
+            if sdc_injected:
+                concerns_summary_set.add('sdcDetected')
+
         metrics['cpe_as_breakdown'] = cpe_as_breakdown
         metrics['pattern_usage'] = pattern_usage
         metrics['concerns_summary'] = sorted(list(concerns_summary_set))
@@ -890,9 +907,20 @@ def generate_report(
         from ..storage.nvd_source_manager import get_or_refresh_source_manager
         api_key = config['api'].get('api_key', '')
         source_manager = get_or_refresh_source_manager(api_key, log_group="DATA_PROC")
-    except Exception as e:
+    except ImportError as e:
+        # Missing dependencies - hard failure, builder cannot function without them
         if logger:
-            logger.warning(f"Source manager unavailable: {e}", group="DATA_PROC")
+            logger.error(f"Source manager dependencies not available: {e}", group="DATA_PROC")
+        raise ImportError(f"Required dependencies for source manager not available: {e}")
+    except ValueError:
+        # No usable cache (missing or corrupted) and no API key - degrade gracefully, source names will show as UUIDs
+        if logger:
+            logger.warning("NVD source cache missing/corrupted with no API key — source names will display as UUIDs.", group="DATA_PROC")
+    except Exception as e:
+        # Unexpected error - degrade gracefully, source names will show as UUIDs
+        if logger:
+            logger.warning(f"Source manager unavailable: {e} — source names will display as UUIDs", group="DATA_PROC")
+            logger.debug(f"Traceback: {__import__('traceback').format_exc()}", group="DATA_PROC")
     
     # Scan cache
     builder = CPEASAutomationReportBuilder(source_manager=source_manager)
@@ -1092,10 +1120,12 @@ def main():
         )
         print(f"Report generated successfully: {index_path}")
         return 0
+    except ValueError as e:
+        logger.error(f"Report generation failed due to invalid configuration or missing data: {e}", group="DATA_PROC")
+        return 1
     except Exception as e:
-        print(f"Error generating report: {e}", file=sys.stderr)
-        if logger:
-            logger.error(f"Report generation failed: {e}", group="DATA_PROC")
+        logger.error(f"Report generation failed: {e}", group="DATA_PROC")
+        logger.debug(f"Traceback: {traceback.format_exc()}", group="DATA_PROC")
         return 1
 
 

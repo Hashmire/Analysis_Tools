@@ -897,6 +897,89 @@ body::before {
     gap: 8px;
 }
 
+/* Applied when the year-filter row is shown below */
+.filter-container.connected {
+    border-radius: 4px 4px 0 0;
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.filter-pill-row {
+    background: rgba(248, 250, 252, 0.8);
+    padding: 8px 16px;
+    border-radius: 0 0 4px 4px;
+    border: 1px solid #ddd;
+    border-top: 1px solid #e8e8e8;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* Applied when another filter row is shown below */
+.filter-pill-row.connected {
+    border-radius: 0;
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.filter-pills-container {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.filter-pill {
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 0.8em;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+    user-select: none;
+    line-height: 1.6;
+}
+
+.filter-pill.active {
+    background: #4CAF50;
+    color: white;
+    border-color: #4CAF50;
+}
+
+.filter-pill.active:hover {
+    background: #43A047;
+    border-color: #43A047;
+}
+
+.filter-pill.inactive {
+    background: #f0f0f0;
+    color: #aaa;
+    border-color: #ddd;
+    text-decoration: line-through;
+}
+
+.filter-pill.inactive:hover {
+    background: #e8f5e9;
+    color: #4CAF50;
+    border-color: #a5d6a7;
+    text-decoration: none;
+}
+
+.filter-pill:not(.active):not(.inactive) {
+    background: #f0f0f0;
+    color: #555;
+    border-color: #ccc;
+}
+
+.filter-pill:not(.active):not(.inactive):hover {
+    background: #e8f5e9;
+    color: #4CAF50;
+    border-color: #a5d6a7;
+}
+
 .alias-selection-checkbox {
     margin-right: 8px;
     transform: scale(1.2);
@@ -1645,4 +1728,44 @@ body::before {
     .file-selector {
         padding: 16px 20px;
     }
+}
+
+/* ========== NVD CPE BASE STRINGS SECTION ========== */
+.nvd-cpe-section {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #E0E0E0;
+}
+
+.nvd-cpe-section-label {
+    margin-bottom: 5px;
+    font-size: 0.9em;
+}
+
+.nvd-cpe-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 2px 0;
+    font-size: 0.82em;
+}
+
+.nvd-cpe-rank {
+    color: #9E9E9E;
+    min-width: 14px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.nvd-cpe-string {
+    font-family: monospace;
+    flex: 1;
+    color: #333;
+    word-break: break-all;
+}
+
+.nvd-cpe-count {
+    color: #757575;
+    white-space: nowrap;
+    flex-shrink: 0;
 }

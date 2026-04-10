@@ -144,7 +144,7 @@ def get_test_cases():
             "table_index": 7,
             "affected_entry": {"vendor": "Test Vendor", "product": "Test Product", "versions": [{"version": "9.0.0", "changes": [{"at": "=10.0.0", "status": "unaffected"}]}]},
             "expected_concerns": 1,
-            "expected_field": "changes[0].at",
+            "expected_field": "versions[0].changes[0].at",
             "expected_source_value": "=10.0.0",
             "expected_detected_value": "="
         },
@@ -171,7 +171,7 @@ def get_test_cases():
             "table_index": 10,
             "affected_entry": {"vendor": "Test Vendor", "product": "Test Product", "versions": [{"version": "5.0.0", "changes": [{"at": ">6.0.0", "status": "unaffected"}, {"at": "<=7.0.0", "status": "unaffected"}, {"at": "!=8.0.0", "status": "unaffected"}]}]},
             "expected_concerns": 3,
-            "expected_fields": ["changes[0].at", "changes[1].at", "changes[2].at"],
+            "expected_fields": ["versions[0].changes[0].at", "versions[0].changes[1].at", "versions[0].changes[2].at"],
             "expected_source_values": [">6.0.0", "<=7.0.0", "!=8.0.0"],
             "expected_detected_values": [">", "<, =, <=", "=, !="]
         },
@@ -180,7 +180,7 @@ def get_test_cases():
             "table_index": 11,
             "affected_entry": {"vendor": "Test Vendor", "product": "Test Product", "packageName": "lib=core", "platforms": ["<win32", ">=linux"], "versions": [{"version": "<1.0.0", "lessThan": ">2.0.0", "lessThanOrEqual": "=<3.0.0", "changes": [{"at": "!=4.0.0", "status": "unaffected"}, {"at": "=5.0.0", "status": "unaffected"}]}, {"version": ">=6.0.0", "lessThan": "<=7.0.0", "lessThanOrEqual": "=>8.0.0", "changes": [{"at": "<9.0.0", "status": "unaffected"}, {"at": ">=10.0.0", "status": "unaffected"}]}]},
             "expected_concerns": 13,
-            "expected_fields": ["packageName", "platforms[0]", "platforms[1]", "version", "lessThan", "lessThanOrEqual", "changes[0].at", "changes[1].at", "version", "lessThan", "lessThanOrEqual", "changes[0].at", "changes[1].at"],
+            "expected_fields": ["packageName", "platforms[0]", "platforms[1]", "version", "lessThan", "lessThanOrEqual", "versions[0].changes[0].at", "versions[0].changes[1].at", "version", "lessThan", "lessThanOrEqual", "versions[1].changes[0].at", "versions[1].changes[1].at"],
             "expected_source_values": ["lib=core", "<win32", ">=linux", "<1.0.0", ">2.0.0", "=<3.0.0", "!=4.0.0", "=5.0.0", ">=6.0.0", "<=7.0.0", "=>8.0.0", "<9.0.0", ">=10.0.0"],
             "expected_detected_values": ["=", "<", ">, =, >=", "<", ">", "<, =, =<", "=, !=", "=", ">, =, >=", "<, =, <=", ">, =, =>", "<", ">, =, >="]
         }

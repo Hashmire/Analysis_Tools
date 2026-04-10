@@ -1730,7 +1730,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                     
                                     detected_pattern = next(v for v in VERSION_PLACEHOLDER_VALUES if v.lower() == field_value_lower)
                                     concerns_data["placeholderData"].append({
-                                        "field": f"changes[{idx}].at",
+                                        "field": f"versions[{version_idx}].changes[{idx}].at",
                                         "sourceValue": change_at_value,
                                         "detectedPattern": {"detectedValue": detected_pattern}
                                     })
@@ -1793,7 +1793,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
         version_granularities = {}  # base_version -> {granularity: [ {field: value}, ... ]}
         version_fields = ['version', 'lessThan', 'lessThanOrEqual']
         
-        for version_entry in curated_platform_data['versions']:
+        for version_idx, version_entry in enumerate(curated_platform_data['versions']):
             if isinstance(version_entry, dict):
                 # Check standard version fields
                 for field in version_fields:
@@ -1841,7 +1841,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                         if granularity not in version_granularities[major_version]:
                                             version_granularities[major_version][granularity] = []
                                         version_granularities[major_version][granularity].append({
-                                            "field": f"changes[{idx}].at",
+                                            "field": f"versions[{version_idx}].changes[{idx}].at",
                                             "sourceValue": version_str
                                         })
         
@@ -1994,7 +1994,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                     register_field_skip(normalized_field, "math_comparators", set(['<', '>', '=', '!']))
                                     
                                     concerns_data["mathematicalComparators"].append({
-                                        "field": f"changes[{idx}].at",
+                                        "field": f"versions[{version_idx}].changes[{idx}].at",
                                         "sourceValue": change_at_value,
                                         "detectedPattern": {"detectedValue": ', '.join(matching_comparators)}
                                     })
@@ -2075,7 +2075,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                             register_field_skip(normalized_field, "text_regex", True)
                                             
                                             concerns_data["textComparators"].append({
-                                                "field": f"changes[{idx}].at",
+                                                "field": f"versions[{version_idx}].changes[{idx}].at",
                                                 "sourceValue": change_at_value,
                                                 "detectedPattern": {
                                                     "detectedValue": pattern,
@@ -2093,7 +2093,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                         register_field_skip(normalized_field, "text_regex", True)
                                         
                                         concerns_data["textComparators"].append({
-                                            "field": f"changes[{idx}].at",
+                                            "field": f"versions[{version_idx}].changes[{idx}].at",
                                             "sourceValue": change_at_value,
                                             "detectedPattern": {
                                                 "detectedValue": match.group(0),
@@ -2118,7 +2118,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                                 register_field_skip(normalized_field, "text_regex", True)
                                             
                                             concerns_data["textComparators"].append({
-                                                "field": f"changes[{idx}].status",
+                                                "field": f"versions[{version_idx}].changes[{idx}].status",
                                                 "sourceValue": change_status_value,
                                                 "detectedPattern": {
                                                     "detectedValue": pattern,
@@ -2136,7 +2136,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                         register_field_skip(normalized_field, "text_regex", True)
                                         
                                         concerns_data["textComparators"].append({
-                                            "field": f"changes[{idx}].status",
+                                            "field": f"versions[{version_idx}].changes[{idx}].status",
                                             "sourceValue": change_status_value,
                                             "detectedPattern": {
                                                 "detectedValue": match.group(0),
@@ -2153,7 +2153,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     if 'versions' in curated_platform_data and isinstance(curated_platform_data['versions'], list):
         version_fields = ['version', 'lessThan', 'lessThanOrEqual']
         
-        for version_entry in curated_platform_data['versions']:
+        for version_idx, version_entry in enumerate(curated_platform_data['versions']):
             if isinstance(version_entry, dict):
                 # Check standard version fields
                 for field in version_fields:
@@ -2182,7 +2182,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                 for pattern in ALL_VERSION_VALUES:
                                     if field_lower == pattern.lower():
                                         concerns_data["allVersionsPatterns"].append({
-                                            "field": f"changes[{idx}].at",
+                                            "field": f"versions[{version_idx}].changes[{idx}].at",
                                             "sourceValue": change_at_value,
                                             "detectedPattern": {"detectedValue": pattern}
                                         })
@@ -2194,7 +2194,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     
     # Check for bloat text patterns in version fields
     if curated_platform_data.get('versions'):
-        for version_entry in curated_platform_data['versions']:
+        for version_idx, version_entry in enumerate(curated_platform_data['versions']):
             if isinstance(version_entry, dict):
                 # Check standard version fields
                 for field in version_fields:
@@ -2230,7 +2230,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                     pattern = r'\b' + re.escape(bloat_text.lower()) + r'\b'
                                     if re.search(pattern, field_lower):
                                         concerns_data["bloatTextDetection"].append({
-                                            "field": f"changes[{idx}].at",
+                                            "field": f"versions[{version_idx}].changes[{idx}].at",
                                             "sourceValue": change_at_value,
                                             "detectedPattern": {"detectedValue": bloat_text}
                                         })
@@ -2243,7 +2243,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     
     # Check for bloat text patterns in version fields
     if curated_platform_data.get('versions'):
-        for version_entry in curated_platform_data['versions']:
+        for version_idx, version_entry in enumerate(curated_platform_data['versions']):
             if isinstance(version_entry, dict):
                 # Check standard version fields
                 for field in version_fields:
@@ -2279,7 +2279,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                     pattern = r'\b' + re.escape(bloat_text.lower()) + r'\b'
                                     if re.search(pattern, field_lower):
                                         concerns_data["bloatTextDetection"].append({
-                                            "field": f"changes[{idx}].at",
+                                            "field": f"versions[{version_idx}].changes[{idx}].at",
                                             "sourceValue": change_at_value,
                                             "detectedPattern": {"detectedValue": bloat_text}
                                         })
@@ -2594,7 +2594,7 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
                                         # Use proper format for individual invalid characters
                                         for invalid_char in filtered_chars:
                                             concerns_data["invalidCharacters"].append({
-                                                "field": f"changes[{change_idx}].at",
+                                                "field": f"versions[{version_idx}].changes[{change_idx}].at",
                                                 "sourceValue": change_at_value,
                                                 "detectedPattern": {"detectedValue": invalid_char}
                                             })
@@ -2766,7 +2766,7 @@ def _create_alias_data(affected_item: Dict, vendor: str = None, product: str = N
     
     # Additional CVE 5.X fields - only include if they exist and are meaningful  
     # Note: defaultStatus is excluded as it doesn't represent alias data (curator pattern)
-    additional_fields = ['collectionURL', 'packageName', 'repo']
+    additional_fields = ['collectionURL', 'packageName', 'packageURL', 'repo']
     
     for field_name in additional_fields:
         if field_name in affected_item:

@@ -1,10 +1,12 @@
 runs/*
 .github/copilot-instructions.md
 
-# Cache directory: Keep structure but ignore contents (except alias_mappings)
+# Cache directory: 
 cache/*
 !cache/.gitignore
 !cache/alias_mappings/
+!cache/schemas/analysis_tool/
+!cache/schemas/
 
 # Keep pycaches but ignore their contents
 __pycache__/*

@@ -178,7 +178,7 @@ def get_test_cases():
             "table_index": 14,
             "affected_entry": {"vendor": "Test Vendor", "product": "Test Product", "versions": [{"version": "10.0.0", "status": "affected", "changes": [{"at": "unspecified", "status": "unaffected"}, {"at": "unknown", "status": "unaffected"}]}]},
             "expected_concerns": 2,
-            "expected_fields": ["changes[0].at", "changes[1].at"],
+            "expected_fields": ["versions[0].changes[0].at", "versions[0].changes[1].at"],
             "expected_source_values": ["unspecified", "unknown"],
             "expected_detected_values": ["unspecified", "unknown"]
         },
@@ -187,7 +187,7 @@ def get_test_cases():
             "table_index": 15,
             "affected_entry": {"vendor": "n/a", "product": "not available", "packageName": "unknown", "platforms": ["various", "unspecified", "Windows", "Linux"], "versions": [{"version": "undefined", "lessThan": "pending", "status": "affected", "changes": [{"at": "tbd", "status": "unaffected"}, {"at": "1.2.3", "status": "unaffected"}]}]},
             "expected_concerns": 8,
-            "expected_fields": ["vendor", "product", "version", "lessThan", "changes[0].at", "platforms[0]", "platforms[1]", "packageName"],
+            "expected_fields": ["vendor", "product", "version", "lessThan", "versions[0].changes[0].at", "platforms[0]", "platforms[1]", "packageName"],
             "expected_source_values": ["n/a", "not available", "undefined", "pending", "tbd", "various", "unspecified", "unknown"],
             "expected_detected_values": ["n/a", "not available", "undefined", "pending", "tbd", "various", "unspecified", "unknown"]
         },

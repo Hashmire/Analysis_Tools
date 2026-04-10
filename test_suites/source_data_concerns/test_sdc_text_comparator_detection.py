@@ -176,7 +176,7 @@ def get_test_cases():
         },
         {
             "description": "Single-word pattern: 'before' in changes.at field",
-            "expected_field": "changes[0].at",
+            "expected_field": "versions[0].changes[0].at",
             "expected_source_value": "before 4.0.0",
             "expected_detected_value": "before",
             "expected_pattern_type": "Upper Bound Comparators",
@@ -254,7 +254,7 @@ def get_test_cases():
         },
         {
             "description": "Regex pattern: version range '5.1.2 - 5.2.0' in version field and '10.0 - 11.5' in changes.at field",
-            "expected_field": "changes[0].at",
+            "expected_field": "versions[0].changes[0].at",
             "expected_source_value": "from 10.0 - 11.5",
             "expected_detected_value": "10.0 - 11.5",
             "expected_pattern_type": "Hyphenated Version Range",

@@ -60,7 +60,7 @@ def get_test_cases():
             "description": "All Supported Fields: version, lessThan, lessThanOrEqual, changes[].at",
             "table_index": 1,
             "expected_concerns": 7,
-            "expected_fields": ["version", "version", "lessThan", "lessThanOrEqual", "version", "changes[0].at", "changes[1].at"],
+            "expected_fields": ["version", "version", "lessThan", "lessThanOrEqual", "version", "versions[4].changes[0].at", "versions[4].changes[1].at"],
             "expected_source_values": ["1.0", "1.0.1", "1.0.1.0", "1.0.1.0.5", "1.1", "1.1.0", "1.1.0.0.1"],
             "expected_bases": ["1", "1", "1", "1", "1", "1", "1"],
             "expected_granularities": ["2", "3", "4", "5", "2", "3", "5"]
@@ -69,7 +69,7 @@ def get_test_cases():
             "description": "Edge Cases: Single digits, 15+ granularity levels",
             "table_index": 2,
             "expected_concerns": 6,
-            "expected_fields": ["version", "version", "lessThan", "lessThanOrEqual", "version", "changes[0].at"],
+            "expected_fields": ["version", "version", "lessThan", "lessThanOrEqual", "version", "versions[4].changes[0].at"],
             "expected_source_values": ["3", "3.0", "3.0.0.0.0.0.0.0.0.0.0.0.0.0.1", "3.1.2.3.4.5.6.7.8.9.10.11.12.13.14.15", "5", "5.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0"],
             "expected_bases": ["3", "3", "3", "3", "5", "5"],
             "expected_granularities": ["1", "2", "15", "16", "1", "17"]
@@ -120,7 +120,7 @@ def get_test_cases():
             "description": "Complex Nested Changes Arrays: Multiple changes per version",
             "table_index": 9,
             "expected_concerns": 7,
-            "expected_fields": ["version", "changes[0].at", "changes[1].at", "changes[2].at", "version", "changes[0].at", "changes[1].at"],
+            "expected_fields": ["version", "versions[0].changes[0].at", "versions[0].changes[1].at", "versions[0].changes[2].at", "version", "versions[1].changes[0].at", "versions[1].changes[1].at"],
             "expected_source_values": ["9.0", "9.0.1", "9.0.1.0", "9.0.1.0.1", "9.1.0.0", "9.1.0.0.0", "9.1.0.0.0.1"],
             "expected_bases": ["9", "9", "9", "9", "9", "9", "9"],
             "expected_granularities": ["2", "3", "4", "5", "4", "5", "6"]

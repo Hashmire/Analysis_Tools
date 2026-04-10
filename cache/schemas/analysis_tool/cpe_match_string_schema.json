@@ -1,0 +1,118 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CPE Base Strings Datafeed Schema",
+  "$id": "https://github.com/Hashmire/Analysis_Tools/schemas/cpe_base_strings_cache.json",
+  "description": "CPE Match String Schema. Contains a metadata block and an entries map keyed by CPE 2.3 base string.",
+  "definitions": {
+    "defTitle": {
+      "description": "Human-readable name for a CPE, with language tag.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "lang":  { "type": "string" }
+      },
+      "required": ["title", "lang"],
+      "additionalProperties": false
+    },
+    "defCpeRef": {
+      "description": "External reference associated with a CPE name.",
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^([A-Za-z][A-Za-z0-9+.-]+):(\\/\\/([^@]+@)?([A-Za-z0-9.\\-_~]+)(:\\d+)?)?((?:[A-Za-z0-9-._~]|%[A-Fa-f0-9]|[!$&'\\[\\]()*+,;=:@])+(?:\\/(?:[A-Za-z0-9-._~]|%[A-Fa-f0-9]|[!$&'\\[\\]()*+,;=:@])*)*|(?:\\/(?:[A-Za-z0-9-._~]|%[A-Fa-f0-9]|[!$&'()*+,;=:@])+)*)?(\\?(?:[A-Za-z0-9-._~]|%[A-Fa-f0-9]|[!$&'\\[\\]()*+,;=:@]|[/?])*)?(\\#(?:[A-Za-z0-9-._~]|%[A-Fa-f0-9]|[!$&'\\[\\]()*+,;=:@]|[/?])*)?$"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["Advisory", "Change Log", "Product", "Project", "Vendor", "Version"]
+        }
+      },
+      "required": ["ref"],
+      "additionalProperties": false
+    },
+    "defDeprecationRef": {
+      "description": "Pointer to a CPE name involved in a deprecation relationship.",
+      "type": "object",
+      "properties": {
+        "cpeName":   { "type": "string" },
+        "cpeNameId": { "type": "string", "format": "uuid" }
+      },
+      "required": ["cpeName"]
+    },
+    "defCpeRecord": {
+      "description": "A single CPE name record.",
+      "type": "object",
+      "properties": {
+        "cpeName":      { "type": "string" },
+        "deprecated":   { "type": "boolean" },
+        "cpeNameId":    { "type": "string", "format": "uuid" },
+        "created":      { "type": "string", "format": "date-time" },
+        "lastModified": { "type": "string", "format": "date-time" },
+        "titles": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/defTitle" }
+        },
+        "refs": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/defCpeRef" }
+        },
+        "deprecatedBy": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/defDeprecationRef" }
+        },
+        "deprecates": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/defDeprecationRef" }
+        }
+      },
+      "required": ["cpeName", "deprecated"],
+      "additionalProperties": false
+    },
+    "defEntry": {
+      "description": "CPE names matching a base string key.",
+      "type": "object",
+      "properties": {
+        "products": {
+          "description": "CPE name records for this base string.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/defCpeRecord" }
+        },
+        "last_updated": {
+          "description": "ISO 8601 UTC last-updated timestamp.",
+          "type": "string"
+        }
+      },
+      "required": ["products", "last_updated"]
+    },
+    "defMetadata": {
+      "description": "File-level provenance information.",
+      "type": "object",
+      "properties": {
+        "schema_version": { "type": "string" },
+        "generated":      {
+          "description": "ISO 8601 UTC generation timestamp.",
+          "type": "string"
+        },
+        "source": {
+          "description": "Identifier for the data source.",
+          "type": "string"
+        }
+      },
+      "required": ["schema_version", "generated", "source"]
+    }
+  },
+  "type": "object",
+  "properties": {
+    "metadata": { "$ref": "#/definitions/defMetadata" },
+    "entries": {
+      "description": "CPE base string to entry map.",
+      "type": "object",
+      "propertyNames": {
+        "description": "CPE 2.3 formatted string with 11 components after the prefix. Part (component 1) must be a, o, h, or *. General components accept: whole-component * (any) or - (NA); boundary wildcards (* or ? at component start/end); unreserved chars (alphanumeric, _, ., -); or backslash-escaped special chars (!\"#$%&'()+/:;<=>?@[]^`{|}~,*-\\). The language component (7 of 11) accepts * (any), - (NA), or a 2-3 letter BCP 47 primary tag with optional 2-letter ISO 3166-1 region or 3-digit UN M.49 subtag.",
+        "pattern": "^cpe:2\\.3:[aoh*](?::(?:[-*]|(?:\\?*|\\*?)(?:[a-zA-Z0-9_.-]|\\\\[!\"#$%&'()+/:;<=>?@\\[\\]^`{|}~,*\\-\\\\])+(?:\\?*|\\*?))){5}:(?:[-*]|[a-zA-Z]{2,3}(?:-(?:[a-zA-Z]{2}|[0-9]{3}))?)(?::(?:[-*]|(?:\\?*|\\*?)(?:[a-zA-Z0-9_.-]|\\\\[!\"#$%&'()+/:;<=>?@\\[\\]^`{|}~,*\\-\\\\])+(?:\\?*|\\*?))){4}$"
+      },
+      "additionalProperties": { "$ref": "#/definitions/defEntry" }
+    }
+  },
+  "required": ["metadata", "entries"]
+}

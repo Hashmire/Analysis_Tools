@@ -97,7 +97,7 @@ def get_test_cases():
             "description": "Invalid characters: changes[].at fields with BS and HT characters",
             "table_index": 7,
             "expected_concerns": 2,
-            "expected_fields": ["changes[0].at", "changes[1].at"],
+            "expected_fields": ["versions[0].changes[0].at", "versions[0].changes[1].at"],
             "expected_source_values": ["4.0.0\u0008", "5.0.0\u0009"],
             "expected_detected_values": ["\u0008", "\u0009"]
         },
@@ -123,7 +123,7 @@ def get_test_cases():
             "description": "Invalid characters: Multiple changes array with DLE, DC1, DC2 characters",
             "table_index": 11,
             "expected_concerns": 3,
-            "expected_fields": ["changes[0].at", "changes[1].at", "changes[2].at"],
+            "expected_fields": ["versions[0].changes[0].at", "versions[0].changes[1].at", "versions[0].changes[2].at"],
             "expected_source_values": ["6.0.0\u0010", "7.0.0\u0011", "8.0.0\u0012"],
             "expected_detected_values": ["\u0010", "\u0011", "\u0012"]
         },
@@ -131,7 +131,7 @@ def get_test_cases():
             "description": "Comprehensive invalid characters: Only version fields detected (others not detected by system)",
             "table_index": 12,
             "expected_concerns": 5,
-            "expected_fields": ["version", "lessThan", "lessThanOrEqual", "changes[0].at", "changes[1].at"],
+            "expected_fields": ["version", "lessThan", "lessThanOrEqual", "versions[0].changes[0].at", "versions[0].changes[1].at"],
             "expected_source_values": ["1.0.0\u0018", "2.0.0\u0019", "3.0.0\u001A", "4.0.0\u001B", "5.0.0\u001C"],
             "expected_detected_values": ["\u0018", "\u0019", "\u001A", "\u001B", "\u001C"]
         },
@@ -168,7 +168,7 @@ def get_test_cases():
             "description": "Multiple invalid characters in changes array (braces, at-sign)",
             "table_index": 17,
             "expected_concerns": 3,
-            "expected_fields": ["changes[0].at", "changes[0].at", "changes[1].at"],
+            "expected_fields": ["versions[0].changes[0].at", "versions[0].changes[0].at", "versions[0].changes[1].at"],
             "expected_source_values": ["5.0{patch}", "5.0{patch}", "6.0@release"],
             "expected_detected_values": ["{", "}", "@"]
         },

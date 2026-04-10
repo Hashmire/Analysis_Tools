@@ -3,1649 +3,1781 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hashmire/Analysis_Tools v0.2.0 - CPE Alias Mapping Dashboard</title>
-    <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script> -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>CPE Alias Mapping Dashboard - Example</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #2E7D32 0%, #388E3C 25%, #43A047 50%, #4CAF50 75%, #66BB6A 100%);
-            min-height: 100vh;
-            padding: 20px;
-            position: relative;
-        }
-        
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: radial-gradient(circle at 20% 30%, rgba(67, 160, 71, 0.3) 0%, transparent 50%),
-                        radial-gradient(circle at 80% 70%, rgba(56, 142, 60, 0.2) 0%, transparent 50%);
-            pointer-events: none;
-            z-index: -1;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.98);
-            border-radius: 20px;
-            box-shadow: 
-                0 25px 50px rgba(46, 125, 50, 0.4),
-                0 15px 35px rgba(0, 0, 0, 0.1),
-                inset 0 1px 0 rgba(255, 255, 255, 0.6);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #2E7D32 0%, #388E3C 20%, #43A047 40%, #4CAF50 60%, #43A047 80%, #388E3C 100%);
-            color: white;
-            padding: 40px 50px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
-            transform: translateX(-100%);
-            animation: shimmer 1s infinite;
-        }
-        
-        @keyframes shimmer {
-            to { transform: translateX(100%); }
-        }
-
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-        }
-
-        .header p {
-            font-size: 1.1em;
-            opacity: 0.9;
-        }
-
-        .file-selector {
-            background: linear-gradient(135deg, #2E4C3E 0%, #3C5A4B 50%, #4A6B58 100%);
-            color: #F3F4F6;
-            padding: 18px 28px;
-            text-align: left;
-            position: relative;
-            border: 1px solid rgba(76, 175, 80, 0.2);
-            border-radius: 10px;
-            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12), 0 1px 6px rgba(76, 175, 80, 0.08);
-            backdrop-filter: blur(6px);
-            transition: padding 0.3s ease;
-        }
-
-        .file-selector.expanded {
-            padding: 22px 28px; /* More padding when documentation is expanded */
-        }
-        
-        .file-selector::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(102, 187, 106, 0.05) 100%);
-        }
-        
-        .file-selector::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 20%;
-            right: 20%;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, #4CAF50, #66BB6A, #4CAF50, transparent);
-        }
-
-        .file-input-container {
-            display: flex;
-            flex-direction: row;
-            align-items: flex-start;
-            gap: 20px;
-            max-width: 1000px;
-            margin: 0 auto;
-            justify-content: space-between;
-            position: relative;
-        }
-
-        .file-input-container::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 50%;
-            bottom: 0;
-            width: 1px;
-            background: linear-gradient(to bottom, transparent 0%, rgba(76, 175, 80, 0.3) 20%, rgba(76, 175, 80, 0.5) 50%, rgba(76, 175, 80, 0.3) 80%, transparent 100%);
-            transform: translateX(-50%);
-        }
-
-        .file-input-main {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            flex: 0 0 48%;
-            max-width: 48%;
-        }
-
-        .file-input-wrapper {
-            position: relative;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: linear-gradient(135deg, rgba(76, 175, 80, 0.15) 0%, rgba(102, 187, 106, 0.12) 100%);
-            border: 1px solid rgba(76, 175, 80, 0.3);
-            border-radius: 7px;
-            padding: 10px 18px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            min-width: 220px;
-            justify-content: center;
-            color: #F3F4F6;
-            font-family: inherit;
-            font-size: 0.9em;
-            font-weight: 500;
-            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.1);
-        }
-        
-        .file-input-wrapper::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(102, 187, 106, 0.05) 100%);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            border-radius: 6px;
-        }
-
-        .file-input-wrapper:hover {
-            background: linear-gradient(135deg, rgba(76, 175, 80, 0.18) 0%, rgba(102, 187, 106, 0.12) 100%);
-            border-color: rgba(76, 175, 80, 0.35);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.15);
-        }
-        
-        .file-input-wrapper:hover::before {
-            opacity: 1;
-        }
-
-        .file-input-wrapper:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 8px rgba(46, 125, 50, 0.4);
-        }
-
-        .file-input {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            white-space: nowrap;
-            border: 0;
-        }
-
-        .file-icon {
-            font-size: 1.1em;
-            z-index: 1;
-        }
-
-        .file-input-text {
-            font-size: 0.9em;
-            font-weight: 600;
-            z-index: 1;
-        }
-
-        .status-bar {
-            color: rgba(255, 255, 255, 0.95);
-            display: none;
-            margin-top: 6px;
-            width: 100%;
-            border-top: 1px solid rgba(76, 175, 80, 0.2);
-            padding-top: 8px;
-        }
-
-        /* ========== UTILITY CLASSES ========== */
-        .white-card {
-            background: white;
-            border: 1px solid #E0E0E0;
-            border-radius: 8px;
-            padding: 16px;
-        }
-        
-        .white-card-compact {
-            background: white;
-            border: 1px solid #E0E0E0;
-            border-radius: 4px;
-            padding: 0px;
-        }
-        
-        /* ========== SMOOTH TRANSITIONS ========== */
-        /* max-height transition for smooth collapse animations */
-        /* opacity transition for fade effects */
-        .collapsible-content {
-            overflow: hidden;
-            transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
-            max-height: 1000px;
-            opacity: 1;
-        }
-        
-        .collapsible-content.collapsed {
-            max-height: 0;
-            opacity: 0;
-            padding-top: 0;
-            padding-bottom: 0;
-        }
-        
-        /* CPE content uses dynamic height calculation instead of fixed max-height */
-        .cpe-collapsible-content {
-            overflow: hidden;
-            transition: height 0.3s ease-in-out, opacity 0.3s ease-in-out;
-            opacity: 1;
-        }
-        
-        .cpe-collapsible-content.collapsed {
-            height: 0 !important;
-            opacity: 0;
-            padding-top: 0;
-            padding-bottom: 0;
-        }
-        
-        .collapsible-toggle {
-            transition: transform 0.2s ease-in-out;
-        }
-        
-        .collapsible-toggle.rotated {
-            transform: rotate(90deg);
-        }
-        
-        .white-card-300 {
-            background: white;
-            border: 1px solid #E0E0E0;
-            border-radius: 8px;
-            padding: 16px;
-            min-height: 150px;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        
-        .green-border-left {
-            border-left: 4px solid #4CAF50;
-        }
-        
-        .green-border-left-light {
-            border-left: 4px solid #66BB6A;
-        }
-        
-        .green-border-left-dark {
-            border-left: 4px solid #2E7D32;
-        }
-        
-        .gradient-green {
-            background: linear-gradient(135deg, #4CAF50, #66BB6A);
-        }
-        
-        .gradient-green-dark {
-            background: linear-gradient(135deg, #2E7D32, #4CAF50);
-        }
-        
-        /* ========== SPECIFIC COMPONENTS ========== */
-
-        .alias-div {
-            padding: 8px 12px;
-            background: white;
-        }
-        
-        .alias-div-border {
-            border-bottom: 1px solid #E0E0E0;
-        }
-        
-        .aliases-section-container {
-            border: 1px solid #4CAF50;
-            border-top: none;
-            border-radius: 0 0 6px 6px;
-            margin-bottom: 15px;
-            max-height: 600px; /* Set reasonable max height */
-            overflow-y: auto; /* Add scrollbars when content exceeds height */
-        }
-        
-        .aliases-section-header {
-            color: white;
-            padding: 12px 16px;
-            font-size: 1.0em;
-            margin: 15px 0 0 0;
-            border-radius: 6px 6px 0 0;
-            cursor: pointer;
-            transition: background-color 0.2s ease-in-out;
-        }
-        
-        .aliases-section-header:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-        
-        .chart-container-400 {
-            margin-top: 20px;
-            height: 280px;
-        }
-
-        .chart-placeholder {
-            height: 280px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .status-filename {
-            font-size: 0.9em;
-            font-weight: 600;
-            margin-bottom: 6px;
-            color: rgba(255, 255, 255, 0.95);
-            text-align: left;
-        }
-
-        .status-details {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            font-size: 0.8em;
-            color: rgba(255, 255, 255, 0.85);
-        }
-
-        .status-item {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        /* Integrated Documentation Styles within File Selector */
-        .doc-toggle {
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            align-items: stretch;
-            cursor: pointer;
-            user-select: none;
-            transition: all 0.3s ease;
-            flex: 0 0 48%;
-            max-width: 48%;
-            padding: 12px 16px;
-            background: rgba(76, 175, 80, 0.06);
-            border: 1px solid rgba(76, 175, 80, 0.2);
-            border-radius: 6px;
-            backdrop-filter: blur(2px);
-            min-height: 120px;
-            box-shadow: 0 1px 4px rgba(76, 175, 80, 0.1);
-        }
-
-        .doc-toggle:hover {
-            background: rgba(76, 175, 80, 0.1);
-            border-color: rgba(76, 175, 80, 0.25);
-            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);
-        }
-
-        .doc-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            transition: gap 0.3s ease;
-            width: 100%;
-        }
-
-        .doc-header-content {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .doc-icon {
-            font-size: 1.5em;
-            color: #81C784;
-            transition: font-size 0.3s ease;
-        }
-
-        .file-selector:not(.expanded) .doc-icon {
-            font-size: 1.2em;
-        }
-
-        .doc-title {
-            font-size: 1.4em;
-            font-weight: 600;
-            color: #F9FAFB;
-            margin: 0;
-            transition: font-size 0.3s ease;
-        }
-
-        .file-selector:not(.expanded) .doc-title {
-            font-size: 1.2em;
-        }
-
-        .doc-subtitle {
-            font-size: 0.9em;
-            color: #E5E7EB;
-            margin: 0;
-            transition: font-size 0.3s ease;
-        }
-
-        .file-selector:not(.expanded) .doc-subtitle {
-            font-size: 0.8em;
-        }
-
-        .doc-chevron {
-            font-size: 1.2em;
-            color: #81C784;
-            transition: transform 0.3s ease;
-        }
-
-        .documentation-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.4s ease, opacity 0.3s ease;
-            opacity: 0;
-            margin-top: 15px;
-            position: relative;
-            z-index: 100;
-            pointer-events: auto;
-        }
-
-        .documentation-content.expanded {
-            max-height: 1000px;
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        .documentation-content * {
-            pointer-events: auto;
-            user-select: text;
-            -webkit-user-select: text;
-            -moz-user-select: text;
-            -ms-user-select: text;
-        }
-
-        .documentation-content a {
-            pointer-events: auto;
-            cursor: pointer;
-            user-select: text;
-            -webkit-user-select: text;
-            -moz-user-select: text;
-            -ms-user-select: text;
-        }
-
-        /* Analysis Toggle Styles */
-        .analysis-toggle {
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        .analysis-toggle:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.15);
-        }
-
-        .analysis-header-content {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            flex: 1;
-        }
-
-        .analysis-icon {
-            font-size: 1.5em;
-            display: flex;
-            align-items: center;
-        }
-
-        .analysis-title {
-            font-size: 1.3em;
-            font-weight: bold;
-        }
-
-        .analysis-subtitle {
-            font-size: 0.9em;
-            opacity: 0.9;
-            margin-left: 10px;
-        }
-
-        .analysis-chevron {
-            font-size: 1.2em;
-            color: #E8F5E8;
-            transition: transform 0.3s ease;
-        }
-
-        .analysis-content {
-            max-height: 0;
-            overflow-x: visible;
-            overflow-y: hidden;
-            transition: max-height 0.4s ease, opacity 0.3s ease;
-            opacity: 0;
-        }
-
-        .analysis-content.expanded {
-            max-height: 1000px;
-            opacity: 1;
-            overflow: visible;
-        }
-
-        .concern-badge {
-            background: rgba(76, 175, 80, 0.1);
-            border: 1px solid #4CAF50;
-            color: #2E7D32;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 0.75em;
-            margin-left: 8px;
-            cursor: help;
-        }
-
-        .concern-tooltip {
-            position: relative;
-            display: inline-block;
-        }
-
-        .concern-tooltip .tooltiptext {
-            visibility: hidden;
-            width: 300px;
-            background-color: #555;
-            color: #fff;
-            text-align: left;
-            border-radius: 6px;
-            padding: 8px;
-            position: absolute;
-            z-index: 9999;
-            bottom: 125%;
-            left: 50%;
-            margin-left: -150px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 0.8em;
-            line-height: 1.3;
-        }
-
-        .concern-tooltip .tooltiptext::after {
-            content: "";
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            margin-left: -5px;
-            border-width: 5px;
-            border-style: solid;
-            border-color: #555 transparent transparent transparent;
-        }
-
-        .concern-tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
-        }
-
-        .coverage-tooltip {
-            position: relative;
-            display: inline-block;
-            cursor: help;
-        }
-
-        .coverage-tooltip .tooltiptext {
-            visibility: hidden;
-            width: 400px;
-            background-color: #2E7D32;
-            color: #fff;
-            text-align: left;
-            border-radius: 8px;
-            padding: 12px;
-            position: absolute;
-            z-index: 9999;
-            top: 125%;
-            left: 50%;
-            margin-left: -200px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 0.85em;
-            line-height: 1.4;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .coverage-tooltip .tooltiptext::after {
-            content: "";
-            position: absolute;
-            bottom: 100%;
-            left: 50%;
-            margin-left: -6px;
-            border-width: 6px;
-            border-style: solid;
-            border-color: transparent transparent #2E7D32 transparent;
-        }
-
-        .coverage-tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
-        }
-
-        .tooltip-section {
-            margin-bottom: 8px;
-        }
-
-        .tooltip-section:last-child {
-            margin-bottom: 0;
-        }
-
-        .tooltip-formula {
-            font-family: 'Courier New', monospace;
-            background: rgba(255, 255, 255, 0.1);
-            padding: 4px 6px;
-            border-radius: 3px;
-            margin: 3px 0;
-        }
-
-        .tooltip-highlight {
-            font-weight: bold;
-            color: #A5D6A7;
-        }
-
-        .section-header {
-            background: linear-gradient(135deg, #4CAF50, #66BB6A);
-            color: white;
-            padding: 20px 30px;
-            font-size: 1.3em;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .doc-intro {
-            background: rgba(232, 245, 233, 0.6);
-            padding: 16px 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 1px 4px rgba(76, 175, 80, 0.08);
-        }
-
-        .doc-intro p {
-            margin: 0 0 12px 0;
-            line-height: 1.5;
-            color: #1E293B;
-            font-size: 0.9em;
-        }
-
-        .doc-intro p:last-child {
-            margin-bottom: 0;
-        }
-
-        .doc-sections {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 14px;
-        }
-
-        .doc-section {
-            background: rgba(237, 247, 237, 0.5);
-            padding: 16px 20px;
-            border-radius: 8px;
-            border: 1px solid rgba(76, 175, 80, 0.1);
-            box-shadow: 0 1px 3px rgba(76, 175, 80, 0.05);
-        }
-
-        .doc-section-full-width {
-            grid-column: 1 / -1;
-        }
-
-        .doc-section h4 {
-            color: #1E293B;
-            margin: 0 0 12px 0;
-            font-size: 1em;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .doc-section ul {
-            margin: 0;
-            padding: 0 0 0 18px;
-            list-style-type: disc;
-            color: #334155;
-        }
-
-        .doc-section li {
-            margin: 6px 0;
-            line-height: 1.4;
-            color: #374151;
-            font-size: 0.85em;
-        }
-
-        .doc-section li:last-child {
-            margin-bottom: 0;
-        }
-
-        .doc-section li strong {
-            color: #1E293B;
-            font-weight: 600;
-        }
-
-        .doc-highlight {
-            background: linear-gradient(90deg, rgba(76, 175, 80, 0.08) 0%, rgba(76, 175, 80, 0.04) 100%);
-            padding: 12px 16px;
-            border-radius: 6px;
-            border-left: 2px solid #4CAF50;
-            margin-top: 12px;
-            font-size: 0.85em;
-            color: #1E293B;
-        }
-
-        .filter-container {
-            background: rgba(248, 250, 252, 0.8);
-            padding: 12px 16px;
-            border-radius: 4px;
-            border: 1px solid #ddd;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .alias-selection-checkbox {
-            margin-right: 8px;
-            transform: scale(1.2);
-        }
-
-        .selection-panel {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            border: 2px solid #4CAF50;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            max-width: 400px;
-            z-index: 1000;
-            display: none;
-        }
-
-        .selection-panel h4 {
-            margin: 0 0 12px 0;
-            color: #1E293B;
-            font-size: 1em;
-        }
-
-        .selection-list {
-            max-height: 300px;
-            overflow-y: auto;
-            margin-bottom: 12px;
-            border: 1px solid #eee;
-            border-radius: 4px;
-        }
-
-        .selection-item {
-            padding: 6px 8px;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 0.85em;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .selection-item:last-child {
-            border-bottom: none;
-        }
-
-        .consolidate-btn {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            width: 100%;
-            font-weight: 500;
-        }
-
-        .consolidate-btn:hover {
-            background: #45a049;
-        }
-
-        .consolidate-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-
-        .output-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 2000;
-            display: none;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .output-modal-content {
-            max-width: 80%;
-            max-height: 80%;
-            min-height: 400px;
-            overflow-y: auto;
-            position: relative;
-            padding: 20px;
-            border-radius: 8px;
-        }
-
-        .modal-header {
-            cursor: move;
-            user-select: none;
-            margin: -20px -20px 16px -20px;
-            padding: 16px 20px;
-            background: #f8f9fa;
-            border-radius: 8px 8px 0 0;
-            border-bottom: 1px solid #e0e0e0;
-        }
-
-        .output-modal h3 {
-            margin: 0;
-            color: #1E293B;
-        }
-
-        .output-modal pre {
-            background: #f8f9fa;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            padding: 16px;
-            overflow-x: auto;
-            font-family: monospace;
-            font-size: 0.85em;
-        }
-
-        .modal-actions {
-            margin-top: 16px;
-            display: flex;
-            gap: 8px;
-            justify-content: flex-end;
-        }
-
-        .modal-btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 500;
-        }
-
-        .modal-btn-primary {
-            background: #4CAF50;
-            color: white;
-        }
-
-        .modal-btn-secondary {
-            background: #666;
-            color: white;
-        }
-
-        @media (max-width: 768px) {
-            .file-input-container {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 16px;
-            }
-            
-            .file-input-container::after {
-                display: none;
-            }
-            
-            .file-input-main {
-                flex: none;
-                max-width: none;
-            }
-            
-            .doc-toggle {
-                flex: none;
-                max-width: none;
-            }
-            
-            .doc-sections {
-                grid-template-columns: 1fr;
-                gap: 12px;
-            }
-            
-            .file-selector {
-                padding: 16px 20px;
-            }
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 12px;
-            padding: 15px;
-            background: #F8F9FA;
-            overflow: visible;
-        }
-
-        .stat-card {
-            background: white;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-            text-align: center;
-            border-left: 3px solid #4CAF50;
-            overflow: visible;
-        }
-
-        .stat-value {
-            font-size: 1.8em;
-            font-weight: bold;
-            color: #2E7D32;
-            margin-bottom: 3px;
-        }
-
-        .stat-label {
-            font-size: 0.8em;
-            color: #666;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .content {
-            padding: 30px;
-        }
-
-        .section {
-            margin-bottom: 40px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            overflow: visible;
-        }
-
-        .section-content {
-            padding: 30px;
-            overflow: visible;
-        }
-
-        .alias-group {
-            margin-bottom: 30px;
-            border: 1px solid #E0E0E0;
-            border-radius: 8px;
-            overflow: visible; /* Changed from hidden to allow scrollbars in content */
-        }
-
-        .alias-group-header {
-            background: #F5F5F5;
-            padding: 20px;
-            border-bottom: 1px solid #E0E0E0;
-            cursor: pointer;
-            transition: background 0.3s ease;
-        }
-
-        .alias-group-header:hover {
-            background: #EEEEEE;
-        }
-
-        .alias-group-header.expanded {
-            background: #E8F5E8;
-        }
-
-        .product-info {
-            font-weight: bold;
-            color: #2E7D32;
-        }
-
-        .alias-count {
-            background: #4CAF50;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.9em;
-            font-weight: bold;
-        }
-
-        .alias-details {
-            display: none;
-            padding: 20px;
-            background: #FAFAFA;
-        }
-
-        .alias-details.expanded {
-            display: block;
-        }
-
-        .alias-item {
-            background: white;
-            border: 1px solid #E0E0E0;
-            border-radius: 6px;
-            padding: 15px;
-            margin-bottom: 10px;
-        }
-
-        .platform-info {
-            font-weight: bold;
-            color: #2E7D32;
-            margin-bottom: 8px;
-        }
-
-        .cve-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-        }
-
-        .cve-tag {
-            background: #E8F5E8;
-            color: #2E7D32;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            font-family: monospace;
-        }
-
-        .cve-link {
-            background: #E8F5E8;
-            color: #2E7D32;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            font-family: monospace;
-            text-decoration: none;
-            margin: 2px;
-            display: inline-block;
-            transition: all 0.2s ease;
-        }
-
-        .cve-link:hover {
-            background: #2E7D32;
-            color: white;
-            transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(46, 125, 50, 0.3);
-        }
-
-        .cve-link:visited {
-            color: #1B5E20;
-        }
-
-        .cve-link:visited:hover {
-            color: white;
-        }
-
-        .chart-container {
-            height: 280px;
-            margin: 20px 0;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 50px;
-            color: #666;
-            font-style: italic;
-        }
-
-        .error {
-            background: #FFEBEE;
-            color: #C62828;
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-            border-left: 4px solid #F44336;
-        }
-
-        .top-products {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-
-        .top-product-card {
-            background: white;
-            border: 1px solid #E0E0E0;
-            border-radius: 8px;
-            padding: 20px;
-            border-left: 4px solid #4CAF50;
-        }
-
-        .top-product-name {
-            font-weight: bold;
-            color: #2E7D32;
-            margin-bottom: 10px;
-            font-size: 1.1em;
-        }
-
-        .top-product-stats {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .expand-icon {
-            transition: transform 0.3s ease;
-        }
-
-        .expand-icon.rotated {
-            transform: rotate(180deg);
-        }
-
-        .no-data {
-            text-align: center;
-            padding: 50px;
-            color: #666;
-            font-style: italic;
-        }
-
-        /* === REUSABLE UTILITY CLASSES === */
-        
-        /* Layout Utilities */
-        .flex-between { display: flex; justify-content: space-between; align-items: center; }
-        .flex-start { display: flex; align-items: flex-start; gap: 8px; }
-        .flex-center { display: flex; align-items: center; gap: 8px; }
-        .flex-column { display: flex; flex-direction: column; }
-        .flex-1 { flex: 1; }
-        .flex-shrink-0 { flex-shrink: 0; }
-        .gap-8 { gap: 8px; }
-        
-        /* === PROCESSING OVERLAY === */
-        .processing-overlay {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            background: rgba(0, 0, 0, 0.3) !important;
-            backdrop-filter: blur(2px);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 999999 !important;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            pointer-events: auto !important;
-        }
-        
-        .processing-card {
-            background: linear-gradient(135deg, #E8F5E8 0%, #F1F8E9 100%);
-            border: 2px solid #4CAF50;
-            border-radius: 16px;
-            padding: 32px;
-            text-align: center;
-            box-shadow: 0 8px 32px rgba(76, 175, 80, 0.3);
-            min-width: 300px;
-            max-width: 400px;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .processing-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(76, 175, 80, 0.1), transparent);
-            animation: shimmer 2s infinite;
-        }
-        
-        @keyframes shimmer {
-            0% { left: -100%; }
-            100% { left: 100%; }
-        }
-        
-        .processing-spinner {
-            width: 48px;
-            height: 48px;
-            border: 4px solid #E8F5E8;
-            border-top: 4px solid #4CAF50;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px auto;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .processing-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #2E7D32;
-            margin-bottom: 8px;
-        }
-        
-        .processing-message {
-            font-size: 14px;
-            color: #388E3C;
-            margin-bottom: 16px;
-            line-height: 1.4;
-        }
-        
-        .processing-progress {
-            background: #E8F5E8;
-            border-radius: 8px;
-            height: 6px;
-            overflow: hidden;
-            margin-bottom: 12px;
-        }
-        
-        .processing-progress-bar {
-            background: linear-gradient(90deg, #4CAF50, #66BB6A, #4CAF50);
-            height: 100%;
-            border-radius: 8px;
-            transition: width 0.3s ease;
-            background-size: 20px 20px;
-            animation: progress-animation 1.5s linear infinite;
-        }
-        
-        @keyframes progress-animation {
-            0% { background-position: 0 0; }
-            100% { background-position: 20px 0; }
-        }
-        
-        .processing-details {
-            font-size: 12px;
-            color: #4CAF50;
-            font-weight: 500;
-        }
-        .gap-10 { gap: 10px; }
-
-        /* Spacing Utilities */
-        .m-0 { margin: 0; }
-        .mb-6 { margin-bottom: 6px; }
-        .mb-10 { margin-bottom: 10px; }
-        .mt-4 { margin-top: 4px; }
-        .mt-2 { margin-top: 2px; }
-        .p-20 { padding: 20px; }
-        .pt-2 { padding-top: 2px; }
-        .pb-8 { padding-bottom: 8px; }
-
-        /* Display Utilities */
-        .d-none { display: none; }
-        .d-block { display: block; }
-        .d-flex { display: flex; }
-
-        /* Text Utilities */
-        .text-sm { font-size: 0.85em; }
-        .text-xs { font-size: 0.75em; }
-        .text-lg { font-size: 0.95em; }
-        .font-600 { font-weight: 600; }
-        .font-500 { font-weight: 500; }
-        .line-height-13 { line-height: 1.3; }
-        .color-333 { color: #333; }
-        .color-666 { color: #666; }
-
-        /* Border Utilities */
-        .border-bottom { border-bottom: 1px solid #E0E0E0; }
-        .border-none { border: none; }
-
-        /* Common Component Styles */
-        .alias-header {
-            margin-bottom: 10px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #E0E0E0;
-        }
-
-        .alias-title {
-            color: #333;
-            font-size: 0.95em;
-            font-weight: 600;
-        }
-
-        .alias-properties {
-            font-size: 0.85em;
-            line-height: 1.3;
-        }
-
-        .alias-container-info {
-            font-size: 0.8em;
-            color: #666;
-            margin-top: 4px;
-        }
-
-        .cve-count {
-            color: #666;
-            font-size: 0.85em;
-            font-weight: 600;
-        }
-
-        .expand-caret {
-            font-size: 1.2em;
-            color: #666;
-            cursor: pointer;
-        }
-
-        /* Form Controls */
-        .form-input {
-            padding: 6px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-
-        .btn-primary {
-            padding: 6px 12px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-
-        .btn-secondary {
-            padding: 6px 12px;
-            background: #666;
-            color: white;
-            border: none;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-
-        /* Code Blocks */
-        .code-block {
-            background: #F5F5F5;
-            padding: 8px 12px;
-            border-radius: 4px;
-            display: block;
-            font-family: monospace;
-            font-size: 0.9em;
-            border: 1px solid #D0D0D0;
-        }
-
-        .code-block-alt {
-            background: #F8F9FA;
-            padding: 8px 12px;
-            border-radius: 4px;
-            display: block;
-            font-family: monospace;
-            font-size: 0.85em;
-            border: 1px solid #E0E0E0;
-            white-space: pre-wrap;
-        }
-
-        .code-input {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 0.9em;
-        }
-
-        .code-preview {
-            font-size: 0.75em;
-            font-family: monospace;
-            color: #666;
-            margin-top: 1px;
-            height: 14px;
-            overflow: hidden;
-            word-break: break-all;
-            line-height: 1.1;
-        }
-
-        .code-output {
-            background: #f8f9fa;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            padding: 16px;
-            overflow-x: auto;
-            font-family: monospace;
-            font-size: 0.85em;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        /* Status Messages */
-        .status-success { 
-            color: #4CAF50; 
-            line-height: 1.2;
-        }
-        .status-error { 
-            color: #dc3545; 
-            line-height: 1.2;
-        }
-        .status-list { 
-            margin: 4px 0 0 16px; 
-            padding: 0; 
-        }
-
-        /* CVE Year Groups */
-        .cve-year-group {
-            margin-bottom: 3px;
-            border: 1px solid #E0E0E0;
-            border-radius: 3px;
-            overflow: hidden;
-        }
-
-        .cve-year-header {
-            padding: 4px 8px;
-            cursor: pointer;
-            font-size: 0.8em;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: opacity 0.2s ease;
-        }
-
-        .cve-year-toggle {
-            transition: transform 0.3s ease;
-            font-size: 0.7em;
-        }
-
-        .cve-year-content {
-            display: none;
-            padding: 4px 6px;
-            background: #FAFAFA;
-            font-size: 0.75em;
-        }
-
-        /* Concern Display */
-        .concern-details {
-            background: #F5F5F5;
-            padding: 8px 12px;
-            border-radius: 4px;
-            border: 1px solid #D0D0D0;
-            margin-top: 4px;
-            font-size: 0.9em;
-            line-height: 1.4;
-        }
-
-        /* Stats Grid Items */
-        .stats-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 4px 0;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        .stats-item-alt {
-            display: flex;
-            justify-content: space-between;
-            padding: 6px 0;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        .stats-label {
-            font-weight: 500;
-            color: #2E7D32;
-            font-size: 0.9em;
-        }
-
-        /* Section Headers */
-        .section-header-flex {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
-        }
-
-        .section-header-flex-start {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 10px;
-        }
-
-        /* Confirmed Badge */
-        .confirmed-badge {
-            background: #4CAF50;
-            color: white;
-            padding: 1px 6px;
-            border-radius: 3px;
-            font-size: 0.7em;
-        }
-
-        /* Form Select */
-        .form-select {
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 0.9em;
-            min-width: 200px;
-        }
-
-        /* Layout containers */
-        .container-flex-between {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
-        }
-
-        /* Common margin/padding patterns */
-        .mb-16 { margin-bottom: 16px; }
-        .ml-4 { margin-left: 4px; }
-        .ml-8 { margin-left: 8px; }
-        .mr-8 { margin-right: 8px; }
-
-        /* CSS-based height utilities - Updated for better content visibility */
-        .max-height-300 { max-height: 400px; overflow-y: auto; }
-        .max-height-100 { max-height: 100%; }
-
-        /* Text/link styles */
-        .link-blue { color: #0066cc; text-decoration: none; }
-        .text-center { text-align: center; }
-
-        /* Layout Grid Components */
-        .responsive-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-top: 20px;
-        }
-
-        .chart-column {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .data-column {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-
-        .properties-list {
-            background: white;
-            border: 1px solid #E0E0E0;
-            border-radius: 6px;
-            padding: 16px;
-            min-height: 150px;
-            max-height: 350px;
-            overflow-y: auto;
-        }
-
-        .combinations-list {
-            background: white;
-            border: 1px solid #E0E0E0;
-            border-radius: 6px;
-            padding: 16px;
-            min-height: 150px;
-            max-height: 350px;
-            overflow-y: auto;
-        }
-
-        .chart-placeholder {
-            background: white;
-            border: 1px solid #E0E0E0;
-            border-radius: 6px;
-            padding: 20px;
-            text-align: center;
-            color: #666;
-            font-style: italic;
-        }
-
-        .chart-container-main {
-            margin-top: 20px;
-            height: 280px;
-        }
-
-        /* Section Styles */
-        .section-header-gradient {
-            color: white;
-            padding: 12px 16px;
-            font-size: 1.0em;
-            margin: 15px 0 0 0;
-            border-radius: 6px 6px 0 0;
-            cursor: pointer;
-        }
-
-        .section-container {
-            border: 1px solid #4CAF50;
-            border-top: none;
-            border-radius: 0 0 6px 6px;
-            margin-bottom: 15px;
-            display: block;
-        }
-
-        .cpe-group-div {
-            overflow: hidden;
-            margin-bottom: 4px;
-            border-radius: 4px;
-        }
-
-        .cpe-header {
-            color: white;
-            padding: 6px 12px;
-            font-size: 0.85em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.2s ease-in-out;
-        }
-        
-        .cpe-header:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .alias-div-clean {
-            padding: 15px 20px;
-            background: white;
-        }
-    </style>
+/* ========================================
+   CPE Alias Mapping Dashboard Styles
+   Hashmire/Analysis_Tools v0.3.0
+   ======================================== */
+
+/* ========== BASE STYLES ========== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #2E7D32 0%, #388E3C 25%, #43A047 50%, #4CAF50 75%, #66BB6A 100%);
+    min-height: 100vh;
+    padding: 20px;
+    position: relative;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 20% 30%, rgba(67, 160, 71, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(56, 142, 60, 0.2) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* ========== CONTAINER & LAYOUT ========== */
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    background: rgba(255, 255, 255, 0.98);
+    border-radius: 20px;
+    box-shadow: 
+        0 25px 50px rgba(46, 125, 50, 0.4),
+        0 15px 35px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    overflow: hidden;
+}
+
+.content {
+    padding: 30px;
+}
+
+/* ========== HEADER ========== */
+.header {
+    background: linear-gradient(135deg, #2E7D32 0%, #388E3C 20%, #43A047 40%, #4CAF50 60%, #43A047 80%, #388E3C 100%);
+    color: white;
+    padding: 40px 50px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
+    transform: translateX(-100%);
+    animation: shimmer 1s infinite;
+}
+
+@keyframes shimmer {
+    to { transform: translateX(100%); }
+}
+
+.header h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.header p {
+    font-size: 1.1em;
+    opacity: 0.9;
+}
+
+/* ========== FILE SELECTOR ========== */
+.file-selector {
+    background: linear-gradient(135deg, #2E4C3E 0%, #3C5A4B 50%, #4A6B58 100%);
+    color: #F3F4F6;
+    padding: 18px 28px;
+    text-align: left;
+    position: relative;
+    border: 1px solid rgba(76, 175, 80, 0.2);
+    border-radius: 10px;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12), 0 1px 6px rgba(76, 175, 80, 0.08);
+    backdrop-filter: blur(6px);
+    transition: padding 0.3s ease;
+}
+
+.file-selector.expanded {
+    padding: 22px 28px;
+}
+
+.file-selector::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(102, 187, 106, 0.05) 100%);
+}
+
+.file-selector::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 20%;
+    right: 20%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #4CAF50, #66BB6A, #4CAF50, transparent);
+}
+
+/* ========== FILE INPUT ========== */
+.file-input-container {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 20px;
+    max-width: 1000px;
+    margin: 0 auto;
+    justify-content: space-between;
+    position: relative;
+}
+
+.file-input-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    bottom: 0;
+    width: 1px;
+    background: linear-gradient(to bottom, transparent 0%, rgba(76, 175, 80, 0.3) 20%, rgba(76, 175, 80, 0.5) 50%, rgba(76, 175, 80, 0.3) 80%, transparent 100%);
+    transform: translateX(-50%);
+}
+
+.file-input-main {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 0 0 48%;
+    max-width: 48%;
+}
+
+.file-input-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.15) 0%, rgba(102, 187, 106, 0.12) 100%);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    border-radius: 7px;
+    padding: 10px 18px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 220px;
+    justify-content: center;
+    color: #F3F4F6;
+    font-family: inherit;
+    font-size: 0.9em;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.1);
+}
+
+.file-input-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(102, 187, 106, 0.05) 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 6px;
+}
+
+.file-input-wrapper:hover {
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.18) 0%, rgba(102, 187, 106, 0.12) 100%);
+    border-color: rgba(76, 175, 80, 0.35);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.15);
+}
+
+.file-input-wrapper:hover::before {
+    opacity: 1;
+}
+
+.file-input-wrapper:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(46, 125, 50, 0.4);
+}
+
+.file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.file-icon {
+    font-size: 1.1em;
+    z-index: 1;
+}
+
+.file-input-text {
+    font-size: 0.9em;
+    font-weight: 600;
+    z-index: 1;
+}
+
+/* ========== STATUS BAR ========== */
+.status-bar {
+    color: rgba(255, 255, 255, 0.95);
+    display: none;
+    margin-top: 6px;
+    width: 100%;
+    border-top: 1px solid rgba(76, 175, 80, 0.2);
+    padding-top: 8px;
+}
+
+.status-filename {
+    font-size: 0.9em;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: rgba(255, 255, 255, 0.95);
+    text-align: left;
+}
+
+.status-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.8em;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* ========== DOCUMENTATION TOGGLE ========== */
+.doc-toggle {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.3s ease;
+    flex: 0 0 48%;
+    max-width: 48%;
+    padding: 12px 16px;
+    background: rgba(76, 175, 80, 0.06);
+    border: 1px solid rgba(76, 175, 80, 0.2);
+    border-radius: 6px;
+    backdrop-filter: blur(2px);
+    min-height: 120px;
+    box-shadow: 0 1px 4px rgba(76, 175, 80, 0.1);
+}
+
+.doc-toggle:hover {
+    background: rgba(76, 175, 80, 0.1);
+    border-color: rgba(76, 175, 80, 0.25);
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);
+}
+
+.doc-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    transition: gap 0.3s ease;
+    width: 100%;
+}
+
+.doc-header-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.doc-icon {
+    font-size: 1.5em;
+    color: #81C784;
+    transition: font-size 0.3s ease;
+}
+
+.file-selector:not(.expanded) .doc-icon {
+    font-size: 1.2em;
+}
+
+.doc-title {
+    font-size: 1.4em;
+    font-weight: 600;
+    color: #F9FAFB;
+    margin: 0;
+    transition: font-size 0.3s ease;
+}
+
+.file-selector:not(.expanded) .doc-title {
+    font-size: 1.2em;
+}
+
+.doc-subtitle {
+    font-size: 0.9em;
+    color: #E5E7EB;
+    margin: 0;
+    transition: font-size 0.3s ease;
+}
+
+.file-selector:not(.expanded) .doc-subtitle {
+    font-size: 0.8em;
+}
+
+.doc-chevron {
+    font-size: 1.2em;
+    color: #81C784;
+    transition: transform 0.3s ease;
+}
+
+/* ========== DOCUMENTATION CONTENT ========== */
+.documentation-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease, opacity 0.3s ease;
+    opacity: 0;
+    margin-top: 15px;
+    position: relative;
+    z-index: 100;
+    pointer-events: auto;
+}
+
+.documentation-content.expanded {
+    max-height: 1000px;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.documentation-content * {
+    pointer-events: auto;
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+}
+
+.documentation-content a {
+    pointer-events: auto;
+    cursor: pointer;
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+}
+
+.doc-intro {
+    background: rgba(232, 245, 233, 0.6);
+    padding: 16px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(76, 175, 80, 0.08);
+}
+
+.doc-intro p {
+    margin: 0 0 12px 0;
+    line-height: 1.5;
+    color: #1E293B;
+    font-size: 0.9em;
+}
+
+.doc-intro p:last-child {
+    margin-bottom: 0;
+}
+
+.doc-sections {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.doc-section {
+    background: rgba(237, 247, 237, 0.5);
+    padding: 16px 20px;
+    border-radius: 8px;
+    border: 1px solid rgba(76, 175, 80, 0.1);
+    box-shadow: 0 1px 3px rgba(76, 175, 80, 0.05);
+}
+
+.doc-section-full-width {
+    grid-column: 1 / -1;
+}
+
+.doc-section h4 {
+    color: #1E293B;
+    margin: 0 0 12px 0;
+    font-size: 1em;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.doc-section ul {
+    margin: 0;
+    padding: 0 0 0 18px;
+    list-style-type: disc;
+    color: #334155;
+}
+
+.doc-section li {
+    margin: 6px 0;
+    line-height: 1.4;
+    color: #374151;
+    font-size: 0.85em;
+}
+
+.doc-section li:last-child {
+    margin-bottom: 0;
+}
+
+.doc-section li strong {
+    color: #1E293B;
+    font-weight: 600;
+}
+
+.doc-highlight {
+    background: linear-gradient(90deg, rgba(76, 175, 80, 0.08) 0%, rgba(76, 175, 80, 0.04) 100%);
+    padding: 12px 16px;
+    border-radius: 6px;
+    border-left: 2px solid #4CAF50;
+    margin-top: 12px;
+    font-size: 0.85em;
+    color: #1E293B;
+}
+
+/* ========== ANALYSIS TOGGLE ========== */
+.analysis-toggle {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.analysis-toggle:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.15);
+}
+
+.analysis-header-content {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex: 1;
+}
+
+.analysis-icon {
+    font-size: 1.5em;
+    display: flex;
+    align-items: center;
+}
+
+.analysis-title {
+    font-size: 1.3em;
+    font-weight: bold;
+}
+
+.analysis-subtitle {
+    font-size: 0.9em;
+    opacity: 0.9;
+    margin-left: 10px;
+}
+
+.analysis-chevron {
+    font-size: 1.2em;
+    color: #E8F5E8;
+    transition: transform 0.3s ease;
+}
+
+.analysis-content {
+    max-height: 0;
+    overflow-x: visible;
+    overflow-y: hidden;
+    transition: max-height 0.4s ease, opacity 0.3s ease;
+    opacity: 0;
+}
+
+.analysis-content.expanded {
+    max-height: 1000px;
+    opacity: 1;
+    overflow: visible;
+}
+
+/* ========== TOOLTIPS ========== */
+.concern-badge {
+    background: rgba(76, 175, 80, 0.1);
+    border: 1px solid #4CAF50;
+    color: #2E7D32;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    margin-left: 8px;
+    cursor: help;
+}
+
+.concern-tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.concern-tooltip .tooltiptext {
+    visibility: hidden;
+    width: 300px;
+    background-color: #555;
+    color: #fff;
+    text-align: left;
+    border-radius: 6px;
+    padding: 8px;
+    position: absolute;
+    z-index: 9999;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -150px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 0.8em;
+    line-height: 1.3;
+}
+
+.concern-tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #555 transparent transparent transparent;
+}
+
+.concern-tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+.coverage-tooltip {
+    position: relative;
+    display: inline-block;
+    cursor: help;
+}
+
+.coverage-tooltip .tooltiptext {
+    visibility: hidden;
+    width: 400px;
+    background-color: #2E7D32;
+    color: #fff;
+    text-align: left;
+    border-radius: 8px;
+    padding: 12px;
+    position: absolute;
+    z-index: 9999;
+    top: 125%;
+    left: 50%;
+    margin-left: -200px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 0.85em;
+    line-height: 1.4;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.coverage-tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    margin-left: -6px;
+    border-width: 6px;
+    border-style: solid;
+    border-color: transparent transparent #2E7D32 transparent;
+}
+
+.coverage-tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+.tooltip-section {
+    margin-bottom: 8px;
+}
+
+.tooltip-section:last-child {
+    margin-bottom: 0;
+}
+
+.tooltip-formula {
+    font-family: 'Courier New', monospace;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 4px 6px;
+    border-radius: 3px;
+    margin: 3px 0;
+}
+
+.tooltip-highlight {
+    font-weight: bold;
+    color: #A5D6A7;
+}
+
+/* ========== STATS GRID ========== */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    padding: 15px;
+    background: #F8F9FA;
+    overflow: visible;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    border-left: 3px solid #4CAF50;
+    overflow: visible;
+}
+
+.stat-value {
+    font-size: 1.8em;
+    font-weight: bold;
+    color: #2E7D32;
+    margin-bottom: 3px;
+}
+
+.stat-label {
+    font-size: 0.8em;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ========== SECTIONS ========== */
+.section {
+    margin-bottom: 40px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    overflow: visible;
+}
+
+.section-header {
+    background: linear-gradient(135deg, #4CAF50, #66BB6A);
+    color: white;
+    padding: 20px 30px;
+    font-size: 1.3em;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.section-content {
+    overflow: visible;
+}
+
+.section-header-gradient {
+    color: white;
+    padding: 12px 16px;
+    font-size: 1.0em;
+    margin: 15px 0 0 0;
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+}
+
+.section-container {
+    border: 1px solid #4CAF50;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    margin-bottom: 15px;
+    display: block;
+}
+
+/* ========== ALIAS GROUPS ========== */
+.alias-group {
+    margin-bottom: 30px;
+    border: 1px solid #E0E0E0;
+    border-radius: 8px;
+    overflow: visible;
+}
+
+.alias-group-header {
+    background: #F5F5F5;
+    padding: 20px;
+    border-bottom: 1px solid #E0E0E0;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.alias-group-header:hover {
+    background: #EEEEEE;
+}
+
+.alias-group-header.expanded {
+    background: #E8F5E8;
+}
+
+.alias-details {
+    display: none;
+    padding: 20px;
+    background: #FAFAFA;
+    max-height: 600px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.alias-details.expanded {
+    display: block;
+}
+
+.product-info {
+    font-weight: bold;
+    color: #2E7D32;
+}
+
+.alias-count {
+    background: #4CAF50;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.9em;
+    font-weight: bold;
+}
+
+/* ========== ALIAS ITEMS ========== */
+.alias-item {
+    background: white;
+    border: 1px solid #E0E0E0;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 10px;
+}
+
+.platform-info {
+    font-weight: bold;
+    color: #2E7D32;
+    margin-bottom: 8px;
+}
+
+.alias-div {
+    padding: 8px 12px;
+    background: white;
+}
+
+.alias-div-border {
+    border-bottom: 1px solid #E0E0E0;
+}
+
+.alias-div-clean {
+    padding: 15px 20px;
+    background: white;
+}
+
+.aliases-section-container {
+    border: 1px solid #4CAF50;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    margin-bottom: 15px;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.aliases-section-header {
+    color: white;
+    padding: 12px 16px;
+    font-size: 1.0em;
+    margin: 15px 0 0 0;
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.aliases-section-header:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ========== CVE DISPLAYS ========== */
+.cve-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.cve-tag {
+    background: #E8F5E8;
+    color: #2E7D32;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-family: monospace;
+}
+
+.cve-link {
+    background: #E8F5E8;
+    color: #2E7D32;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-family: monospace;
+    text-decoration: none;
+    margin: 2px;
+    display: inline-block;
+    transition: all 0.2s ease;
+}
+
+.cve-link:hover {
+    background: #2E7D32;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(46, 125, 50, 0.3);
+}
+
+.cve-link:visited {
+    color: #1B5E20;
+}
+
+.cve-link:visited:hover {
+    color: white;
+}
+
+.cve-year-group {
+    margin-bottom: 3px;
+    border: 1px solid #E0E0E0;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.cve-year-header {
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 0.8em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: opacity 0.2s ease;
+}
+
+.cve-year-toggle {
+    transition: transform 0.3s ease;
+    font-size: 0.7em;
+}
+
+.cve-year-content {
+    display: none;
+    padding: 4px 6px;
+    background: #FAFAFA;
+    font-size: 0.75em;
+}
+
+.cve-count {
+    color: #666;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+/* ========== FILTER & SELECTION ========== */
+.filter-container {
+    background: rgba(248, 250, 252, 0.8);
+    padding: 12px 16px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Applied when the year-filter row is shown below */
+.filter-container.connected {
+    border-radius: 4px 4px 0 0;
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.filter-pill-row {
+    background: rgba(248, 250, 252, 0.8);
+    padding: 8px 16px;
+    border-radius: 0 0 4px 4px;
+    border: 1px solid #ddd;
+    border-top: 1px solid #e8e8e8;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* Applied when another filter row is shown below */
+.filter-pill-row.connected {
+    border-radius: 0;
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.filter-pills-container {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.filter-pill {
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 0.8em;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+    user-select: none;
+    line-height: 1.6;
+}
+
+.filter-pill.active {
+    background: #4CAF50;
+    color: white;
+    border-color: #4CAF50;
+}
+
+.filter-pill.active:hover {
+    background: #43A047;
+    border-color: #43A047;
+}
+
+.filter-pill.inactive {
+    background: #f0f0f0;
+    color: #aaa;
+    border-color: #ddd;
+    text-decoration: line-through;
+}
+
+.filter-pill.inactive:hover {
+    background: #e8f5e9;
+    color: #4CAF50;
+    border-color: #a5d6a7;
+    text-decoration: none;
+}
+
+.filter-pill:not(.active):not(.inactive) {
+    background: #f0f0f0;
+    color: #555;
+    border-color: #ccc;
+}
+
+.filter-pill:not(.active):not(.inactive):hover {
+    background: #e8f5e9;
+    color: #4CAF50;
+    border-color: #a5d6a7;
+}
+
+.alias-selection-checkbox {
+    margin-right: 8px;
+    transform: scale(1.2);
+}
+
+.selection-panel {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    border: 2px solid #4CAF50;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    max-width: 400px;
+    z-index: 1000;
+    display: none;
+}
+
+.selection-panel h4 {
+    margin: 0 0 12px 0;
+    color: #1E293B;
+    font-size: 1em;
+}
+
+.selection-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+    border: 1px solid #eee;
+    border-radius: 4px;
+}
+
+.selection-item {
+    padding: 6px 8px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.85em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.selection-item:last-child {
+    border-bottom: none;
+}
+
+/* ========== BUTTONS ========== */
+.consolidate-btn {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 100%;
+    font-weight: 500;
+}
+
+.consolidate-btn:hover {
+    background: #45a049;
+}
+
+.consolidate-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    padding: 6px 12px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.btn-secondary {
+    padding: 6px 12px;
+    background: #666;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+/* ========== MODALS ========== */
+.output-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 2000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+}
+
+.output-modal-content {
+    max-width: 80%;
+    max-height: 80%;
+    min-height: 400px;
+    overflow-y: auto;
+    position: relative;
+    padding: 20px;
+    border-radius: 8px;
+}
+
+.modal-header {
+    cursor: move;
+    user-select: none;
+    margin: -20px -20px 16px -20px;
+    padding: 16px 20px;
+    background: #f8f9fa;
+    border-radius: 8px 8px 0 0;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.output-modal h3 {
+    margin: 0;
+    color: #1E293B;
+}
+
+.output-modal pre {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 16px;
+    overflow-x: auto;
+    font-family: monospace;
+    font-size: 0.85em;
+}
+
+.modal-actions {
+    margin-top: 16px;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.modal-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.modal-btn-primary {
+    background: #4CAF50;
+    color: white;
+}
+
+.modal-btn-secondary {
+    background: #666;
+    color: white;
+}
+
+/* ========== CHARTS ========== */
+.chart-container {
+    height: 280px;
+    margin: 20px 0;
+}
+
+.chart-container-400 {
+    margin-top: 20px;
+    height: 280px;
+}
+
+.chart-container-main {
+    margin-top: 20px;
+    height: 280px;
+}
+
+.chart-placeholder {
+    height: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ========== TOP PRODUCTS ========== */
+.top-products {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.top-product-card {
+    background: white;
+    border: 1px solid #E0E0E0;
+    border-radius: 8px;
+    padding: 20px;
+    border-left: 4px solid #4CAF50;
+}
+
+.top-product-name {
+    font-weight: bold;
+    color: #2E7D32;
+    margin-bottom: 10px;
+    font-size: 1.1em;
+}
+
+.top-product-stats {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* ========== UTILITY CARDS ========== */
+.white-card {
+    background: white;
+    border: 1px solid #E0E0E0;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.white-card-compact {
+    background: white;
+    border: 1px solid #E0E0E0;
+    border-radius: 4px;
+    padding: 0px;
+}
+
+.white-card-300 {
+    background: white;
+    border: 1px solid #E0E0E0;
+    border-radius: 8px;
+    padding: 16px;
+    min-height: 150px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* ========== COLLAPSIBLE CONTENT ========== */
+.collapsible-content {
+    overflow: hidden;
+    transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
+    max-height: 1000px;
+    opacity: 1;
+}
+
+.collapsible-content.collapsed {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+/* Allow scrolling for alias section containers */
+.aliases-section-container.collapsible-content {
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.cpe-collapsible-content {
+    overflow: hidden;
+    transition: height 0.3s ease-in-out, opacity 0.3s ease-in-out;
+    opacity: 1;
+}
+
+.cpe-collapsible-content.collapsed {
+    height: 0 !important;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.collapsible-toggle {
+    transition: transform 0.2s ease-in-out;
+}
+
+.collapsible-toggle.rotated {
+    transform: rotate(90deg);
+}
+
+/* ========== CPE GROUPS ========== */
+.cpe-group-div {
+    overflow: hidden;
+    margin-bottom: 4px;
+    border-radius: 4px;
+}
+
+.cpe-header {
+    color: white;
+    padding: 6px 12px;
+    font-size: 0.85em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.cpe-header:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ========== BORDERS & GRADIENTS ========== */
+.green-border-left {
+    border-left: 4px solid #4CAF50;
+}
+
+.green-border-left-light {
+    border-left: 4px solid #66BB6A;
+}
+
+.green-border-left-dark {
+    border-left: 4px solid #2E7D32;
+}
+
+.gradient-green {
+    background: linear-gradient(135deg, #4CAF50, #66BB6A);
+}
+
+.gradient-green-dark {
+    background: linear-gradient(135deg, #2E7D32, #4CAF50);
+}
+
+/* ========== PROCESSING OVERLAY ========== */
+.processing-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(0, 0, 0, 0.3) !important;
+    backdrop-filter: blur(2px);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 999999 !important;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    pointer-events: auto !important;
+}
+
+.processing-card {
+    background: linear-gradient(135deg, #E8F5E8 0%, #F1F8E9 100%);
+    border: 2px solid #4CAF50;
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(76, 175, 80, 0.3);
+    min-width: 300px;
+    max-width: 400px;
+    position: relative;
+    overflow: hidden;
+}
+
+.processing-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(76, 175, 80, 0.1), transparent);
+    animation: shimmer 2s infinite;
+}
+
+.processing-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #E8F5E8;
+    border-top: 4px solid #4CAF50;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.processing-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #2E7D32;
+    margin-bottom: 8px;
+}
+
+.processing-message {
+    font-size: 14px;
+    color: #388E3C;
+    margin-bottom: 16px;
+    line-height: 1.4;
+}
+
+.processing-progress {
+    background: #E8F5E8;
+    border-radius: 8px;
+    height: 6px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.processing-progress-bar {
+    background: linear-gradient(90deg, #4CAF50, #66BB6A, #4CAF50);
+    height: 100%;
+    border-radius: 8px;
+    transition: width 0.3s ease;
+    background-size: 20px 20px;
+    animation: progress-animation 1.5s linear infinite;
+}
+
+@keyframes progress-animation {
+    0% { background-position: 0 0; }
+    100% { background-position: 20px 0; }
+}
+
+.processing-details {
+    font-size: 12px;
+    color: #4CAF50;
+    font-weight: 500;
+}
+
+/* ========== FORM CONTROLS ========== */
+.form-input {
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.form-select {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.9em;
+    min-width: 200px;
+}
+
+.code-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+.code-preview {
+    font-size: 0.75em;
+    font-family: monospace;
+    color: #666;
+    margin-top: 1px;
+    height: 14px;
+    overflow: hidden;
+    word-break: break-all;
+    line-height: 1.1;
+}
+
+.code-block {
+    background: #F5F5F5;
+    padding: 8px 12px;
+    border-radius: 4px;
+    display: block;
+    font-family: monospace;
+    font-size: 0.9em;
+    border: 1px solid #D0D0D0;
+}
+
+.code-block-alt {
+    background: #F8F9FA;
+    padding: 8px 12px;
+    border-radius: 4px;
+    display: block;
+    font-family: monospace;
+    font-size: 0.85em;
+    border: 1px solid #E0E0E0;
+    white-space: pre-wrap;
+}
+
+.code-output {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 16px;
+    overflow-x: auto;
+    font-family: monospace;
+    font-size: 0.85em;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* ========== ALIAS HEADER COMPONENTS ========== */
+.alias-header {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #E0E0E0;
+}
+
+.alias-title {
+    color: #333;
+    font-size: 0.95em;
+    font-weight: 600;
+}
+
+.alias-properties {
+    font-size: 0.85em;
+    line-height: 1.3;
+}
+
+.alias-container-info {
+    font-size: 0.8em;
+    color: #666;
+    margin-top: 4px;
+}
+
+.expand-caret {
+    font-size: 1.2em;
+    color: #666;
+    cursor: pointer;
+}
+
+.expand-icon {
+    transition: transform 0.3s ease;
+}
+
+.expand-icon.rotated {
+    transform: rotate(180deg);
+}
+
+/* ========== BADGES ========== */
+.confirmed-badge {
+    background: #4CAF50;
+    color: white;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.7em;
+}
+
+/* ========== CONCERN DISPLAY ========== */
+.concern-details {
+    background: #F5F5F5;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #D0D0D0;
+    margin-top: 4px;
+    font-size: 0.9em;
+    line-height: 1.4;
+}
+
+/* ========== STATS ITEMS ========== */
+.stats-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.stats-item-alt {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.stats-label {
+    font-weight: 500;
+    color: #2E7D32;
+    font-size: 0.9em;
+}
+
+/* ========== STATUS MESSAGES ========== */
+.status-success {
+    color: #4CAF50;
+    line-height: 1.2;
+}
+
+.status-error {
+    color: #dc3545;
+    line-height: 1.2;
+}
+
+.status-list {
+    margin: 4px 0 0 16px;
+    padding: 0;
+}
+
+/* ========== LOADING & ERROR STATES ========== */
+.loading {
+    text-align: center;
+    padding: 50px;
+    color: #666;
+    font-style: italic;
+}
+
+.error {
+    background: #FFEBEE;
+    color: #C62828;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 20px 0;
+    border-left: 4px solid #F44336;
+}
+
+.no-data {
+    text-align: center;
+    padding: 50px;
+    color: #666;
+    font-style: italic;
+}
+
+/* ========== LAYOUT GRIDS ========== */
+.responsive-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.chart-column {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.data-column {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.properties-list {
+    background: white;
+    border: 1px solid #E0E0E0;
+    border-radius: 6px;
+    padding: 16px;
+    min-height: 150px;
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.combinations-list {
+    background: white;
+    border: 1px solid #E0E0E0;
+    border-radius: 6px;
+    padding: 16px;
+    min-height: 150px;
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+/* ========== UTILITY CLASSES ========== */
+
+/* Layout Utilities */
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.flex-start { display: flex; align-items: flex-start; gap: 8px; }
+.flex-center { display: flex; align-items: center; gap: 8px; }
+.flex-column { display: flex; flex-direction: column; }
+.flex-1 { flex: 1; }
+.flex-shrink-0 { flex-shrink: 0; }
+.gap-8 { gap: 8px; }
+.gap-10 { gap: 10px; }
+
+/* Spacing Utilities */
+.m-0 { margin: 0; }
+.mb-6 { margin-bottom: 6px; }
+.mb-10 { margin-bottom: 10px; }
+.mb-16 { margin-bottom: 16px; }
+.mt-2 { margin-top: 2px; }
+.mt-4 { margin-top: 4px; }
+.ml-4 { margin-left: 4px; }
+.ml-8 { margin-left: 8px; }
+.mr-8 { margin-right: 8px; }
+.p-20 { padding: 20px; }
+.pt-2 { padding-top: 2px; }
+.pb-8 { padding-bottom: 8px; }
+
+/* Display Utilities */
+.d-none { display: none; }
+.d-block { display: block; }
+.d-flex { display: flex; }
+
+/* Text Utilities */
+.text-sm { font-size: 0.85em; }
+.text-xs { font-size: 0.75em; }
+.text-lg { font-size: 0.95em; }
+.text-center { text-align: center; }
+.font-600 { font-weight: 600; }
+.font-500 { font-weight: 500; }
+.line-height-13 { line-height: 1.3; }
+.color-333 { color: #333; }
+.color-666 { color: #666; }
+
+/* Border Utilities */
+.border-bottom { border-bottom: 1px solid #E0E0E0; }
+.border-none { border: none; }
+
+/* Height Utilities */
+.max-height-300 { max-height: 400px; overflow-y: auto; }
+.max-height-100 { max-height: 100%; }
+
+/* Link Utilities */
+.link-blue { color: #0066cc; text-decoration: none; }
+
+/* Container Utilities */
+.container-flex-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.section-header-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.section-header-flex-start {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+/* ========== RESPONSIVE DESIGN ========== */
+@media (max-width: 768px) {
+    .file-input-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+    }
+    
+    .file-input-container::after {
+        display: none;
+    }
+    
+    .file-input-main {
+        flex: none;
+        max-width: none;
+    }
+    
+    .doc-toggle {
+        flex: none;
+        max-width: none;
+    }
+    
+    .doc-sections {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .file-selector {
+        padding: 16px 20px;
+    }
+}
+
+/* ========== NVD CPE BASE STRINGS SECTION ========== */
+.nvd-cpe-section {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #E0E0E0;
+}
+
+.nvd-cpe-section-label {
+    margin-bottom: 5px;
+    font-size: 0.9em;
+}
+
+.nvd-cpe-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 2px 0;
+    font-size: 0.82em;
+}
+
+.nvd-cpe-rank {
+    color: #9E9E9E;
+    min-width: 14px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.nvd-cpe-string {
+    font-family: monospace;
+    flex: 1;
+    color: #333;
+    word-break: break-all;
+}
+
+.nvd-cpe-count {
+    color: #757575;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+</style>
 </head>
 <body>
     <div class="container">
@@ -1653,7 +1785,7 @@
             <h1>CPE Alias Mapping Dashboard</h1>
             <p>
                 Analyze CVE Platform Aliases and Assign them to CPE Base Strings <br />
-                Hashmire/Analysis_Tools v0.2.0
+                Hashmire/Analysis_Tools Example
             </p>
         </div>
 
@@ -1831,7 +1963,7 @@
                                         </div>
                                         <div class="tooltip-section">
                                             <span class="tooltip-highlight">Properties Compared:</span><br>
-                                            <span style="font-size: 0.85em;">vendor, product, platform, platforms, collectionURL, repo, packageName</span>
+                                            <span style="font-size: 0.85em;">vendor, product, platform, platforms, collectionURL, repo, packageName, packageURL</span>
                                         </div>
                                         <div class="tooltip-section">
                                             <span class="tooltip-highlight">Current Calculation:</span><br>
@@ -1887,10 +2019,21 @@
                 </div>
 
                 <div class="filter-container" id="aliasFilter" style="display: none;">
-                    <label for="filterInput" class="font-500 color-333">Filter:</label>
+                    <label for="filterInput" class="font-500 color-333">Keyword Filter:</label>
                     <input type="text" id="filterInput" class="form-input flex-1 mr-8 ml-8" placeholder="Enter search term..." />
-                    <button id="searchButton" class="btn-primary">Search</button>
-                    <button id="clearFilter" class="btn-secondary ml-4">Clear</button>
+                    <button id="searchButton" class="filter-pill active">Search</button>
+                    <button id="clearFilter" class="filter-pill ml-4">Reset Filters</button>
+                    <button id="includeConfirmedToggle" class="filter-pill ml-4" title="Include Confirmed Mappings in keyword search">Include Confirmed</button>
+                </div>
+
+                <div class="filter-pill-row" id="yearFilter" style="display: none;">
+                    <label class="font-500 color-333">CVE Year:</label>
+                    <div id="yearPillsContainer" class="filter-pills-container"></div>
+                </div>
+
+                <div class="filter-pill-row" id="aliasTypeFilter" style="display: none;">
+                    <label class="font-500 color-333">Alias Fields:</label>
+                    <div id="aliasTypePillsContainer" class="filter-pills-container"></div>
                 </div>
 
                 <div id="aliasGroups"></div>
@@ -1901,9 +2044,68 @@
         </div>
     </div>
 
+    <!-- Selection Panel -->
+    <div class="selection-panel white-card" id="selectionPanel">
+        <h4>Selected Aliases (<span id="selectionCount">0</span>)</h4>
+        <div class="selection-list" id="selectionList"></div>
+        <button class="consolidate-btn" id="consolidateBtn" onclick="consolidateAliases()">
+            Update Confirmed Mappings
+        </button>
+    </div>
+
+    <!-- Output Modal -->
+    <div class="output-modal" id="outputModal">
+        <div class="output-modal-content white-card" id="modalContent">
+            <div class="modal-header" id="modalHeader">
+                <h3>Update Confirmed Mappings</h3>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label for="cpeBaseString" style="display: block; margin-bottom: 4px; font-weight: 500;">CPE Base String:</label>
+                
+                <!-- CPE Builder Input -->
+                <div style="margin-bottom: 6px;">
+                    <input type="text" id="cpeBaseString" placeholder="a:vendor:product" 
+                           class="code-input"
+                           oninput="handleCpeInput(this)"
+                           onkeydown="handleCpeKeydown(event)">
+                    <div id="cpeValidationMessage" style="font-size: 0.75em; margin-top: 2px; height: 18px; overflow: hidden; line-height: 1.2;"></div>
+                    <div id="cpePreview" class="code-preview" style="height: 14px; overflow: hidden;"></div>
+                </div>
+                
+                <!-- Existing CPE Dropdown -->
+                <div>
+                    <select id="existingCpeSelect" 
+                            onchange="selectExistingCpe()" 
+                            class="form-select"
+                            style="width: 100%;">
+                        <option value="">Or select from existing CPE strings...</option>
+                    </select>
+                </div>
+            </div>
+            <pre id="outputContent" class="code-output"></pre>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-primary" onclick="updateConfirmedMappings()">Update Confirmed Mappings</button>
+                <button class="modal-btn modal-btn-secondary" onclick="closeOutputModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Processing Overlay (positioned at body level for maximum z-index effectiveness) -->
+    <div id="processingOverlay" class="processing-overlay">
+        <div class="processing-card">
+            <div class="processing-spinner"></div>
+            <div id="processingTitle" class="processing-title">Processing Data</div>
+            <div id="processingMessage" class="processing-message">Please wait while we process your request...</div>
+            <div class="processing-progress">
+                <div id="processingProgressBar" class="processing-progress-bar" style="width: 0%;"></div>
+            </div>
+            <div id="processingDetails" class="processing-details"></div>
+        </div>
+    </div>
+
     <script>
         // Active global variables still needed by current system
-        let currentData = null;  // Used for compatibility and download functions
+        let currentData = {"metadata": {"source_id": "example-cna-org", "source_name": "Example CNA Organization", "generated": "2026-04-08T00:00:00Z", "tool_version": "Example"}, "aliasGroups": [{"aliasGroup": "acme-corp_acme-lib", "aliases": [{"vendor": "Acme Corp", "product": "Acme Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001", "CVE-2025-05001"]}, {"vendor": "acme-corp", "product": "acme-lib", "source_cve": ["CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001"]}, {"vendor": "The Acme Project", "product": "Acme Core Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001"]}, {"vendor": "acme-project", "product": "acme-lib-core", "source_cve": ["CVE-2025-05001"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 4}]}, {"aliasGroup": "apex-systems_apex-server", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Linux", "source_cve": ["CVE-2022-02010", "CVE-2023-03010", "CVE-2024-04010", "CVE-2025-05010"]}, {"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Windows", "source_cve": ["CVE-2022-02010", "CVE-2023-03010"]}, {"vendor": "apex-systems", "product": "apex-server", "platform": "macOS", "source_cve": ["CVE-2024-04010", "CVE-2025-05010"]}, {"vendor": "Apex", "product": "apex-httpd", "platform": "FreeBSD", "source_cve": ["CVE-2021-01010"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:linux:*", "cveCount": 2}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:windows:*", "cveCount": 1}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:macos:*", "cveCount": 1}]}, {"aliasGroup": "netsend_netsend-client", "aliases": [{"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-client", "collectionURL": "https://packages.example-registry.org/netsend-client", "source_cve": ["CVE-2021-01020", "CVE-2022-02020", "CVE-2023-03020", "CVE-2024-04020"]}, {"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-dev", "collectionURL": "https://packages.example-linux.org/netsend", "source_cve": ["CVE-2022-02020", "CVE-2023-03020"]}, {"vendor": "netsend-project", "product": "netsend", "packageName": "libnetsend", "collectionURL": "https://packages.example-linux.org/libnetsend", "source_cve": ["CVE-2021-01020", "CVE-2024-04020"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 3}, {"cpeBaseString": "cpe:2.3:a:somevendor:somelib:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"aliasGroup": "utilkit_util-kit", "aliases": [{"vendor": "UtilKit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:npm/util-kit", "collectionURL": "https://registry.example-npm.org/util-kit", "source_cve": ["CVE-2021-01030", "CVE-2022-02030", "CVE-2023-03030", "CVE-2024-04030", "CVE-2025-05030"]}, {"vendor": "UtilKit", "product": "util-kit-esm", "packageName": "util-kit-esm", "packageURL": "pkg:npm/util-kit-esm", "source_cve": ["CVE-2021-01030", "CVE-2022-02030"]}, {"vendor": "utilkit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:pypi/util-kit", "source_cve": ["CVE-2023-03030"]}, {"vendor": "utilkit-project", "product": "util-kit", "packageName": "util-kit-rs", "packageURL": "pkg:cargo/util-kit-rs", "source_cve": ["CVE-2024-04030", "CVE-2025-05030"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "cveCount": 4}, {"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:python:*:*", "cveCount": 2}]}, {"aliasGroup": "packlib_pack-compress", "aliases": [{"vendor": "PackLib", "product": "pack-compress", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040", "CVE-2024-04040"]}, {"vendor": "packlib-project", "product": "pack-compress-dev", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040"]}, {"vendor": "PackLib", "product": "pack-compress", "repo": "https://gitlab.com/example-org/pack-compress", "source_cve": ["CVE-2021-01040", "CVE-2024-04040"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"aliasGroup": "streamworks_stream-proxy", "aliases": [{"vendor": "StreamWorks", "product": "stream-proxy", "modules": ["proxy_http_core_module"], "source_cve": ["CVE-2022-02050", "CVE-2023-03050", "CVE-2024-04050", "CVE-2025-05050"]}, {"vendor": "StreamWorks", "product": "stream-proxy", "modules": ["proxy_http_compress_module", "proxy_http_forward_module"], "source_cve": ["CVE-2021-01050", "CVE-2022-02050"]}, {"vendor": "streamworks-oss", "product": "stream-proxy-community", "modules": ["proxy_stream_core_module"], "source_cve": ["CVE-2023-03050", "CVE-2024-04050"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"aliasGroup": "pixelforge_pixel-render", "aliases": [{"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/pixel.c"], "source_cve": ["CVE-2021-01060", "CVE-2022-02060", "CVE-2023-03060"]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/draw.c", "src/render/composite.c"], "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"]}, {"vendor": "pixelforge-project", "product": "pixel-render", "programFiles": ["lib/Image.cpp"], "source_cve": ["CVE-2025-05060"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"aliasGroup": "cachedb_cache-engine", "aliases": [{"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbExprCodeTarget"], "source_cve": ["CVE-2021-01070", "CVE-2022-02070", "CVE-2023-03070", "CVE-2024-04070"]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbVdbeExec", "db_prepare_v2"], "source_cve": ["CVE-2022-02070", "CVE-2023-03070"]}, {"vendor": "cachedb-consortium", "product": "cache-engine-lite", "programRoutines": ["dbBtreeInsert"], "source_cve": ["CVE-2024-04070", "CVE-2025-05070"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"aliasGroup": "concern_placeholder_vendor", "aliases": [{"vendor": "n/a", "product": "affected-component", "source_cve": ["CVE-2021-01100", "CVE-2022-02100", "CVE-2023-03100"]}, {"vendor": "affected-vendor", "product": "n/a", "source_cve": ["CVE-2022-02100", "CVE-2024-04100"]}, {"vendor": "affected-vendor", "product": "affected-component", "packageName": "unknown", "collectionURL": "https://packages.example-registry.org/affected-component", "source_cve": ["CVE-2023-03100", "CVE-2025-05100"]}, {"vendor": "affected-vendor", "product": "affected-component", "platform": "unspecified", "source_cve": ["CVE-2024-04100"]}, {"vendor": "affected-vendor", "product": "affected-component", "platform": "all platforms", "source_cve": ["CVE-2025-05100"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_whitespace", "aliases": [{"vendor": " whitespace-vendor", "product": "ws-product", "source_cve": ["CVE-2021-01200", "CVE-2022-02200"]}, {"vendor": "whitespace-vendor", "product": "ws-product ", "source_cve": ["CVE-2022-02200", "CVE-2023-03200"]}, {"vendor": "whitespace-vendor", "product": "ws-pkg", "packageName": " ws-package ", "collectionURL": "https://packages.example-registry.org/ws-package", "source_cve": ["CVE-2023-03200", "CVE-2024-04200"]}, {"vendor": "whitespace-vendor", "product": "ws  product", "source_cve": ["CVE-2024-04200", "CVE-2025-05200"]}, {"vendor": "whitespace-vendor", "product": "ws-os", "platform": " Linux", "source_cve": ["CVE-2025-05200"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_text_comparator", "aliases": [{"vendor": "comparator-vendor", "product": "comp-app before 3.0", "source_cve": ["CVE-2021-01300", "CVE-2022-02300"]}, {"vendor": "comparator-vendor", "product": "comp-app through 4.2", "source_cve": ["CVE-2022-02300", "CVE-2023-03300"]}, {"vendor": "comparator-vendor", "product": "comp-pkg", "packageName": "comp-pkg prior to 2.0", "source_cve": ["CVE-2023-03300", "CVE-2024-04300"]}, {"vendor": "comparator-vendor", "product": "comp-app earlier than 5.1", "source_cve": ["CVE-2024-04300"]}, {"vendor": "comparator-vendor", "product": "comp-app from version 2", "source_cve": ["CVE-2025-05300"]}, {"vendor": "comparator-vendor", "product": "comp-app 1.0 - 2.5", "source_cve": ["CVE-2021-01300", "CVE-2025-05300"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_invalid_chars", "aliases": [{"vendor": "invalid-char-vendor", "product": "ic-component", "packageName": "ic-pkg, ic-extra", "source_cve": ["CVE-2021-01400", "CVE-2022-02400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component, plugin", "source_cve": ["CVE-2022-02400", "CVE-2023-03400"]}, {"vendor": "Invalid Char Vendor", "product": "ic-component", "source_cve": ["CVE-2023-03400", "CVE-2024-04400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component", "packageName": "ic pkg name", "source_cve": ["CVE-2024-04400", "CVE-2025-05400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component, suite", "packageName": "ic-pkg, ic-dev", "packageURL": "pkg:pypi/ic-component", "source_cve": ["CVE-2025-05400"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_bloat_text", "aliases": [{"vendor": "mesh-corp", "product": "mesh-corp firewall appliance", "source_cve": ["CVE-2021-01500", "CVE-2022-02500"]}, {"vendor": "mesh-corp", "product": "firewall", "packageName": "mesh-corp-firewall-pkg", "source_cve": ["CVE-2022-02500", "CVE-2023-03500"]}, {"vendor": "mesh-corp", "product": "mesh-corp vpn client", "packageName": "mesh-corp-vpn", "packageURL": "pkg:npm/mesh-corp-vpn", "source_cve": ["CVE-2023-03500", "CVE-2024-04500"]}, {"vendor": "mesh-corp", "product": "mesh-corp sdk", "repo": "https://github.com/example-org/mesh-corp-sdk", "source_cve": ["CVE-2024-04500", "CVE-2025-05500"]}, {"vendor": "mesh software", "product": "mesh software enterprise suite", "source_cve": ["CVE-2025-05500"]}], "topNvdCpeBaseStrings": []}], "confirmedMappings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "Acme Corp", "product": "Acme Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001", "CVE-2025-05001"]}, {"vendor": "acme-corp", "product": "acme-lib"}]}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:linux:*", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Linux", "source_cve": ["CVE-2022-02010", "CVE-2023-03010", "CVE-2024-04010", "CVE-2025-05010"]}]}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:windows:*", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Windows", "source_cve": ["CVE-2022-02010", "CVE-2023-03010"]}]}, {"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-client", "collectionURL": "https://packages.example-registry.org/netsend-client", "source_cve": ["CVE-2021-01020", "CVE-2022-02020", "CVE-2023-03020", "CVE-2024-04020"]}, {"vendor": "netsend-project", "product": "netsend", "packageName": "libnetsend", "collectionURL": "https://packages.example-linux.org/libnetsend", "source_cve": ["CVE-2021-01020", "CVE-2024-04020"]}]}, {"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "aliases": [{"vendor": "UtilKit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:npm/util-kit", "collectionURL": "https://registry.example-npm.org/util-kit", "source_cve": ["CVE-2021-01030", "CVE-2022-02030", "CVE-2023-03030", "CVE-2024-04030", "CVE-2025-05030"]}, {"vendor": "UtilKit", "product": "util-kit-esm", "packageName": "util-kit-esm", "packageURL": "pkg:npm/util-kit-esm", "source_cve": ["CVE-2021-01030", "CVE-2022-02030"]}, {"vendor": "utilkit-project", "product": "util-kit", "packageName": "util-kit-rs", "packageURL": "pkg:cargo/util-kit-rs", "source_cve": ["CVE-2024-04030", "CVE-2025-05030"]}]}, {"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "PackLib", "product": "pack-compress", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040", "CVE-2024-04040"]}, {"vendor": "packlib-project", "product": "pack-compress-dev", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040"]}]}, {"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "StreamWorks", "product": "stream-proxy", "modules": ["proxy_http_core_module"], "source_cve": ["CVE-2022-02050", "CVE-2023-03050", "CVE-2024-04050", "CVE-2025-05050"]}, {"vendor": "streamworks-oss", "product": "stream-proxy-community", "modules": ["proxy_stream_core_module"], "source_cve": ["CVE-2023-03050", "CVE-2024-04050"]}]}, {"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/pixel.c"], "source_cve": ["CVE-2021-01060", "CVE-2022-02060", "CVE-2023-03060"]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/draw.c", "src/render/composite.c"], "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"]}, {"vendor": "pixelforge-project", "product": "pixel-render", "programFiles": ["lib/Image.cpp"], "source_cve": ["CVE-2025-05060"]}]}, {"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbExprCodeTarget"], "source_cve": ["CVE-2021-01070", "CVE-2022-02070", "CVE-2023-03070", "CVE-2024-04070"]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbVdbeExec", "db_prepare_v2"], "source_cve": ["CVE-2022-02070", "CVE-2023-03070"]}, {"vendor": "cachedb-consortium", "product": "cache-engine-lite", "programRoutines": ["dbBtreeInsert"], "source_cve": ["CVE-2024-04070", "CVE-2025-05070"]}]}]};  // Used for compatibility and download functions
 
         // ========== DATA MANAGER ==========
         const DataManager = {
@@ -2021,20 +2223,18 @@
                                 cveCount: alias.source_cve ? alias.source_cve.length : 0,
                                 uniqueCveCount: alias.source_cve ? new Set(alias.source_cve).size : 0,
                                 aliasGroup: alias.aliasGroup || mapping.aliasGroup,
+                                topNvdCpeBaseStrings: alias.topNvdCpeBaseStrings || [],
                                 isConfirmedMapping: false
                             };
                             
-                            // Create search text for filtering
-                            const searchFields = [
-                                alias.alias || '',
-                                alias.product || '',
-                                alias.vendor || '',
-                                alias.version || '',
-                                alias.update || '',
-                                alias.edition || '',
-                                alias.language || ''
-                            ];
-                            processedAlias._searchText = searchFields.join(' ').toLowerCase();
+                            // Create search text for filtering - include all cve5Properties fields
+                            const searchParts = [alias.alias || '', alias.version || '',
+                                                 alias.update || '', alias.edition || '', alias.language || ''];
+                            cve5Properties.forEach(prop => {
+                                const val = alias[prop];
+                                if (val) searchParts.push(Array.isArray(val) ? val.join(' ') : String(val));
+                            });
+                            processedAlias._searchText = searchParts.join(' ').toLowerCase();
                             
                             // Detect source data concerns using global function (aligned with testing implementations)
                             const concerns = detectSourceDataConcerns(alias);
@@ -2056,6 +2256,13 @@
                     if (jsonData.confirmedMappings) {
                         console.log('Processing confirmedMappings data with', jsonData.confirmedMappings.length, 'mappings');
                         
+                        // Build deduplication key using all cve5Properties fields for precise matching
+                        const buildAliasDedupKey = (a) => cve5Properties.map(prop => {
+                            const val = a[prop];
+                            if (!val) return '';
+                            return Array.isArray(val) ? val.slice().sort().join(',') : String(val).toLowerCase().trim();
+                        }).join('|');
+
                         // Build confirmed aliases lookup for deduplication
                         const confirmedAliasesLookup = new Set();
                         
@@ -2085,18 +2292,14 @@
                                     cpeBaseString: cpeBaseString // Store CPE base string for reference
                                 };
                                 
-                                // Create search text for filtering
-                                const searchFields = [
-                                    alias.alias || '',
-                                    alias.product || '',
-                                    alias.vendor || '',
-                                    alias.version || '',
-                                    alias.update || '',
-                                    alias.edition || '',
-                                    alias.language || '',
-                                    alias.platform || ''
-                                ];
-                                processedAlias._searchText = searchFields.join(' ').toLowerCase();
+                                // Create search text for filtering - include all cve5Properties fields
+                                const searchParts = [alias.alias || '', alias.version || '',
+                                                     alias.update || '', alias.edition || '', alias.language || ''];
+                                cve5Properties.forEach(prop => {
+                                    const val = alias[prop];
+                                    if (val) searchParts.push(Array.isArray(val) ? val.join(' ') : String(val));
+                                });
+                                processedAlias._searchText = searchParts.join(' ').toLowerCase();
                                 
                                 // Detect concerns using global function (aligned with testing implementations)
                                 const concerns = detectSourceDataConcerns(alias);
@@ -2105,17 +2308,8 @@
                                 console.log(`Adding confirmed alias to dataset:`, processedAlias.vendor, processedAlias.product, `platform: "${processedAlias.platform || 'N/A'}"`, `cpeBaseString: ${cpeBaseString}`, `concerns: ${concerns.length}`);
                                 processedAliases.push(processedAlias);
                                 
-                                // Add to lookup for deduplication - create key based on vendor, product, and platform
-                                const vendor = (alias.vendor || '').toLowerCase().trim();
-                                const product = (alias.product || '').toLowerCase().trim();
-                                const platform = (alias.platform || alias.platforms || '').toLowerCase().trim();
-                                const lookupKey = `${vendor}:${product}:${platform}`;
-                                confirmedAliasesLookup.add(lookupKey);
-                                
-                                // Debug logging for specific cases
-                                if (product.includes('windows server 2019')) {
-                                    console.log(`Added confirmed key: "${lookupKey}"`);
-                                }
+                                // Add to lookup for deduplication using all cve5Properties fields
+                                confirmedAliasesLookup.add(buildAliasDedupKey(alias));
                             });
                             
                             // Store as nested structure with CPE base string and processed aliases
@@ -2132,33 +2326,16 @@
                         
                         // Check unconfirmedAliases dataset
                         this.datasets.unconfirmedAliases = this.datasets.unconfirmedAliases.filter(alias => {
-                            const vendor = (alias.vendor || '').toLowerCase().trim();
-                            const product = (alias.product || '').toLowerCase().trim();
-                            const platform = (alias.platform || alias.platforms || '').toLowerCase().trim();
-                            const lookupKey = `${vendor}:${product}:${platform}`;
-                            
-                            // Debug logging for specific cases
-                            if (product.includes('windows server 2019')) {
-                                console.log(`Checking unconfirmed: "${lookupKey}" - Exact match: ${confirmedAliasesLookup.has(lookupKey)}`);
-                            }
-                            
-                            if (confirmedAliasesLookup.has(lookupKey)) {
-                                console.log(`Removing duplicate from unconfirmed: ${alias.vendor} ${alias.product} (${platform})`);
+                            if (confirmedAliasesLookup.has(buildAliasDedupKey(alias))) {
                                 dedupeCount++;
                                 return false; // Remove this alias
                             }
                             return true; // Keep this alias
                         });
-                        
+
                         // Check sourceDataConcernAliases dataset
                         this.datasets.sourceDataConcernAliases = this.datasets.sourceDataConcernAliases.filter(alias => {
-                            const vendor = (alias.vendor || '').toLowerCase().trim();
-                            const product = (alias.product || '').toLowerCase().trim();
-                            const platform = (alias.platform || alias.platforms || '').toLowerCase().trim();
-                            const lookupKey = `${vendor}:${product}:${platform}`;
-                            
-                            if (confirmedAliasesLookup.has(lookupKey)) {
-                                console.log(`Removing duplicate from concerns: ${alias.vendor} ${alias.product} (${platform})`);
+                            if (confirmedAliasesLookup.has(buildAliasDedupKey(alias))) {
                                 dedupeCount++;
                                 return false; // Remove this alias
                             }
@@ -2261,6 +2438,9 @@
                             throw new Error(`CPE validation failed: ${validation.message}`);
                         }
                     }
+                    
+                    // Ensure CPE base string format: version and update must be wildcards
+                    cpeBaseString = ensureCpeBaseString(cpeBaseString);
                     
                     // Find the alias in source dataset using efficient ID lookup
                     const sourceData = this.datasets[sourceDataset];
@@ -2496,7 +2676,7 @@
                     const exportData = {
                         cnaId: cnaId,
                         confirmedMappings: this.datasets.confirmedMapping.map(mapping => ({
-                            cpeBaseString: mapping.cpeBaseString,
+                            cpeBaseString: ensureCpeBaseString(mapping.cpeBaseString),
                             aliases: mapping.aliases || []
                         }))
                     };
@@ -2587,74 +2767,17 @@
                     throw new Error(`Invalid datasets: ${invalidDatasets.join(', ')}`);
                 }
                 
-                // Clear filtering state (no retention between display refreshes)
+                // Reset global filter variables before re-render
                 allSortedAliases = null;
                 allConcerningAliases = null;
                 
-                // Clear and reset the search filter UI
+                // Clear text search (dataset changes invalidate in-progress searches)
                 clearSearchFilter();
                 
-                // Prepare data from DataManager
-                const mainAliasData = [];
-                const concernAliasData = [];
+                // Apply current year filter state and render all sections via central filter function
+                applyFilters();
                 
-                // Process each requested dataset
-                datasetsToUpdate.forEach(datasetName => {
-                    const datasetArray = DataManager.getDataset(datasetName);
-                    
-                    if (datasetName === 'sourceDataConcernAliases') {
-                        // Source data concerns go to separate section
-                        concernAliasData.push(...datasetArray);
-                    } else {
-                        // confirmedMapping and unconfirmedAliases go to main section
-                        mainAliasData.push(...datasetArray);
-                    }
-                });
-                
-                // Sort main alias data (confirmed mappings first, then by CVE count)
-                const sortedMainData = mainAliasData.sort((a, b) => {
-                    // Primary sort: confirmed mappings first
-                    if (a.isConfirmedMapping !== b.isConfirmedMapping) {
-                        return b.isConfirmedMapping ? 1 : -1;
-                    }
-                    
-                    // Secondary sort: CVE count (highest first)
-                    if (b.cveCount !== a.cveCount) {
-                        return b.cveCount - a.cveCount;
-                    }
-                    
-                    // Tertiary sort: Product name (alphabetical)
-                    const productA = (a.product || '').toLowerCase();
-                    const productB = (b.product || '').toLowerCase();
-                    return productA.localeCompare(productB);
-                });
-                
-                // Sort concern data by CVE count
-                const sortedConcernData = concernAliasData.sort((a, b) => {
-                    if (b.cveCount !== a.cveCount) {
-                        return b.cveCount - a.cveCount;
-                    }
-                    const productA = (a.product || '').toLowerCase();
-                    const productB = (b.product || '').toLowerCase();
-                    return productA.localeCompare(productB);
-                });
-                
-                // Update display areas
-                if (datasetsToUpdate.includes('confirmedMapping') || datasetsToUpdate.includes('unconfirmedAliases')) {
-                    displayAliasesByFrequency(sortedMainData);
-                    
-                    // Update global filter variables for compatibility
-                    allSortedAliases = sortedMainData;
-                }
-                
-                if (datasetsToUpdate.includes('sourceDataConcernAliases')) {
-                    displaySourceDataConcerns(sortedConcernData);
-                    
-                    // Update global filter variables for compatibility
-                    allConcerningAliases = sortedConcernData;
-                }
-                
-                // Reinitialize filter system (no retention between refreshes)
+                // Reinitialize text filter system
                 if (typeof initializeFilter === 'function') {
                     initializeFilter();
                 }
@@ -2678,6 +2801,8 @@
         // ===========================================
         
         // === PLACEHOLDER DETECTION PATTERNS ===
+        // Synchronized with Python platform_entry_registry.py GENERAL_PLACEHOLDER_VALUES
+        // Note: VERSION_PLACEHOLDER_VALUES not included - alias mapping doesn't process version data
         const GENERAL_PLACEHOLDER_VALUES = [
             'unspecified', 'unknown', 'none', 'undefined', 'various',
             'n/a', 'not available', 'not applicable', 'unavailable',
@@ -2685,7 +2810,7 @@
             'not specified', 'not determined', 'not known', 'not listed',
             'not provided', 'missing', 'empty', 'null', '-',
             'see references', 'see advisory', 'check', 'noted', 'all',
-            'contact vendor', 'check with vendor'
+            'contact vendor', 'check with vendor', 'all platforms'
         ];
 
         // === TEXT COMPARATOR DETECTION PATTERNS ===
@@ -2721,7 +2846,7 @@
 
         // ========== GLOBAL CONSTANTS ==========
         const cve5Properties = [
-            'vendor', 'product', 'platform', 'collectionURL', 'packageName', 'cpes', 
+            'vendor', 'product', 'platform', 'collectionURL', 'packageName', 'packageURL', 'cpes', 
             'modules', 'programFiles', 'programRoutines', 'repo'
         ];
 
@@ -2759,13 +2884,21 @@
             const concerns = [];
             
             // ===========================================
-            // COMPLETE PYTHON SDC REPLICATION (9/9 GROUPS)
-            // Implements all Python platform_entry_registry.py detection groups
+            // ALIAS SDC DETECTION (5 GROUPS)
+            // Implements the 5 concern groups applicable to alias identity fields.
+            // Version-field-specific groups from platform_entry_registry.py are not
+            // applicable here — alias data does not contain version values.
             // ===========================================
             
             // Use centralized field list to ensure all supported fields are checked
             const aliasFields = cve5Properties.filter(field => 
-                ['vendor', 'product', 'platform', 'packageName', 'collectionURL', 'repo'].includes(field)
+                ['vendor', 'product', 'platform', 'packageName', 'collectionURL', 'packageURL', 'repo'].includes(field)
+            );
+            // URL fields are exempt from the character allow-list check (invalidCharacters section 4)
+            // because URLs inherently contain '/', ':', etc. that are not CPE identifier characters.
+            // They still participate in placeholder, whitespace, and textComparator checks.
+            const identifierFields = aliasFields.filter(field =>
+                !['collectionURL', 'packageURL', 'repo'].includes(field)
             );
             
             // === 1. PLACEHOLDER DETECTION (Python: placeholderValues) ===
@@ -2789,8 +2922,16 @@
                 }
             });
             
+            // Build a set of fields already flagged as placeholders.
+            // Those fields will be omitted from the alias display entirely,
+            // so further concern checks on them produce misleading noise.
+            const placeholderFields = new Set(
+                concerns.filter(c => c.type === 'placeholderValues').map(c => c.field)
+            );
+
             // === 2. WHITESPACE ISSUES (Python: whitespaceIssues) ===
             aliasFields.forEach(fieldName => {
+                if (placeholderFields.has(fieldName)) return; // omitted field — skip
                 if (alias[fieldName] && typeof alias[fieldName] === 'string') {
                     const fieldValue = alias[fieldName];
                     
@@ -2831,6 +2972,7 @@
             
             // === 3. TEXT COMPARATOR DETECTION (Python: textComparators) ===
             aliasFields.forEach(fieldName => {
+                if (placeholderFields.has(fieldName)) return; // omitted field — skip
                 if (alias[fieldName] && typeof alias[fieldName] === 'string') {
                     const fieldValue = alias[fieldName];
                     const fieldLower = fieldValue.toLowerCase();
@@ -2867,7 +3009,9 @@
             });
             
             // === 4. INVALID CHARACTER DETECTION (Python: invalidCharacters) ===
-            aliasFields.forEach(fieldName => {
+            // Only identifier fields — URL fields (collectionURL, repo) are intentionally excluded.
+            identifierFields.forEach(fieldName => {
+                if (placeholderFields.has(fieldName)) return; // omitted field — skip
                 if (alias[fieldName] && typeof alias[fieldName] === 'string') {
                     const fieldValue = alias[fieldName];
                     
@@ -2951,6 +3095,28 @@
                     // Convert to lowercase only
                     parts[i] = parts[i].toLowerCase();
                 }
+            }
+            
+            return parts.join(':');
+        }
+
+        function ensureCpeBaseString(cpeString) {
+            if (!cpeString) return cpeString;
+            
+            // Split the CPE string into parts
+            const parts = cpeString.split(':');
+            
+            // If it's not a proper CPE string, return as-is
+            if (parts.length < 3 || !cpeString.startsWith('cpe:2.3:')) {
+                return cpeString;
+            }
+            
+            // CPE 2.3 format: cpe:2.3:part:vendor:product:version:update:edition:language:sw_edition:target_sw:target_hw:other
+            // Indices:       0    1    2    3      4       5       6      7       8        9          10         11        12
+            // Base strings must have version (5) and update (6) as wildcards
+            if (parts.length >= 7) {
+                parts[5] = '*';  // version
+                parts[6] = '*';  // update
             }
             
             return parts.join(':');
@@ -3114,10 +3280,12 @@
             const validation = validateCpeString(value);
             
             if (validation.valid) {
+                // Ensure version and update are wildcards for base string format
+                const normalizedValue = ensureCpeBaseString(value);
                 validationDiv.innerHTML = `<span class="status-success">✅ Valid CPE 2.3 Base String</span>`;
                 previewDiv.innerHTML = '';
                 input.style.borderColor = '#4CAF50';
-                input.setAttribute('data-final-cpe', value);
+                input.setAttribute('data-final-cpe', normalizedValue);
             } else {
                 // Display validation errors in fixed height container with consistent formatting
                 if (validation.errors && validation.errors.length > 0) {
@@ -3185,6 +3353,9 @@
                     value = parts.join(':');
                 }
                 
+                // Ensure CPE base string format: version and update must be wildcards
+                value = ensureCpeBaseString(value);
+                
                 // Update input with sanitized and completed value
                 input.value = value;
                 handleCpeInput(input);
@@ -3214,10 +3385,22 @@
                 performSearch(filterInput.value.toLowerCase());
             };
 
-            // Clear on click
+            // Reset Filters — returns all filters and text search to their defaults
             clearButton.onclick = function() {
                 filterInput.value = '';
+                document.getElementById('includeConfirmedToggle').classList.remove('active');
+                YearFilter.reset();
+                populateYearFilter();
+                AliasTypeFilter.reset();
+                AliasTypeFilter.compute();
+                renderAliasTypeFilterUI();
                 performSearch('');
+            };
+
+            // Include Confirmed toggle - group-level filter against confirmed mappings
+            document.getElementById('includeConfirmedToggle').onclick = function() {
+                this.classList.toggle('active');
+                applyFilters();
             };
         }
 
@@ -3242,86 +3425,11 @@
             searchButton.disabled = true;
             clearButton.disabled = true;
 
-            // Use setTimeout to allow UI update
+            // Use setTimeout to allow UI update before re-render
             setTimeout(() => {
-                // Use DataManager query functions instead of deprecated filterAliases
-                if (!filterText.trim()) {
-                    // No filter - show all data
-                    updateDatasetDisplay(['confirmedMapping', 'unconfirmedAliases', 'sourceDataConcernAliases']);
-                } else {
-                    // Apply filter using query functions
-                    const searchTerm = filterText.trim().toLowerCase();
-                    
-                    // Use query function to get all aliases then filter
-                    const allAliases = DataQueries.getAllAliases();
-                    const filteredAliases = allAliases.filter(alias => 
-                        alias._searchText && alias._searchText.includes(searchTerm)
-                    );
-                    
-                    // Sort filtered aliases
-                    const sortedAliases = filteredAliases.sort((a, b) => {
-                        const scoreA = a.frequency || a.cveCount || a.source_cve?.length || 0;
-                        const scoreB = b.frequency || b.cveCount || b.source_cve?.length || 0;
-                        if (scoreB !== scoreA) return scoreB - scoreA;
-                        
-                        const productA = (a.product || '').toLowerCase();
-                        const productB = (b.product || '').toLowerCase();
-                        return productA.localeCompare(productB);
-                    });
-                    
-                    // Separate filtered results by dataset type using property-based identification
-                    const filteredConfirmed = sortedAliases.filter(alias => 
-                        alias.isConfirmedMapping === true
-                    );
-                    const filteredUnconfirmed = sortedAliases.filter(alias => 
-                        alias.isConfirmedMapping !== true && !alias.hasSourceDataConcerns
-                    );
-                    const filteredConcern = sortedAliases.filter(alias => 
-                        alias.hasSourceDataConcerns === true
-                    );
-                    
-                    console.debug('🔍 Search filter results:', {
-                        searchTerm: searchTerm,
-                        totalFiltered: sortedAliases.length,
-                        confirmed: filteredConfirmed.length,
-                        unconfirmed: filteredUnconfirmed.length,
-                        concern: filteredConcern.length
-                    });
-                    
-                    // Display filtered results
-                    const mainAliasData = [...filteredConfirmed, ...filteredUnconfirmed];
-                    const concernAliasData = filteredConcern;
-                    
-                    // Sort data
-                    const sortAliases = (aliases) => aliases.sort((a, b) => {
-                        const scoreA = a.frequency || a.cveCount || a.source_cve?.length || 0;
-                        const scoreB = b.frequency || b.cveCount || b.source_cve?.length || 0;
-                        if (scoreB !== scoreA) return scoreB - scoreA;
-                        
-                        const productA = (a.product || '').toLowerCase();
-                        const productB = (b.product || '').toLowerCase();
-                        return productA.localeCompare(productB);
-                    });
-                    
-                    const sortedMainData = sortAliases(mainAliasData);
-                    const sortedConcernData = sortAliases(concernAliasData);
-                    
-                    // Display filtered data
-                    if (sortedMainData.length > 0) {
-                        displayAliasesByFrequency(sortedMainData);
-                    } else {
-                        document.getElementById('aliasGroups').innerHTML = '<div class="white-card"><p>No results found for your search.</p></div>';
-                    }
-                    
-                    if (sortedConcernData.length > 0) {
-                        displaySourceDataConcerns(sortedConcernData);
-                    } else {
-                        document.getElementById('sourceDataConcernGroups').innerHTML = '';
-                    }
-                }
-                
-                // Reset search UI
-                
+                // Delegate to central filter function which combines text + year filter
+                applyFilters();
+
                 // Restore buttons
                 searchButton.textContent = originalSearchText;
                 clearButton.textContent = originalClearText;
@@ -3503,7 +3611,7 @@
             if (alias.product && !isPlaceholderValue(alias.product)) mapping.product = alias.product;
             
             // Optional fields - only include if they have meaningful values
-            const optionalFields = ['platforms', 'packageName', 'repo', 'collectionURL', 
+            const optionalFields = ['platform', 'packageName', 'packageURL', 'repo', 'collectionURL',
                                   'container_type', 'programRoutines', 'programFiles', 'modules', 'defaultStatus'];
             
             optionalFields.forEach(field => {
@@ -3530,17 +3638,13 @@
                         if (alias.product) cleanAlias.product = alias.product;
                         
                         // Add optional fields if they exist and aren't placeholder values
-                        const optionalFields = ['version', 'update', 'edition', 'language'];
+                        const optionalFields = ['platform', 'collectionURL', 'packageName', 'packageURL',
+                                               'programRoutines', 'programFiles', 'modules', 'repo'];
                         optionalFields.forEach(field => {
                             if (alias[field] && !isPlaceholderValue(alias[field])) {
-                                cleanAlias[field] = alias[field];
+                                cleanAlias[field] = Array.isArray(alias[field]) ? alias[field][0] : alias[field];
                             }
                         });
-                        
-                        // Handle platform field - standardized on "platform" property
-                        if (alias.platform && !isPlaceholderValue(alias.platform)) {
-                            cleanAlias.platform = alias.platform;
-                        }
                         
                         return cleanAlias;
                     });
@@ -3554,15 +3658,20 @@
                     confirmedMappings.push(confirmedMapping);
                 });
                 
-                // Extract the target_uuid from the loaded data - this is required
-                if (!window.currentData || !window.currentData.metadata || !window.currentData.metadata.target_uuid) {
-                    throw new Error('Cannot download: No target_uuid found in loaded data metadata');
+                // Extract the source_id from DataManager's raw data - use source_id or source_name as fallback
+                if (!DataManager.rawData || !DataManager.rawData.metadata) {
+                    throw new Error('Cannot download: No metadata found in loaded data');
                 }
-                const actualCnaId = window.currentData.metadata.target_uuid;
+                
+                // Use source_id (preferred) or source_name as the identifier
+                const sourceId = DataManager.rawData.metadata.source_id || DataManager.rawData.metadata.source_name;
+                if (!sourceId) {
+                    throw new Error('Cannot download: No source_id or source_name found in metadata');
+                }
                 
                 // Create the full JSON structure
                 const jsonData = {
-                    cnaId: actualCnaId,
+                    cnaId: sourceId,
                     confirmedMappings: confirmedMappings
                 };
                 
@@ -3718,9 +3827,108 @@
             }
         }
 
+        // Check for pre-injected data and auto-load
+        function checkForInjectedData() {
+            if (typeof currentData !== 'undefined' && currentData !== null && typeof currentData === 'object' && currentData.aliasGroups) {
+                console.log('✓ Injected data detected, loading dashboard automatically...');
+                
+                // Update status bar with injected data metadata
+                const statusBar = document.getElementById('status-bar');
+                const statusFilename = document.getElementById('status-filename');
+                const generationTimeEl = document.getElementById('generation-time');
+                const fileSizeEl = document.getElementById('file-size');
+                const loadTimeEl = document.getElementById('load-time');
+                
+                if (statusBar) {
+                    // Display source name for quick scope identification
+                    const sourceName = currentData.metadata?.source_name || 'Unknown Source';
+                    statusFilename.textContent = sourceName;
+                    
+                    let generationTime = 'Unknown';
+                    if (currentData.metadata && currentData.metadata.extraction_timestamp) {
+                        const genDate = new Date(currentData.metadata.extraction_timestamp);
+                        generationTime = genDate.toLocaleString();
+                    } else if (currentData.metadata && currentData.metadata.run_started_at) {
+                        const genDate = new Date(currentData.metadata.run_started_at);
+                        generationTime = genDate.toLocaleString();
+                    }
+                    generationTimeEl.textContent = generationTime;
+                    
+                    // Calculate approximate data size
+                    const dataSize = (JSON.stringify(currentData).length / 1024).toFixed(1);
+                    fileSizeEl.textContent = `~${dataSize} KB`;
+                    
+                    const now = new Date();
+                    loadTimeEl.textContent = now.toLocaleTimeString();
+                    
+                    statusBar.style.display = 'block';
+                }
+                
+                // Load data into DataManager
+                showProcessingOverlay('Loading Pre-Injected Data...');
+                
+                setTimeout(() => {
+                    try {
+                        updateProcessingProgress(25, 'Parsing injected data...');
+                        
+                        if (!currentData.aliasGroups) {
+                            throw new Error('Invalid data format: missing aliasGroups');
+                        }
+                        
+                        updateProcessingProgress(50, 'Loading data into DataManager...');
+                        
+                        const loadResult = DataManager.loadData(currentData);
+                        if (!loadResult.success) {
+                            throw new Error(`DataManager load failed: ${loadResult.error}`);
+                        }
+                        
+                        updateProcessingProgress(75, 'Updating statistics and display...');
+                        
+                        // Update stats using DataManager data
+                        updateStatsFromDataManager();
+                        
+                        // Display using new system
+                        const displayResult = updateDatasetDisplay(['confirmedMapping', 'unconfirmedAliases', 'sourceDataConcernAliases']);
+                        if (!displayResult.success) {
+                            console.warn(`Display update failed: ${displayResult.error}`);
+                        }
+                        
+                        updateProcessingProgress(90, 'Initializing charts and interface...');
+                        
+                        // Initialize charts and UI using query functions
+                        initializeChartsAndUI();
+                        
+                        updateProcessingProgress(100, 'Complete!');
+                        
+                        setTimeout(() => {
+                            hideProcessingOverlay();
+                        }, 500);
+                        
+                        console.log('Dashboard successfully loaded with pre-injected data');
+                        return true;
+                        
+                    } catch (error) {
+                        console.error('Error loading injected data:', error);
+                        hideProcessingOverlay();
+                        showError(`Failed to load data: ${error.message}`);
+                        return false;
+                    }
+                }, 100);
+                
+                return true;
+            }
+            return false;
+        }
+
         // File input handling
         document.addEventListener('DOMContentLoaded', function() {
             initializeCachedElements();
+            
+            // Check if data was injected - if so, auto-load it
+            if (checkForInjectedData()) {
+                console.log('Dashboard initialized with injected data');
+                return; // Skip file input setup since data is already loaded
+            }
             
             const fileSelectBtn = document.getElementById('file-select-btn');
             const statusBar = document.getElementById('status-bar');
@@ -4067,7 +4275,349 @@
                 return sortedAliases.slice(0, limit);
             }
         };
-        
+
+        // ========== YEAR FILTER ==========
+
+        const YearFilter = {
+            availableYears: [],    // sorted: numeric desc, 'Unknown' last
+            activeYears: new Set(),
+
+            isFilteringActive() {
+                return this.availableYears.length > 0 &&
+                       this.activeYears.size < this.availableYears.length;
+            },
+
+            matchesAlias(alias) {
+                if (!this.isFilteringActive()) return true;
+                const cves = alias.source_cve;
+                if (!cves || cves.length === 0) {
+                    return this.activeYears.has('Unknown');
+                }
+                return cves.some(cve => {
+                    const m = cve.match(/CVE-(\d{4})-/);
+                    return this.activeYears.has(m ? m[1] : 'Unknown');
+                });
+            },
+
+            populate(aliases) {
+                const years = new Set();
+                aliases.forEach(alias => {
+                    const cves = alias.source_cve;
+                    if (!cves || cves.length === 0) {
+                        years.add('Unknown');
+                        return;
+                    }
+                    cves.forEach(cve => {
+                        const m = cve.match(/CVE-(\d{4})-/);
+                        years.add(m ? m[1] : 'Unknown');
+                    });
+                });
+                this.availableYears = [...years].sort((a, b) => {
+                    if (a === 'Unknown') return 1;
+                    if (b === 'Unknown') return -1;
+                    return parseInt(b) - parseInt(a);
+                });
+                // All years start active
+                this.activeYears = new Set(this.availableYears);
+            },
+
+            reset() {
+                this.availableYears = [];
+                this.activeYears = new Set();
+            }
+        };
+
+        function populateYearFilter() {
+            const allUnconfirmed = [
+                ...DataManager.datasets.unconfirmedAliases,
+                ...DataManager.datasets.sourceDataConcernAliases
+            ];
+            YearFilter.populate(allUnconfirmed);
+            renderYearFilterUI();
+        }
+
+        // ========== ALIAS TYPE FILTER ==========
+
+        // The ordered list of alias fields to surface as pills.
+        // Only fields actually present in loaded data will be shown.
+        const ALIAS_TYPE_FIELD_ORDER = [
+            'vendor', 'product', 'platform',
+            'collectionURL', 'packageName', 'packageURL',
+            'repo', 'modules', 'programFiles', 'programRoutines', 'cpes'
+        ];
+
+        const ALIAS_TYPE_FIELD_LABELS = {
+            vendor:           'Vendor',
+            product:          'Product',
+            platform:         'Platform',
+            collectionURL:    'Collection URL',
+            packageName:      'Package Name',
+            packageURL:       'Package URL',
+            repo:             'Repo',
+            modules:          'Modules',
+            programFiles:     'Program Files',
+            programRoutines:  'Program Routines',
+            cpes:             'CPEs'
+        };
+
+        const AliasTypeFilter = {
+            availableFields: [],   // ordered subset of ALIAS_TYPE_FIELD_ORDER present in data
+            activeFields: new Set(),
+
+            isFilteringActive() {
+                return this.availableFields.length > 0 &&
+                       this.activeFields.size < this.availableFields.length;
+            },
+
+            matchesAlias(alias) {
+                if (!this.isFilteringActive()) return true;
+                return [...this.activeFields].some(field => {
+                    const val = alias[field];
+                    return val && !isPlaceholderValue(val) &&
+                           !(Array.isArray(val) && val.length === 0);
+                });
+            },
+
+            compute() {
+                // Scan all three datasets including confirmed aliases
+                const confirmedAliases = DataManager.datasets.confirmedMapping
+                    .flatMap(m => m.aliases || []);
+                const allAliases = [
+                    ...DataManager.datasets.unconfirmedAliases,
+                    ...DataManager.datasets.sourceDataConcernAliases,
+                    ...confirmedAliases
+                ];
+                const present = new Set();
+                allAliases.forEach(alias => {
+                    ALIAS_TYPE_FIELD_ORDER.forEach(field => {
+                        const val = alias[field];
+                        if (val && !isPlaceholderValue(val) &&
+                            !(Array.isArray(val) && val.length === 0)) {
+                            present.add(field);
+                        }
+                    });
+                });
+                this.availableFields = ALIAS_TYPE_FIELD_ORDER.filter(f => present.has(f));
+                // All fields start active (show everything), deselect to filter
+                this.activeFields = new Set(this.availableFields);
+            },
+
+            reset() {
+                this.availableFields = [];
+                this.activeFields = new Set();
+            }
+        };
+
+        function renderAliasTypeFilterUI() {
+            const container = document.getElementById('aliasTypePillsContainer');
+            const typeFilterEl = document.getElementById('aliasTypeFilter');
+            const yearFilterEl = document.getElementById('yearFilter');
+            if (!container || !typeFilterEl) return;
+
+            if (AliasTypeFilter.availableFields.length === 0) {
+                typeFilterEl.style.display = 'none';
+                if (yearFilterEl) yearFilterEl.classList.remove('connected');
+                return;
+            }
+
+            container.innerHTML = '';
+            AliasTypeFilter.availableFields.forEach(field => {
+                const pill = document.createElement('button');
+                pill.type = 'button';
+                pill.className = `filter-pill ${AliasTypeFilter.activeFields.has(field) ? 'active' : 'inactive'}`;
+                pill.textContent = ALIAS_TYPE_FIELD_LABELS[field] || field;
+                pill.dataset.field = field;
+                pill.addEventListener('click', () => toggleAliasTypePill(field));
+                container.appendChild(pill);
+            });
+
+            typeFilterEl.style.display = 'flex';
+            if (yearFilterEl) yearFilterEl.classList.add('connected');
+        }
+
+        function toggleAliasTypePill(field) {
+            if (AliasTypeFilter.activeFields.has(field)) {
+                AliasTypeFilter.activeFields.delete(field);
+            } else {
+                AliasTypeFilter.activeFields.add(field);
+            }
+            renderAliasTypeFilterUI();
+            applyFilters();
+        }
+
+        function renderYearFilterUI() {
+            const container = document.getElementById('yearPillsContainer');
+            const yearFilterEl = document.getElementById('yearFilter');
+            const textFilterEl = document.getElementById('aliasFilter');
+            if (!container || !yearFilterEl) return;
+
+            if (YearFilter.availableYears.length === 0) {
+                yearFilterEl.style.display = 'none';
+                if (textFilterEl) textFilterEl.classList.remove('connected');
+                return;
+            }
+
+            container.innerHTML = '';
+            YearFilter.availableYears.forEach(year => {
+                const pill = document.createElement('button');
+                pill.type = 'button';
+                pill.className = `filter-pill ${YearFilter.activeYears.has(year) ? 'active' : 'inactive'}`;
+                pill.textContent = year;
+                pill.dataset.year = year;
+                pill.addEventListener('click', () => toggleYearPill(year));
+                container.appendChild(pill);
+            });
+
+            yearFilterEl.style.display = 'flex';
+            if (textFilterEl) textFilterEl.classList.add('connected');
+            // yearFilter itself is not the bottom row when aliasTypeFilter is also visible;
+            // that connected class is managed by renderAliasTypeFilterUI()
+        }
+
+        function applyYearFilterDOM() {
+            const yearFilterActive = YearFilter.isFilteringActive();
+            let visibleUnconfirmed = 0, visibleConcern = 0;
+            document.querySelectorAll('.alias-group[data-section]').forEach(el => {
+                const section = el.dataset.section;
+                let visible = true;
+                if (yearFilterActive) {
+                    const years = el.dataset.years ? el.dataset.years.split(' ') : [];
+                    visible = years.some(y => YearFilter.activeYears.has(y));
+                }
+                el.style.display = visible ? '' : 'none';
+                if (section === 'unconfirmed' && visible) visibleUnconfirmed++;
+                if (section === 'concern' && visible) visibleConcern++;
+            });
+            const unconfirmedTitle = document.getElementById('unconfirmed-section-title');
+            if (unconfirmedTitle) {
+                const rawTotal = DataManager.datasets.unconfirmedAliases.length;
+                unconfirmedTitle.textContent = yearFilterActive
+                    ? `Unconfirmed Aliases (${visibleUnconfirmed} / ${rawTotal})`
+                    : `Unconfirmed Aliases (${rawTotal})`;
+            }
+            const concernTitle = document.getElementById('concern-section-title');
+            if (concernTitle) {
+                const rawTotal = DataManager.datasets.sourceDataConcernAliases.length;
+                concernTitle.textContent = yearFilterActive
+                    ? `Unconfirmed Aliases - Data Concerns (${visibleConcern} / ${rawTotal})`
+                    : `Unconfirmed Aliases - Data Concerns (${rawTotal})`;
+            }
+        }
+
+        let _yearFilterTimer = null;
+        function toggleYearPill(year) {
+            if (YearFilter.activeYears.has(year)) {
+                YearFilter.activeYears.delete(year);
+            } else {
+                YearFilter.activeYears.add(year);
+            }
+            renderYearFilterUI();
+            const filterInput = document.getElementById('filterInput');
+            const hasTextFilter = filterInput && filterInput.value.trim().length > 0;
+            if (hasTextFilter) {
+                clearTimeout(_yearFilterTimer);
+                _yearFilterTimer = setTimeout(applyFilters, 50);
+            } else {
+                applyYearFilterDOM();
+            }
+        }
+
+        // ========== CENTRAL FILTER APPLICATION ==========
+
+        /**
+         * Apply both text filter and year filter to unconfirmed datasets and re-render them.
+         * Confirmed mappings are always rendered unaffected.
+         */
+        function applyFilters() {
+            const filterInput = document.getElementById('filterInput');
+            const searchText = filterInput ? filterInput.value.toLowerCase().trim() : '';
+            const textFilterActive = searchText.length > 0;
+            const yearFilterActive = YearFilter.isFilteringActive();
+            const typeFilterActive = AliasTypeFilter.isFilteringActive();
+            const anyFilterActive = textFilterActive || yearFilterActive || typeFilterActive;
+
+            // Totals from raw DataManager datasets (never change with filtering)
+            const totalUnconfirmed = DataManager.datasets.unconfirmedAliases.length;
+            const totalConcern = DataManager.datasets.sourceDataConcernAliases.length;
+
+            // Confirmed: group-level filter when Include Confirmed toggle is active
+            const includeConfirmed = document.getElementById('includeConfirmedToggle')?.classList.contains('active');
+            let confirmedGroups = DataManager.datasets.confirmedMapping;
+            let autoExpandConfirmed = false;
+
+            if (includeConfirmed && (textFilterActive || typeFilterActive)) {
+                confirmedGroups = confirmedGroups.filter(group => {
+                    const textMatch = !textFilterActive || (
+                        group.cpeBaseString.toLowerCase().includes(searchText) ||
+                        group.aliases.some(a => a._searchText && a._searchText.includes(searchText))
+                    );
+                    const typeMatch = !typeFilterActive ||
+                        group.aliases.some(a => AliasTypeFilter.matchesAlias(a));
+                    return textMatch && typeMatch;
+                });
+                autoExpandConfirmed = confirmedGroups.length > 0;
+            }
+
+            // Flatten confirmed groups for display
+            const confirmedFlat = confirmedGroups.flatMap(g =>
+                g.aliases.map(a => ({ ...a, cpeBaseString: g.cpeBaseString }))
+            );
+
+            // Start with full unconfirmed datasets
+            let unconfirmedAliases = [...DataManager.datasets.unconfirmedAliases];
+            let concernAliases = [...DataManager.datasets.sourceDataConcernAliases];
+
+            // Apply text filter
+            if (textFilterActive) {
+                unconfirmedAliases = unconfirmedAliases.filter(a =>
+                    a._searchText && a._searchText.includes(searchText));
+                concernAliases = concernAliases.filter(a =>
+                    a._searchText && a._searchText.includes(searchText));
+            }
+
+            // Apply year filter
+            if (yearFilterActive) {
+                unconfirmedAliases = unconfirmedAliases.filter(a => YearFilter.matchesAlias(a));
+                concernAliases = concernAliases.filter(a => YearFilter.matchesAlias(a));
+            }
+
+            // Apply alias type filter
+            if (typeFilterActive) {
+                unconfirmedAliases = unconfirmedAliases.filter(a => AliasTypeFilter.matchesAlias(a));
+                concernAliases = concernAliases.filter(a => AliasTypeFilter.matchesAlias(a));
+            }
+
+            // Sort helpers
+            const sortMain = (arr) => arr.sort((a, b) => {
+                // Confirmed first, then by CVE count desc, then product alpha
+                if (a.isConfirmedMapping !== b.isConfirmedMapping) {
+                    return b.isConfirmedMapping ? 1 : -1;
+                }
+                const sa = a.frequency || a.cveCount || 0;
+                const sb = b.frequency || b.cveCount || 0;
+                if (sb !== sa) return sb - sa;
+                return (a.product || '').toLowerCase().localeCompare((b.product || '').toLowerCase());
+            });
+
+            const sortConcern = (arr) => arr.sort((a, b) => {
+                const sa = a.frequency || a.cveCount || 0;
+                const sb = b.frequency || b.cveCount || 0;
+                if (sb !== sa) return sb - sa;
+                return (a.product || '').toLowerCase().localeCompare((b.product || '').toLowerCase());
+            });
+
+            const mainData = sortMain([...confirmedFlat, ...unconfirmedAliases]);
+            const concernData = sortConcern(concernAliases);
+
+            // Update compatibility globals
+            allSortedAliases = mainData;
+            allConcerningAliases = concernData;
+
+            // Pass totals only when a filter is active so section headers show X / Total
+            displayAliasesByFrequency(mainData, anyFilterActive ? totalUnconfirmed : null, autoExpandConfirmed);
+            displaySourceDataConcerns(concernData, anyFilterActive ? totalConcern : null);
+        }
+
         /**
          * Update the coverage tooltip with detailed calculation information
          */
@@ -4152,25 +4702,20 @@
             try {
                 const confirmedAliases = DataManager.getDataset('confirmedMapping');
                 
-                // Count confirmed aliases that have data quality issues using authoritative _sdc_concerns data
+                // Count confirmed aliases that have data quality issues
                 let concernCount = 0;
                 const concernDetails = [];
                 
                 confirmedAliases.forEach(alias => {
-                    // Use the authoritative _sdc_concerns data from the JSON report
-                    const sdcConcerns = alias._sdc_concerns || {};
-                    const hasConcerns = Object.values(sdcConcerns).some(category => {
-                        return Array.isArray(category) ? category.length > 0 : Boolean(category);
-                    });
-                    
-                    if (hasConcerns) {
+                    const concerns = detectSourceDataConcerns(alias);
+                    if (concerns && concerns.length > 0) {
                         concernCount++;
                         concernDetails.push({
                             vendor: alias.vendor,
                             product: alias.product,
                             platform: alias.platform,
                             cpeBaseString: alias.cpeBaseString,
-                            concerns: sdcConcerns
+                            concerns: concerns
                         });
                     }
                 });
@@ -4202,25 +4747,20 @@
                 // Combine both external datasets
                 const allExternalAliases = [...unconfirmedAliases, ...sourceDataConcernAliases];
                 
-                // Count external aliases that have data quality issues using authoritative _sdc_concerns data
+                // Count external aliases that have data quality issues
                 let concernCount = 0;
                 const concernDetails = [];
                 
                 allExternalAliases.forEach(alias => {
-                    // Use the authoritative _sdc_concerns data from the JSON report
-                    const sdcConcerns = alias._sdc_concerns || {};
-                    const hasConcerns = Object.values(sdcConcerns).some(category => {
-                        return Array.isArray(category) ? category.length > 0 : Boolean(category);
-                    });
-                    
-                    if (hasConcerns) {
+                    const concerns = detectSourceDataConcerns(alias);
+                    if (concerns && concerns.length > 0) {
                         concernCount++;
                         concernDetails.push({
                             vendor: alias.vendor,
                             product: alias.product,
                             platform: alias.platform,
                             cpeBaseString: alias.cpeBaseString,
-                            concerns: sdcConcerns
+                            concerns: concerns
                         });
                     }
                 });
@@ -4408,7 +4948,16 @@
                 
                 console.debug('📊 Chart data:', { allAliases: allAliases.length, topAliases: topAliases.length });
                 
-                // Initialize filter system
+                // Build year filter from current unconfirmed datasets (resets any prior state)
+                YearFilter.reset();
+                populateYearFilter();
+
+                // Build alias type filter from all datasets
+                AliasTypeFilter.reset();
+                AliasTypeFilter.compute();
+                renderAliasTypeFilterUI();
+
+                // Initialize text filter system
                 initializeFilter();
                 
                 console.info('🎯 DASHBOARD: Charts and UI initialized successfully');
@@ -4478,7 +5027,7 @@
         }
 
 
-        function displayAliasesByFrequency(sortedAliases) {
+        function displayAliasesByFrequency(sortedAliases, totalUnconfirmedCount = null, autoExpandConfirmed = false) {
             const container = document.getElementById('aliasGroups');
             container.innerHTML = '';
 
@@ -4493,7 +5042,8 @@
             // Store current alias data for selection functionality
             storeCurrentAliasData(validAliases);
 
-            if (validAliases.length === 0) {
+            if (validAliases.length === 0 && totalUnconfirmedCount === null) {
+                // Nothing to show and no filter is active — display placeholder
                 container.innerHTML = '<div class="no-data">No alias data available</div>';
                 return;
             }
@@ -4510,14 +5060,7 @@
             if (confirmedMappings.length > 0) {
                 // Group confirmed mappings by CPE base string
                 const cpeGroups = {};
-                console.log(`Processing ${confirmedMappings.length} confirmed mappings for display grouping`);
-                confirmedMappings.forEach((alias, index) => {
-                    console.log(`Confirmed mapping ${index + 1}:`, {
-                        vendor: alias.vendor,
-                        product: alias.product,
-                        cpeBaseString: alias.cpeBaseString,
-                        hasProperty: !!alias.cpeBaseString
-                    });
+                confirmedMappings.forEach((alias) => {
                     if (!alias.cpeBaseString) {
                         console.warn(`Confirmed mapping alias missing cpeBaseString, skipping:`, alias);
                         return; // Skip this alias instead of throwing error
@@ -4529,23 +5072,25 @@
                     cpeGroups[cpeKey].push(alias);
                 });
                 
-                console.log(`Created ${Object.keys(cpeGroups).length} CPE groups:`, Object.keys(cpeGroups));
-                
                 // Add a single parent section for all confirmed mappings
                 sections.push({
                     title: `Confirmed Mappings (${confirmedMappings.length} aliases)`, 
                     aliases: [], // Will be rendered as CPE groups 
                     priority: 'confirmed-parent',
-                    collapsed: true,
+                    collapsed: !autoExpandConfirmed,
                     description: 'Previously validated CPE mappings from authoritative sources',
                     isConfirmedParent: true,
                     cpeGroups: cpeGroups
                 });
             }
             
-            if (otherAliases.length > 0) {
+            const unconfirmedTitle = (totalUnconfirmedCount !== null)
+                ? `Unconfirmed Aliases (${otherAliases.length} / ${totalUnconfirmedCount})`
+                : `Unconfirmed Aliases (${otherAliases.length})`;
+
+            if (otherAliases.length > 0 || totalUnconfirmedCount !== null) {
                 sections.push({
-                    title: `Unconfirmed Aliases (${otherAliases.length} aliases)`, 
+                    title: unconfirmedTitle,
                     aliases: otherAliases, 
                     priority: 'unconfirmed',
                     collapsed: false,
@@ -4592,6 +5137,10 @@
                         </div>
                     </div>
                 `;
+                if (section.priority === 'unconfirmed') {
+                    const titleSpan = sectionHeader.querySelector('span[style*="font-weight: 600"]');
+                    if (titleSpan) titleSpan.id = 'unconfirmed-section-title';
+                }
                 
                 // Add click handler for collapse/expand with smooth transitions
                 sectionHeader.addEventListener('click', (e) => {
@@ -4659,13 +5208,13 @@
                         cpeHeader.className = 'cpe-header gradient-green-dark';
                         cpeHeader.innerHTML = `
                             <span>${cpeString} (${aliases.length} aliases)</span>
-                            <span id="${cpeToggleId}-toggle" class="collapsible-toggle">▶</span>
+                            <span id="${cpeToggleId}-toggle" class="collapsible-toggle${autoExpandConfirmed ? ' rotated' : ''}">${autoExpandConfirmed ? '▼' : '▶'}</span>
                         `;
                         
                         // CPE group content with smooth transitions
                         const cpeContent = document.createElement('div');
                         cpeContent.id = cpeToggleId + '-content';
-                        cpeContent.className = 'cpe-collapsible-content collapsed';
+                        cpeContent.className = autoExpandConfirmed ? 'cpe-collapsible-content' : 'cpe-collapsible-content collapsed';
                         
                         // Add click handler for CPE group collapse/expand with dynamic height calculation
                         cpeHeader.addEventListener('click', () => {
@@ -4750,7 +5299,7 @@
                     }
                             
                             // Additional CVE 5.X properties that might be present
-                            const additionalFields = ['collectionURL', 'packageName', 'programRoutines', 
+                            const additionalFields = ['collectionURL', 'packageName', 'packageURL', 'programRoutines', 
                                                     'programFiles', 'modules', 'defaultStatus', 'repo'];
                             
                             additionalFields.forEach(field => {
@@ -4896,6 +5445,9 @@
                     aliasDiv.style.borderBottom = index < section.aliases.length - 1 ? '1px solid #E0E0E0' : 'none';
                     aliasDiv.style.borderRadius = '0';
                     aliasDiv.style.backgroundColor = '#ffffff';
+                    const _uy = [...new Set((alias.source_cve || []).map(cve => { const m = cve.match(/CVE-(\d{4})-/); return m ? m[1] : 'Unknown'; }))];
+                    aliasDiv.dataset.years = _uy.length ? _uy.join(' ') : 'Unknown';
+                    aliasDiv.dataset.section = 'unconfirmed';
 
                     const headerDiv = document.createElement('div');
                     headerDiv.className = 'alias-group-header';
@@ -4926,7 +5478,7 @@
                     }
                     
                     // Additional CVE 5.X properties that might be present
-                    const additionalFields = ['collectionURL', 'packageName', 'programRoutines', 
+                    const additionalFields = ['collectionURL', 'packageName', 'packageURL', 'programRoutines', 
                                             'programFiles', 'modules', 'defaultStatus', 'repo'];
                     
                     additionalFields.forEach(field => {
@@ -5005,6 +5557,19 @@
                                 <div class="cve-year-groups">
                                     ${cveGroupsHtml}
                                 </div>
+                                ${alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0 ? `
+                                <div class="nvd-cpe-section">
+                                    <div class="nvd-cpe-section-label"><strong>Most Frequent NVD CPE Base String Assignments:</strong></div>
+                                    <div class="nvd-cpe-list">
+                                        ${alias.topNvdCpeBaseStrings.map((entry, i) => `
+                                            <div class="nvd-cpe-row">
+                                                <span class="nvd-cpe-rank">${i + 1}</span>
+                                                <span class="nvd-cpe-string">${entry.cpeBaseString}</span>
+                                                <span class="nvd-cpe-count">${entry.cveCount} CVE${entry.cveCount !== 1 ? 's' : ''}</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>` : ''}
                             </div>
                         `;
 
@@ -5034,12 +5599,12 @@
             });
         }
 
-        function displaySourceDataConcerns(concerningAliases) {
+        function displaySourceDataConcerns(concerningAliases, totalConcernCount = null) {
             const container = document.getElementById('sourceDataConcernGroups');
             container.innerHTML = '';
 
-            if (concerningAliases.length === 0) {
-                return; // Don't show anything if no concerns
+            if (concerningAliases.length === 0 && totalConcernCount === null) {
+                return; // Don't show anything if no concerns and no active filter
             }
 
             // Store concerning aliases data for selection functionality
@@ -5056,18 +5621,24 @@
             // Create the main section header
             const sectionHeader = document.createElement('div');
             const toggleId = 'source-data-concerns';
+
+            const concernTitle = (totalConcernCount !== null)
+                ? `Unconfirmed Aliases - Data Concerns (${concerningAliases.length} / ${totalConcernCount})`
+                : `Unconfirmed Aliases - Data Concerns (${concerningAliases.length})`;
             
             sectionHeader.className = 'aliases-section-header gradient-green';
             
             sectionHeader.innerHTML = `
                 <div class="section-header-flex">
                     <div style="text-align: left; flex: 1;">
-                        <span style="font-weight: 600;">Unconfirmed Aliases - Data Concerns (${concerningAliases.length} aliases)</span>
+                        <span style="font-weight: 600;">${concernTitle}</span>
                         <div style="font-size: 0.8em; opacity: 0.9; margin-top: 1px;">Aliases that likely require upstream data contributor attention</div>
                     </div>
                     <span id="${toggleId}-toggle" class="collapsible-toggle" style="font-size: 1.1em; flex-shrink: 0;">▼</span>
                 </div>
             `;
+            const concernTitleSpan = sectionHeader.querySelector('span[style*="font-weight: 600"]');
+            if (concernTitleSpan) concernTitleSpan.id = 'concern-section-title';
             
             // Add click handler for collapse/expand with smooth transitions
             sectionHeader.addEventListener('click', () => {
@@ -5105,6 +5676,9 @@
                 aliasDiv.style.borderBottom = aliasIndex < concerningAliases.length - 1 ? '1px solid #E0E0E0' : 'none';
                 aliasDiv.style.borderRadius = '0';
                 aliasDiv.style.backgroundColor = '#ffffff';
+                const _cy = [...new Set((alias.source_cve || []).map(cve => { const m = cve.match(/CVE-(\d{4})-/); return m ? m[1] : 'Unknown'; }))];
+                aliasDiv.dataset.years = _cy.length ? _cy.join(' ') : 'Unknown';
+                aliasDiv.dataset.section = 'concern';
 
                 const headerDiv = document.createElement('div');
                 headerDiv.className = 'alias-group-header';
@@ -5130,6 +5704,12 @@
                                         ${!isPlaceholderValue(alias.vendor) ? `<strong>Vendor:</strong> ${alias.vendor}<br>` : ''}
                                         ${!isPlaceholderValue(alias.product) ? `<strong>Product:</strong> ${alias.product}<br>` : ''}
                                         ${!isPlaceholderValue(alias.platform) ? `<strong>Platform:</strong> ${alias.platform}<br>` : ''}
+                                        ${['collectionURL', 'packageName', 'packageURL', 'programRoutines', 'programFiles', 'modules', 'defaultStatus', 'repo'].map(f => {
+                                            if (!alias[f] || alias[f] === 'N/A' || alias[f] === '') return '';
+                                            let v = Array.isArray(alias[f]) ? alias[f].join(', ') : String(alias[f]);
+                                            if (v.length > 50) v = v.substring(0, 47) + '...';
+                                            return `<strong>${f}:</strong> ${v}<br>`;
+                                        }).join('')}
                                     </div>
                                 </div>
                             </div>
@@ -5168,6 +5748,19 @@
                         <div class="cve-year-groups">
                             ${cveGroupsHtml}
                         </div>
+                        ${alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0 ? `
+                        <div class="nvd-cpe-section">
+                            <div class="nvd-cpe-section-label"><strong>Most Frequent NVD CPE Base String Assignments:</strong></div>
+                            <div class="nvd-cpe-list">
+                                ${alias.topNvdCpeBaseStrings.map((entry, i) => `
+                                    <div class="nvd-cpe-row">
+                                        <span class="nvd-cpe-rank">${i + 1}</span>
+                                        <span class="nvd-cpe-string">${entry.cpeBaseString}</span>
+                                        <span class="nvd-cpe-count">${entry.cveCount} CVE${entry.cveCount !== 1 ? 's' : ''}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>` : ''}
                     </div>
                 `;
 
@@ -5480,7 +6073,7 @@
                     }
                 }
                 
-                if (alias.programRoutines && alias.programRoutines !== '' && alias.programRoutines !== 'unknown' && alias.programRoutines !== 'n/a') {
+                if (!isPlaceholderValue(alias.programRoutines)) {
                     if (Array.isArray(alias.programRoutines)) {
                         aliasEntry.programRoutines = alias.programRoutines[0];
                     } else {
@@ -5488,7 +6081,7 @@
                     }
                 }
                 
-                if (alias.programFiles && alias.programFiles !== '' && alias.programFiles !== 'unknown' && alias.programFiles !== 'n/a') {
+                if (!isPlaceholderValue(alias.programFiles)) {
                     if (Array.isArray(alias.programFiles)) {
                         aliasEntry.programFiles = alias.programFiles[0];
                     } else {
@@ -5496,7 +6089,7 @@
                     }
                 }
                 
-                if (alias.modules && alias.modules !== '' && alias.modules !== 'unknown' && alias.modules !== 'n/a') {
+                if (!isPlaceholderValue(alias.modules)) {
                     if (Array.isArray(alias.modules)) {
                         aliasEntry.modules = alias.modules[0];
                     } else {
@@ -5504,11 +6097,19 @@
                     }
                 }
                 
-                if (alias.repo && alias.repo !== '' && alias.repo !== 'unknown' && alias.repo !== 'n/a') {
+                if (!isPlaceholderValue(alias.repo)) {
                     if (Array.isArray(alias.repo)) {
                         aliasEntry.repo = alias.repo[0];
                     } else {
                         aliasEntry.repo = alias.repo;
+                    }
+                }
+
+                if (!isPlaceholderValue(alias.packageURL)) {
+                    if (Array.isArray(alias.packageURL)) {
+                        aliasEntry.packageURL = alias.packageURL[0];
+                    } else {
+                        aliasEntry.packageURL = alias.packageURL;
                     }
                 }
 
@@ -5569,7 +6170,8 @@
             const input = document.getElementById('cpeBaseString');
             
             if (select.value) {
-                input.value = select.value;
+                // Ensure CPE base string format when selecting from dropdown
+                input.value = ensureCpeBaseString(select.value);
                 handleCpeInput(input); // Trigger validation and update
             }
         }
@@ -5619,98 +6221,37 @@
 
         function getExistingAliasesForCpe(cpeBaseString) {
             // Modal now only operates on confirmed mappings with CPE strings
-            if (!DataManager.confirmedMapping) return [];
+            if (!DataManager.datasets.confirmedMapping) return [];
 
             const existingAliases = [];
 
-            DataManager.confirmedMapping.forEach(alias => {
-                // Check if this alias has the matching CPE base string
-                if (!alias.cpeBaseString) {
-                    throw new Error(`Missing required cpeBaseString in confirmed mapping alias: ${JSON.stringify(alias)}`);
+            DataManager.datasets.confirmedMapping.forEach(mapping => {
+                // Check if this mapping has the matching CPE base string
+                if (!mapping.cpeBaseString) {
+                    throw new Error(`Missing required cpeBaseString in confirmed mapping: ${JSON.stringify(mapping)}`);
                 }
-                if (alias.cpeBaseString === cpeBaseString) {
-                    if (mapping.aliases) {
-                        // Add all aliases from this mapping
-                        mapping.aliases.forEach(alias => {
-                            // Clean the alias - remove internal fields and ensure string properties
-                            const cleanAlias = {};
-                            
-                            ['vendor', 'product', 'version', 'update', 'edition', 'language', 'sw_edition', 'target_sw', 'target_hw', 'other'].forEach(prop => {
-                                if (alias[prop] && alias[prop] !== '' && alias[prop] !== 'unknown' && alias[prop] !== 'n/a') {
-                                    if (Array.isArray(alias[prop])) {
-                                        cleanAlias[prop] = alias[prop][0];
-                                    } else {
-                                        cleanAlias[prop] = alias[prop];
-                                    }
-                                }
-                            });
+                if (mapping.cpeBaseString === cpeBaseString && mapping.aliases) {
+                    // Add all aliases from this mapping
+                    mapping.aliases.forEach(alias => {
+                        // Clean the alias - remove internal fields and ensure string properties
+                        const cleanAlias = {};
 
-                            // Handle special properties
-                            if (alias.platform && alias.platform !== '' && alias.platform !== 'unknown' && alias.platform !== 'n/a') {
-                                if (Array.isArray(alias.platform)) {
-                                    cleanAlias.platform = alias.platform[0];
-                                } else {
-                                    cleanAlias.platform = alias.platform;
-                                }
-                            }
-                            
-                            ['collectionURL', 'packageName', 'programRoutines', 'programFiles', 'modules', 'repo'].forEach(prop => {
-                                if (alias[prop] && alias[prop] !== '' && alias[prop] !== 'unknown' && alias[prop] !== 'n/a') {
-                                    if (Array.isArray(alias[prop])) {
-                                        cleanAlias[prop] = alias[prop][0];
-                                    } else {
-                                        cleanAlias[prop] = alias[prop];
-                                    }
-                                }
-                            });
-
-                            if (Object.keys(cleanAlias).length > 0) {
-                                existingAliases.push(cleanAlias);
+                        ['vendor', 'product', 'version', 'update', 'edition', 'language',
+                         'sw_edition', 'target_sw', 'target_hw', 'other'].forEach(prop => {
+                            if (alias[prop] && !isPlaceholderValue(alias[prop])) {
+                                cleanAlias[prop] = Array.isArray(alias[prop]) ? alias[prop][0] : alias[prop];
                             }
                         });
-                    }
-                }
-                
-                // Also check individual aliases with cpeBaseString
-                if (mapping.aliases) {
-                    mapping.aliases.forEach(alias => {
-                        if (!alias.cpe_base_string) {
-                            throw new Error(`Missing required cpe_base_string in alias: ${JSON.stringify(alias)}`);
-                        }
-                        if (alias.cpe_base_string === cpeBaseString) {
-                            const cleanAlias = {};
-                            
-                            ['vendor', 'product', 'version', 'update', 'edition', 'language', 'sw_edition', 'target_sw', 'target_hw', 'other'].forEach(prop => {
-                                if (alias[prop] && alias[prop] !== '' && alias[prop] !== 'unknown' && alias[prop] !== 'n/a') {
-                                    if (Array.isArray(alias[prop])) {
-                                        cleanAlias[prop] = alias[prop][0];
-                                    } else {
-                                        cleanAlias[prop] = alias[prop];
-                                    }
-                                }
-                            });
 
-                            if (alias.platform && alias.platform !== '' && alias.platform !== 'unknown' && alias.platform !== 'n/a') {
-                                if (Array.isArray(alias.platform)) {
-                                    cleanAlias.platform = alias.platform[0];
-                                } else {
-                                    cleanAlias.platform = alias.platform;
-                                }
+                        ['platform', 'collectionURL', 'packageName', 'packageURL',
+                         'programRoutines', 'programFiles', 'modules', 'repo'].forEach(prop => {
+                            if (alias[prop] && !isPlaceholderValue(alias[prop])) {
+                                cleanAlias[prop] = Array.isArray(alias[prop]) ? alias[prop][0] : alias[prop];
                             }
+                        });
 
-                            ['collectionURL', 'packageName', 'programRoutines', 'programFiles', 'modules', 'repo'].forEach(prop => {
-                                if (alias[prop] && alias[prop] !== '' && alias[prop] !== 'unknown' && alias[prop] !== 'n/a') {
-                                    if (Array.isArray(alias[prop])) {
-                                        cleanAlias[prop] = alias[prop][0];
-                                    } else {
-                                        cleanAlias[prop] = alias[prop];
-                                    }
-                                }
-                            });
-
-                            if (Object.keys(cleanAlias).length > 0) {
-                                existingAliases.push(cleanAlias);
-                            }
+                        if (Object.keys(cleanAlias).length > 0) {
+                            existingAliases.push(cleanAlias);
                         }
                     });
                 }
@@ -5732,6 +6273,9 @@
                 
                 // Normalize the CPE string
                 cpeBaseString = normalizeCpeString(cpeBaseString);
+                
+                // Ensure CPE base string format: version and update must be wildcards
+                cpeBaseString = ensureCpeBaseString(cpeBaseString);
                 
                 // Double-check validation (should already be valid due to button state)
                 const validation = validateCpeString(cpeBaseString);

@@ -35,6 +35,7 @@ Usage:
 
 import json
 import sys
+import traceback
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
@@ -518,20 +519,19 @@ def generate_report(
         source_manager = get_or_refresh_source_manager(api_key, log_group="SDC_REPORT")
                 
     except ImportError as e:
-        # Missing dependencies - this is expected in minimal environments
+        # Missing dependencies - hard failure, builder cannot function without them
         if logger:
             logger.error(f"Source manager dependencies not available: {e}", group="SDC_REPORT")
-        raise ImportError(
-            f"Required dependencies for source manager not available: {e}. "
-        )
-    except Exception as e:
-        # Unexpected error - log with full context for debugging
+        raise ImportError(f"Required dependencies for source manager not available: {e}")
+    except ValueError:
+        # No usable cache (missing or corrupted) and no API key - degrade gracefully, source names will show as UUIDs
         if logger:
-            logger.error(f"Source manager initialization failed: {e}", group="SDC_REPORT")
+            logger.warning("NVD source cache missing/corrupted with no API key — source names will display as UUIDs.", group="SDC_REPORT")
+    except Exception as e:
+        # Unexpected error - degrade gracefully, source names will show as UUIDs
+        if logger:
+            logger.warning(f"Source manager unavailable: {e} — source names will display as UUIDs", group="SDC_REPORT")
             logger.debug(f"Traceback: {__import__('traceback').format_exc()}", group="SDC_REPORT")
-        raise RuntimeError(
-            f"Failed to initialize source manager: {e}. "
-        )
     
     # Scan cache
     builder = SDCReportBuilder(source_manager=source_manager)
@@ -1006,11 +1006,12 @@ Examples:
         
         print(f"\nRun ID: {run_id}")
         return 0
+    except ValueError as e:
+        logger.error(f"Report generation failed due to invalid configuration or missing data: {e}", group="SDC_REPORT")
+        return 1
     except Exception as e:
-        import traceback
         logger.error(f"Report generation failed: {e}", group="SDC_REPORT")
-        print(f"\nError: {e}", file=sys.stderr)
-        traceback.print_exc()
+        logger.debug(f"Traceback: {traceback.format_exc()}", group="SDC_REPORT")
         return 1
 
 
