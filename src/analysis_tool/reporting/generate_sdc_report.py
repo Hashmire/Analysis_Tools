@@ -101,7 +101,12 @@ class SDCReportBuilder:
             },
             'cve_data': [],
             'concern_counter': defaultdict(int),
-            'cve_ids': set()  # Track unique CVEs per source
+            'cve_ids': set(),  # Track unique CVEs per source
+            'by_year': defaultdict(lambda: {  # Per-year aggregates for index stats
+                'cves': 0,
+                'total_entries': 0,
+                'entries_with_concerns': 0
+            })
         })
     
     def add_cve(self, cve_id: str, entries: List[Dict]) -> None:
@@ -132,7 +137,8 @@ class SDCReportBuilder:
             source_info = self.sources[source_id]
             
             # Track this CVE for this source (all CVEs with any entries)
-            if cve_id not in source_info['cve_ids']:
+            is_new_cve = cve_id not in source_info['cve_ids']
+            if is_new_cve:
                 source_info['cve_ids'].add(cve_id)
                 source_info['metadata']['total_cves_processed'] += 1
             
@@ -196,7 +202,16 @@ class SDCReportBuilder:
             # Add clean entries count
             clean_count = source_data['clean_count']
             source_info['metadata']['total_platform_entries'] += clean_count
-            
+
+            # Accumulate per-year statistics for the index
+            parts = cve_id.split('-')
+            year = parts[1] if cve_id.startswith('CVE-') and len(parts) >= 3 else 'Unknown'
+            year_stats = source_info['by_year'][year]
+            if is_new_cve:
+                year_stats['cves'] += 1
+            year_stats['total_entries'] += len(platform_entries) + clean_count
+            year_stats['entries_with_concerns'] += len(platform_entries)
+
             # Build CVE entry for this source (include all CVEs - dashboard needs them for counting)
             if platform_entries or clean_count > 0:
                 cve_metadata = {
@@ -679,7 +694,19 @@ def generate_report(
                 'concern_type_counts': per_source_reports[source_id]['metadata']['concern_type_counts'],
                 'last_updated': per_source_reports[source_id]['metadata']['last_updated'],
                 'status': per_source_reports[source_id]['metadata']['status'],
-                'source_identifiers': source_manager.get_source_info(source_id).get('sourceIdentifiers', []) if source_manager.get_source_info(source_id) else []
+                'source_identifiers': source_manager.get_source_info(source_id).get('sourceIdentifiers', []) if source_manager.get_source_info(source_id) else [],
+                'by_year': {
+                    year: {
+                        'cves': stats['cves'],
+                        'total_entries': stats['total_entries'],
+                        'entries_with_concerns': stats['entries_with_concerns']
+                    }
+                    for year, stats in sorted(
+                        builder.sources[source_id]['by_year'].items(),
+                        key=lambda x: x[0],
+                        reverse=True
+                    )
+                }
             }
             for source_id in written_source_ids  # Use the actual written source_ids
         ]

@@ -146,6 +146,11 @@
                         </div>
                     </div>
                 </div>
+                <!-- CVE Year Filter Pills -->
+                <div class="filter-pill-row" id="indexYearFilterRow" style="display: none;">
+                    <label class="font-500 color-333">CVE Year:</label>
+                    <div id="indexYearPillsContainer" class="filter-pills-container"></div>
+                </div>
                 <div class="section-content">
                     <div id="sources-table-container">
                         <div class="loading">No data loaded</div>
@@ -156,8 +161,131 @@
     </div>
 
     <script>
-        let dashboardData = {"metadata": {"run_started_at": "2026-04-07T11:55:00+00:00", "total_cves_processed": 2341, "total_sources": 3, "extraction_source": "Analysis_Tools_NVDish_Cache_Scanner", "tool_version": "0.3.0", "report_scope": "Alias Extraction - Per-Source Reports", "status": "completed", "last_updated": "2026-04-08T10:00:00+00:00"}, "sources": [{"source_id": "aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee", "source_name": "Alias Extraction Report Example", "all_source_identifiers": ["aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee", "security@example.com"], "report_file": "Alias_Extraction_Source_Report_Example.html", "total_cves_processed": 847, "unique_aliases_extracted": 50, "product_groups_created": 8, "total_unique_aliases": 35, "confirmed_count": 18, "confirmed_coverage_pct": 51.4, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_with_concerns_count": 11, "unconfirmed_with_concerns_pct": 31.4}, {"source_id": "ffff2222-gggg-hhhh-iiii-jjjjjjjjjjjj", "source_name": "High Confirmed Coverage Source", "all_source_identifiers": ["ffff2222-gggg-hhhh-iiii-jjjjjjjjjjjj", "psirt@example-high.com"], "report_file": "aliasExtractionReport_High_Confirmed_Coverage_Source_ffff2222.html", "total_cves_processed": 1494, "unique_aliases_extracted": 61, "product_groups_created": 9, "total_unique_aliases": 53, "confirmed_count": 49, "confirmed_coverage_pct": 92.5, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_with_concerns_count": 1, "unconfirmed_with_concerns_pct": 25.0}, {"source_id": "kkkk3333-llll-mmmm-nnnn-oooooooooooo", "source_name": "Low Confirmed Coverage Source", "all_source_identifiers": ["kkkk3333-llll-mmmm-nnnn-oooooooooooo"], "report_file": "aliasExtractionReport_Low_Confirmed_Coverage_Source_kkkk3333.html", "total_cves_processed": 0, "unique_aliases_extracted": 0, "product_groups_created": 0, "total_unique_aliases": 41, "confirmed_count": 5, "confirmed_coverage_pct": 12.2, "confirmed_with_concerns_count": 3, "confirmed_with_concerns_pct": 60.0, "unconfirmed_with_concerns_count": 11, "unconfirmed_with_concerns_pct": 30.6}]};
+        let dashboardData = {"metadata": {"run_started_at": "2026-04-07T11:55:00+00:00", "total_cves_processed": 2341, "total_sources": 3, "extraction_source": "Analysis_Tools_NVDish_Cache_Scanner", "tool_version": "0.3.0", "report_scope": "Alias Extraction - Per-Source Reports", "status": "completed", "last_updated": "2026-04-08T10:00:00+00:00"}, "sources": [{"source_id": "aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee", "source_name": "Alias Extraction Report Example", "all_source_identifiers": ["aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee", "security@example.com"], "report_file": "Alias_Extraction_Source_Report_Example.html", "total_cves_processed": 847, "unique_aliases_extracted": 50, "product_groups_created": 8, "total_unique_aliases": 35, "confirmed_count": 18, "confirmed_coverage_pct": 51.4, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_with_concerns_count": 11, "unconfirmed_with_concerns_pct": 31.4, "by_year": {"2023": {"cves": 67, "unique_aliases": 9, "confirmed_count": 4, "confirmed_coverage_pct": 44.4, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 5, "unconfirmed_with_concerns_count": 2, "unconfirmed_with_concerns_pct": 40.0}, "2024": {"cves": 280, "unique_aliases": 21, "confirmed_count": 10, "confirmed_coverage_pct": 47.6, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 11, "unconfirmed_with_concerns_count": 4, "unconfirmed_with_concerns_pct": 36.4}, "2025": {"cves": 380, "unique_aliases": 28, "confirmed_count": 14, "confirmed_coverage_pct": 50.0, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 14, "unconfirmed_with_concerns_count": 5, "unconfirmed_with_concerns_pct": 35.7}, "2026": {"cves": 120, "unique_aliases": 14, "confirmed_count": 7, "confirmed_coverage_pct": 50.0, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 7, "unconfirmed_with_concerns_count": 2, "unconfirmed_with_concerns_pct": 28.6}}}, {"source_id": "ffff2222-gggg-hhhh-iiii-jjjjjjjjjjjj", "source_name": "High Confirmed Coverage Source", "all_source_identifiers": ["ffff2222-gggg-hhhh-iiii-jjjjjjjjjjjj", "psirt@example-high.com"], "report_file": "aliasExtractionReport_High_Confirmed_Coverage_Source_ffff2222.html", "total_cves_processed": 1494, "unique_aliases_extracted": 61, "product_groups_created": 9, "total_unique_aliases": 53, "confirmed_count": 49, "confirmed_coverage_pct": 92.5, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_with_concerns_count": 1, "unconfirmed_with_concerns_pct": 25.0, "by_year": {"2023": {"cves": 149, "unique_aliases": 18, "confirmed_count": 16, "confirmed_coverage_pct": 88.9, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 2, "unconfirmed_with_concerns_count": 1, "unconfirmed_with_concerns_pct": 50.0}, "2024": {"cves": 490, "unique_aliases": 37, "confirmed_count": 34, "confirmed_coverage_pct": 91.9, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 3, "unconfirmed_with_concerns_count": 0, "unconfirmed_with_concerns_pct": 0.0}, "2025": {"cves": 640, "unique_aliases": 45, "confirmed_count": 42, "confirmed_coverage_pct": 93.3, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 3, "unconfirmed_with_concerns_count": 0, "unconfirmed_with_concerns_pct": 0.0}, "2026": {"cves": 215, "unique_aliases": 22, "confirmed_count": 20, "confirmed_coverage_pct": 90.9, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 2, "unconfirmed_with_concerns_count": 0, "unconfirmed_with_concerns_pct": 0.0}}}, {"source_id": "kkkk3333-llll-mmmm-nnnn-oooooooooooo", "source_name": "Low Confirmed Coverage Source", "all_source_identifiers": ["kkkk3333-llll-mmmm-nnnn-oooooooooooo"], "report_file": "aliasExtractionReport_Low_Confirmed_Coverage_Source_kkkk3333.html", "total_cves_processed": 0, "unique_aliases_extracted": 0, "product_groups_created": 0, "total_unique_aliases": 41, "confirmed_count": 5, "confirmed_coverage_pct": 12.2, "confirmed_with_concerns_count": 3, "confirmed_with_concerns_pct": 60.0, "unconfirmed_with_concerns_count": 11, "unconfirmed_with_concerns_pct": 30.6, "by_year": {}}]};
         
+        let currentFilteredSources = null; // Null = no filter active, use dashboardData.sources
+
+        // ── CVE Year Filter ─────────────────────────────────────────────────────
+        const IndexYearFilter = {
+            availableYears: [],
+            activeYears: new Set(),
+            isFilteringActive() {
+                return this.availableYears.length > 0 && this.activeYears.size < this.availableYears.length;
+            },
+            populate(sources) {
+                const yearSet = new Set();
+                sources.forEach(s => Object.keys(s.by_year || {}).forEach(y => yearSet.add(y)));
+                this.availableYears = [...yearSet].sort((a, b) => b.localeCompare(a));
+                this.activeYears = new Set(this.availableYears);
+            },
+            reset() { this.availableYears = []; this.activeYears = new Set(); }
+        };
+
+        function renderIndexYearFilterUI() {
+            const container = document.getElementById('indexYearPillsContainer');
+            const filterRow = document.getElementById('indexYearFilterRow');
+            if (!container || !filterRow) return;
+            // Only show pill row when there are multiple distinct years
+            if (IndexYearFilter.availableYears.length <= 1) { filterRow.style.display = 'none'; return; }
+            filterRow.style.display = 'flex';
+            container.innerHTML = IndexYearFilter.availableYears.map(year =>
+                `<button class="filter-pill ${IndexYearFilter.activeYears.has(year) ? 'active' : 'inactive'}"
+                         onclick="toggleIndexYearPill('${year}')">${year}</button>`
+            ).join('');
+        }
+
+        function toggleIndexYearPill(year) {
+            if (IndexYearFilter.activeYears.has(year)) {
+                // Prevent deselecting the last active year
+                if (IndexYearFilter.activeYears.size > 1) { IndexYearFilter.activeYears.delete(year); }
+            } else {
+                IndexYearFilter.activeYears.add(year);
+            }
+            renderIndexYearFilterUI();
+            applyIndexFilters();
+        }
+
+        function applyIndexFilters() {
+            if (!dashboardData || !dashboardData.sources) return;
+
+            const textFilter = (document.getElementById('source-filter')?.value || '').toLowerCase().trim();
+            const isYearFiltering = IndexYearFilter.isFilteringActive();
+
+            // Step 1: Compute year-effective stats for each source.
+            // All per-year breakdowns are pre-computed at report generation time by finalize().
+            // Summing across the active years gives accurate filtered values for every stat.
+            const yearEffectiveSources = dashboardData.sources.map(source => {
+                if (!isYearFiltering) return source;
+                let cves = 0, uniqueAliases = 0;
+                let confirmedCount = 0, confirmedWithConcerns = 0;
+                let unconfirmedCount = 0, unconfirmedWithConcerns = 0;
+                const byYear = source.by_year || {};
+                IndexYearFilter.activeYears.forEach(year => {
+                    const ys = byYear[year] || {};
+                    cves += ys.cves || 0;
+                    uniqueAliases += ys.unique_aliases || 0;
+                    confirmedCount += ys.confirmed_count || 0;
+                    confirmedWithConcerns += ys.confirmed_with_concerns_count || 0;
+                    unconfirmedCount += ys.unconfirmed_count || 0;
+                    unconfirmedWithConcerns += ys.unconfirmed_with_concerns_count || 0;
+                });
+                const totalAliasesYr = confirmedCount + unconfirmedCount;
+                return {
+                    ...source,
+                    total_cves_processed: cves,
+                    unique_aliases_extracted: uniqueAliases,
+                    total_unique_aliases: totalAliasesYr,
+                    confirmed_count: confirmedCount,
+                    confirmed_coverage_pct: totalAliasesYr > 0 ? Math.round(confirmedCount / totalAliasesYr * 1000) / 10 : 0,
+                    confirmed_with_concerns_count: confirmedWithConcerns,
+                    confirmed_with_concerns_pct: confirmedCount > 0 ? Math.round(confirmedWithConcerns / confirmedCount * 1000) / 10 : 0,
+                    unconfirmed_with_concerns_count: unconfirmedWithConcerns,
+                    unconfirmed_with_concerns_pct: unconfirmedCount > 0 ? Math.round(unconfirmedWithConcerns / unconfirmedCount * 1000) / 10 : 0
+                };
+            });
+
+            // Step 2: Apply text filter; hide sources with 0 CVEs in selected year(s)
+            const visibleSources = yearEffectiveSources.filter(source => {
+                if (isYearFiltering && source.total_cves_processed === 0) return false;
+                if (textFilter && !source.source_name.toLowerCase().includes(textFilter)) return false;
+                return true;
+            });
+
+            // Step 3: Recompute summary stats from visible sources
+            const totalAliases = visibleSources.reduce((s, x) => s + (x.unique_aliases_extracted || 0), 0);
+            const totalCVEs = visibleSources.reduce((s, x) => s + x.total_cves_processed, 0);
+            dashboardData.stats = {
+                totalSources: visibleSources.length,
+                totalCVEs,
+                totalAliases,
+                totalProductGroups: visibleSources.reduce((s, x) => s + (x.product_groups_created || 0), 0),
+                avgAliasesPerCVE: totalCVEs > 0 ? (totalAliases / totalCVEs).toFixed(1) : 0
+            };
+
+            // Step 4: Store filtered list and re-render both sections
+            currentFilteredSources = visibleSources;
+            renderSummary();
+            renderSourcesTable();
+
+            // Update filter count display
+            const filterCountId = 'filter-count';
+            let countDisplay = document.getElementById(filterCountId);
+            if (!countDisplay) {
+                countDisplay = document.createElement('div');
+                countDisplay.id = filterCountId;
+                countDisplay.style.cssText = 'color: #6B7280; font-size: 0.85em; margin-top: 4px; text-align: right;';
+                document.getElementById('source-filter')?.parentElement?.appendChild(countDisplay);
+            }
+            const totalSources = dashboardData.sources.length;
+            if (visibleSources.length < totalSources) {
+                countDisplay.textContent = `Showing ${visibleSources.length} of ${totalSources} sources`;
+                countDisplay.style.display = 'block';
+            } else {
+                countDisplay.style.display = 'none';
+            }
+        }
+        // ───────────────────────────────────────────────────────────────
+
         // Documentation toggle functionality
         function toggleDocumentation() {
             const content = document.getElementById('documentation-content');
@@ -246,6 +374,9 @@
             dashboardData.stats.avgAliasesPerCVE = dashboardData.stats.totalCVEs > 0
                 ? (dashboardData.stats.totalAliases / dashboardData.stats.totalCVEs).toFixed(1)
                 : 0;
+
+            // Populate CVE year filter (requires by_year on each source)
+            IndexYearFilter.populate(data.sources);
         }
 
         // Sorting state
@@ -265,8 +396,10 @@
         }
 
         function renderDashboard() {
+            currentFilteredSources = null; // reset on full reload
             renderSummary();
             renderSourcesTable();
+            renderIndexYearFilterUI();
         }
 
         function renderSummary() {
@@ -304,7 +437,7 @@
             if (!container) return;
             
             // Sort sources based on current sort column and direction
-            const sources = [...dashboardData.sources].sort((a, b) => {
+            const sources = [...(currentFilteredSources || dashboardData.sources)].sort((a, b) => {
                 let aVal, bVal;
                 
                 switch(currentSortColumn) {
@@ -314,6 +447,11 @@
                         return currentSortDirection === 'desc' 
                             ? bVal.localeCompare(aVal)
                             : aVal.localeCompare(bVal);
+                    
+                    case 'total_cves_processed':
+                        aVal = a.total_cves_processed || 0;
+                        bVal = b.total_cves_processed || 0;
+                        break;
                     
                     case 'total_unique_aliases':
                         aVal = a.total_unique_aliases || 0;
@@ -358,6 +496,9 @@
                             <th style="padding: 12px; text-align: left; font-weight: 600; cursor: pointer; user-select: none;" onclick="sortSources('source_name')">
                                 Source ${getSortIndicator('source_name')}
                             </th>
+                            <th style="padding: 12px; text-align: center; font-weight: 600; cursor: pointer; user-select: none;" onclick="sortSources('total_cves_processed')">
+                                CVEs Processed ${getSortIndicator('total_cves_processed')}
+                            </th>
                             <th style="padding: 12px; text-align: center; font-weight: 600; cursor: pointer; user-select: none;" onclick="sortSources('total_unique_aliases')">
                                 Total Unique Aliases ${getSortIndicator('total_unique_aliases')}
                             </th>
@@ -398,6 +539,9 @@
                                                 ${sourceIdentifiers.map(id => `<div style="padding: 2px 0; color: #6B7280;">• ${id}</div>`).join('')}
                                             </div>
                                         ` : `<div style="color: #9CA3AF; font-size: 0.85em;">${source.source_id}</div>`}
+                                    </td>
+                                    <td style="padding: 12px; text-align: center;">
+                                        <div style="font-weight: 600; color: #6B7280; font-size: 1.1em;">${(source.total_cves_processed || 0).toLocaleString()}</div>
                                     </td>
                                     <td style="padding: 12px; text-align: center;">
                                         <div style="font-weight: 600; color: #4CAF50; font-size: 1.2em;">${totalAliases}</div>
@@ -451,50 +595,9 @@
             }
         }
 
-        // Filter source table rows
+        // Filter source table — delegates to applyIndexFilters for combined text + year filtering
         function filterSourceTable() {
-            const filterInput = document.getElementById('source-filter');
-            if (!filterInput) return;
-            
-            const filterValue = filterInput.value.toLowerCase().trim();
-            const table = document.querySelector('table tbody');
-            if (!table) return;
-            
-            const rows = table.getElementsByTagName('tr');
-            let visibleCount = 0;
-            
-            for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                const sourceCell = row.getElementsByTagName('td')[0];
-                
-                if (sourceCell) {
-                    const sourceText = sourceCell.textContent.toLowerCase();
-                    
-                    if (filterValue === '' || sourceText.includes(filterValue)) {
-                        row.style.display = '';
-                        visibleCount++;
-                    } else {
-                        row.style.display = 'none';
-                    }
-                }
-            }
-            
-            // Add count display below filter
-            const filterCountId = 'filter-count';
-            let countDisplay = document.getElementById(filterCountId);
-            if (!countDisplay) {
-                countDisplay = document.createElement('div');
-                countDisplay.id = filterCountId;
-                countDisplay.style.cssText = 'color: #6B7280; font-size: 0.85em; margin-top: 4px; text-align: right;';
-                filterInput.parentElement.appendChild(countDisplay);
-            }
-            
-            if (filterValue !== '') {
-                countDisplay.textContent = `Showing ${visibleCount} of ${rows.length} sources`;
-                countDisplay.style.display = 'block';
-            } else {
-                countDisplay.style.display = 'none';
-            }
+            applyIndexFilters();
         }
     </script>
 

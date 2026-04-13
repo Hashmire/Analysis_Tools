@@ -666,14 +666,14 @@ body::before {
 
 /* Dashboard Content */
 .dashboard-content {
-    padding: var(--spacing-xl) var(--spacing-3xl);
+    padding: var(--spacing-md) var(--spacing-3xl);
 }
 
 .section {
     background: white;
     border-radius: var(--radius-xl);
-    padding: var(--spacing-lg);
-    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
     box-shadow: var(--shadow-md);
 }
 
@@ -681,9 +681,9 @@ body::before {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-bottom: 15px;
+    padding-bottom: 8px;
     border-bottom: 2px solid #E5E7EB;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     cursor: pointer;
     user-select: none;
 }
@@ -764,9 +764,137 @@ details[open] .expand-arrow {
     color: #9CA3AF;
 }
 
-/* Search */
+/* Search / Filter Area */
 .search-container {
     margin-bottom: 25px;
+}
+
+.sdc-filter-area {
+    margin-bottom: 12px;
+}
+
+/* Filter pill rows — modelled after alias dashboard */
+.filter-container {
+    background: rgba(248, 250, 252, 0.8);
+    padding: 12px 16px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.filter-container.connected {
+    border-radius: 4px 4px 0 0;
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.filter-pill-row {
+    background: rgba(248, 250, 252, 0.8);
+    padding: 8px 16px;
+    border-radius: 0 0 4px 4px;
+    border: 1px solid #ddd;
+    border-top: 1px solid #e8e8e8;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.filter-pill-row label {
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding-top: 3px;
+}
+
+.filter-pill-row.connected {
+    border-radius: 0;
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.filter-pills-container {
+    display: flex;
+    flex: 1;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.filter-pill {
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 0.8em;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+    user-select: none;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+.filter-pill.active {
+    background: #7C3AED;
+    color: white;
+    border-color: #7C3AED;
+}
+
+.filter-pill.active:hover {
+    background: #6D28D9;
+    border-color: #6D28D9;
+}
+
+.filter-pill.inactive {
+    background: #f0f0f0;
+    color: #aaa;
+    border-color: #ddd;
+    text-decoration: line-through;
+}
+
+.filter-pill.inactive:hover {
+    background: #ede9fe;
+    color: #7C3AED;
+    border-color: #c4b5fd;
+    text-decoration: none;
+}
+
+.filter-pill:not(.active):not(.inactive) {
+    background: #f0f0f0;
+    color: #555;
+    border-color: #ccc;
+}
+
+.filter-pill:not(.active):not(.inactive):hover {
+    background: #ede9fe;
+    color: #7C3AED;
+    border-color: #c4b5fd;
+}
+
+/* Utility classes used in filter rows */
+.font-500 { font-weight: 500; }
+.color-333 { color: #333; white-space: nowrap; }
+.flex-1 { flex: 1; min-width: 0; }
+.ml-4 { margin-left: 4px; }
+.mr-8 { margin-right: 8px; }
+.ml-8 { margin-left: 8px; }
+
+.form-input {
+    padding: 6px 10px;
+    font-size: 0.95em;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+    transition: border-color 0.15s ease;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: #7C3AED;
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.12);
 }
 
 .search-wrapper {
@@ -2381,7 +2509,7 @@ h4, h5 {
     line-height: 1.4;
 }
 
-    </style>
+</style>
     
 </head>
 <body>
@@ -2391,7 +2519,7 @@ h4, h5 {
             <h1 class="dashboard-title">Analysis Tools - Source Data Concerns Index</h1>
             <p id="ph_subtitle_01">
                 Per-Source Report Directory<br />
-                Hashmire/Analysis_Tools Example
+                Hashmire/Analysis_Tools v0.0.0 (Example)
             </p>
         </div>
 
@@ -2506,6 +2634,12 @@ h4, h5 {
                         />
                     </div>
                 </div>
+                <!-- CVE Year Filter Pills -->
+                <div class="filter-pill-row" id="indexYearFilterRow" style="display: none;">
+                    <label class="font-500 color-333">CVE Year:</label>
+                    <div id="indexYearPillsContainer" class="filter-pills-container"></div>
+                </div>
+
                 <div class="section-content">
                     <div id="sources-table-container">
                         <div class="loading">No data loaded</div>
@@ -2516,8 +2650,395 @@ h4, h5 {
     </div>
 
     <script>
-        let dashboardData = {"metadata": {"run_started_at": "2026-04-08T10:00:00+00:00", "total_cves_processed": 4, "total_sources": 1, "report_scope": "Platform Entry Notifications - Source Data Concerns Only", "status": "completed", "last_updated": "2026-04-08T10:00:00+00:00"}, "sources": [{"source_id": "aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee", "source_name": "Example Source Organization", "source_identifiers": ["aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee"], "total_cves_processed": 4, "total_platform_entries": 16, "entries_with_concerns": 9, "entries_without_concerns": 7, "report_file": "SDC_Source_Report_Example.html"}]};
-        
+        let dashboardData = {
+    "metadata": {
+        "run_started_at": "2026-04-10T00:00:00+00:00",
+        "total_cves_processed": 3284,
+        "total_sources": 5,
+        "report_scope": "Platform Entry Notifications - Source Data Concerns (Per-Source Reports)",
+        "status": "completed",
+        "last_updated": "2026-04-10T04:21:58+00:00"
+    },
+    "sources": [
+        {
+            "source_id": "aaaabbbb-1111-2222-3333-ccccddddeeee",
+            "source_name": "Example Technology Corp",
+            "report_file": "sourceDataConcernReport_Example_Technology_Corp_aaaabbbb.html",
+            "total_cves_processed": 487,
+            "total_platform_entries": 2156,
+            "entries_with_concerns": 1824,
+            "entries_without_concerns": 332,
+            "concern_type_counts": [
+                {
+                    "concern_type": "Placeholder Detection",
+                    "count": 892
+                },
+                {
+                    "concern_type": "Text Comparator Detection",
+                    "count": 447
+                },
+                {
+                    "concern_type": "Whitespace Detection",
+                    "count": 312
+                }
+            ],
+            "last_updated": "2026-04-10T04:21:58+00:00",
+            "status": "completed",
+            "source_identifiers": [
+                "security@example-tech.com",
+                "psirt@example-tech.com"
+            ],
+            "by_year": {
+                "2026": {
+                    "cves": 12,
+                    "total_entries": 48,
+                    "entries_with_concerns": 46
+                },
+                "2025": {
+                    "cves": 143,
+                    "total_entries": 612,
+                    "entries_with_concerns": 581
+                },
+                "2024": {
+                    "cves": 176,
+                    "total_entries": 734,
+                    "entries_with_concerns": 620
+                },
+                "2023": {
+                    "cves": 98,
+                    "total_entries": 478,
+                    "entries_with_concerns": 389
+                },
+                "2022": {
+                    "cves": 58,
+                    "total_entries": 284,
+                    "entries_with_concerns": 188
+                }
+            }
+        },
+        {
+            "source_id": "bbbbcccc-2222-3333-4444-ddddeeeeffff",
+            "source_name": "OpenSource Foundation PSIRT",
+            "report_file": "sourceDataConcernReport_OpenSource_Foundation_PSIRT_bbbbcccc.html",
+            "total_cves_processed": 1124,
+            "total_platform_entries": 4890,
+            "entries_with_concerns": 1201,
+            "entries_without_concerns": 3689,
+            "concern_type_counts": [
+                {
+                    "concern_type": "Mathematical Comparator Detection",
+                    "count": 634
+                },
+                {
+                    "concern_type": "Bloat Text Detection",
+                    "count": 412
+                },
+                {
+                    "concern_type": "Version Granularity Detection",
+                    "count": 155
+                }
+            ],
+            "last_updated": "2026-04-10T04:21:58+00:00",
+            "status": "completed",
+            "source_identifiers": [
+                "cve@opensource-foundation.org"
+            ],
+            "by_year": {
+                "2026": {
+                    "cves": 38,
+                    "total_entries": 164,
+                    "entries_with_concerns": 31
+                },
+                "2025": {
+                    "cves": 312,
+                    "total_entries": 1342,
+                    "entries_with_concerns": 289
+                },
+                "2024": {
+                    "cves": 387,
+                    "total_entries": 1683,
+                    "entries_with_concerns": 412
+                },
+                "2023": {
+                    "cves": 241,
+                    "total_entries": 1052,
+                    "entries_with_concerns": 298
+                },
+                "2022": {
+                    "cves": 146,
+                    "total_entries": 649,
+                    "entries_with_concerns": 171
+                }
+            }
+        },
+        {
+            "source_id": "ccccdddd-3333-4444-5555-eeeeffff0000",
+            "source_name": "Industrial Controls Security Team",
+            "report_file": "sourceDataConcernReport_Industrial_Controls_Security_Team_ccccdddd.html",
+            "total_cves_processed": 623,
+            "total_platform_entries": 3102,
+            "entries_with_concerns": 2987,
+            "entries_without_concerns": 115,
+            "concern_type_counts": [
+                {
+                    "concern_type": "Placeholder Detection",
+                    "count": 1456
+                },
+                {
+                    "concern_type": "All Versions Pattern Detection",
+                    "count": 891
+                },
+                {
+                    "concern_type": "Invalid Character Detection",
+                    "count": 640
+                }
+            ],
+            "last_updated": "2026-04-10T04:21:58+00:00",
+            "status": "completed",
+            "source_identifiers": [
+                "security@ics-team.example",
+                "vulns@ics-team.example"
+            ],
+            "by_year": {
+                "2026": {
+                    "cves": 8,
+                    "total_entries": 41,
+                    "entries_with_concerns": 41
+                },
+                "2025": {
+                    "cves": 89,
+                    "total_entries": 443,
+                    "entries_with_concerns": 440
+                },
+                "2024": {
+                    "cves": 198,
+                    "total_entries": 987,
+                    "entries_with_concerns": 952
+                },
+                "2023": {
+                    "cves": 187,
+                    "total_entries": 934,
+                    "entries_with_concerns": 897
+                },
+                "2022": {
+                    "cves": 141,
+                    "total_entries": 697,
+                    "entries_with_concerns": 657
+                }
+            }
+        },
+        {
+            "source_id": "ddddeeee-4444-5555-6666-ffff00001111",
+            "source_name": "Cloud Platform Vulnerability Program",
+            "report_file": "sourceDataConcernReport_Cloud_Platform_Vulnerability_Program_ddddeeee.html",
+            "total_cves_processed": 846,
+            "total_platform_entries": 2734,
+            "entries_with_concerns": 687,
+            "entries_without_concerns": 2047,
+            "concern_type_counts": [
+                {
+                    "concern_type": "Text Comparator Detection",
+                    "count": 312
+                },
+                {
+                    "concern_type": "Whitespace Detection",
+                    "count": 248
+                },
+                {
+                    "concern_type": "Overlapping Ranges",
+                    "count": 127
+                }
+            ],
+            "last_updated": "2026-04-10T04:21:58+00:00",
+            "status": "completed",
+            "source_identifiers": [
+                "security@cloudplatform.example"
+            ],
+            "by_year": {
+                "2026": {
+                    "cves": 47,
+                    "total_entries": 152,
+                    "entries_with_concerns": 14
+                },
+                "2025": {
+                    "cves": 298,
+                    "total_entries": 964,
+                    "entries_with_concerns": 201
+                },
+                "2024": {
+                    "cves": 312,
+                    "total_entries": 1008,
+                    "entries_with_concerns": 298
+                },
+                "2023": {
+                    "cves": 189,
+                    "total_entries": 610,
+                    "entries_with_concerns": 174
+                }
+            }
+        },
+        {
+            "source_id": "eeeeffff-5555-6666-7777-000011112222",
+            "source_name": "Network Device Vendor PSIRT",
+            "report_file": "sourceDataConcernReport_Network_Device_Vendor_PSIRT_eeeeffff.html",
+            "total_cves_processed": 204,
+            "total_platform_entries": 812,
+            "entries_with_concerns": 98,
+            "entries_without_concerns": 714,
+            "concern_type_counts": [
+                {
+                    "concern_type": "Mathematical Comparator Detection",
+                    "count": 67
+                },
+                {
+                    "concern_type": "Bloat Text Detection",
+                    "count": 31
+                }
+            ],
+            "last_updated": "2026-04-10T04:21:58+00:00",
+            "status": "completed",
+            "source_identifiers": [
+                "psirt@network-vendor.example",
+                "security-alerts@network-vendor.example"
+            ],
+            "by_year": {
+                "2026": {
+                    "cves": 9,
+                    "total_entries": 36,
+                    "entries_with_concerns": 2
+                },
+                "2025": {
+                    "cves": 67,
+                    "total_entries": 268,
+                    "entries_with_concerns": 29
+                },
+                "2024": {
+                    "cves": 81,
+                    "total_entries": 324,
+                    "entries_with_concerns": 43
+                },
+                "2023": {
+                    "cves": 47,
+                    "total_entries": 184,
+                    "entries_with_concerns": 24
+                }
+            }
+        }
+    ]
+};
+        let currentFilteredSources = null; // Null = no filter active, use dashboardData.sources
+
+        // ── CVE Year Filter ─────────────────────────────────────────────────────────
+        const IndexYearFilter = {
+            availableYears: [],
+            activeYears: new Set(),
+            isFilteringActive() {
+                return this.availableYears.length > 0 && this.activeYears.size < this.availableYears.length;
+            },
+            populate(sources) {
+                const yearSet = new Set();
+                sources.forEach(s => Object.keys(s.by_year || {}).forEach(y => yearSet.add(y)));
+                this.availableYears = [...yearSet].sort((a, b) => b.localeCompare(a));
+                this.activeYears = new Set(this.availableYears);
+            },
+            reset() { this.availableYears = []; this.activeYears = new Set(); }
+        };
+
+        function renderIndexYearFilterUI() {
+            const container = document.getElementById('indexYearPillsContainer');
+            const filterRow = document.getElementById('indexYearFilterRow');
+            if (!container || !filterRow) return;
+            // Only show pill row when there are multiple distinct years
+            if (IndexYearFilter.availableYears.length <= 1) { filterRow.style.display = 'none'; return; }
+            filterRow.style.display = 'flex';
+            container.innerHTML = IndexYearFilter.availableYears.map(year =>
+                `<button class="filter-pill ${IndexYearFilter.activeYears.has(year) ? 'active' : 'inactive'}"
+                         onclick="toggleIndexYearPill('${year}')">${year}</button>`
+            ).join('');
+        }
+
+        function toggleIndexYearPill(year) {
+            if (IndexYearFilter.activeYears.has(year)) {
+                // Prevent deselecting the last active year
+                if (IndexYearFilter.activeYears.size > 1) { IndexYearFilter.activeYears.delete(year); }
+            } else {
+                IndexYearFilter.activeYears.add(year);
+            }
+            renderIndexYearFilterUI();
+            applyIndexFilters();
+        }
+
+        function applyIndexFilters() {
+            if (!dashboardData || !dashboardData.sources) return;
+
+            const textFilter = (document.getElementById('source-filter')?.value || '').toLowerCase().trim();
+            const isYearFiltering = IndexYearFilter.isFilteringActive();
+
+            // Step 1: Compute year-effective stats for each source
+            const yearEffectiveSources = dashboardData.sources.map(source => {
+                if (!isYearFiltering) return source;
+                let cves = 0, totalEntries = 0, entriesWithConcerns = 0;
+                const byYear = source.by_year || {};
+                IndexYearFilter.activeYears.forEach(year => {
+                    const ys = byYear[year] || {};
+                    cves += ys.cves || 0;
+                    totalEntries += ys.total_entries || 0;
+                    entriesWithConcerns += ys.entries_with_concerns || 0;
+                });
+                return {
+                    ...source,
+                    total_cves_processed: cves,
+                    total_platform_entries: totalEntries,
+                    entries_with_concerns: entriesWithConcerns,
+                    entries_without_concerns: totalEntries - entriesWithConcerns
+                };
+            });
+
+            // Step 2: Apply text filter; hide sources with 0 CVEs in selected year(s)
+            const visibleSources = yearEffectiveSources.filter(source => {
+                if (isYearFiltering && source.total_cves_processed === 0) return false;
+                if (textFilter && !source.source_name.toLowerCase().includes(textFilter)) return false;
+                return true;
+            });
+
+            // Step 3: Recompute aggregate stats from visible sources only
+            const filteredTotalEntries = visibleSources.reduce((s, x) => s + x.total_platform_entries, 0);
+            const filteredWithConcerns = visibleSources.reduce((s, x) => s + x.entries_with_concerns, 0);
+            dashboardData.stats = {
+                totalSources: visibleSources.length,
+                totalCVEs: visibleSources.reduce((s, x) => s + x.total_cves_processed, 0),
+                totalEntries: filteredTotalEntries,
+                entriesWithConcerns: filteredWithConcerns,
+                entriesWithoutConcerns: visibleSources.reduce((s, x) => s + x.entries_without_concerns, 0),
+                concernPercentage: filteredTotalEntries > 0
+                    ? ((filteredWithConcerns / filteredTotalEntries) * 100).toFixed(1)
+                    : 0
+            };
+
+            // Step 4: Store filtered list and re-render both sections
+            currentFilteredSources = visibleSources;
+            renderSummary();
+            renderSourcesTable();
+
+            // Update filter count display
+            const filterCountId = 'filter-count';
+            let countDisplay = document.getElementById(filterCountId);
+            if (!countDisplay) {
+                countDisplay = document.createElement('div');
+                countDisplay.id = filterCountId;
+                countDisplay.style.cssText = 'color: #6B7280; font-size: 0.85em; margin-top: 4px; text-align: right;';
+                document.getElementById('source-filter')?.parentElement?.appendChild(countDisplay);
+            }
+            const totalSources = dashboardData.sources.length;
+            if (visibleSources.length < totalSources) {
+                countDisplay.textContent = `Showing ${visibleSources.length} of ${totalSources} sources`;
+                countDisplay.style.display = 'block';
+            } else {
+                countDisplay.style.display = 'none';
+            }
+        }
+        // ────────────────────────────────────────────────────────────────────────────
+
         // Documentation toggle functionality
         function toggleDocumentation() {
             const content = document.getElementById('documentation-content');
@@ -2626,19 +3147,23 @@ h4, h5 {
             if (!data || !data.sources) {
                 throw new Error('Invalid index data format - missing sources array');
             }
-            
+
             // Calculate aggregate statistics
+            const totalEntries = data.sources.reduce((sum, s) => sum + s.total_platform_entries, 0);
+            const withConcerns = data.sources.reduce((sum, s) => sum + s.entries_with_concerns, 0);
             dashboardData.stats = {
                 totalSources: data.sources.length,
                 totalCVEs: data.sources.reduce((sum, s) => sum + s.total_cves_processed, 0),
-                totalEntries: data.sources.reduce((sum, s) => sum + s.total_platform_entries, 0),
-                entriesWithConcerns: data.sources.reduce((sum, s) => sum + s.entries_with_concerns, 0),
-                entriesWithoutConcerns: data.sources.reduce((sum, s) => sum + s.entries_without_concerns, 0)
+                totalEntries,
+                entriesWithConcerns: withConcerns,
+                entriesWithoutConcerns: data.sources.reduce((sum, s) => sum + s.entries_without_concerns, 0),
+                concernPercentage: totalEntries > 0
+                    ? ((withConcerns / totalEntries) * 100).toFixed(1)
+                    : 0
             };
-            
-            dashboardData.stats.concernPercentage = dashboardData.stats.totalEntries > 0
-                ? ((dashboardData.stats.entriesWithConcerns / dashboardData.stats.totalEntries) * 100).toFixed(1)
-                : 0;
+
+            // Populate year filter (requires by_year on each source)
+            IndexYearFilter.populate(data.sources);
         }
 
         // Sorting state
@@ -2658,8 +3183,10 @@ h4, h5 {
         }
 
         function renderDashboard() {
+            currentFilteredSources = null; // reset on full reload
             renderSummary();
             renderSourcesTable();
+            renderIndexYearFilterUI();
         }
 
         function renderSummary() {
@@ -2695,9 +3222,12 @@ h4, h5 {
         function renderSourcesTable() {
             const container = document.getElementById('sources-table-container');
             if (!container) return;
-            
+
+            // Use year/text filtered list when active, otherwise all sources
+            const sourcePool = currentFilteredSources !== null ? currentFilteredSources : dashboardData.sources;
+
             // Sort sources based on current sort column and direction
-            const sources = [...dashboardData.sources].sort((a, b) => {
+            const sources = [...sourcePool].sort((a, b) => {
                 let aVal, bVal;
                 
                 switch(currentSortColumn) {
@@ -2850,50 +3380,9 @@ h4, h5 {
             }
         }
 
-        // Filter source table rows
+        // Filter source table — delegates to unified filter function
         function filterSourceTable() {
-            const filterInput = document.getElementById('source-filter');
-            if (!filterInput) return;
-            
-            const filterValue = filterInput.value.toLowerCase().trim();
-            const table = document.querySelector('.source-table tbody');
-            if (!table) return;
-            
-            const rows = table.getElementsByTagName('tr');
-            let visibleCount = 0;
-            
-            for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                const sourceNameCell = row.getElementsByTagName('td')[0];
-                
-                if (sourceNameCell) {
-                    const sourceName = sourceNameCell.textContent.toLowerCase();
-                    
-                    if (filterValue === '' || sourceName.includes(filterValue)) {
-                        row.style.display = '';
-                        visibleCount++;
-                    } else {
-                        row.style.display = 'none';
-                    }
-                }
-            }
-            
-            // Optional: Add count display below filter
-            const filterCountId = 'filter-count';
-            let countDisplay = document.getElementById(filterCountId);
-            if (!countDisplay) {
-                countDisplay = document.createElement('div');
-                countDisplay.id = filterCountId;
-                countDisplay.style.cssText = 'color: #6B7280; font-size: 0.85em; margin-top: 4px; text-align: right;';
-                filterInput.parentElement.appendChild(countDisplay);
-            }
-            
-            if (filterValue !== '') {
-                countDisplay.textContent = `Showing ${visibleCount} of ${rows.length} sources`;
-                countDisplay.style.display = 'block';
-            } else {
-                countDisplay.style.display = 'none';
-            }
+            applyIndexFilters();
         }
     </script>
 

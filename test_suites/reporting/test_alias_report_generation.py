@@ -73,6 +73,22 @@ class _MockMappingManager:
         return []
 
 
+class _MockConfirmedMappingManager:
+    """Mapping manager stub that returns a fixed confirmed alias list for a specific source ID."""
+
+    def __init__(self, source_id: str, confirmed_aliases: List[Dict]):
+        self._source_id = source_id
+        self._confirmed_aliases = confirmed_aliases
+
+    def is_initialized(self) -> bool:
+        return True
+
+    def get_mappings_for_source(self, source_id: str) -> List[Dict]:
+        if source_id == self._source_id:
+            return [{'aliases': self._confirmed_aliases}]
+        return []
+
+
 # ---------------------------------------------------------------------------
 # Shared test fixtures
 # ---------------------------------------------------------------------------
@@ -140,6 +156,82 @@ TEST_CVE_1337_0026: Dict = {
             'originAffectedEntry': {'sourceId': 'test-source-pipeline-0001'},
             'aliasExtraction': {
                 'aliases': [{'vendor': 'pipe_vendor', 'product': 'pipe_product_v2'}],
+            },
+        }]
+    },
+}
+
+# ---------------------------------------------------------------------------
+# by_year accuracy test fixtures (tests 28-33)
+# Each test uses a unique source ID and alias fields to prevent cross-test
+# deduplication collisions.  Source IDs use the 'yr-test-src-NN' convention.
+# ---------------------------------------------------------------------------
+
+# ── Test 28: two distinct CVE years, same alias ────────────────────────────
+_SRC_28 = 'yr-test-src-28'
+_ALIAS_28_A = {'vendor': 'yr28_vendor', 'product': 'yr28_product'}
+
+# ── Test 29: alias spanning two years + exclusive alias in later year ──────
+_SRC_29 = 'yr-test-src-29'
+_ALIAS_29_A = {'vendor': 'yr29_vendor_a', 'product': 'yr29_product_a'}
+_ALIAS_29_B = {'vendor': 'yr29_vendor_b', 'product': 'yr29_product_b'}
+
+# ── Test 30: confirmed alias tracked per year ──────────────────────────────
+_SRC_30 = 'yr-test-src-30'
+_ALIAS_30_A = {'vendor': 'yr30_vendor_a', 'product': 'yr30_product_a'}  # confirmed
+_ALIAS_30_B = {'vendor': 'yr30_vendor_b', 'product': 'yr30_product_b'}  # unconfirmed
+
+# ── Test 31: concern flag tracked per year ────────────────────────────────
+_SRC_31 = 'yr-test-src-31'
+_ALIAS_31_CONCERNS = {'vendor': 'yr31_concerns_vendor', 'product': 'yr31_concerns_product'}
+_ALIAS_31_CLEAN    = {'vendor': 'yr31_clean_vendor',    'product': 'yr31_clean_product'}
+
+# sourceDataConcerns structure (concern field 'vendor' → matches alias vendor value)
+_SDC_CONCERNS_FOR_31 = {
+    'concerns': {
+        'versionType': [{'field': 'vendor', 'sourceValue': 'yr31_concerns_vendor'}]
+    }
+}
+
+# ── Test 32: comprehensive — confirmed+concerns, unconfirmed+concerns, three years
+_SRC_32 = 'yr-test-src-32'
+_ALIAS_32_A = {'vendor': 'yr32_vendor_a', 'product': 'yr32_product_a'}  # confirmed, has concerns
+_ALIAS_32_B = {'vendor': 'yr32_vendor_b', 'product': 'yr32_product_b'}  # unconfirmed, no concerns
+_ALIAS_32_C = {'vendor': 'yr32_vendor_c', 'product': 'yr32_product_c'}  # unconfirmed, has concerns
+
+_SDC_CONCERNS_FOR_32_A = {
+    'concerns': {
+        'versionType': [{'field': 'vendor', 'sourceValue': 'yr32_vendor_a'}]
+    }
+}
+_SDC_CONCERNS_FOR_32_C = {
+    'concerns': {
+        'versionType': [{'field': 'vendor', 'sourceValue': 'yr32_vendor_c'}]
+    }
+}
+
+# ── Test 33: subprocess — two CVEs from years 2023 and 2025 ──────────────
+TEST_CVE_2023_3301: Dict = {
+    'id': 'CVE-2023-3301',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': 'test-source-pipeline-0001'},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'by_year_vendor', 'product': 'by_year_product_2023'}],
+            },
+        }]
+    },
+}
+
+TEST_CVE_2025_3301: Dict = {
+    'id': 'CVE-2025-3301',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': 'test-source-pipeline-0001'},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'by_year_vendor', 'product': 'by_year_product_2025'}],
             },
         }]
     },
@@ -720,8 +812,8 @@ class TestAliasReportGeneration:
         self.assert_in("generateCveGroupsHtml function defined", "function generateCveGroupsHtml", template)
 
     def test_19_template_propagates_topNvdCpeBaseStrings_in_loadData(self):
-        """Test 19: loadData() reads topNvdCpeBaseStrings from the alias itself (per-alias granularity)."""
-        print("\nTest 19: loadData() reads topNvdCpeBaseStrings from alias (not group)")
+        """Test 19: loadData() reads topNvdCpeBaseStrings from the individual alias object."""
+        print("\nTest 19: topNvdCpeBaseStrings from alias in loadData")
         template = self._load_template()
         self.assert_in(
             "topNvdCpeBaseStrings from alias in loadData",
@@ -1024,6 +1116,349 @@ class TestAliasReportGeneration:
             self.teardown_report_output_dir()
 
     # ==================================================================
+    # GROUP 6: per-year alias statistics (tests 28-33)
+    # Four-phase pattern: SETUP → EXECUTE → VALIDATE → TEARDOWN
+    # ==================================================================
+
+    def test_28_by_year_cves_count_two_distinct_years(self):
+        """Test 28: same alias on CVEs from two distinct years → cves and unique_aliases both equal 1 per year."""
+        print("\nTest 28: by_year cves count across two distinct years")
+
+        # SETUP
+        builder = AliasReportBuilder(
+            source_manager=None,
+            mapping_manager=_MockMappingManager(),
+        )
+        entry_2024 = {
+            'originAffectedEntry': {'sourceId': _SRC_28},
+            'aliasExtraction': {'aliases': [_ALIAS_28_A]},
+        }
+        entry_2025 = {
+            'originAffectedEntry': {'sourceId': _SRC_28},
+            'aliasExtraction': {'aliases': [_ALIAS_28_A]},
+        }
+        builder.add_cve_aliases('CVE-2024-2801', [entry_2024], nvd_cpe_set=set())
+        builder.add_cve_aliases('CVE-2025-2801', [entry_2025], nvd_cpe_set=set())
+
+        # EXECUTE
+        reports = builder.finalize()
+        by_year = reports[_SRC_28]['metadata']['by_year']
+
+        # VALIDATE
+        self.assert_true("by_year has '2024' key", '2024' in by_year)
+        self.assert_true("by_year has '2025' key", '2025' in by_year)
+        self.assert_equals("exactly 2 year keys", 2, len(by_year))
+        self.assert_equals("2024 cves == 1", 1, by_year['2024']['cves'])
+        self.assert_equals("2024 unique_aliases == 1", 1, by_year['2024']['unique_aliases'])
+        self.assert_equals("2024 unconfirmed_count == 1", 1, by_year['2024']['unconfirmed_count'])
+        self.assert_equals("2025 cves == 1", 1, by_year['2025']['cves'])
+        self.assert_equals("2025 unique_aliases == 1", 1, by_year['2025']['unique_aliases'])
+        self.assert_equals("2025 unconfirmed_count == 1", 1, by_year['2025']['unconfirmed_count'])
+
+        # TEARDOWN
+        builder = None
+
+    def test_29_by_year_unique_aliases_alias_spanning_years(self):
+        """Test 29: alias spanning two years + exclusive alias in later year → unique_aliases diverge correctly."""
+        print("\nTest 29: by_year unique_aliases — alias spanning years plus year-exclusive alias")
+
+        # SETUP
+        builder = AliasReportBuilder(
+            source_manager=None,
+            mapping_manager=_MockMappingManager(),
+        )
+        entry_a_2024 = {
+            'originAffectedEntry': {'sourceId': _SRC_29},
+            'aliasExtraction': {'aliases': [_ALIAS_29_A]},
+        }
+        entry_a_2025 = {
+            'originAffectedEntry': {'sourceId': _SRC_29},
+            'aliasExtraction': {'aliases': [_ALIAS_29_A]},
+        }
+        entry_b_2025 = {
+            'originAffectedEntry': {'sourceId': _SRC_29},
+            'aliasExtraction': {'aliases': [_ALIAS_29_B]},
+        }
+        builder.add_cve_aliases('CVE-2024-2901', [entry_a_2024], nvd_cpe_set=set())
+        builder.add_cve_aliases('CVE-2025-2901', [entry_a_2025], nvd_cpe_set=set())
+        builder.add_cve_aliases('CVE-2025-2902', [entry_b_2025], nvd_cpe_set=set())
+
+        # EXECUTE
+        reports = builder.finalize()
+        by_year = reports[_SRC_29]['metadata']['by_year']
+
+        # VALIDATE
+        self.assert_equals("2024 cves == 1", 1, by_year['2024']['cves'])
+        self.assert_equals("2025 cves == 2", 2, by_year['2025']['cves'])
+        self.assert_equals("2024 unique_aliases == 1 (alias_a only)", 1, by_year['2024']['unique_aliases'])
+        self.assert_equals("2025 unique_aliases == 2 (alias_a + alias_b)", 2, by_year['2025']['unique_aliases'])
+        self.assert_equals("2024 unconfirmed_count == 1", 1, by_year['2024']['unconfirmed_count'])
+        self.assert_equals("2025 unconfirmed_count == 2", 2, by_year['2025']['unconfirmed_count'])
+        self.assert_equals("2024 confirmed_count == 0", 0, by_year['2024']['confirmed_count'])
+        self.assert_equals("2025 confirmed_count == 0", 0, by_year['2025']['confirmed_count'])
+
+        # TEARDOWN
+        builder = None
+
+    def test_30_by_year_confirmed_count_per_year(self):
+        """Test 30: confirmed alias tracked per year — coverage pct reflects per-year alias mix."""
+        print("\nTest 30: by_year confirmed_count and confirmed_coverage_pct per year")
+
+        # SETUP: alias_a confirmed (appears 2024+2025), alias_b unconfirmed (2024 only)
+        builder = AliasReportBuilder(
+            source_manager=None,
+            mapping_manager=_MockConfirmedMappingManager(
+                source_id=_SRC_30,
+                confirmed_aliases=[_ALIAS_30_A],
+            ),
+        )
+        entry_a_2024 = {
+            'originAffectedEntry': {'sourceId': _SRC_30},
+            'aliasExtraction': {'aliases': [_ALIAS_30_A]},
+        }
+        entry_b_2024 = {
+            'originAffectedEntry': {'sourceId': _SRC_30},
+            'aliasExtraction': {'aliases': [_ALIAS_30_B]},
+        }
+        entry_a_2025 = {
+            'originAffectedEntry': {'sourceId': _SRC_30},
+            'aliasExtraction': {'aliases': [_ALIAS_30_A]},
+        }
+        builder.add_cve_aliases('CVE-2024-3001', [entry_a_2024], nvd_cpe_set=set())
+        builder.add_cve_aliases('CVE-2024-3002', [entry_b_2024], nvd_cpe_set=set())
+        builder.add_cve_aliases('CVE-2025-3001', [entry_a_2025], nvd_cpe_set=set())
+
+        # EXECUTE
+        reports = builder.finalize()
+        by_year = reports[_SRC_30]['metadata']['by_year']
+
+        # VALIDATE
+        self.assert_true("by_year has '2024'", '2024' in by_year)
+        self.assert_true("by_year has '2025'", '2025' in by_year)
+        self.assert_equals("2024 cves == 2", 2, by_year['2024']['cves'])
+        self.assert_equals("2024 unique_aliases == 2", 2, by_year['2024']['unique_aliases'])
+        self.assert_equals("2024 confirmed_count == 1 (alias_a)", 1, by_year['2024']['confirmed_count'])
+        self.assert_equals("2024 confirmed_coverage_pct == 50.0", 50.0, by_year['2024']['confirmed_coverage_pct'])
+        self.assert_equals("2024 unconfirmed_count == 1 (alias_b)", 1, by_year['2024']['unconfirmed_count'])
+        self.assert_equals("2025 cves == 1", 1, by_year['2025']['cves'])
+        self.assert_equals("2025 unique_aliases == 1 (alias_a only)", 1, by_year['2025']['unique_aliases'])
+        self.assert_equals("2025 confirmed_count == 1", 1, by_year['2025']['confirmed_count'])
+        self.assert_equals("2025 confirmed_coverage_pct == 100.0", 100.0, by_year['2025']['confirmed_coverage_pct'])
+        self.assert_equals("2025 unconfirmed_count == 0", 0, by_year['2025']['unconfirmed_count'])
+
+        # TEARDOWN
+        builder = None
+
+    def test_31_by_year_concern_flags_per_year(self):
+        """Test 31: SDC concern flag tracked per year — concern in 2024, clean in 2025."""
+        print("\nTest 31: by_year unconfirmed_with_concerns scoped to correct year")
+
+        # SETUP: alias_with_concerns on 2024 CVE, clean alias on 2025 CVE
+        builder = AliasReportBuilder(
+            source_manager=None,
+            mapping_manager=_MockMappingManager(),
+        )
+        entry_concerns_2024 = {
+            'originAffectedEntry': {'sourceId': _SRC_31},
+            'aliasExtraction': {'aliases': [_ALIAS_31_CONCERNS]},
+            'sourceDataConcerns': _SDC_CONCERNS_FOR_31,
+        }
+        entry_clean_2025 = {
+            'originAffectedEntry': {'sourceId': _SRC_31},
+            'aliasExtraction': {'aliases': [_ALIAS_31_CLEAN]},
+        }
+        builder.add_cve_aliases('CVE-2024-3101', [entry_concerns_2024], nvd_cpe_set=set())
+        builder.add_cve_aliases('CVE-2025-3101', [entry_clean_2025], nvd_cpe_set=set())
+
+        # EXECUTE
+        reports = builder.finalize()
+        by_year = reports[_SRC_31]['metadata']['by_year']
+
+        # VALIDATE
+        self.assert_equals("2024 unconfirmed_count == 1", 1, by_year['2024']['unconfirmed_count'])
+        self.assert_equals("2024 unconfirmed_with_concerns_count == 1",
+                           1, by_year['2024']['unconfirmed_with_concerns_count'])
+        self.assert_equals("2024 unconfirmed_with_concerns_pct == 100.0",
+                           100.0, by_year['2024']['unconfirmed_with_concerns_pct'])
+        self.assert_equals("2025 unconfirmed_count == 1", 1, by_year['2025']['unconfirmed_count'])
+        self.assert_equals("2025 unconfirmed_with_concerns_count == 0",
+                           0, by_year['2025']['unconfirmed_with_concerns_count'])
+        self.assert_equals("2025 unconfirmed_with_concerns_pct == 0.0",
+                           0.0, by_year['2025']['unconfirmed_with_concerns_pct'])
+        self.assert_equals("2024 confirmed_with_concerns_count == 0",
+                           0, by_year['2024']['confirmed_with_concerns_count'])
+        self.assert_equals("2025 confirmed_with_concerns_count == 0",
+                           0, by_year['2025']['confirmed_with_concerns_count'])
+
+        # TEARDOWN
+        builder = None
+
+    def test_32_by_year_comprehensive_stats_three_years(self):
+        """Test 32: comprehensive by_year stats — confirmed+concerns, unconfirmed, unconfirmed+concerns across 3 years."""
+        print("\nTest 32: by_year comprehensive stats across 2023, 2024, and 2025")
+
+        # SETUP: alias_a (confirmed, has concerns) on 2023+2024;
+        #        alias_b (unconfirmed, no concerns)  on 2023 only;
+        #        alias_c (unconfirmed, has concerns) on 2024+2025.
+        builder = AliasReportBuilder(
+            source_manager=None,
+            mapping_manager=_MockConfirmedMappingManager(
+                source_id=_SRC_32,
+                confirmed_aliases=[_ALIAS_32_A],
+            ),
+        )
+        entry_a_2023 = {
+            'originAffectedEntry': {'sourceId': _SRC_32},
+            'aliasExtraction': {'aliases': [_ALIAS_32_A]},
+            'sourceDataConcerns': _SDC_CONCERNS_FOR_32_A,
+        }
+        entry_b_2023 = {
+            'originAffectedEntry': {'sourceId': _SRC_32},
+            'aliasExtraction': {'aliases': [_ALIAS_32_B]},
+        }
+        entry_a_2024 = {
+            'originAffectedEntry': {'sourceId': _SRC_32},
+            'aliasExtraction': {'aliases': [_ALIAS_32_A]},
+            'sourceDataConcerns': _SDC_CONCERNS_FOR_32_A,
+        }
+        entry_c_2024 = {
+            'originAffectedEntry': {'sourceId': _SRC_32},
+            'aliasExtraction': {'aliases': [_ALIAS_32_C]},
+            'sourceDataConcerns': _SDC_CONCERNS_FOR_32_C,
+        }
+        entry_c_2025 = {
+            'originAffectedEntry': {'sourceId': _SRC_32},
+            'aliasExtraction': {'aliases': [_ALIAS_32_C]},
+            'sourceDataConcerns': _SDC_CONCERNS_FOR_32_C,
+        }
+        builder.add_cve_aliases('CVE-2023-3201', [entry_a_2023, entry_b_2023], nvd_cpe_set=set())
+        builder.add_cve_aliases('CVE-2024-3201', [entry_a_2024, entry_c_2024], nvd_cpe_set=set())
+        builder.add_cve_aliases('CVE-2025-3201', [entry_c_2025], nvd_cpe_set=set())
+
+        # EXECUTE
+        reports = builder.finalize()
+        by_year = reports[_SRC_32]['metadata']['by_year']
+
+        # VALIDATE — 2023: alias_a (confirmed+concerns) + alias_b (unconfirmed, clean)
+        self.assert_equals("2023 cves == 1", 1, by_year['2023']['cves'])
+        self.assert_equals("2023 unique_aliases == 2", 2, by_year['2023']['unique_aliases'])
+        self.assert_equals("2023 confirmed_count == 1", 1, by_year['2023']['confirmed_count'])
+        self.assert_equals("2023 confirmed_coverage_pct == 50.0", 50.0, by_year['2023']['confirmed_coverage_pct'])
+        self.assert_equals("2023 confirmed_with_concerns_count == 1",
+                           1, by_year['2023']['confirmed_with_concerns_count'])
+        self.assert_equals("2023 confirmed_with_concerns_pct == 100.0",
+                           100.0, by_year['2023']['confirmed_with_concerns_pct'])
+        self.assert_equals("2023 unconfirmed_count == 1", 1, by_year['2023']['unconfirmed_count'])
+
+        # VALIDATE — 2024: alias_a (confirmed+concerns) + alias_c (unconfirmed+concerns)
+        self.assert_equals("2024 cves == 1", 1, by_year['2024']['cves'])
+        self.assert_equals("2024 unique_aliases == 2", 2, by_year['2024']['unique_aliases'])
+        self.assert_equals("2024 confirmed_count == 1", 1, by_year['2024']['confirmed_count'])
+        self.assert_equals("2024 confirmed_coverage_pct == 50.0", 50.0, by_year['2024']['confirmed_coverage_pct'])
+        self.assert_equals("2024 confirmed_with_concerns_count == 1",
+                           1, by_year['2024']['confirmed_with_concerns_count'])
+        self.assert_equals("2024 confirmed_with_concerns_pct == 100.0",
+                           100.0, by_year['2024']['confirmed_with_concerns_pct'])
+        self.assert_equals("2024 unconfirmed_count == 1", 1, by_year['2024']['unconfirmed_count'])
+        self.assert_equals("2024 unconfirmed_with_concerns_count == 1",
+                           1, by_year['2024']['unconfirmed_with_concerns_count'])
+        self.assert_equals("2024 unconfirmed_with_concerns_pct == 100.0",
+                           100.0, by_year['2024']['unconfirmed_with_concerns_pct'])
+
+        # VALIDATE — 2025: alias_c only (unconfirmed+concerns)
+        self.assert_equals("2025 cves == 1", 1, by_year['2025']['cves'])
+        self.assert_equals("2025 unique_aliases == 1", 1, by_year['2025']['unique_aliases'])
+        self.assert_equals("2025 confirmed_count == 0", 0, by_year['2025']['confirmed_count'])
+        self.assert_equals("2025 unconfirmed_count == 1", 1, by_year['2025']['unconfirmed_count'])
+        self.assert_equals("2025 unconfirmed_with_concerns_count == 1",
+                           1, by_year['2025']['unconfirmed_with_concerns_count'])
+
+        # TEARDOWN
+        builder = None
+
+    def test_33_four_phase_subprocess_by_year_in_json_output(self):
+        """Test 33: Four-phase subprocess — CVEs from 2023+2025 → by_year has both years in index.json."""
+        import subprocess
+        print("\nTest 33: by_year in subprocess JSON index — two non-contiguous years (2023 and 2025)")
+
+        # SETUP: inject CVEs from two non-contiguous years (no 2024 CVEs)
+        self.setup_subprocess_test_cache(
+            [TEST_CVE_2023_3301, TEST_CVE_2025_3301],
+            batch='0xxx',
+        )
+
+        try:
+            # EXECUTE: generate_alias_report as real subprocess
+            result = subprocess.run(
+                ['python', '-m', 'src.analysis_tool.reporting.generate_alias_report',
+                 '--custom-cache', TEST_SUBPROCESS_CACHE_NAME],
+                cwd=str(project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=120,
+            )
+
+            self.assert_equals("subprocess exit code 0", 0, result.returncode)
+            if result.returncode != 0:
+                print(f"  stderr: {result.stderr[:500]}")
+
+            # VALIDATE: locate run directory from stdout, then inspect index.json by_year
+            run_id = None
+            for line in result.stdout.splitlines():
+                if line.startswith('Run ID:'):
+                    run_id = line.split('Run ID:')[-1].strip()
+                    break
+
+            self.assert_true("Run ID present in stdout", run_id is not None)
+
+            if run_id:
+                index_file = project_root / "runs" / run_id / "logs" / "aliasExtractionReport_index.json"
+                self.assert_true("index.json exists", index_file.exists())
+
+                if index_file.exists():
+                    with open(index_file, 'r', encoding='utf-8') as f:
+                        index_data = json.load(f)
+
+                    # Locate the test pipeline source entry
+                    src_entry = next(
+                        (s for s in index_data.get('sources', [])
+                         if s.get('source_name') == 'test-source-pipeline-0001'),
+                        None,
+                    )
+                    self.assert_true("test-source-pipeline-0001 entry found in index", src_entry is not None)
+
+                    if src_entry is not None:
+                        by_year = src_entry.get('by_year', {})
+                        self.assert_true("by_year has '2023' key", '2023' in by_year)
+                        self.assert_true("by_year has '2025' key", '2025' in by_year)
+                        self.assert_true("by_year does NOT have '2024' key", '2024' not in by_year)
+                        self.assert_equals("2023 cves == 1", 1, by_year['2023']['cves'])
+                        self.assert_equals("2025 cves == 1", 1, by_year['2025']['cves'])
+                        self.assert_equals("2023 unique_aliases == 1", 1, by_year['2023']['unique_aliases'])
+                        self.assert_equals("2025 unique_aliases == 1", 1, by_year['2025']['unique_aliases'])
+                        required_keys = {
+                            'cves', 'unique_aliases', 'confirmed_count', 'confirmed_coverage_pct',
+                            'confirmed_with_concerns_count', 'confirmed_with_concerns_pct',
+                            'unconfirmed_count', 'unconfirmed_with_concerns_count',
+                            'unconfirmed_with_concerns_pct',
+                        }
+                        self.assert_true(
+                            "2023 by_year entry has all required keys",
+                            required_keys.issubset(by_year['2023'].keys()),
+                        )
+                        self.assert_true(
+                            "2025 by_year entry has all required keys",
+                            required_keys.issubset(by_year['2025'].keys()),
+                        )
+
+        finally:
+            # TEARDOWN: remove injected cache; run output preserved for inspection
+            self.teardown_subprocess_test_cache()
+
+    # ==================================================================
     # Test runner
     # ==================================================================
 
@@ -1060,6 +1495,12 @@ class TestAliasReportGeneration:
         self.test_25_full_pipeline_subprocess_execute()
         self.test_26_calculate_alias_statistics_pure_unconfirmed()
         self.test_27_validate_report_statistics_aligned()
+        self.test_28_by_year_cves_count_two_distinct_years()
+        self.test_29_by_year_unique_aliases_alias_spanning_years()
+        self.test_30_by_year_confirmed_count_per_year()
+        self.test_31_by_year_concern_flags_per_year()
+        self.test_32_by_year_comprehensive_stats_three_years()
+        self.test_33_four_phase_subprocess_by_year_in_json_output()
 
         total = self.passed + self.failed
         print("\n" + "=" * 60)

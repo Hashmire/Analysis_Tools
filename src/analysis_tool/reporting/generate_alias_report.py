@@ -222,9 +222,11 @@ class AliasReportBuilder:
             },
             'all_alias_data': {},
             'cve_ids': set(),
-            'source_ids': set()
+            'source_ids': set(),
+            'by_year': {}
         })
         self._cve_nvd_cpe_strings: Dict[str, set] = {}
+        self._cve_suggested_cpe_strings: Dict[str, set] = {}
     
     def add_cve_aliases(self, cve_id: str, entries: List[Dict], nvd_cpe_set: Optional[set] = None) -> None:
         """
@@ -239,6 +241,7 @@ class AliasReportBuilder:
             nvd_cpe_set: Optional set of NVD-assigned CPE base strings for this CVE
         """
         self._cve_nvd_cpe_strings[cve_id] = nvd_cpe_set or set()
+        self._cve_suggested_cpe_strings[cve_id] = set()
         entries_by_org = defaultdict(list)
         org_source_ids = {}
         
@@ -250,6 +253,11 @@ class AliasReportBuilder:
             alias_extraction = entry.get('aliasExtraction', {})
             aliases = alias_extraction.get('aliases', [])
             sdc_data = entry.get('sourceDataConcerns', {})
+            
+            for suggestion in entry.get('cpeDetermination', {}).get('top10SuggestedCPEBaseStrings', []):
+                cpe_str = suggestion.get('cpeBaseString', '')
+                if cpe_str:
+                    self._cve_suggested_cpe_strings[cve_id].add(cpe_str)
             
             if aliases:
                 entries_by_org[org_name].append({
@@ -285,6 +293,9 @@ class AliasReportBuilder:
             if cve_id not in source_data['cve_ids']:
                 source_data['cve_ids'].add(cve_id)
                 source_data['metadata']['total_cves_processed'] += 1
+                cve_year = cve_id.split('-')[1] if cve_id.count('-') >= 2 else 'unknown'
+                yr = source_data['by_year'].setdefault(cve_year, {'cves': 0})
+                yr['cves'] += 1
             
             for entry_data in source_entries:
                 source_data['source_ids'].add(entry_data['source_id'])
@@ -441,11 +452,13 @@ class AliasReportBuilder:
                 for alias in aliases:
                     alias_cve_ids = set(alias.get('source_cve', []))
                     cpe_counter: Counter = Counter()
+                    suggested_for_alias: set = set()
                     for cve_id in alias_cve_ids:
                         for cpe in self._cve_nvd_cpe_strings.get(cve_id, set()):
                             cpe_counter[cpe] += 1
+                        suggested_for_alias.update(self._cve_suggested_cpe_strings.get(cve_id, set()))
                     alias['topNvdCpeBaseStrings'] = [
-                        {'cpeBaseString': cpe, 'cveCount': count}
+                        {'cpeBaseString': cpe, 'cveCount': count, 'isSuggestedMatch': cpe in suggested_for_alias}
                         for cpe, count in cpe_counter.most_common(5)
                     ]
 
@@ -474,6 +487,64 @@ class AliasReportBuilder:
                     confirmed_mappings.extend(mappings)
                     break  # Use first found
             
+            # Pre-compute per-year alias statistics from alias source_cve membership.
+            # Each deduplicated alias tracks every CVE it appears on via source_cve[].
+            # Iterating those CVE IDs gives year membership; sets per year prevent
+            # double-counting alias keys that span multiple CVEs within the same year.
+            #
+            # confirmed_keys is derived from the confirmed_mappings loaded above, matching
+            # the same logic used in calculate_alias_statistics() for the full-source totals.
+            confirmed_keys_full: set = set()
+            for mapping in confirmed_mappings:
+                for alias in mapping.get('aliases', []):
+                    confirmed_keys_full.add(_build_alias_dedup_key(alias))
+
+            by_year: Dict[str, Dict] = source_info.get('by_year', {})
+
+            # Group alias keys and their concern flags by year
+            alias_keys_by_year: Dict[str, set] = {}
+            confirmed_by_year: Dict[str, set] = {}
+            confirmed_with_concerns_by_year: Dict[str, set] = {}
+            unconfirmed_by_year: Dict[str, set] = {}
+            unconfirmed_with_concerns_by_year: Dict[str, set] = {}
+
+            for alias_key, alias_data in source_info['all_alias_data'].items():
+                is_confirmed = alias_key in confirmed_keys_full
+                has_concerns = bool(alias_data.get('_sdc_concerns'))
+                for cve_id in alias_data.get('source_cve', []):
+                    year = cve_id.split('-')[1] if cve_id.count('-') >= 2 else 'unknown'
+                    alias_keys_by_year.setdefault(year, set()).add(alias_key)
+                    if is_confirmed:
+                        confirmed_by_year.setdefault(year, set()).add(alias_key)
+                        if has_concerns:
+                            confirmed_with_concerns_by_year.setdefault(year, set()).add(alias_key)
+                    else:
+                        unconfirmed_by_year.setdefault(year, set()).add(alias_key)
+                        if has_concerns:
+                            unconfirmed_with_concerns_by_year.setdefault(year, set()).add(alias_key)
+
+            for year, alias_key_set in alias_keys_by_year.items():
+                by_year.setdefault(year, {'cves': 0})
+                confirmed_count_yr = len(confirmed_by_year.get(year, set()))
+                unconfirmed_count_yr = len(unconfirmed_by_year.get(year, set()))
+                confirmed_with_concerns_yr = len(confirmed_with_concerns_by_year.get(year, set()))
+                unconfirmed_with_concerns_yr = len(unconfirmed_with_concerns_by_year.get(year, set()))
+                total_aliases_yr = confirmed_count_yr + unconfirmed_count_yr
+                by_year[year]['unique_aliases'] = len(alias_key_set)
+                by_year[year]['confirmed_count'] = confirmed_count_yr
+                by_year[year]['confirmed_coverage_pct'] = round(
+                    (confirmed_count_yr / total_aliases_yr * 100) if total_aliases_yr > 0 else 0, 1
+                )
+                by_year[year]['confirmed_with_concerns_count'] = confirmed_with_concerns_yr
+                by_year[year]['confirmed_with_concerns_pct'] = round(
+                    (confirmed_with_concerns_yr / confirmed_count_yr * 100) if confirmed_count_yr > 0 else 0, 1
+                )
+                by_year[year]['unconfirmed_count'] = unconfirmed_count_yr
+                by_year[year]['unconfirmed_with_concerns_count'] = unconfirmed_with_concerns_yr
+                by_year[year]['unconfirmed_with_concerns_pct'] = round(
+                    (unconfirmed_with_concerns_yr / unconfirmed_count_yr * 100) if unconfirmed_count_yr > 0 else 0, 1
+                )
+
             # Build organization metadata - use UUID as primary identifier for cnaId compatibility
             primary_identifier = self._select_uuid_identifier(source_info['source_ids']) if source_info['source_ids'] else org_name
             
@@ -490,7 +561,8 @@ class AliasReportBuilder:
                 'extraction_source': 'Analysis_Tools_NVDish_Cache_Scanner',
                 'tool_version': __version__,
                 'curator_compatibility': True,
-                'status': 'completed'
+                'status': 'completed',
+                'by_year': source_info.get('by_year', {})
             }
             
             per_source_reports[org_name] = {
@@ -730,7 +802,7 @@ def _build_alias_dedup_key(alias: dict) -> str:
     Returns:
         Deduplication key string
     """
-    _exclude = {'source_cve', '_sdc_concerns'}
+    _exclude = {'source_cve', '_sdc_concerns', 'cpes'}
     key_parts = []
     for field in sorted(alias.keys()):
         if field not in _exclude:
@@ -1088,6 +1160,7 @@ def generate_report(
             'total_cves_processed': per_source_reports[org_name]['metadata']['total_cves_processed'],
             'unique_aliases_extracted': per_source_reports[org_name]['metadata']['unique_aliases_extracted'],
             'product_groups_created': per_source_reports[org_name]['metadata']['product_groups_created'],
+            'by_year': per_source_reports[org_name]['metadata'].get('by_year', {}),
             'total_unique_aliases': stats['total_unique_aliases'],
             'confirmed_count': stats['confirmed_count'],
             'confirmed_coverage_pct': stats['confirmed_coverage_pct'],

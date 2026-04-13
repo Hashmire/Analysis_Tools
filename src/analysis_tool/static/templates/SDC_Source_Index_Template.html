@@ -138,6 +138,12 @@
                         />
                     </div>
                 </div>
+                <!-- CVE Year Filter Pills -->
+                <div class="filter-pill-row" id="indexYearFilterRow" style="display: none;">
+                    <label class="font-500 color-333">CVE Year:</label>
+                    <div id="indexYearPillsContainer" class="filter-pills-container"></div>
+                </div>
+
                 <div class="section-content">
                     <div id="sources-table-container">
                         <div class="loading">No data loaded</div>
@@ -149,7 +155,119 @@
 
     <script>
         let dashboardData = null;
-        
+        let currentFilteredSources = null; // Null = no filter active, use dashboardData.sources
+
+        // ── CVE Year Filter ─────────────────────────────────────────────────────────
+        const IndexYearFilter = {
+            availableYears: [],
+            activeYears: new Set(),
+            isFilteringActive() {
+                return this.availableYears.length > 0 && this.activeYears.size < this.availableYears.length;
+            },
+            populate(sources) {
+                const yearSet = new Set();
+                sources.forEach(s => Object.keys(s.by_year || {}).forEach(y => yearSet.add(y)));
+                this.availableYears = [...yearSet].sort((a, b) => b.localeCompare(a));
+                this.activeYears = new Set(this.availableYears);
+            },
+            reset() { this.availableYears = []; this.activeYears = new Set(); }
+        };
+
+        function renderIndexYearFilterUI() {
+            const container = document.getElementById('indexYearPillsContainer');
+            const filterRow = document.getElementById('indexYearFilterRow');
+            if (!container || !filterRow) return;
+            // Only show pill row when there are multiple distinct years
+            if (IndexYearFilter.availableYears.length <= 1) { filterRow.style.display = 'none'; return; }
+            filterRow.style.display = 'flex';
+            container.innerHTML = IndexYearFilter.availableYears.map(year =>
+                `<button class="filter-pill ${IndexYearFilter.activeYears.has(year) ? 'active' : 'inactive'}"
+                         onclick="toggleIndexYearPill('${year}')">${year}</button>`
+            ).join('');
+        }
+
+        function toggleIndexYearPill(year) {
+            if (IndexYearFilter.activeYears.has(year)) {
+                // Prevent deselecting the last active year
+                if (IndexYearFilter.activeYears.size > 1) { IndexYearFilter.activeYears.delete(year); }
+            } else {
+                IndexYearFilter.activeYears.add(year);
+            }
+            renderIndexYearFilterUI();
+            applyIndexFilters();
+        }
+
+        function applyIndexFilters() {
+            if (!dashboardData || !dashboardData.sources) return;
+
+            const textFilter = (document.getElementById('source-filter')?.value || '').toLowerCase().trim();
+            const isYearFiltering = IndexYearFilter.isFilteringActive();
+
+            // Step 1: Compute year-effective stats for each source
+            const yearEffectiveSources = dashboardData.sources.map(source => {
+                if (!isYearFiltering) return source;
+                let cves = 0, totalEntries = 0, entriesWithConcerns = 0;
+                const byYear = source.by_year || {};
+                IndexYearFilter.activeYears.forEach(year => {
+                    const ys = byYear[year] || {};
+                    cves += ys.cves || 0;
+                    totalEntries += ys.total_entries || 0;
+                    entriesWithConcerns += ys.entries_with_concerns || 0;
+                });
+                return {
+                    ...source,
+                    total_cves_processed: cves,
+                    total_platform_entries: totalEntries,
+                    entries_with_concerns: entriesWithConcerns,
+                    entries_without_concerns: totalEntries - entriesWithConcerns
+                };
+            });
+
+            // Step 2: Apply text filter; hide sources with 0 CVEs in selected year(s)
+            const visibleSources = yearEffectiveSources.filter(source => {
+                if (isYearFiltering && source.total_cves_processed === 0) return false;
+                if (textFilter && !source.source_name.toLowerCase().includes(textFilter)) return false;
+                return true;
+            });
+
+            // Step 3: Recompute aggregate stats from visible sources only
+            const filteredTotalEntries = visibleSources.reduce((s, x) => s + x.total_platform_entries, 0);
+            const filteredWithConcerns = visibleSources.reduce((s, x) => s + x.entries_with_concerns, 0);
+            dashboardData.stats = {
+                totalSources: visibleSources.length,
+                totalCVEs: visibleSources.reduce((s, x) => s + x.total_cves_processed, 0),
+                totalEntries: filteredTotalEntries,
+                entriesWithConcerns: filteredWithConcerns,
+                entriesWithoutConcerns: visibleSources.reduce((s, x) => s + x.entries_without_concerns, 0),
+                concernPercentage: filteredTotalEntries > 0
+                    ? ((filteredWithConcerns / filteredTotalEntries) * 100).toFixed(1)
+                    : 0
+            };
+
+            // Step 4: Store filtered list and re-render both sections
+            currentFilteredSources = visibleSources;
+            renderSummary();
+            renderSourcesTable();
+
+            // Update filter count display
+            const filterCountId = 'filter-count';
+            let countDisplay = document.getElementById(filterCountId);
+            if (!countDisplay) {
+                countDisplay = document.createElement('div');
+                countDisplay.id = filterCountId;
+                countDisplay.style.cssText = 'color: #6B7280; font-size: 0.85em; margin-top: 4px; text-align: right;';
+                document.getElementById('source-filter')?.parentElement?.appendChild(countDisplay);
+            }
+            const totalSources = dashboardData.sources.length;
+            if (visibleSources.length < totalSources) {
+                countDisplay.textContent = `Showing ${visibleSources.length} of ${totalSources} sources`;
+                countDisplay.style.display = 'block';
+            } else {
+                countDisplay.style.display = 'none';
+            }
+        }
+        // ────────────────────────────────────────────────────────────────────────────
+
         // Documentation toggle functionality
         function toggleDocumentation() {
             const content = document.getElementById('documentation-content');
@@ -258,19 +376,23 @@
             if (!data || !data.sources) {
                 throw new Error('Invalid index data format - missing sources array');
             }
-            
+
             // Calculate aggregate statistics
+            const totalEntries = data.sources.reduce((sum, s) => sum + s.total_platform_entries, 0);
+            const withConcerns = data.sources.reduce((sum, s) => sum + s.entries_with_concerns, 0);
             dashboardData.stats = {
                 totalSources: data.sources.length,
                 totalCVEs: data.sources.reduce((sum, s) => sum + s.total_cves_processed, 0),
-                totalEntries: data.sources.reduce((sum, s) => sum + s.total_platform_entries, 0),
-                entriesWithConcerns: data.sources.reduce((sum, s) => sum + s.entries_with_concerns, 0),
-                entriesWithoutConcerns: data.sources.reduce((sum, s) => sum + s.entries_without_concerns, 0)
+                totalEntries,
+                entriesWithConcerns: withConcerns,
+                entriesWithoutConcerns: data.sources.reduce((sum, s) => sum + s.entries_without_concerns, 0),
+                concernPercentage: totalEntries > 0
+                    ? ((withConcerns / totalEntries) * 100).toFixed(1)
+                    : 0
             };
-            
-            dashboardData.stats.concernPercentage = dashboardData.stats.totalEntries > 0
-                ? ((dashboardData.stats.entriesWithConcerns / dashboardData.stats.totalEntries) * 100).toFixed(1)
-                : 0;
+
+            // Populate year filter (requires by_year on each source)
+            IndexYearFilter.populate(data.sources);
         }
 
         // Sorting state
@@ -290,8 +412,10 @@
         }
 
         function renderDashboard() {
+            currentFilteredSources = null; // reset on full reload
             renderSummary();
             renderSourcesTable();
+            renderIndexYearFilterUI();
         }
 
         function renderSummary() {
@@ -327,9 +451,12 @@
         function renderSourcesTable() {
             const container = document.getElementById('sources-table-container');
             if (!container) return;
-            
+
+            // Use year/text filtered list when active, otherwise all sources
+            const sourcePool = currentFilteredSources !== null ? currentFilteredSources : dashboardData.sources;
+
             // Sort sources based on current sort column and direction
-            const sources = [...dashboardData.sources].sort((a, b) => {
+            const sources = [...sourcePool].sort((a, b) => {
                 let aVal, bVal;
                 
                 switch(currentSortColumn) {
@@ -482,50 +609,9 @@
             }
         }
 
-        // Filter source table rows
+        // Filter source table — delegates to unified filter function
         function filterSourceTable() {
-            const filterInput = document.getElementById('source-filter');
-            if (!filterInput) return;
-            
-            const filterValue = filterInput.value.toLowerCase().trim();
-            const table = document.querySelector('.source-table tbody');
-            if (!table) return;
-            
-            const rows = table.getElementsByTagName('tr');
-            let visibleCount = 0;
-            
-            for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                const sourceNameCell = row.getElementsByTagName('td')[0];
-                
-                if (sourceNameCell) {
-                    const sourceName = sourceNameCell.textContent.toLowerCase();
-                    
-                    if (filterValue === '' || sourceName.includes(filterValue)) {
-                        row.style.display = '';
-                        visibleCount++;
-                    } else {
-                        row.style.display = 'none';
-                    }
-                }
-            }
-            
-            // Optional: Add count display below filter
-            const filterCountId = 'filter-count';
-            let countDisplay = document.getElementById(filterCountId);
-            if (!countDisplay) {
-                countDisplay = document.createElement('div');
-                countDisplay.id = filterCountId;
-                countDisplay.style.cssText = 'color: #6B7280; font-size: 0.85em; margin-top: 4px; text-align: right;';
-                filterInput.parentElement.appendChild(countDisplay);
-            }
-            
-            if (filterValue !== '') {
-                countDisplay.textContent = `Showing ${visibleCount} of ${rows.length} sources`;
-                countDisplay.style.display = 'block';
-            } else {
-                countDisplay.style.display = 'none';
-            }
+            applyIndexFilters();
         }
     </script>
 

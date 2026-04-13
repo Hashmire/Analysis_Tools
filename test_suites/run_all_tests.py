@@ -381,6 +381,10 @@ class TestSuiteRunner:
                 'command': ['python', 'test_suites\\\\reporting\\\\test_cpeas_automation_report.py']
             },
             {
+                'name': 'SDC Report Generation',
+                'command': ['python', 'test_suites\\\\reporting\\\\test_sdc_report_generation.py']
+            },
+            {
                 'name': 'Alias Report Generation',
                 'command': ['python', 'test_suites\\\\reporting\\\\test_alias_report_generation.py']
             },

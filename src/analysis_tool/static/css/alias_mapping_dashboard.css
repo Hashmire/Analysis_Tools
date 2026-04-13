@@ -1750,13 +1750,6 @@ body::before {
     font-size: 0.82em;
 }
 
-.nvd-cpe-rank {
-    color: #9E9E9E;
-    min-width: 14px;
-    text-align: right;
-    flex-shrink: 0;
-}
-
 .nvd-cpe-string {
     font-family: monospace;
     flex: 1;
@@ -1768,4 +1761,18 @@ body::before {
     color: #757575;
     white-space: nowrap;
     flex-shrink: 0;
+}
+
+.nvd-cpe-empty {
+    font-size: 0.82em;
+    color: #9E9E9E;
+    font-style: italic;
+    padding: 2px 0;
+}
+
+/* Suggested-match CPE string: click once to select the whole string for copy/paste */
+.nvd-cpe-suggested-strong {
+    color: #1B5E20;
+    user-select: all;
+    cursor: text;
 }

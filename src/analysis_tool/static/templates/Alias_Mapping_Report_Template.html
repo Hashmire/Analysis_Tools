@@ -479,17 +479,21 @@
                         });
                     });
                     
+                    // Build NVD CPE base strings crosswalk lookup from aliasGroups
+                    // Allows confirmed mapping aliases to display topNvdCpeBaseStrings even if not stored in their JSON
+                    const nvdCpeStringsLookup = new Map();
+                    jsonData.aliasGroups.forEach(mapping => {
+                        mapping.aliases.forEach(alias => {
+                            if (alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0) {
+                                nvdCpeStringsLookup.set(buildAliasDedupKey(alias), alias.topNvdCpeBaseStrings);
+                            }
+                        });
+                    });
+
                     // Process confirmedMappings data if it exists
                     if (jsonData.confirmedMappings) {
                         console.log('Processing confirmedMappings data with', jsonData.confirmedMappings.length, 'mappings');
                         
-                        // Build deduplication key using all cve5Properties fields for precise matching
-                        const buildAliasDedupKey = (a) => cve5Properties.map(prop => {
-                            const val = a[prop];
-                            if (!val) return '';
-                            return Array.isArray(val) ? val.slice().sort().join(',') : String(val).toLowerCase().trim();
-                        }).join('|');
-
                         // Build confirmed aliases lookup for deduplication
                         const confirmedAliasesLookup = new Set();
                         
@@ -516,6 +520,7 @@
                                     isConfirmedMapping: true,
                                     hasCveData: alias.source_cve && alias.source_cve.length > 0,
                                     frequency: alias.frequency || 0,
+                                    topNvdCpeBaseStrings: alias.topNvdCpeBaseStrings || nvdCpeStringsLookup.get(buildAliasDedupKey(alias)) || [],
                                     cpeBaseString: cpeBaseString // Store CPE base string for reference
                                 };
                                 
@@ -683,22 +688,23 @@
                     const confirmedData = this.datasets.confirmedMapping;
                     console.log(`Checking conflicts for alias ${aliasId} against ${confirmedData.length} existing CPE mappings`);
                     
+                    const aliasItemKey = buildAliasDedupKey(aliasItem);
                     for (const mapping of confirmedData) {
                         if (mapping.cpeBaseString !== cpeBaseString) {
-                            // Check if this alias already exists in a different CPE mapping
-                            // Must match vendor, product, AND platform (including null/undefined cases)
-                            const hasConflict = mapping.aliases && mapping.aliases.some(alias => 
-                                (alias.vendor === aliasItem.vendor && 
-                                 alias.product === aliasItem.product &&
-                                 (alias.platform || '') === (aliasItem.platform || '')) ||
-                                (aliasItem.aliases && aliasItem.aliases.some(subAlias => 
-                                    alias.vendor === subAlias.vendor && 
-                                    alias.product === subAlias.product &&
-                                    (alias.platform || '') === (subAlias.platform || '')
+                            // Check if this alias already exists in a different CPE mapping.
+                            // Use all cve5Properties fields so aliases that differ only by packageName,
+                            // repo, collectionURL, programFiles, etc. are correctly treated as distinct.
+                            const conflictingAlias = mapping.aliases && mapping.aliases.find(alias =>
+                                buildAliasDedupKey(alias) === aliasItemKey ||
+                                (aliasItem.aliases && aliasItem.aliases.some(subAlias =>
+                                    buildAliasDedupKey(alias) === buildAliasDedupKey(subAlias)
                                 ))
                             );
-                            if (hasConflict) {
-                                console.error(`Conflict detected: alias ${aliasId} (${aliasItem.vendor}:${aliasItem.product}:${aliasItem.platform || 'no-platform'}) already exists in CPE: ${mapping.cpeBaseString}`);
+                            if (conflictingAlias) {
+                                const keyFields = cve5Properties
+                                    .filter(p => aliasItem[p] && !isPlaceholderValue(aliasItem[p]))
+                                    .map(p => `${p}=${aliasItem[p]}`).join(', ');
+                                console.error(`Conflict detected: alias ${aliasId} (${keyFields}) already exists in CPE: ${mapping.cpeBaseString}`);
                                 throw new Error(`Alias already exists in different CPE base string: ${mapping.cpeBaseString}`);
                             }
                         }
@@ -1076,6 +1082,17 @@
             'vendor', 'product', 'platform', 'collectionURL', 'packageName', 'packageURL', 'cpes', 
             'modules', 'programFiles', 'programRoutines', 'repo'
         ];
+
+        /**
+         * Build a deduplication key for an alias using all cve5Properties fields.
+         * Two aliases are considered identical only when every field matches.
+         * Used by both loadData (dedup on load) and mergeWithConfirmed (conflict check).
+         */
+        const buildAliasDedupKey = (a) => cve5Properties.map(prop => {
+            const val = a[prop];
+            if (!val) return '';
+            return Array.isArray(val) ? val.slice().sort().join(',') : String(val).toLowerCase().trim();
+        }).join('|');
 
         // ========== UTILITY FUNCTIONS ==========
         function initializeCachedElements() {
@@ -1856,24 +1873,38 @@
                 const confirmedMappings = [];
                 
                 Object.entries(cpeGroups).forEach(([cpeBaseString, aliases]) => {
-                    // Create aliases array with only the essential fields
-                    const cleanAliases = aliases.map(alias => {
-                        const cleanAlias = {};
-                        
-                        // Add vendor and product (required fields)
-                        if (alias.vendor) cleanAlias.vendor = alias.vendor;
-                        if (alias.product) cleanAlias.product = alias.product;
-                        
-                        // Add optional fields if they exist and aren't placeholder values
-                        const optionalFields = ['platform', 'collectionURL', 'packageName', 'packageURL',
-                                               'programRoutines', 'programFiles', 'modules', 'repo'];
+                    // Create aliases array: expand any array-valued identifier fields into individual alias entries.
+                    // cpes is intentionally excluded — it is not an alias identifier field.
+                    const cleanAliases = [];
+                    const optionalFields = cve5Properties.filter(f => f !== 'vendor' && f !== 'product' && f !== 'cpes');
+
+                    aliases.forEach(alias => {
+                        const baseAlias = {};
+                        if (alias.vendor && !isPlaceholderValue(alias.vendor)) baseAlias.vendor = alias.vendor;
+                        if (alias.product && !isPlaceholderValue(alias.product)) baseAlias.product = alias.product;
+
+                        const scalarFields = {};
+                        const arrayFields = {};
                         optionalFields.forEach(field => {
-                            if (alias[field] && !isPlaceholderValue(alias[field])) {
-                                cleanAlias[field] = Array.isArray(alias[field]) ? alias[field][0] : alias[field];
+                            const val = alias[field];
+                            if (!val || isPlaceholderValue(val)) return;
+                            if (Array.isArray(val)) {
+                                const valid = val.filter(v => !isPlaceholderValue(v));
+                                if (valid.length > 1) { arrayFields[field] = valid; }
+                                else if (valid.length === 1) { scalarFields[field] = valid[0]; }
+                            } else {
+                                scalarFields[field] = val;
                             }
                         });
-                        
-                        return cleanAlias;
+
+                        // Expand array fields: one entry per value combination
+                        let expanded = [{...baseAlias, ...scalarFields}];
+                        Object.entries(arrayFields).forEach(([field, values]) => {
+                            const next = [];
+                            expanded.forEach(entry => values.forEach(v => next.push({...entry, [field]: v})));
+                            expanded = next;
+                        });
+                        expanded.forEach(entry => { if (Object.keys(entry).length > 0) cleanAliases.push(entry); });
                     });
                     
                     // Create the confirmed mapping entry
@@ -3614,7 +3645,23 @@
                                     <div style="margin-bottom: 8px;">
                                         <strong>CVE References by Year:</strong>
                                     </div>
-                                    ${cveGroupsHtml}
+                                    <div class="cve-year-groups">
+                                        ${cveGroupsHtml}
+                                    </div>
+                                    <div class="nvd-cpe-section">
+                                        <div class="nvd-cpe-section-label"><strong>Most Frequent NVD CPE Base String Assignments:</strong></div>
+                                        <div class="nvd-cpe-list">
+                                            ${alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0 ? alias.topNvdCpeBaseStrings.map((entry, i) => `
+                                                <div class="nvd-cpe-row">
+                                                    ${entry.isSuggestedMatch
+                                                        ? '<span class="nvd-cpe-string"><strong class="nvd-cpe-suggested-strong" title="This CPE base string appears in both NVD enrichment data and the analysis_tool CPE suggestions">' + entry.cpeBaseString + '</strong></span>'
+                                                        : '<span class="nvd-cpe-string">' + entry.cpeBaseString + '</span>'
+                                                    }
+                                                    <span class="nvd-cpe-count">${entry.cveCount} CVE${entry.cveCount !== 1 ? 's' : ''}</span>
+                                                </div>
+                                            `).join('') : '<div class="nvd-cpe-empty">No NVD CPE Match Strings found on relevant CVEs</div>'}
+                                        </div>
+                                    </div>
                                 </div>
                             `;
 
@@ -3695,32 +3742,13 @@
                     }
                     // Note: Removed frequency-based priority and group display as requested
                     
-                    // Core properties - only show if they exist and are not placeholders
-                    if (alias.vendor && alias.vendor !== '' && alias.vendor !== 'N/A' && alias.vendor !== 'n/a' && alias.vendor !== 'unknown') {
-                        aliasProps.push(`<strong>Vendor:</strong> ${alias.vendor}`);
-                    }
-                    if (alias.product && alias.product !== '' && alias.product !== 'N/A' && alias.product !== 'n/a' && alias.product !== 'unknown') {
-                        aliasProps.push(`<strong>Product:</strong> ${alias.product}`);
-                    }
-                    if (alias.platform && alias.platform !== '' && alias.platform !== 'N/A' && alias.platform !== 'n/a' && alias.platform !== 'unknown' && alias.platform !== '*') {
-                        aliasProps.push(`<strong>Platform:</strong> ${alias.platform}`);
-                    }
-                    
-                    // Additional CVE 5.X properties that might be present
-                    const additionalFields = ['collectionURL', 'packageName', 'packageURL', 'programRoutines', 
-                                            'programFiles', 'modules', 'defaultStatus', 'repo'];
-                    
-                    additionalFields.forEach(field => {
-                        if (alias[field] && alias[field] !== 'N/A' && alias[field] !== '') {
-                            let value = alias[field];
-                            if (Array.isArray(value)) {
-                                value = value.join(', ');
-                            }
-                            if (typeof value === 'string' && value.length > 50) {
-                                value = value.substring(0, 47) + '...';
-                            }
-                            aliasProps.push(`<strong>${field}:</strong> ${value}`);
-                        }
+                    // Render all alias identifier fields in canonical order (excluding cpes)
+                    ALIAS_TYPE_FIELD_ORDER.filter(f => f !== 'cpes').forEach(field => {
+                        const val = alias[field];
+                        if (!val || isPlaceholderValue(val)) return;
+                        let display = Array.isArray(val) ? val.join(', ') : String(val);
+                        if (display.length > 50) display = display.substring(0, 47) + '...';
+                        aliasProps.push(`<strong>${ALIAS_TYPE_FIELD_LABELS[field] || field}:</strong> ${display}`);
                     });
                     
                     // Enhanced property display features
@@ -3734,12 +3762,16 @@
                         aliasProps.push(`<strong>Confirmed By:</strong> ${confirmedBy}`);
                     }
                     
-                    // Create alias title from vendor/product or other identifying fields
-                    const aliasTitle = alias.vendor && alias.product ? 
-                        `${alias.vendor} ${alias.product}` :
-                        alias.product || alias.vendor || 
-                        alias.packageName || alias.programFiles || 
-                        `Alias ${globalIndex + 1}`;
+                    // Derive alias title consistently using ALIAS_TYPE_FIELD_ORDER
+                    let aliasTitle;
+                    if (!isPlaceholderValue(alias.vendor) && !isPlaceholderValue(alias.product)) {
+                        aliasTitle = `${alias.vendor} ${alias.product}`;
+                    } else {
+                        const firstField = ALIAS_TYPE_FIELD_ORDER.find(f => alias[f] && !isPlaceholderValue(alias[f]));
+                        aliasTitle = firstField
+                            ? (Array.isArray(alias[firstField]) ? alias[firstField][0] : String(alias[firstField]))
+                            : (alias.aliasGroup || `Alias ${globalIndex + 1}`);
+                    }
                     
                     headerDiv.innerHTML = `
                         <div class="alias-header">
@@ -3760,10 +3792,10 @@
                                         ${alias.container_type ? `<div class="alias-container-info"><strong>Container:</strong> ${alias.container_type}</div>` : ''}
                                     </div>
                                 </div>
-                                ${!isConfirmed ? `<div class="flex-center flex-shrink-0 pt-2">
+                                <div class="flex-center flex-shrink-0 pt-2">
                                     <span class="cve-count">${alias.frequency || alias.source_cve?.length || 0} CVEs</span>
                                     <div class="expand-caret">▼</div>
-                                </div>` : ''}
+                                </div>
                             </div>
                         </div>
                     `;
@@ -3771,52 +3803,50 @@
                     const detailsDiv = document.createElement('div');
                     detailsDiv.className = 'alias-details';
 
-                    // Only add detailed content for non-confirmed mappings
-                    if (!isConfirmed) {
-                        // Group CVEs by year for better organization
-                        const cveGroups = groupCvesByYear(alias.source_cve);
-                        const cveGroupsHtml = generateCveGroupsHtml(cveGroups);
+                    // Group CVEs by year for better organization
+                    const cveGroups = groupCvesByYear(alias.source_cve);
+                    const cveGroupsHtml = generateCveGroupsHtml(cveGroups);
 
-                        // Show detailed CVE information with year grouping
-                        detailsDiv.innerHTML = `
-                            <div class="alias-item" style="margin: 0;">
-                                <div style="margin-bottom: 8px;">
-                                    <strong>CVE References by Year:</strong>
-                                </div>
-                                <div class="cve-year-groups">
-                                    ${cveGroupsHtml}
-                                </div>
-                                ${alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0 ? `
-                                <div class="nvd-cpe-section">
-                                    <div class="nvd-cpe-section-label"><strong>Most Frequent NVD CPE Base String Assignments:</strong></div>
-                                    <div class="nvd-cpe-list">
-                                        ${alias.topNvdCpeBaseStrings.map((entry, i) => `
-                                            <div class="nvd-cpe-row">
-                                                <span class="nvd-cpe-rank">${i + 1}</span>
-                                                <span class="nvd-cpe-string">${entry.cpeBaseString}</span>
-                                                <span class="nvd-cpe-count">${entry.cveCount} CVE${entry.cveCount !== 1 ? 's' : ''}</span>
-                                            </div>
-                                        `).join('')}
-                                    </div>
-                                </div>` : ''}
+                    // Show detailed CVE information with year grouping
+                    detailsDiv.innerHTML = `
+                        <div class="alias-item" style="margin: 0;">
+                            <div style="margin-bottom: 8px;">
+                                <strong>CVE References by Year:</strong>
                             </div>
-                        `;
+                            <div class="cve-year-groups">
+                                ${cveGroupsHtml}
+                            </div>
+                            <div class="nvd-cpe-section">
+                                <div class="nvd-cpe-section-label"><strong>Most Frequent NVD CPE Base String Assignments:</strong></div>
+                                <div class="nvd-cpe-list">
+                                    ${alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0 ? alias.topNvdCpeBaseStrings.map((entry, i) => `
+                                        <div class="nvd-cpe-row">
+                                            ${entry.isSuggestedMatch
+                                                ? '<span class="nvd-cpe-string"><strong class="nvd-cpe-suggested-strong" title="This CPE base string appears in both NVD enrichment data and the analysis_tool CPE suggestions">' + entry.cpeBaseString + '</strong></span>'
+                                                : '<span class="nvd-cpe-string">' + entry.cpeBaseString + '</span>'
+                                            }
+                                            <span class="nvd-cpe-count">${entry.cveCount} CVE${entry.cveCount !== 1 ? 's' : ''}</span>
+                                        </div>
+                                    `).join('') : '<div class="nvd-cpe-empty">No NVD CPE Match Strings found on relevant CVEs</div>'}
+                                </div>
+                            </div>
+                        </div>
+                    `;
 
-                        headerDiv.addEventListener('click', function() {
-                            const icon = headerDiv.querySelector('.expand-icon') || headerDiv.querySelector('.expand-caret');
-                            const isExpanded = detailsDiv.classList.contains('expanded');
-                            
-                            if (isExpanded) {
-                                detailsDiv.classList.remove('expanded');
-                                headerDiv.classList.remove('expanded');
-                                if (icon) icon.classList.remove('rotated');
-                            } else {
-                                detailsDiv.classList.add('expanded');
-                                headerDiv.classList.add('expanded');
-                                if (icon) icon.classList.add('rotated');
-                            }
-                        });
-                    }
+                    headerDiv.addEventListener('click', function() {
+                        const icon = headerDiv.querySelector('.expand-icon') || headerDiv.querySelector('.expand-caret');
+                        const isExpanded = detailsDiv.classList.contains('expanded');
+                        
+                        if (isExpanded) {
+                            detailsDiv.classList.remove('expanded');
+                            headerDiv.classList.remove('expanded');
+                            if (icon) icon.classList.remove('rotated');
+                        } else {
+                            detailsDiv.classList.add('expanded');
+                            headerDiv.classList.add('expanded');
+                            if (icon) icon.classList.add('rotated');
+                        }
+                    });
 
                     aliasDiv.appendChild(headerDiv);
                     aliasDiv.appendChild(detailsDiv);
@@ -3928,18 +3958,16 @@
                                 <div style="flex: 1; min-width: 0;">
                                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
                                         <span style="color: #333; font-size: 0.95em; font-weight: 600;">
-                                            ${[getDisplayValue(alias.vendor), getDisplayValue(alias.product, 'Product')].filter(v => v).join(' ')}
+                                            ${(() => { if (!isPlaceholderValue(alias.vendor) && !isPlaceholderValue(alias.product)) return `${alias.vendor} ${alias.product}`; const _f = ALIAS_TYPE_FIELD_ORDER.find(f => alias[f] && !isPlaceholderValue(alias[f])); return _f ? (Array.isArray(alias[_f]) ? alias[_f][0] : String(alias[_f])) : (alias.aliasGroup || 'Unknown'); })()}
                                         </span>
                                     </div>
                                     <div style="font-size: 0.85em; line-height: 1.3;">
-                                        ${!isPlaceholderValue(alias.vendor) ? `<strong>Vendor:</strong> ${alias.vendor}<br>` : ''}
-                                        ${!isPlaceholderValue(alias.product) ? `<strong>Product:</strong> ${alias.product}<br>` : ''}
-                                        ${!isPlaceholderValue(alias.platform) ? `<strong>Platform:</strong> ${alias.platform}<br>` : ''}
-                                        ${['collectionURL', 'packageName', 'packageURL', 'programRoutines', 'programFiles', 'modules', 'defaultStatus', 'repo'].map(f => {
-                                            if (!alias[f] || alias[f] === 'N/A' || alias[f] === '') return '';
-                                            let v = Array.isArray(alias[f]) ? alias[f].join(', ') : String(alias[f]);
-                                            if (v.length > 50) v = v.substring(0, 47) + '...';
-                                            return `<strong>${f}:</strong> ${v}<br>`;
+                                        ${ALIAS_TYPE_FIELD_ORDER.filter(f => f !== 'cpes').map(f => {
+                                            const _v = alias[f];
+                                            if (!_v || isPlaceholderValue(_v)) return '';
+                                            let _d = Array.isArray(_v) ? _v.join(', ') : String(_v);
+                                            if (_d.length > 50) _d = _d.substring(0, 47) + '...';
+                                            return `<strong>${ALIAS_TYPE_FIELD_LABELS[f] || f}:</strong> ${_d}<br>`;
                                         }).join('')}
                                     </div>
                                 </div>
@@ -3979,19 +4007,20 @@
                         <div class="cve-year-groups">
                             ${cveGroupsHtml}
                         </div>
-                        ${alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0 ? `
                         <div class="nvd-cpe-section">
                             <div class="nvd-cpe-section-label"><strong>Most Frequent NVD CPE Base String Assignments:</strong></div>
                             <div class="nvd-cpe-list">
-                                ${alias.topNvdCpeBaseStrings.map((entry, i) => `
+                                ${alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0 ? alias.topNvdCpeBaseStrings.map((entry, i) => `
                                     <div class="nvd-cpe-row">
-                                        <span class="nvd-cpe-rank">${i + 1}</span>
-                                        <span class="nvd-cpe-string">${entry.cpeBaseString}</span>
+                                        ${entry.isSuggestedMatch
+                                            ? '<span class="nvd-cpe-string"><strong class="nvd-cpe-suggested-strong" title="This CPE base string appears in both NVD enrichment data and the tool CPE suggestion analysis">' + entry.cpeBaseString + '</strong></span>'
+                                            : '<span class="nvd-cpe-string">' + entry.cpeBaseString + '</span>'
+                                        }
                                         <span class="nvd-cpe-count">${entry.cveCount} CVE${entry.cveCount !== 1 ? 's' : ''}</span>
                                     </div>
-                                `).join('')}
+                                `).join('') : '<div class="nvd-cpe-empty">No NVD CPE Match Strings found on relevant CVEs</div>'}
                             </div>
-                        </div>` : ''}
+                        </div>
                     </div>
                 `;
 
@@ -4215,11 +4244,14 @@
                 }
                 
                 if (alias) {
-                    aliasTitle = alias.vendor && alias.product ? 
-                        `${alias.vendor} ${alias.product}` :
-                        alias.product || alias.vendor || 
-                        alias.packageName || alias.programFiles || 
-                        alias.aliasGroup || 'Unknown Alias';
+                    if (!isPlaceholderValue(alias.vendor) && !isPlaceholderValue(alias.product)) {
+                        aliasTitle = `${alias.vendor} ${alias.product}`;
+                    } else {
+                        const firstField = ALIAS_TYPE_FIELD_ORDER.find(f => alias[f] && !isPlaceholderValue(alias[f]));
+                        aliasTitle = firstField
+                            ? (Array.isArray(alias[firstField]) ? alias[firstField][0] : String(alias[firstField]))
+                            : (alias.aliasGroup || 'Unknown Alias');
+                    }
                 } else {
                     aliasTitle = `Unknown Alias (ID: ${aliasId})`;
                 }
@@ -4279,75 +4311,36 @@
                     }
                 });
 
-                // Handle special properties - only include if they exist, convert arrays to strings
-                if (!isPlaceholderValue(alias.platform)) {
-                    if (Array.isArray(alias.platform)) {
-                        aliasEntry.platform = alias.platform[0]; // Take first platform
+                // Handle cve5Properties identifier fields (excluding cpes — not an alias identifier).
+                // Array-valued fields are expanded into separate alias entries rather than truncated.
+                const aliasIdFields = cve5Properties.filter(f => f !== 'vendor' && f !== 'product' && f !== 'cpes');
+                const idScalars = {};
+                const idArrays = {};
+                aliasIdFields.forEach(field => {
+                    const val = alias[field];
+                    if (!val || isPlaceholderValue(val)) return;
+                    if (Array.isArray(val)) {
+                        const valid = val.filter(v => !isPlaceholderValue(v));
+                        if (valid.length > 1) { idArrays[field] = valid; }
+                        else if (valid.length === 1) { idScalars[field] = valid[0]; }
                     } else {
-                        aliasEntry.platform = alias.platform;
+                        idScalars[field] = val;
                     }
-                }
-                
-                if (!isPlaceholderValue(alias.collectionURL)) {
-                    if (Array.isArray(alias.collectionURL)) {
-                        aliasEntry.collectionURL = alias.collectionURL[0];
-                    } else {
-                        aliasEntry.collectionURL = alias.collectionURL;
-                    }
-                }
-                
-                if (!isPlaceholderValue(alias.packageName)) {
-                    if (Array.isArray(alias.packageName)) {
-                        aliasEntry.packageName = alias.packageName[0];
-                    } else {
-                        aliasEntry.packageName = alias.packageName;
-                    }
-                }
-                
-                if (!isPlaceholderValue(alias.programRoutines)) {
-                    if (Array.isArray(alias.programRoutines)) {
-                        aliasEntry.programRoutines = alias.programRoutines[0];
-                    } else {
-                        aliasEntry.programRoutines = alias.programRoutines;
-                    }
-                }
-                
-                if (!isPlaceholderValue(alias.programFiles)) {
-                    if (Array.isArray(alias.programFiles)) {
-                        aliasEntry.programFiles = alias.programFiles[0];
-                    } else {
-                        aliasEntry.programFiles = alias.programFiles;
-                    }
-                }
-                
-                if (!isPlaceholderValue(alias.modules)) {
-                    if (Array.isArray(alias.modules)) {
-                        aliasEntry.modules = alias.modules[0];
-                    } else {
-                        aliasEntry.modules = alias.modules;
-                    }
-                }
-                
-                if (!isPlaceholderValue(alias.repo)) {
-                    if (Array.isArray(alias.repo)) {
-                        aliasEntry.repo = alias.repo[0];
-                    } else {
-                        aliasEntry.repo = alias.repo;
-                    }
-                }
+                });
 
-                if (!isPlaceholderValue(alias.packageURL)) {
-                    if (Array.isArray(alias.packageURL)) {
-                        aliasEntry.packageURL = alias.packageURL[0];
-                    } else {
-                        aliasEntry.packageURL = alias.packageURL;
-                    }
-                }
+                // Expand: generate one aliasEntry per array-field value combination
+                let expandedEntries = [{...aliasEntry, ...idScalars}];
+                Object.entries(idArrays).forEach(([field, values]) => {
+                    const next = [];
+                    expandedEntries.forEach(entry => values.forEach(v => next.push({...entry, [field]: v})));
+                    expandedEntries = next;
+                });
 
-                // Only add the entry if it has at least some properties
-                if (Object.keys(aliasEntry).length > 0) {
-                    currentConsolidatedData.push(aliasEntry);
-                }
+                expandedEntries.forEach(entry => {
+                    if (Object.keys(entry).length > 0) {
+                        currentConsolidatedData.push(entry);
+                    }
+                });
             });
 
             // Clear the CPE input and show modal
@@ -4464,7 +4457,8 @@
                 if (mapping.cpeBaseString === cpeBaseString && mapping.aliases) {
                     // Add all aliases from this mapping
                     mapping.aliases.forEach(alias => {
-                        // Clean the alias - remove internal fields and ensure string properties
+                        // Build clean alias: CPE component fields + cve5Properties identifier fields.
+                        // cpes is intentionally excluded — not an alias identifier.
                         const cleanAlias = {};
 
                         ['vendor', 'product', 'version', 'update', 'edition', 'language',
@@ -4474,16 +4468,32 @@
                             }
                         });
 
-                        ['platform', 'collectionURL', 'packageName', 'packageURL',
-                         'programRoutines', 'programFiles', 'modules', 'repo'].forEach(prop => {
-                            if (alias[prop] && !isPlaceholderValue(alias[prop])) {
-                                cleanAlias[prop] = Array.isArray(alias[prop]) ? alias[prop][0] : alias[prop];
+                        // cve5Properties identifier fields (minus vendor/product already handled, minus cpes)
+                        const idFields = cve5Properties.filter(f => f !== 'vendor' && f !== 'product' && f !== 'cpes');
+                        const idScalars = {};
+                        const idArrays = {};
+                        idFields.forEach(field => {
+                            const val = alias[field];
+                            if (!val || isPlaceholderValue(val)) return;
+                            if (Array.isArray(val)) {
+                                const valid = val.filter(v => !isPlaceholderValue(v));
+                                if (valid.length > 1) { idArrays[field] = valid; }
+                                else if (valid.length === 1) { idScalars[field] = valid[0]; }
+                            } else {
+                                idScalars[field] = val;
                             }
                         });
 
-                        if (Object.keys(cleanAlias).length > 0) {
-                            existingAliases.push(cleanAlias);
-                        }
+                        // Expand array-valued fields into separate entries
+                        let expanded = [{...cleanAlias, ...idScalars}];
+                        Object.entries(idArrays).forEach(([field, values]) => {
+                            const next = [];
+                            expanded.forEach(entry => values.forEach(v => next.push({...entry, [field]: v})));
+                            expanded = next;
+                        });
+                        expanded.forEach(entry => {
+                            if (Object.keys(entry).length > 0) existingAliases.push(entry);
+                        });
                     });
                 }
             });

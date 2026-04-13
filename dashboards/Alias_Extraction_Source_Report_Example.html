@@ -1757,13 +1757,6 @@ body::before {
     font-size: 0.82em;
 }
 
-.nvd-cpe-rank {
-    color: #9E9E9E;
-    min-width: 14px;
-    text-align: right;
-    flex-shrink: 0;
-}
-
 .nvd-cpe-string {
     font-family: monospace;
     flex: 1;
@@ -1775,6 +1768,20 @@ body::before {
     color: #757575;
     white-space: nowrap;
     flex-shrink: 0;
+}
+
+/* Suggested-match CPE string: click once to select the whole string for copy/paste */
+.nvd-cpe-suggested-strong {
+    color: #1B5E20;
+    user-select: all;
+    cursor: text;
+}
+
+.nvd-cpe-empty {
+    font-size: 0.82em;
+    color: #9E9E9E;
+    font-style: italic;
+    padding: 2px 0;
 }
 
 </style>
@@ -2105,7 +2112,7 @@ body::before {
 
     <script>
         // Active global variables still needed by current system
-        let currentData = {"metadata": {"source_id": "example-cna-org", "source_name": "Example CNA Organization", "generated": "2026-04-08T00:00:00Z", "tool_version": "Example"}, "aliasGroups": [{"aliasGroup": "acme-corp_acme-lib", "aliases": [{"vendor": "Acme Corp", "product": "Acme Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001", "CVE-2025-05001"]}, {"vendor": "acme-corp", "product": "acme-lib", "source_cve": ["CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001"]}, {"vendor": "The Acme Project", "product": "Acme Core Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001"]}, {"vendor": "acme-project", "product": "acme-lib-core", "source_cve": ["CVE-2025-05001"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 4}]}, {"aliasGroup": "apex-systems_apex-server", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Linux", "source_cve": ["CVE-2022-02010", "CVE-2023-03010", "CVE-2024-04010", "CVE-2025-05010"]}, {"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Windows", "source_cve": ["CVE-2022-02010", "CVE-2023-03010"]}, {"vendor": "apex-systems", "product": "apex-server", "platform": "macOS", "source_cve": ["CVE-2024-04010", "CVE-2025-05010"]}, {"vendor": "Apex", "product": "apex-httpd", "platform": "FreeBSD", "source_cve": ["CVE-2021-01010"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:linux:*", "cveCount": 2}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:windows:*", "cveCount": 1}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:macos:*", "cveCount": 1}]}, {"aliasGroup": "netsend_netsend-client", "aliases": [{"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-client", "collectionURL": "https://packages.example-registry.org/netsend-client", "source_cve": ["CVE-2021-01020", "CVE-2022-02020", "CVE-2023-03020", "CVE-2024-04020"]}, {"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-dev", "collectionURL": "https://packages.example-linux.org/netsend", "source_cve": ["CVE-2022-02020", "CVE-2023-03020"]}, {"vendor": "netsend-project", "product": "netsend", "packageName": "libnetsend", "collectionURL": "https://packages.example-linux.org/libnetsend", "source_cve": ["CVE-2021-01020", "CVE-2024-04020"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 3}, {"cpeBaseString": "cpe:2.3:a:somevendor:somelib:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"aliasGroup": "utilkit_util-kit", "aliases": [{"vendor": "UtilKit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:npm/util-kit", "collectionURL": "https://registry.example-npm.org/util-kit", "source_cve": ["CVE-2021-01030", "CVE-2022-02030", "CVE-2023-03030", "CVE-2024-04030", "CVE-2025-05030"]}, {"vendor": "UtilKit", "product": "util-kit-esm", "packageName": "util-kit-esm", "packageURL": "pkg:npm/util-kit-esm", "source_cve": ["CVE-2021-01030", "CVE-2022-02030"]}, {"vendor": "utilkit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:pypi/util-kit", "source_cve": ["CVE-2023-03030"]}, {"vendor": "utilkit-project", "product": "util-kit", "packageName": "util-kit-rs", "packageURL": "pkg:cargo/util-kit-rs", "source_cve": ["CVE-2024-04030", "CVE-2025-05030"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "cveCount": 4}, {"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:python:*:*", "cveCount": 2}]}, {"aliasGroup": "packlib_pack-compress", "aliases": [{"vendor": "PackLib", "product": "pack-compress", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040", "CVE-2024-04040"]}, {"vendor": "packlib-project", "product": "pack-compress-dev", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040"]}, {"vendor": "PackLib", "product": "pack-compress", "repo": "https://gitlab.com/example-org/pack-compress", "source_cve": ["CVE-2021-01040", "CVE-2024-04040"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"aliasGroup": "streamworks_stream-proxy", "aliases": [{"vendor": "StreamWorks", "product": "stream-proxy", "modules": ["proxy_http_core_module"], "source_cve": ["CVE-2022-02050", "CVE-2023-03050", "CVE-2024-04050", "CVE-2025-05050"]}, {"vendor": "StreamWorks", "product": "stream-proxy", "modules": ["proxy_http_compress_module", "proxy_http_forward_module"], "source_cve": ["CVE-2021-01050", "CVE-2022-02050"]}, {"vendor": "streamworks-oss", "product": "stream-proxy-community", "modules": ["proxy_stream_core_module"], "source_cve": ["CVE-2023-03050", "CVE-2024-04050"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"aliasGroup": "pixelforge_pixel-render", "aliases": [{"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/pixel.c"], "source_cve": ["CVE-2021-01060", "CVE-2022-02060", "CVE-2023-03060"]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/draw.c", "src/render/composite.c"], "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"]}, {"vendor": "pixelforge-project", "product": "pixel-render", "programFiles": ["lib/Image.cpp"], "source_cve": ["CVE-2025-05060"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"aliasGroup": "cachedb_cache-engine", "aliases": [{"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbExprCodeTarget"], "source_cve": ["CVE-2021-01070", "CVE-2022-02070", "CVE-2023-03070", "CVE-2024-04070"]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbVdbeExec", "db_prepare_v2"], "source_cve": ["CVE-2022-02070", "CVE-2023-03070"]}, {"vendor": "cachedb-consortium", "product": "cache-engine-lite", "programRoutines": ["dbBtreeInsert"], "source_cve": ["CVE-2024-04070", "CVE-2025-05070"]}], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"aliasGroup": "concern_placeholder_vendor", "aliases": [{"vendor": "n/a", "product": "affected-component", "source_cve": ["CVE-2021-01100", "CVE-2022-02100", "CVE-2023-03100"]}, {"vendor": "affected-vendor", "product": "n/a", "source_cve": ["CVE-2022-02100", "CVE-2024-04100"]}, {"vendor": "affected-vendor", "product": "affected-component", "packageName": "unknown", "collectionURL": "https://packages.example-registry.org/affected-component", "source_cve": ["CVE-2023-03100", "CVE-2025-05100"]}, {"vendor": "affected-vendor", "product": "affected-component", "platform": "unspecified", "source_cve": ["CVE-2024-04100"]}, {"vendor": "affected-vendor", "product": "affected-component", "platform": "all platforms", "source_cve": ["CVE-2025-05100"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_whitespace", "aliases": [{"vendor": " whitespace-vendor", "product": "ws-product", "source_cve": ["CVE-2021-01200", "CVE-2022-02200"]}, {"vendor": "whitespace-vendor", "product": "ws-product ", "source_cve": ["CVE-2022-02200", "CVE-2023-03200"]}, {"vendor": "whitespace-vendor", "product": "ws-pkg", "packageName": " ws-package ", "collectionURL": "https://packages.example-registry.org/ws-package", "source_cve": ["CVE-2023-03200", "CVE-2024-04200"]}, {"vendor": "whitespace-vendor", "product": "ws  product", "source_cve": ["CVE-2024-04200", "CVE-2025-05200"]}, {"vendor": "whitespace-vendor", "product": "ws-os", "platform": " Linux", "source_cve": ["CVE-2025-05200"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_text_comparator", "aliases": [{"vendor": "comparator-vendor", "product": "comp-app before 3.0", "source_cve": ["CVE-2021-01300", "CVE-2022-02300"]}, {"vendor": "comparator-vendor", "product": "comp-app through 4.2", "source_cve": ["CVE-2022-02300", "CVE-2023-03300"]}, {"vendor": "comparator-vendor", "product": "comp-pkg", "packageName": "comp-pkg prior to 2.0", "source_cve": ["CVE-2023-03300", "CVE-2024-04300"]}, {"vendor": "comparator-vendor", "product": "comp-app earlier than 5.1", "source_cve": ["CVE-2024-04300"]}, {"vendor": "comparator-vendor", "product": "comp-app from version 2", "source_cve": ["CVE-2025-05300"]}, {"vendor": "comparator-vendor", "product": "comp-app 1.0 - 2.5", "source_cve": ["CVE-2021-01300", "CVE-2025-05300"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_invalid_chars", "aliases": [{"vendor": "invalid-char-vendor", "product": "ic-component", "packageName": "ic-pkg, ic-extra", "source_cve": ["CVE-2021-01400", "CVE-2022-02400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component, plugin", "source_cve": ["CVE-2022-02400", "CVE-2023-03400"]}, {"vendor": "Invalid Char Vendor", "product": "ic-component", "source_cve": ["CVE-2023-03400", "CVE-2024-04400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component", "packageName": "ic pkg name", "source_cve": ["CVE-2024-04400", "CVE-2025-05400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component, suite", "packageName": "ic-pkg, ic-dev", "packageURL": "pkg:pypi/ic-component", "source_cve": ["CVE-2025-05400"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_bloat_text", "aliases": [{"vendor": "mesh-corp", "product": "mesh-corp firewall appliance", "source_cve": ["CVE-2021-01500", "CVE-2022-02500"]}, {"vendor": "mesh-corp", "product": "firewall", "packageName": "mesh-corp-firewall-pkg", "source_cve": ["CVE-2022-02500", "CVE-2023-03500"]}, {"vendor": "mesh-corp", "product": "mesh-corp vpn client", "packageName": "mesh-corp-vpn", "packageURL": "pkg:npm/mesh-corp-vpn", "source_cve": ["CVE-2023-03500", "CVE-2024-04500"]}, {"vendor": "mesh-corp", "product": "mesh-corp sdk", "repo": "https://github.com/example-org/mesh-corp-sdk", "source_cve": ["CVE-2024-04500", "CVE-2025-05500"]}, {"vendor": "mesh software", "product": "mesh software enterprise suite", "source_cve": ["CVE-2025-05500"]}], "topNvdCpeBaseStrings": []}], "confirmedMappings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "Acme Corp", "product": "Acme Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001", "CVE-2025-05001"]}, {"vendor": "acme-corp", "product": "acme-lib"}]}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:linux:*", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Linux", "source_cve": ["CVE-2022-02010", "CVE-2023-03010", "CVE-2024-04010", "CVE-2025-05010"]}]}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:windows:*", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Windows", "source_cve": ["CVE-2022-02010", "CVE-2023-03010"]}]}, {"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-client", "collectionURL": "https://packages.example-registry.org/netsend-client", "source_cve": ["CVE-2021-01020", "CVE-2022-02020", "CVE-2023-03020", "CVE-2024-04020"]}, {"vendor": "netsend-project", "product": "netsend", "packageName": "libnetsend", "collectionURL": "https://packages.example-linux.org/libnetsend", "source_cve": ["CVE-2021-01020", "CVE-2024-04020"]}]}, {"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "aliases": [{"vendor": "UtilKit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:npm/util-kit", "collectionURL": "https://registry.example-npm.org/util-kit", "source_cve": ["CVE-2021-01030", "CVE-2022-02030", "CVE-2023-03030", "CVE-2024-04030", "CVE-2025-05030"]}, {"vendor": "UtilKit", "product": "util-kit-esm", "packageName": "util-kit-esm", "packageURL": "pkg:npm/util-kit-esm", "source_cve": ["CVE-2021-01030", "CVE-2022-02030"]}, {"vendor": "utilkit-project", "product": "util-kit", "packageName": "util-kit-rs", "packageURL": "pkg:cargo/util-kit-rs", "source_cve": ["CVE-2024-04030", "CVE-2025-05030"]}]}, {"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "PackLib", "product": "pack-compress", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040", "CVE-2024-04040"]}, {"vendor": "packlib-project", "product": "pack-compress-dev", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040"]}]}, {"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "StreamWorks", "product": "stream-proxy", "modules": ["proxy_http_core_module"], "source_cve": ["CVE-2022-02050", "CVE-2023-03050", "CVE-2024-04050", "CVE-2025-05050"]}, {"vendor": "streamworks-oss", "product": "stream-proxy-community", "modules": ["proxy_stream_core_module"], "source_cve": ["CVE-2023-03050", "CVE-2024-04050"]}]}, {"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/pixel.c"], "source_cve": ["CVE-2021-01060", "CVE-2022-02060", "CVE-2023-03060"]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/draw.c", "src/render/composite.c"], "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"]}, {"vendor": "pixelforge-project", "product": "pixel-render", "programFiles": ["lib/Image.cpp"], "source_cve": ["CVE-2025-05060"]}]}, {"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbExprCodeTarget"], "source_cve": ["CVE-2021-01070", "CVE-2022-02070", "CVE-2023-03070", "CVE-2024-04070"]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbVdbeExec", "db_prepare_v2"], "source_cve": ["CVE-2022-02070", "CVE-2023-03070"]}, {"vendor": "cachedb-consortium", "product": "cache-engine-lite", "programRoutines": ["dbBtreeInsert"], "source_cve": ["CVE-2024-04070", "CVE-2025-05070"]}]}]};  // Used for compatibility and download functions
+        let currentData = {"metadata": {"source_id": "example-cna-org", "source_name": "Example CNA Organization", "generated": "2026-04-08T00:00:00Z", "tool_version": "Example"}, "aliasGroups": [{"aliasGroup": "acme-corp_acme-lib", "aliases": [{"vendor": "Acme Corp", "product": "Acme Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001", "CVE-2025-05001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 5, "isSuggestedMatch": true}]}, {"vendor": "acme-corp", "product": "acme-lib", "source_cve": ["CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 3, "isSuggestedMatch": true}]}, {"vendor": "The Acme Project", "product": "Acme Core Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}]}, {"vendor": "acme-project", "product": "acme-lib-core", "source_cve": ["CVE-2025-05001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 1, "isSuggestedMatch": true}]}]}, {"aliasGroup": "apex-systems_apex-server", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Linux", "source_cve": ["CVE-2022-02010", "CVE-2023-03010", "CVE-2024-04010", "CVE-2025-05010"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:linux:*", "cveCount": 4}]}, {"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Windows", "source_cve": ["CVE-2022-02010", "CVE-2023-03010"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:windows:*", "cveCount": 2}]}, {"vendor": "apex-systems", "product": "apex-server", "platform": "macOS", "source_cve": ["CVE-2024-04010", "CVE-2025-05010"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:macos:*", "cveCount": 2}]}, {"vendor": "Apex", "product": "apex-httpd", "platform": "FreeBSD", "source_cve": ["CVE-2021-01010"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "netsend_netsend-client", "aliases": [{"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-client", "collectionURL": "https://packages.example-registry.org/netsend-client", "source_cve": ["CVE-2021-01020", "CVE-2022-02020", "CVE-2023-03020", "CVE-2024-04020"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 4, "isSuggestedMatch": true}]}, {"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-dev", "collectionURL": "https://packages.example-linux.org/netsend", "source_cve": ["CVE-2022-02020", "CVE-2023-03020"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}, {"cpeBaseString": "cpe:2.3:a:somevendor:somelib:*:*:*:*:*:*:*:*", "cveCount": 1, "isSuggestedMatch": false}]}, {"vendor": "netsend-project", "product": "netsend", "packageName": "libnetsend", "collectionURL": "https://packages.example-linux.org/libnetsend", "source_cve": ["CVE-2021-01020", "CVE-2024-04020"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}]}]}, {"aliasGroup": "utilkit_util-kit", "aliases": [{"vendor": "UtilKit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:npm/util-kit", "collectionURL": "https://registry.example-npm.org/util-kit", "source_cve": ["CVE-2021-01030", "CVE-2022-02030", "CVE-2023-03030", "CVE-2024-04030", "CVE-2025-05030"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "cveCount": 5}]}, {"vendor": "UtilKit", "product": "util-kit-esm", "packageName": "util-kit-esm", "packageURL": "pkg:npm/util-kit-esm", "source_cve": ["CVE-2021-01030", "CVE-2022-02030"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "cveCount": 2}]}, {"vendor": "utilkit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:pypi/util-kit", "source_cve": ["CVE-2023-03030"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:python:*:*", "cveCount": 1}]}, {"vendor": "utilkit-project", "product": "util-kit", "packageName": "util-kit-rs", "packageURL": "pkg:cargo/util-kit-rs", "source_cve": ["CVE-2024-04030", "CVE-2025-05030"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "packlib_pack-compress", "aliases": [{"vendor": "PackLib", "product": "pack-compress", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040", "CVE-2024-04040"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "packlib-project", "product": "pack-compress-dev", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "PackLib", "product": "pack-compress", "repo": "https://gitlab.com/example-org/pack-compress", "source_cve": ["CVE-2021-01040", "CVE-2024-04040"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 2}]}]}, {"aliasGroup": "streamworks_stream-proxy", "aliases": [{"vendor": "StreamWorks", "product": "stream-proxy", "modules": ["proxy_http_core_module"], "source_cve": ["CVE-2022-02050", "CVE-2023-03050", "CVE-2024-04050", "CVE-2025-05050"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 4}]}, {"vendor": "StreamWorks", "product": "stream-proxy", "modules": ["proxy_http_compress_module", "proxy_http_forward_module"], "source_cve": ["CVE-2021-01050", "CVE-2022-02050"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "streamworks-oss", "product": "stream-proxy-community", "modules": ["proxy_stream_core_module"], "source_cve": ["CVE-2023-03050", "CVE-2024-04050"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 2}]}]}, {"aliasGroup": "pixelforge_pixel-render", "aliases": [{"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/pixel.c"], "source_cve": ["CVE-2021-01060", "CVE-2022-02060", "CVE-2023-03060"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/draw.c", "src/render/composite.c"], "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "pixelforge-project", "product": "pixel-render", "programFiles": ["lib/Image.cpp"], "source_cve": ["CVE-2025-05060"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 1}]}]}, {"aliasGroup": "cachedb_cache-engine", "aliases": [{"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbExprCodeTarget"], "source_cve": ["CVE-2021-01070", "CVE-2022-02070", "CVE-2023-03070", "CVE-2024-04070"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 4}]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbVdbeExec", "db_prepare_v2"], "source_cve": ["CVE-2022-02070", "CVE-2023-03070"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "cachedb-consortium", "product": "cache-engine-lite", "programRoutines": ["dbBtreeInsert"], "source_cve": ["CVE-2024-04070", "CVE-2025-05070"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "concern_placeholder_vendor", "aliases": [{"vendor": "n/a", "product": "affected-component", "source_cve": ["CVE-2021-01100", "CVE-2022-02100", "CVE-2023-03100"]}, {"vendor": "affected-vendor", "product": "n/a", "source_cve": ["CVE-2022-02100", "CVE-2024-04100"]}, {"vendor": "affected-vendor", "product": "affected-component", "packageName": "unknown", "collectionURL": "https://packages.example-registry.org/affected-component", "source_cve": ["CVE-2023-03100", "CVE-2025-05100"]}, {"vendor": "affected-vendor", "product": "affected-component", "platform": "unspecified", "source_cve": ["CVE-2024-04100"]}, {"vendor": "affected-vendor", "product": "affected-component", "platform": "all platforms", "source_cve": ["CVE-2025-05100"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_whitespace", "aliases": [{"vendor": " whitespace-vendor", "product": "ws-product", "source_cve": ["CVE-2021-01200", "CVE-2022-02200"]}, {"vendor": "whitespace-vendor", "product": "ws-product ", "source_cve": ["CVE-2022-02200", "CVE-2023-03200"]}, {"vendor": "whitespace-vendor", "product": "ws-pkg", "packageName": " ws-package ", "collectionURL": "https://packages.example-registry.org/ws-package", "source_cve": ["CVE-2023-03200", "CVE-2024-04200"]}, {"vendor": "whitespace-vendor", "product": "ws  product", "source_cve": ["CVE-2024-04200", "CVE-2025-05200"]}, {"vendor": "whitespace-vendor", "product": "ws-os", "platform": " Linux", "source_cve": ["CVE-2025-05200"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_text_comparator", "aliases": [{"vendor": "comparator-vendor", "product": "comp-app before 3.0", "source_cve": ["CVE-2021-01300", "CVE-2022-02300"]}, {"vendor": "comparator-vendor", "product": "comp-app through 4.2", "source_cve": ["CVE-2022-02300", "CVE-2023-03300"]}, {"vendor": "comparator-vendor", "product": "comp-pkg", "packageName": "comp-pkg prior to 2.0", "source_cve": ["CVE-2023-03300", "CVE-2024-04300"]}, {"vendor": "comparator-vendor", "product": "comp-app earlier than 5.1", "source_cve": ["CVE-2024-04300"]}, {"vendor": "comparator-vendor", "product": "comp-app from version 2", "source_cve": ["CVE-2025-05300"]}, {"vendor": "comparator-vendor", "product": "comp-app 1.0 - 2.5", "source_cve": ["CVE-2021-01300", "CVE-2025-05300"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_invalid_chars", "aliases": [{"vendor": "invalid-char-vendor", "product": "ic-component", "packageName": "ic-pkg, ic-extra", "source_cve": ["CVE-2021-01400", "CVE-2022-02400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component, plugin", "source_cve": ["CVE-2022-02400", "CVE-2023-03400"]}, {"vendor": "Invalid Char Vendor", "product": "ic-component", "source_cve": ["CVE-2023-03400", "CVE-2024-04400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component", "packageName": "ic pkg name", "source_cve": ["CVE-2024-04400", "CVE-2025-05400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component, suite", "packageName": "ic-pkg, ic-dev", "packageURL": "pkg:pypi/ic-component", "source_cve": ["CVE-2025-05400"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_bloat_text", "aliases": [{"vendor": "mesh-corp", "product": "mesh-corp firewall appliance", "source_cve": ["CVE-2021-01500", "CVE-2022-02500"]}, {"vendor": "mesh-corp", "product": "firewall", "packageName": "mesh-corp-firewall-pkg", "source_cve": ["CVE-2022-02500", "CVE-2023-03500"]}, {"vendor": "mesh-corp", "product": "mesh-corp vpn client", "packageName": "mesh-corp-vpn", "packageURL": "pkg:npm/mesh-corp-vpn", "source_cve": ["CVE-2023-03500", "CVE-2024-04500"]}, {"vendor": "mesh-corp", "product": "mesh-corp sdk", "repo": "https://github.com/example-org/mesh-corp-sdk", "source_cve": ["CVE-2024-04500", "CVE-2025-05500"]}, {"vendor": "mesh software", "product": "mesh software enterprise suite", "source_cve": ["CVE-2025-05500"]}], "topNvdCpeBaseStrings": []}], "confirmedMappings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "Acme Corp", "product": "Acme Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001", "CVE-2025-05001"]}, {"vendor": "acme-corp", "product": "acme-lib"}]}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:linux:*", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Linux", "source_cve": ["CVE-2022-02010", "CVE-2023-03010", "CVE-2024-04010", "CVE-2025-05010"]}]}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:windows:*", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Windows", "source_cve": ["CVE-2022-02010", "CVE-2023-03010"]}]}, {"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-client", "collectionURL": "https://packages.example-registry.org/netsend-client", "source_cve": ["CVE-2021-01020", "CVE-2022-02020", "CVE-2023-03020", "CVE-2024-04020"]}, {"vendor": "netsend-project", "product": "netsend", "packageName": "libnetsend", "collectionURL": "https://packages.example-linux.org/libnetsend", "source_cve": ["CVE-2021-01020", "CVE-2024-04020"]}]}, {"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "aliases": [{"vendor": "UtilKit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:npm/util-kit", "collectionURL": "https://registry.example-npm.org/util-kit", "source_cve": ["CVE-2021-01030", "CVE-2022-02030", "CVE-2023-03030", "CVE-2024-04030", "CVE-2025-05030"]}, {"vendor": "UtilKit", "product": "util-kit-esm", "packageName": "util-kit-esm", "packageURL": "pkg:npm/util-kit-esm", "source_cve": ["CVE-2021-01030", "CVE-2022-02030"]}, {"vendor": "utilkit-project", "product": "util-kit", "packageName": "util-kit-rs", "packageURL": "pkg:cargo/util-kit-rs", "source_cve": ["CVE-2024-04030", "CVE-2025-05030"]}]}, {"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "PackLib", "product": "pack-compress", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040", "CVE-2024-04040"]}, {"vendor": "packlib-project", "product": "pack-compress-dev", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040"]}]}, {"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "StreamWorks", "product": "stream-proxy", "modules": ["proxy_http_core_module"], "source_cve": ["CVE-2022-02050", "CVE-2023-03050", "CVE-2024-04050", "CVE-2025-05050"]}, {"vendor": "streamworks-oss", "product": "stream-proxy-community", "modules": ["proxy_stream_core_module"], "source_cve": ["CVE-2023-03050", "CVE-2024-04050"]}]}, {"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/pixel.c"], "source_cve": ["CVE-2021-01060", "CVE-2022-02060", "CVE-2023-03060"]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/draw.c", "src/render/composite.c"], "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"]}, {"vendor": "pixelforge-project", "product": "pixel-render", "programFiles": ["lib/Image.cpp"], "source_cve": ["CVE-2025-05060"]}]}, {"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbExprCodeTarget"], "source_cve": ["CVE-2021-01070", "CVE-2022-02070", "CVE-2023-03070", "CVE-2024-04070"]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbVdbeExec", "db_prepare_v2"], "source_cve": ["CVE-2022-02070", "CVE-2023-03070"]}, {"vendor": "cachedb-consortium", "product": "cache-engine-lite", "programRoutines": ["dbBtreeInsert"], "source_cve": ["CVE-2024-04070", "CVE-2025-05070"]}]}]};  // Used for compatibility and download functions
 
         // ========== DATA MANAGER ==========
         const DataManager = {
@@ -2263,6 +2270,17 @@ body::before {
                             return Array.isArray(val) ? val.slice().sort().join(',') : String(val).toLowerCase().trim();
                         }).join('|');
 
+                        // Build NVD CPE base strings crosswalk lookup from aliasGroups
+                        // Allows confirmed mapping aliases to display topNvdCpeBaseStrings even if not stored in their JSON
+                        const nvdCpeStringsLookup = new Map();
+                        jsonData.aliasGroups.forEach(mapping => {
+                            mapping.aliases.forEach(alias => {
+                                if (alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0) {
+                                    nvdCpeStringsLookup.set(buildAliasDedupKey(alias), alias.topNvdCpeBaseStrings);
+                                }
+                            });
+                        });
+
                         // Build confirmed aliases lookup for deduplication
                         const confirmedAliasesLookup = new Set();
                         
@@ -2289,6 +2307,7 @@ body::before {
                                     isConfirmedMapping: true,
                                     hasCveData: alias.source_cve && alias.source_cve.length > 0,
                                     frequency: alias.frequency || 0,
+                                    topNvdCpeBaseStrings: alias.topNvdCpeBaseStrings || nvdCpeStringsLookup.get(buildAliasDedupKey(alias)) || [],
                                     cpeBaseString: cpeBaseString // Store CPE base string for reference
                                 };
                                 
@@ -5370,7 +5389,23 @@ body::before {
                                     <div style="margin-bottom: 8px;">
                                         <strong>CVE References by Year:</strong>
                                     </div>
-                                    ${cveGroupsHtml}
+                                    <div class="cve-year-groups">
+                                        ${cveGroupsHtml}
+                                    </div>
+                                    <div class="nvd-cpe-section">
+                                        <div class="nvd-cpe-section-label"><strong>Most Frequent NVD CPE Base String Assignments:</strong></div>
+                                        <div class="nvd-cpe-list">
+                                            ${alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0 ? alias.topNvdCpeBaseStrings.map((entry, i) => `
+                                                <div class="nvd-cpe-row">
+                                                    ${entry.isSuggestedMatch
+                                                        ? '<span class="nvd-cpe-string"><strong class="nvd-cpe-suggested-strong" title="This CPE base string appears in both NVD enrichment data and the analysis_tool CPE suggestions">' + entry.cpeBaseString + '</strong></span>'
+                                                        : '<span class="nvd-cpe-string">' + entry.cpeBaseString + '</span>'
+                                                    }
+                                                    <span class="nvd-cpe-count">${entry.cveCount} CVE${entry.cveCount !== 1 ? 's' : ''}</span>
+                                                </div>
+                                            `).join('') : '<div class="nvd-cpe-empty">No NVD CPE Match Strings found on relevant CVEs</div>'}
+                                        </div>
+                                    </div>
                                 </div>
                             `;
 
@@ -5531,10 +5566,10 @@ body::before {
                                         ${alias.container_type ? `<div class="alias-container-info"><strong>Container:</strong> ${alias.container_type}</div>` : ''}
                                     </div>
                                 </div>
-                                ${!isConfirmed ? `<div class="flex-center flex-shrink-0 pt-2">
+                                <div class="flex-center flex-shrink-0 pt-2">
                                     <span class="cve-count">${alias.frequency || alias.source_cve?.length || 0} CVEs</span>
                                     <div class="expand-caret">▼</div>
-                                </div>` : ''}
+                                </div>
                             </div>
                         </div>
                     `;
@@ -5542,52 +5577,50 @@ body::before {
                     const detailsDiv = document.createElement('div');
                     detailsDiv.className = 'alias-details';
 
-                    // Only add detailed content for non-confirmed mappings
-                    if (!isConfirmed) {
-                        // Group CVEs by year for better organization
-                        const cveGroups = groupCvesByYear(alias.source_cve);
-                        const cveGroupsHtml = generateCveGroupsHtml(cveGroups);
+                    // Group CVEs by year for better organization
+                    const cveGroups = groupCvesByYear(alias.source_cve);
+                    const cveGroupsHtml = generateCveGroupsHtml(cveGroups);
 
-                        // Show detailed CVE information with year grouping
-                        detailsDiv.innerHTML = `
-                            <div class="alias-item" style="margin: 0;">
-                                <div style="margin-bottom: 8px;">
-                                    <strong>CVE References by Year:</strong>
-                                </div>
-                                <div class="cve-year-groups">
-                                    ${cveGroupsHtml}
-                                </div>
-                                ${alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0 ? `
-                                <div class="nvd-cpe-section">
-                                    <div class="nvd-cpe-section-label"><strong>Most Frequent NVD CPE Base String Assignments:</strong></div>
-                                    <div class="nvd-cpe-list">
-                                        ${alias.topNvdCpeBaseStrings.map((entry, i) => `
-                                            <div class="nvd-cpe-row">
-                                                <span class="nvd-cpe-rank">${i + 1}</span>
-                                                <span class="nvd-cpe-string">${entry.cpeBaseString}</span>
-                                                <span class="nvd-cpe-count">${entry.cveCount} CVE${entry.cveCount !== 1 ? 's' : ''}</span>
-                                            </div>
-                                        `).join('')}
-                                    </div>
-                                </div>` : ''}
+                    // Show detailed CVE information with year grouping
+                    detailsDiv.innerHTML = `
+                        <div class="alias-item" style="margin: 0;">
+                            <div style="margin-bottom: 8px;">
+                                <strong>CVE References by Year:</strong>
                             </div>
-                        `;
+                            <div class="cve-year-groups">
+                                ${cveGroupsHtml}
+                            </div>
+                            <div class="nvd-cpe-section">
+                                <div class="nvd-cpe-section-label"><strong>Most Frequent NVD CPE Base String Assignments:</strong></div>
+                                <div class="nvd-cpe-list">
+                                    ${alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0 ? alias.topNvdCpeBaseStrings.map((entry, i) => `
+                                        <div class="nvd-cpe-row">
+                                            ${entry.isSuggestedMatch
+                                                ? '<span class="nvd-cpe-string"><strong class="nvd-cpe-suggested-strong" title="This CPE base string appears in both NVD enrichment data and the analysis_tool CPE suggestions">' + entry.cpeBaseString + '</strong></span>'
+                                                : '<span class="nvd-cpe-string">' + entry.cpeBaseString + '</span>'
+                                            }
+                                            <span class="nvd-cpe-count">${entry.cveCount} CVE${entry.cveCount !== 1 ? 's' : ''}</span>
+                                        </div>
+                                    `).join('') : '<div class="nvd-cpe-empty">No NVD CPE Match Strings found on relevant CVEs</div>'}
+                                </div>
+                            </div>
+                        </div>
+                    `;
 
-                        headerDiv.addEventListener('click', function() {
-                            const icon = headerDiv.querySelector('.expand-icon') || headerDiv.querySelector('.expand-caret');
-                            const isExpanded = detailsDiv.classList.contains('expanded');
-                            
-                            if (isExpanded) {
-                                detailsDiv.classList.remove('expanded');
-                                headerDiv.classList.remove('expanded');
-                                if (icon) icon.classList.remove('rotated');
-                            } else {
-                                detailsDiv.classList.add('expanded');
-                                headerDiv.classList.add('expanded');
-                                if (icon) icon.classList.add('rotated');
-                            }
-                        });
-                    }
+                    headerDiv.addEventListener('click', function() {
+                        const icon = headerDiv.querySelector('.expand-icon') || headerDiv.querySelector('.expand-caret');
+                        const isExpanded = detailsDiv.classList.contains('expanded');
+                        
+                        if (isExpanded) {
+                            detailsDiv.classList.remove('expanded');
+                            headerDiv.classList.remove('expanded');
+                            if (icon) icon.classList.remove('rotated');
+                        } else {
+                            detailsDiv.classList.add('expanded');
+                            headerDiv.classList.add('expanded');
+                            if (icon) icon.classList.add('rotated');
+                        }
+                    });
 
                     aliasDiv.appendChild(headerDiv);
                     aliasDiv.appendChild(detailsDiv);
@@ -5748,19 +5781,20 @@ body::before {
                         <div class="cve-year-groups">
                             ${cveGroupsHtml}
                         </div>
-                        ${alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0 ? `
                         <div class="nvd-cpe-section">
                             <div class="nvd-cpe-section-label"><strong>Most Frequent NVD CPE Base String Assignments:</strong></div>
                             <div class="nvd-cpe-list">
-                                ${alias.topNvdCpeBaseStrings.map((entry, i) => `
+                                ${alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0 ? alias.topNvdCpeBaseStrings.map((entry, i) => `
                                     <div class="nvd-cpe-row">
-                                        <span class="nvd-cpe-rank">${i + 1}</span>
-                                        <span class="nvd-cpe-string">${entry.cpeBaseString}</span>
+                                        ${entry.isSuggestedMatch
+                                            ? '<span class="nvd-cpe-string"><strong class="nvd-cpe-suggested-strong" title="This CPE base string appears in both NVD enrichment data and the tool CPE suggestion analysis">' + entry.cpeBaseString + '</strong></span>'
+                                            : '<span class="nvd-cpe-string">' + entry.cpeBaseString + '</span>'
+                                        }
                                         <span class="nvd-cpe-count">${entry.cveCount} CVE${entry.cveCount !== 1 ? 's' : ''}</span>
                                     </div>
-                                `).join('')}
+                                `).join('') : '<div class="nvd-cpe-empty">No NVD CPE Match Strings found on relevant CVEs</div>'}
                             </div>
-                        </div>` : ''}
+                        </div>
                     </div>
                 `;
 
