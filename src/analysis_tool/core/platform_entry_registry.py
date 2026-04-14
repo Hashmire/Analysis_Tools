@@ -2680,15 +2680,9 @@ def create_alias_extraction_badge(table_index: int, raw_platform_data: Dict, row
     
     # Check for meaningful properties
     meaningful_properties = []
-    for prop in ['vendor', 'product', 'platforms', 'modules', 'packageName', 'repo', 'programRoutines', 'programFiles', 'collectionURL']:
+    for prop in ['vendor', 'product', 'platforms', 'modules', 'packageName', 'packageURL', 'repo', 'programRoutines', 'programFiles', 'collectionURL']:
         if prop in raw_platform_data and not _is_placeholder_value(raw_platform_data[prop]):
             meaningful_properties.append(prop)
-    
-    # Check for unsupported array fields and log warnings
-    unsupported_arrays = ['modules', 'programFiles', 'programRoutines']
-    for field in unsupported_arrays:
-        if field in raw_platform_data and isinstance(raw_platform_data[field], list) and raw_platform_data[field]:
-            logger.warning(f"Found unsupported array field '{field}' with {len(raw_platform_data[field])} values in alias extraction - this will be supported in future versions")
     
     # Silently skip if no meaningful properties
     if not meaningful_properties:
