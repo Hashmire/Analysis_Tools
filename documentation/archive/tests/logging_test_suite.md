@@ -36,7 +36,7 @@ python test_files\test_logging_system.py
 
 ### **Advanced Scenarios**
 - Unicode normalization logging
-- Badge generation logging patterns
+- PENR collection logging patterns
 - Performance and timing validation
 
 ## **✅ Success Criteria**

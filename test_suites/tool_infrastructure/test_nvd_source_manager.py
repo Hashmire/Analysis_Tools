@@ -6,7 +6,7 @@ This test suite validates that the NVD Source Manager properly integrates across
 all system components that require source data resolution:
 
 Core Integration Points:
-1. Badge Contents Collector: Source name resolution for badges
+1. CVE Affected Data Collector: Source name resolution for platform entries
 2. HTML Generation: Source metadata in generated pages  
 3. Process Data: Source information in CVE processing
 4. JavaScript: Source data flows to frontend completion tracker
@@ -161,27 +161,27 @@ class NVDSourceManagerIntegrationTestSuite:
         except Exception as e:
             self.add_result("SOURCE_IDENTIFIERS_LOOKUP", False, f"SourceIdentifiers lookup failed: {e}")
 
-    def test_badge_contents_collector_integration(self):
-        """Test integration with badge contents collector."""
-        print("\n[Badge Contents Collector Integration Test]...")
+    def test_cve_affected_data_collector_integration(self):
+        """Test integration with CVE affected data collector."""
+        print("\n[CVE Affected Data Collector Integration Test]...")
         
         try:
-            # Import the actual badge contents collector
-            from analysis_tool.logging.badge_contents_collector import BadgeContentsCollector
+            # Import the CVE affected data collector
+            from analysis_tool.logging.cve_affected_data_collector import CveAffectedDataCollector
             from analysis_tool.storage.nvd_source_manager import get_source_name
             
             # Test that the collector can import and use source functions
-            collector = BadgeContentsCollector()
+            collector = CveAffectedDataCollector()
             
-            # Test direct source name resolution (this is how badge collector uses it)
+            # Test direct source name resolution (this is how CVE data collector uses it)
             test_name = get_source_name("d1c1063e-7a18-46af-9102-31f8928bc633")
             if test_name == "Cisco Systems, Inc.":
-                self.add_result("BADGE_COLLECTOR_INTEGRATION", True, "Badge collector can resolve source names")
+                self.add_result("CVE_DATA_COLLECTOR_INTEGRATION", True, "CVE affected data collector can resolve source names")
             else:
-                self.add_result("BADGE_COLLECTOR_INTEGRATION", False, f"Source resolution failed: got '{test_name}'")
+                self.add_result("CVE_DATA_COLLECTOR_INTEGRATION", False, f"Source resolution failed: got '{test_name}'")
                 
         except Exception as e:
-            self.add_result("BADGE_COLLECTOR_INTEGRATION", False, f"Badge collector integration failed: {e}")
+            self.add_result("CVE_DATA_COLLECTOR_INTEGRATION", False, f"CVE affected data collector integration failed: {e}")
 
 
     def test_process_data_integration(self):
@@ -698,7 +698,7 @@ class NVDSourceManagerIntegrationTestSuite:
         
         # Run focused integration tests
         self.test_core_source_manager_functionality()
-        self.test_badge_contents_collector_integration()
+        self.test_cve_affected_data_collector_integration()
         self.test_process_data_integration()
         self.test_analysis_tool_initialization()
         self.test_javascript_completion_tracker_integration()

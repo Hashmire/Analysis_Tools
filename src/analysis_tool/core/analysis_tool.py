@@ -134,8 +134,8 @@ def process_test_file(test_file_path):
         cve_id = cve_id.strip().upper()
         processData.integrityCheckCVE("cveIdFormat", cve_id)
         
-        # Initialize badge contents collection for this test CVE
-        from ..logging.badge_contents_collector import start_cve_collection, complete_cve_collection
+        # Initialize CVE affected data collection for this test CVE
+        from ..logging.cve_affected_data_collector import start_cve_collection, complete_cve_collection
         start_cve_collection(cve_id)
         
         # Create Primary Datasets from external sources
@@ -187,10 +187,10 @@ def process_test_file(test_file_path):
         
         # Source Data Concerns Processing for test files
         logger.info("Generating Source Data Concerns report", group="data_processing")
-        from .platform_entry_registry import create_source_data_concerns_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
-        from ..logging.badge_contents_collector import get_badge_contents_collector, collect_clean_platform_entry
+        from .platform_entry_registry import register_source_data_concerns, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+        from ..logging.cve_affected_data_collector import get_cve_affected_data_collector, collect_clean_platform_entry
         
-        collector = get_badge_contents_collector()
+        collector = get_cve_affected_data_collector()
         for index, row in primaryDataframe.iterrows():
             # Extract basic row data
             source_id = row.get('sourceID', 'Unknown')
@@ -201,7 +201,7 @@ def process_test_file(test_file_path):
             product = raw_platform_data.get('product', 'Unknown')
             
             # Collect source data concerns and populate the registry
-            create_source_data_concerns_badge(
+            register_source_data_concerns(
                 table_index=index,
                 raw_platform_data=raw_platform_data,
                 characteristics={},  # Empty for SDC report only
@@ -235,7 +235,7 @@ def process_test_file(test_file_path):
         
         logger.debug("Test file processing complete", group="report_gen")
         
-        # Complete badge contents collection for this test CVE
+        # Complete CVE affected data collection for this test CVE
         complete_cve_collection()
         
         return True
@@ -244,7 +244,7 @@ def process_test_file(test_file_path):
         logger.error(f"Test file processing failed: Unable to process test file '{test_file_path}' - {str(e)}", group="initialization")
         logger.debug(f"Error type: {type(e).__name__}", group="initialization")
         
-        # Still complete badge contents collection even if processing failed
+        # Still complete CVE affected data collection even if processing failed
         complete_cve_collection()
         
         import traceback
@@ -285,8 +285,8 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
     clear_all_registries()
     logger.debug("Environment prepared - registries cleared", group="data_processing")
     
-    # Initialize badge contents collection for this CVE
-    from ..logging.badge_contents_collector import start_cve_collection, complete_cve_collection
+    # Initialize CVE affected data collection for this CVE
+    from ..logging.cve_affected_data_collector import start_cve_collection, complete_cve_collection
     from ..storage.nvd_ish_collector import get_nvd_ish_collector
     start_cve_collection(cve_id)
     
@@ -315,7 +315,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
             if state == 'REJECTED':
                 logger.info(f"{cve_id} is in REJECTED state - skipping processing", group="cve_queries")
                 
-                # Complete badge contents collection for this record
+                # Complete CVE affected data collection for this record
                 complete_cve_collection()
                 
                 
@@ -381,10 +381,10 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
             tool_execution_timestamps['sourceDataConcerns'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
             
             # Process each row in the dataframe to collect source data concerns
-            from .platform_entry_registry import create_source_data_concerns_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
-            from ..logging.badge_contents_collector import get_badge_contents_collector, collect_clean_platform_entry
+            from .platform_entry_registry import register_source_data_concerns, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+            from ..logging.cve_affected_data_collector import get_cve_affected_data_collector, collect_clean_platform_entry
             
-            collector = get_badge_contents_collector()
+            collector = get_cve_affected_data_collector()
             for index, row in primaryDataframe.iterrows():
                 # Extract basic row data
                 source_id = row.get('sourceID', 'Unknown')
@@ -395,7 +395,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
                 product = raw_platform_data.get('product', 'Unknown')
                 
                 # Collect source data concerns and populate the registry
-                create_source_data_concerns_badge(
+                register_source_data_concerns(
                     table_index=index,
                     raw_platform_data=raw_platform_data,
                     characteristics={},  # Empty for SDC report only
@@ -434,13 +434,13 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
                 tool_execution_timestamps['aliasExtraction'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
                 
                 # Import alias extraction functions
-                from .platform_entry_registry import create_alias_extraction_badge, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
-                from ..logging.badge_contents_collector import collect_alias_extraction_data, get_badge_contents_collector
+                from .platform_entry_registry import register_alias_extraction, PLATFORM_ENTRY_NOTIFICATION_REGISTRY
+                from ..logging.cve_affected_data_collector import collect_alias_extraction_data, get_cve_affected_data_collector
                 
-                collector = get_badge_contents_collector()
+                collector = get_cve_affected_data_collector()
                 # Initialize CVE processing session for alias extraction
                 collector.start_cve_processing(cve_id)
-                logger.debug(f"Badge contents collector initialized for alias extraction - CVE {cve_id}", group="data_processing")
+                logger.debug(f"CVE affected data collector initialized for alias extraction - CVE {cve_id}", group="data_processing")
                 
                 # Process CVE data to get all entries (no filtering in processCVEData)
                 alias_dataframe = gatherData.gatherPrimaryDataframe()
@@ -460,7 +460,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
                     row_with_cve['cve_id'] = cve_id_for_alias
                     
                     # Collect alias extraction data and populate the registry
-                    create_alias_extraction_badge(
+                    register_alias_extraction(
                         table_index=index,
                         raw_platform_data=raw_platform_data,
                         row=row_with_cve
@@ -491,7 +491,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
                 
                 logger.info("Alias extraction processing completed (all sources)", group="data_processing")
                 
-                # Complete badge contents collection for this CVE
+                # Complete CVE affected data collection for this CVE
                 complete_cve_collection()
                 
             except Exception as alias_error:
@@ -504,7 +504,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
             try:
                 # Import confirmed mapping functions
                 from .processData import extract_confirmed_mappings_for_affected_entry
-                from .platform_entry_registry import create_confirmed_mappings_registry_entry
+                from .platform_entry_registry import register_confirmed_mappings
                 
                 # Extract affected entries from CVE List V5 data for confirmed mapping processing
                 if cveRecordData and 'containers' in cveRecordData:
@@ -541,7 +541,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
                         confirmed_mappings = extract_confirmed_mappings_for_affected_entry(affected_entry)
                         
                         # Register confirmed mappings data for nvd-ish integration
-                        create_confirmed_mappings_registry_entry(table_index, confirmed_mappings, affected_entry)
+                        register_confirmed_mappings(table_index, confirmed_mappings, affected_entry)
                         
                         if confirmed_mappings:
                             logger.debug(f"Found {len(confirmed_mappings)} confirmed mappings for affected entry {table_index}", group="data_processing")
@@ -563,10 +563,10 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
             nvd_ish_collector.collect_cve_list_v5_data(cveRecordData)  # Pass CVE List V5 data from API/cache
             
             if alias_report:
-                from ..logging.badge_contents_collector import get_badge_contents_collector
-                badge_collector = get_badge_contents_collector()
-                badge_collector.complete_cve_processing()
-                logger.debug(f"Badge contents collector completed for CVE {cve_id}", group="data_processing")
+                from ..logging.cve_affected_data_collector import get_cve_affected_data_collector
+                cve_data_collector = get_cve_affected_data_collector()
+                cve_data_collector.complete_cve_processing()
+                logger.debug(f"CVE affected data collector completed for CVE {cve_id}", group="data_processing")
             
             # Integrate source data concerns from Platform Entry Notification Registry
             nvd_ish_collector.collect_source_data_concerns_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
@@ -588,7 +588,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
             if cpe_as_generator or nvd_ish_only:
                 nvd_ish_collector._generate_all_cpe_as()
             
-            # Integrate CPE-AS generation data from Platform Entry Notification Registry (badge system path)
+            # Integrate CPE-AS generation data from Platform Entry Notification Registry (PENR registration path)
             # Note: In nvd-ish-only mode, CPE-AS is generated directly above, not from registry
             if cpe_as_generator and not nvd_ish_only:
                 nvd_ish_collector.collect_cpe_as_generation_from_registry(PLATFORM_ENTRY_NOTIFICATION_REGISTRY)
@@ -610,7 +610,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
             logger.error(f"Failed to complete NVD-ish collection for {cve_id}: {collection_error}", group="data_processing")
             logger.error(f"Full traceback:\n{traceback.format_exc()}", group="data_processing")
 
-        # Complete badge contents collection and return success
+        # Complete CVE affected data collection and return success
         complete_cve_collection()
         
         return {
@@ -626,7 +626,7 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
     except Exception as e:
         logger.error(f"CVE processing failed for {cve_id}: Unable to complete analysis workflow - {str(e)}", group="data_processing")
         
-        # Still complete badge contents collection even if processing failed
+        # Still complete CVE affected data collection even if processing failed
         complete_cve_collection()
         
         return {
@@ -965,13 +965,13 @@ def main():
         # Set global run paths for test processing
         current_run_paths = get_current_run_paths(run_id)
         
-        # Initialize badge contents collector with test run paths
-        from ..logging.badge_contents_collector import initialize_badge_contents_report
-        initialize_badge_contents_report(current_run_paths["logs"])
+        # Initialize CVE affected data collector with test run paths
+        from ..logging.cve_affected_data_collector import initialize_cve_affected_data_report
+        initialize_cve_affected_data_report(current_run_paths["logs"])
         
         # Configure alias reporting for incremental saves if enabled in test mode
         if alias_report and args.source_uuid:
-            from ..logging.badge_contents_collector import configure_alias_reporting
+            from ..logging.cve_affected_data_collector import configure_alias_reporting
             configure_alias_reporting(current_run_paths["logs"], args.source_uuid)
             logger.info("Alias reporting configured for incremental saves during test file processing", group="initialization")
         
@@ -999,11 +999,11 @@ def main():
         # Save and cleanup global CPE cache
         cache_manager.save_and_cleanup()
         
-        # Finalize badge contents report for test file processing
-        from ..logging.badge_contents_collector import finalize_badge_contents_report
-        badge_report_path = finalize_badge_contents_report()
-        if badge_report_path:
-            logger.info(f"Badge contents report finalized: {badge_report_path}", group="completion")
+        # Finalize CVE affected data report for test file processing
+        from ..logging.cve_affected_data_collector import finalize_cve_affected_data_report
+        cve_data_report_path = finalize_cve_affected_data_report()
+        if cve_data_report_path:
+            logger.info(f"CVE affected data report finalized: {cve_data_report_path}", group="completion")
         
         # Stop file logging before returning
         logger.stop_file_logging()
@@ -1118,8 +1118,8 @@ def main():
     # Now start file logging with the correct run-specific directory
     logger.start_file_logging(params)
     
-    # Initialize badge contents collector with run-specific logs directory
-    from ..logging.badge_contents_collector import clear_badge_contents_collector, initialize_badge_contents_report
+    # Initialize CVE affected data collector with run-specific logs directory
+    from ..logging.cve_affected_data_collector import clear_cve_affected_data_collector, initialize_cve_affected_data_report
     from ..reporting.dataset_contents_collector import (
         clear_dataset_contents_collector, 
         save_dashboard_data,
@@ -1129,7 +1129,7 @@ def main():
     from ..storage.nvd_ish_collector import get_nvd_ish_collector
     
     # Clear any existing state - but preserve dashboard data if continuing from generate_dataset
-    clear_badge_contents_collector()
+    clear_cve_affected_data_collector()
     if not args.run_id:
         # Only clear dashboard collector for new runs, not when continuing from generate_dataset
         clear_dataset_contents_collector()
@@ -1142,23 +1142,23 @@ def main():
     # Initialize NVD-ish collector for enhanced record generation
     nvd_ish_collector = get_nvd_ish_collector()
     
-    # Initialize badge contents collector - only create SDC report file if SDC reporting is enabled AND not in nvd-ish-only mode
+    # Initialize CVE affected data collector - only create SDC report file if SDC reporting is enabled AND not in nvd-ish-only mode
     if sdc_report and not nvd_ish_only:
-        initialize_badge_contents_report(str(run_paths["logs"]))
+        initialize_cve_affected_data_report(str(run_paths["logs"]))
     else:
         # For alias extraction or nvd-ish-only mode, we still need the collector instance but don't create SDC report file
-        from ..logging.badge_contents_collector import get_badge_contents_collector
-        get_badge_contents_collector()  # This just creates the instance
+        from ..logging.cve_affected_data_collector import get_cve_affected_data_collector
+        get_cve_affected_data_collector()  # This just creates the instance
     
     # Configure alias reporting for incremental saves if enabled (and not in nvd-ish-only mode)
     if alias_report and args.source_uuid and not nvd_ish_only:
-        from ..logging.badge_contents_collector import configure_alias_reporting
+        from ..logging.cve_affected_data_collector import configure_alias_reporting
         configure_alias_reporting(str(run_paths["logs"]), args.source_uuid)
         logger.info("Alias reporting configured for incremental saves during CVE processing", group="initialization")
     
     # Configure NVD-ish only mode for memory optimization if enabled
     if nvd_ish_only:
-        from ..logging.badge_contents_collector import configure_nvd_ish_only_mode
+        from ..logging.cve_affected_data_collector import configure_nvd_ish_only_mode
         configure_nvd_ish_only_mode(True)  # Logs at DEBUG level internally
     
     # Initialize real-time dashboard collector
@@ -1248,8 +1248,8 @@ def main():
             if nvd_ish_only and index > 0:
                 # Clear only the cross-CVE data accumulation used for alias reports
                 # since we don't generate alias reports in nvd-ish-only mode
-                from ..logging.badge_contents_collector import get_badge_contents_collector
-                collector = get_badge_contents_collector()
+                from ..logging.cve_affected_data_collector import get_cve_affected_data_collector
+                collector = get_cve_affected_data_collector()
                 if hasattr(collector, 'cve_data'):
                     collector.cve_data.clear()  # Clear accumulated CVE data to prevent memory bloat
             
@@ -1393,12 +1393,12 @@ def main():
             reason = skipped_reasons.get(cve, "Unknown reason")
             logger.error(f"SKIPPED: {cve} - {reason}", group="data_processing")
     
-    # Finalize badge contents report (skip in NVD-ish only mode)
-    from ..logging.badge_contents_collector import finalize_badge_contents_report, generate_alias_extraction_report
+    # Finalize CVE affected data report (skip in NVD-ish only mode)
+    from ..logging.cve_affected_data_collector import finalize_cve_affected_data_report, generate_alias_extraction_report
     if not nvd_ish_only:
-        badge_report_path = finalize_badge_contents_report()
-        if badge_report_path:
-            logger.info(f"Badge contents report finalized: {badge_report_path}", group="completion")
+        cve_data_report_path = finalize_cve_affected_data_report()
+        if cve_data_report_path:
+            logger.info(f"CVE affected data report finalized: {cve_data_report_path}", group="completion")
     
     # Generate alias extraction report if enabled (skip in NVD-ish only mode)
     if args.alias_report and not nvd_ish_only:

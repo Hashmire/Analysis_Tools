@@ -33,7 +33,7 @@ class LogGroup(Enum):
     CVE_QUERY = "CVE_QUERY"
     UNIQUE_CPE = "UNIQUE_CPE"
     CPE_QUERY = "CPE_QUERY"
-    BADGE_GEN = "BADGE_GEN"
+    PENR_COLLECTION = "PENR_COLLECTION"
     REPORT_GEN = "REPORT_GEN"
     DATA_PROC = "DATA_PROC"
 
@@ -158,8 +158,7 @@ class WorkflowLogger:
                 "unique_cpe": LogGroup.UNIQUE_CPE,
                 "cpe_query": LogGroup.CPE_QUERY,
                 "cpe_queries": LogGroup.CPE_QUERY,
-                "badge_gen": LogGroup.BADGE_GEN,
-                "badge_generation": LogGroup.BADGE_GEN,
+                "penr_collection": LogGroup.PENR_COLLECTION,
                 "page_gen": LogGroup.REPORT_GEN,
                 "report_gen": LogGroup.REPORT_GEN,
                 "report_generation": LogGroup.REPORT_GEN,
@@ -503,9 +502,9 @@ def log_cpe_query(message: str):
     get_logger().info(message, group="cpe_query")
 
 
-def log_badge_gen(message: str):
-    """Log badge generation message"""
-    get_logger().info(message, group="badge_gen")
+def log_penr_collection(message: str):
+    """Log PENR collection message"""
+    get_logger().info(message, group="penr_collection")
 
 
 def log_report_gen(message: str):
@@ -551,12 +550,12 @@ def end_cpe_queries(details: str = ""):
 
 def start_confirmed_mappings(details: str = ""):
     """Mark the start of confirmed mappings processing stage"""
-    get_logger().stage_start("Confirmed Mappings", details, group="badge_gen")
+    get_logger().stage_start("Confirmed Mappings", details, group="penr_collection")
 
 
 def end_confirmed_mappings(details: str = ""):
     """Mark the end of confirmed mappings processing stage"""
-    get_logger().stage_end("Confirmed Mappings", details, group="badge_gen")
+    get_logger().stage_end("Confirmed Mappings", details, group="penr_collection")
 
 
 def start_report_generation(details: str = ""):

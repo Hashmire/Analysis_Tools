@@ -14,7 +14,7 @@ import orjson
 # Import Analysis Tool 
 from . import gatherData
 
-from .platform_entry_registry import GENERAL_PLACEHOLDER_VALUES, PLATFORM_ENTRY_NOTIFICATION_REGISTRY, register_platform_notification_data, create_cpe_processing_registry_entry, create_top10_cpe_suggestions_registry_entry
+from .platform_entry_registry import GENERAL_PLACEHOLDER_VALUES, PLATFORM_ENTRY_NOTIFICATION_REGISTRY, register_platform_notification_data, register_searched_cpe_match_strings, register_cpe_suggestions
 from ..storage.cpe_cache import get_global_cache_manager  # CPECache class removed - sharded cache only
 from ..storage.nvd_source_manager import get_source_name, get_source_info, get_all_sources_for_cve
 from .schema_validator import validate_cpe_data, NVDSchemaValidationError
@@ -302,7 +302,7 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
                 tempDataset.at[index, 'platformEntryMetadata'] = platform_metadata
                 
         except Exception as e:
-            logger.warning(f"Confirmed mappings processing failed: Unable to process mapping entries for platform entry {index} - {str(e)}", group="badge_gen")
+            logger.warning(f"Confirmed mappings processing failed: Unable to process mapping entries for platform entry {index} - {str(e)}", group="penr_collection")
             continue
     
     # Log confirmed mappings statistics
@@ -312,11 +312,11 @@ def process_confirmed_mappings(rawDataset: pd.DataFrame) -> pd.DataFrame:
         
         # Report per-source mapping counts
         for source_id, count in source_mapping_counts.items():
-            logger.info(f"Confirmed mappings: {count} mappings for source {source_id}", group="badge_gen")
+            logger.info(f"Confirmed mappings: {count} mappings for source {source_id}", group="penr_collection")
         
         # Overall summary if multiple sources
         if len(source_mapping_counts) > 1:
-            logger.info(f"Confirmed mappings: {successful_mappings}/{total_processed} entries ({hit_rate:.1f}% hit rate), {total_mappings_found} total mappings across {len(source_mapping_counts)} sources", group="badge_gen")
+            logger.info(f"Confirmed mappings: {successful_mappings}/{total_processed} entries ({hit_rate:.1f}% hit rate), {total_mappings_found} total mappings across {len(source_mapping_counts)} sources", group="penr_collection")
     
     # Record mapping statistics for dashboard tracking
     record_mapping_activity(total_mappings_found, total_processed)
@@ -524,7 +524,7 @@ def reduceToTop10(workingDataset: pd.DataFrame) -> pd.DataFrame:
         top_10_base_strings_dict[index] = top_10_base_strings
 
         # Register top 10 CPE suggestions in PENR for nvd-ish collector
-        create_top10_cpe_suggestions_registry_entry(index, top_10_base_strings)
+        register_cpe_suggestions(index, top_10_base_strings)
 
         # Ensure that only the current row is updated
         trimmedDataset.at[index, 'trimmedCPEsQueryData'] = top_10_base_strings
@@ -784,7 +784,7 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                                 # This is a recognized placeholder - don't mark as unrecognized
                                 platform_found_but_not_recognized = False
                                 logger.debug(f"Platform placeholder detected: '{platform_item}' in {source_role} (Row {index}). "
-                                              f"Source data concern attribution will be handled during badge generation.", 
+                                              f"Source data concern attribution will be handled during PENR collection.", 
                                               group="DATA_PROC")
                                 continue  # Skip mapping attempt for placeholder values
                             
@@ -1341,7 +1341,7 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                         issues['overly_broad_cpe'].append((index, source_role, cpe_string, specificity_reason))
                         # Also log the validation failure for log analyzer to capture
                         logger.info(f"Overly broad CPE detected, skipping: {cpe_string} - {specificity_reason}", group="cpe_validation")
-                        # Store culled CPE strings for badge display
+                        # Store culled CPE strings for PENR collection
                         culled_cpe_strings.append({
                             'cpe_string': cpe_string,
                             'reason': specificity_reason
@@ -1355,7 +1355,7 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                         issues['nvd_api_incompatible_cpe'].append((index, source_role, f"Validation failed: {compatibility_reason} for '{cpe_string}'"))
                         # Also log the validation failure for log analyzer to capture
                         logger.info(f"NVD API incompatible CPE detected, skipping: {cpe_string} - {compatibility_reason}", group="cpe_validation")
-                        # Store culled CPE strings for badge display
+                        # Store culled CPE strings for PENR collection
                         culled_cpe_strings.append({
                             'cpe_string': cpe_string,
                             'reason': compatibility_reason
@@ -1368,7 +1368,7 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                 # Update the cpeBaseStrings in platformEntryMetadata with validated strings
                 rawDataset.at[index, 'platformEntryMetadata']['cpeBaseStrings'] = validated_cpe_strings
                 
-                # Store culled CPE strings in metadata for badge display
+                # Store culled CPE strings in metadata for PENR collection
                 if culled_cpe_strings:
                     rawDataset.at[index, 'platformEntryMetadata']['culledCpeBaseStrings'] = culled_cpe_strings
 
@@ -1379,7 +1379,7 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                 
                 # Register CPE base string searches for nvd-ish collector (separate from supportingInformation modal)
                 cpe_base_strings = rawDataset.at[index, 'platformEntryMetadata'].get('cpeBaseStrings', [])
-                create_cpe_processing_registry_entry(index, cpe_base_strings, culled_cpe_strings)            
+                register_searched_cpe_match_strings(index, cpe_base_strings, culled_cpe_strings)            
             
             # Generate unique string list for API queries using the updated deriveCPEMatchStringList
             uniqueStringList = deriveCPEMatchStringList(rawDataset)
@@ -1401,7 +1401,7 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                           len(issues['overly_broad_cpe']) +
                           len(issues['unicode_normalization_skipped']))            
             if total_issues > 0:
-                # Report high-level summary only - detailed information will be shown in badge generation
+                # Report high-level summary only - detailed information will be shown in PENR collection
                 issue_types = []
                 if issues['placeholder_entries']:
                     issue_types.append(f"placeholder data ({len(issues['placeholder_entries'])})")
@@ -1415,7 +1415,7 @@ def suggestCPEData(apiKey, rawDataset, case, sdc_only=False, alias_report=False,
                     issue_types.append(f"overly broad CPE ({len(issues['overly_broad_cpe'])})")
                 if issues['unicode_normalization_skipped']:
                     issue_types.append(f"unicode normalization ({len(issues['unicode_normalization_skipped'])})")                
-                logger.info(f"Data quality issues detected: {', '.join(issue_types)} - (See badge generation for details)", group="data_processing")
+                logger.info(f"Data quality issues detected: {', '.join(issue_types)} - (See PENR collection for details)", group="data_processing")
             else:
                 logger.info("No issues detected - all data processed successfully", group="data_processing")
             

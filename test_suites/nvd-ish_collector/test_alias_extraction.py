@@ -561,7 +561,7 @@ class AliasExtractionTestSuite:
                 '_alias_key': 'test_key_1'
             }
             
-            result_1 = collector._filter_badge_collector_alias_data(test_alias_1)
+            result_1 = collector._filter_alias_entry_data(test_alias_1)
             expected_1 = {'product': 'Test Product', 'platform': 'Linux'}
             
             if result_1 != expected_1:
@@ -576,7 +576,7 @@ class AliasExtractionTestSuite:
                 'source_cve': ['CVE-1337-PLACEHOLDER-TEST']
             }
             
-            result_2 = collector._filter_badge_collector_alias_data(test_alias_2)
+            result_2 = collector._filter_alias_entry_data(test_alias_2)
             expected_2 = {'vendor': 'Valid Vendor', 'platforms': ['Linux', 'Windows']}
             
             if result_2 != expected_2:
@@ -593,7 +593,7 @@ class AliasExtractionTestSuite:
                 'source_cve': ['CVE-1337-PLACEHOLDER-TEST']
             }
             
-            result_3 = collector._filter_badge_collector_alias_data(test_alias_3)
+            result_3 = collector._filter_alias_entry_data(test_alias_3)
             expected_3 = {
                 'vendor': 'Microsoft', 
                 'product': 'Windows Server 2019',
@@ -614,7 +614,7 @@ class AliasExtractionTestSuite:
                 'source_cve': ['CVE-1337-PLACEHOLDER-TEST']
             }
             
-            result_4 = collector._filter_badge_collector_alias_data(test_alias_4)
+            result_4 = collector._filter_alias_entry_data(test_alias_4)
             
             if result_4 is not None:
                 print(f"❌ FAIL: All placeholder data should return None. Got: {result_4}")
@@ -631,7 +631,7 @@ class AliasExtractionTestSuite:
                 '_alias_key': 'test_key_5'
             }
             
-            result_5 = collector._filter_badge_collector_alias_data(test_alias_5)
+            result_5 = collector._filter_alias_entry_data(test_alias_5)
             expected_5 = {
                 'vendor': 'Valid Vendor',
                 'product': 'Valid Product',

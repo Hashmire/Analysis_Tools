@@ -8,7 +8,7 @@ This also shows how the --cpe-as-generator process needs to be refactored to ali
 
 The --cpe-suggestions process should remain broken out to enable a unique process for individual CPE search Criteria related responses.
 
-| Combination | Init | CVE Query | Platform Data | CPE Gen | CPE Query | SDC Proc | CPE Sugg | Alias Ext | Conf Map | Badge Gen | HTML Gen | Browser |
+| Combination | Init | CVE Query | Platform Data | CPE Gen | CPE Query | SDC Proc | CPE Sugg | Alias Ext | Conf Map | PENR Render | HTML Gen | Browser |
 |-------------|------|-----------|---------------|---------|-----------|----------|----------|-----------|----------|-----------|----------|---------|
 | **Single Feature Modes** | | | | | | | | | | | | |
 | `--sdc-report` | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
@@ -38,7 +38,7 @@ The --cpe-suggestions process should remain broken out to enable a unique proces
 The `--nvd-ish-only` flag has special override behavior that differs from other feature flags:
 
 - **Enables ALL analysis processes** (SDC Proc, CPE Sugg, Alias Ext, Conf Map) for complete enrichment
-- **Disables output file generation** (Badge Gen, HTML Gen, Browser) for memory optimization
+- **Disables output file generation** (PENR Render, HTML Gen, Browser) for memory optimization
 - **Ignores other output flags** - when `--nvd-ish-only` is specified, other feature flags are overridden
 - **Purpose**: Generate complete NVD-ish enriched records efficiently without expensive file I/O operations
 

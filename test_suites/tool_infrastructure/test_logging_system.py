@@ -505,20 +505,20 @@ class TestAdvancedLoggingScenarios(LoggingSystemTestSuite):
         # Verify curation logging
         self.assertGreaterEqual(len(self.captured_logs), len(curation_messages))
         
-    def test_badge_generation_logging(self):
-        """Test badge generation logging patterns."""
-        badge_messages = [
-            "Badge generation started: Creating UI metadata badges",
-            "Mapping badges created: 5 vendor mappings processed",
-            "Quality badges generated: 3 data quality issues detected",
-            "Badge generation completed: All UI badges created successfully"
+    def test_penr_collection_logging(self):
+        """Test PENR collection logging patterns."""
+        penr_messages = [
+            "PENR collection started: Processing platform entry notification data",
+            "PENR mapping entries created: 5 vendor mappings processed",
+            "PENR quality entries generated: 3 data quality issues detected",
+            "PENR collection completed: All platform entries registered successfully"
         ]
         
-        for msg in badge_messages:
-            self.logger.info(msg, group="badge_generation")
+        for msg in penr_messages:
+            self.logger.info(msg, group="penr_collection")
             
-        # Verify badge logging
-        self.assertGreaterEqual(len(self.captured_logs), len(badge_messages))
+        # Verify PENR collection logging
+        self.assertGreaterEqual(len(self.captured_logs), len(penr_messages))
         
     def test_retry_mechanism_logging(self):
         """Test retry mechanism logging patterns."""
@@ -582,7 +582,7 @@ class TestWorkflowStageLogging(LoggingSystemTestSuite):
             ("unique_cpe", "CPE base string generation phase initiated"),
             ("cpe_queries", "CPE dictionary query phase initiated"),
             ("data_processing", "Data processing and validation phase initiated"),
-            ("badge_generation", "UI badge generation phase initiated"),
+            ("penr_collection", "PENR collection phase initiated"),
             ("page_generation", "HTML page generation phase initiated"),
             ("initialization", "Analysis workflow completed successfully")
         ]
@@ -776,7 +776,7 @@ class TestAuditGroupBoundaries(LoggingSystemTestSuite):
             ("cve_queries", "CVE data collection"),
             ("unique_cpe", "CPE string generation"),
             ("cpe_queries", "CPE data collection"),
-            ("badge_generation", "Badge processing"),
+            ("penr_collection", "PENR collection processing"),
             ("page_generation", "HTML output generation")
         ]
         
@@ -969,7 +969,7 @@ class TestGroupEnforcementIntegration(LoggingSystemTestSuite):
         """Test that all required groups are defined in LogGroup enum."""
         required_groups = [
             'INIT', 'CVE_QUERY', 'UNIQUE_CPE', 'CPE_QUERY',
-            'BADGE_GEN', 'REPORT_GEN', 'DATA_PROC'
+            'PENR_COLLECTION', 'REPORT_GEN', 'DATA_PROC'
         ]
         available_groups = [group.name for group in LogGroup]
         
@@ -985,7 +985,7 @@ class TestGroupEnforcementIntegration(LoggingSystemTestSuite):
             "cve_queries": "CVE_QUERY", 
             "unique_cpe": "UNIQUE_CPE",
             "cpe_queries": "CPE_QUERY",
-            "badge_generation": "BADGE_GEN",
+            "penr_collection": "PENR_COLLECTION",
             "page_generation": "REPORT_GEN",  # page_generation maps to REPORT_GEN
             "data_processing": "DATA_PROC"
         }
@@ -1040,7 +1040,7 @@ class TestComponentLoggingIntegration(LoggingSystemTestSuite):
         """Test that components use appropriate groups for their operations."""        # Test that all expected group types can be used
         test_groups = [
             "initialization", "cve_queries", "unique_cpe", "cpe_queries",
-            "badge_generation", "page_generation", "data_processing"
+            "penr_collection", "page_generation", "data_processing"
         ]
         
         for group in test_groups:

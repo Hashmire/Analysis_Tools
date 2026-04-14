@@ -23,7 +23,7 @@ python test_files\run_all_tests.py
 |:---------------|:----------|:------------|
 | **Update Patterns** | 180 | Comprehensive update pattern transformation validation (all 20 term groups) |
 | **Source Data Concern Dashboard** | 157 | Complete dashboard integration with backend data processing |
-| **Source Data Concern Badge Data Collector JSON** | 122 | Complete badge contents collection system (source data concerns + clean platform tracking) |
+| **Source Data Concern CVE Affected Data Collector JSON** | 122 | Complete CVE affected data collection system (source data concerns + clean platform tracking) |
 | **Source Data Concern Dashboard Webpage** | 90 | Standalone dashboard HTML validation and display testing |
 | **Platform Badges** | 67 | Badge/modal system, data quality validation, and overlapping ranges detection |
 | **Logging System** | 53 | Structured logging and workflow validation |
@@ -53,7 +53,7 @@ python test_files\test_confirmed_mappings.py                                    
 python test_files\test_nvd_source_manager.py                                          # 27 tests
 
 # Source Data Concern system testing
-python test_files\test_source_data_concern_badge_data_collector_json.py               # 122 tests
+python test_files\test_source_data_concern_cve_affected_data_collector_json.py               # 122 tests
 python test_files\test_source_data_concern_dashboard_webpage.py                       # 90 tests
 python test_files\test_source_data_concern_dashboard.py                               # 157 tests
 ```
@@ -120,7 +120,7 @@ All individual test suite documentation focuses on core validation areas and uni
 - `nvd_source_manager_test_suite.md` - Source data integration testing (27 tests)
 
 **Source Data Concern System Documentation:**
-- Badge data collection system testing (101 tests) - Documented within consolidated test suite
+- CVE affected data collection system testing (101 tests) - Documented within consolidated test suite
 - Dashboard webpage testing (90 tests) - Standalone dashboard validation  
 - Dashboard integration testing (157 tests) - Complete system validation
 

@@ -13,7 +13,7 @@ The consolidated test suite validates both:
 - collect_clean_platform_entry() functionality
 
 Both functions feed into the same CveAffectedDataCollector system and sourceDataConcernReport.json output.
-This suite does NOT cover HTML output rendering (covered by test_platform_badges.py).
+This suite does NOT cover HTML output rendering (covered by platform entry HTML display test suites).
 """
 
 import sys

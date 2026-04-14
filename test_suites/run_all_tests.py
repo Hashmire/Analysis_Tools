@@ -239,8 +239,8 @@ class TestSuiteRunner:
                 'command': ['python', 'test_suites\\\\cpe-as_generation\\\\test_update_patterns.py']
             },
             {
-                'name': 'Source Data Concern Badge Data Collector JSON',
-                'command': ['python', 'test_suites\\\\\\\\source_data_concerns\\\\\\\\test_source_data_concern_badge_data_collector_json.py']
+                'name': 'Source Data Concern CVE Affected Data Collector JSON',
+                'command': ['python', 'test_suites\\\\source_data_concerns\\\\test_source_data_concern_cve_affected_data_collector_json.py']
             },
 
             # === Source Data Concerns Suite ===

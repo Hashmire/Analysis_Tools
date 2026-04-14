@@ -25,7 +25,7 @@ python test_files\test_nvd_source_manager.py
 
 ### **System Integration Points**
 
-- Badge contents collector source name resolution
+- CVE affected data collector source name resolution
 - HTML generation with source metadata integration
 - Process data module source function access
 - Analysis tool initialization and manager access
@@ -54,7 +54,7 @@ python test_files\test_nvd_source_manager.py
 ## 🔧 Implementation Details
 
 - **Framework**: Python unittest with direct integration testing
-- **Dependencies**: NVD source data, badge system, HTML generation components, JavaScript modules
+- **Dependencies**: NVD source data, CVE affected data system, HTML generation components, JavaScript modules
 - **Test Coverage**: Core manager, integration points, frontend display, edge cases, architectural compliance
 
 ### Test Categories
@@ -63,7 +63,7 @@ python test_files\test_nvd_source_manager.py
 
 - Singleton pattern validation
 - UUID/orgId resolution with real-world data structures  
-- Badge contents collector integration
+- CVE affected data collector integration
 - HTML generation integration
 - Process data integration
 - Analysis tool initialization
@@ -109,7 +109,7 @@ python test_files\test_nvd_source_manager.py
 🚀 Starting NVD Source Manager Integration Test Suite...
 ================================================================================
 🧪 Testing Core Source Manager...
-🏷️ Testing Badge Contents Collector Integration...
+📋 Testing CVE Affected Data Collector Integration...
 📄 Testing HTML Generation Integration...
 ⚙️ Testing Process Data Integration...
 🔧 Testing Analysis Tool Initialization...
@@ -150,10 +150,10 @@ Source manager initialization:
 [INFO] Global NVD source manager initialized with 744 source entries
 ```
 
-Badge generation with resolved source names:
+CVE affected data collection with resolved source names:
 
 ```text
-[INFO] Badges added for row 0 (d1c1063e-7a18-46af-9102-31f8928bc633): Cisco/Cisco Identity Services Engine Software
+[INFO] PENR entries added for row 0 (d1c1063e-7a18-46af-9102-31f8928bc633): Cisco/Cisco Identity Services Engine Software
 ```
 
 ## Test Design Principles
@@ -223,7 +223,7 @@ python test_files\test_nvd_source_manager.py
 ## Related Documentation
 
 - **Source Manager Implementation**: `src/analysis_tool/storage/nvd_source_manager.py`
-- **Badge Contents Collector**: `src/analysis_tool/logging/badge_contents_collector.py`
+- **CVE Affected Data Collector**: `src/analysis_tool/logging/cve_affected_data_collector.py`
 - **HTML Generation**: `src/analysis_tool/core/generateHTML.py`
 - **Process Data**: `src/analysis_tool/core/processData.py`
 - **Completion Tracker**: `src/analysis_tool/static/js/completion_tracker.js`

@@ -38,7 +38,7 @@ def test_registry_contamination():
     # Import after path setup
     from src.analysis_tool.core.platform_entry_registry import (
         PLATFORM_ENTRY_NOTIFICATION_REGISTRY,
-        create_alias_extraction_badge
+        register_alias_extraction
     )
     
     print("Step 1: Initial Registry State")
@@ -65,7 +65,7 @@ def test_registry_contamination():
     }
     
     # Process CVE-A entry at table_index 0
-    create_alias_extraction_badge(
+    register_alias_extraction(
         table_index=0,
         raw_platform_data=raw_platform_data_a,
         row=row_a
@@ -107,7 +107,7 @@ def test_registry_contamination():
     }
     
     # Process CVE-B entry ALSO at table_index 0
-    create_alias_extraction_badge(
+    register_alias_extraction(
         table_index=0,
         raw_platform_data=raw_platform_data_b,
         row=row_b
@@ -186,7 +186,7 @@ def test_nvdish_collector_contamination():
     """
     print()
     print("=" * 80)
-    print("BADGE COLLECTOR CONTAMINATION TEST")
+    print("CVE DATA COLLECTOR CONTAMINATION TEST")
     print("=" * 80)
     print()
     
@@ -268,7 +268,7 @@ def test_registry_with_fix():
     print()
     
     from src.analysis_tool.core.platform_entry_registry import (
-        create_alias_extraction_badge,
+        register_alias_extraction,
         clear_all_registries
     )
     import src.analysis_tool.core.platform_entry_registry as per
@@ -292,7 +292,7 @@ def test_registry_with_fix():
         'sourceID': 'test-source-uuid-xiaomi'
     }
     
-    create_alias_extraction_badge(
+    register_alias_extraction(
         table_index=0,
         raw_platform_data=raw_platform_data_a,
         row=row_a
@@ -323,7 +323,7 @@ def test_registry_with_fix():
         'sourceID': 'test-source-uuid-redhat'
     }
     
-    create_alias_extraction_badge(
+    register_alias_extraction(
         table_index=0,
         raw_platform_data=raw_platform_data_b,
         row=row_b

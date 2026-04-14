@@ -503,12 +503,12 @@ Enhanced CVE Record Architecture
 
 - Detection results: 9 concern types (placeholderData, bloatTextDetection, versionGranularity, etc.)
 - `sourceId`: Analysis tool identifier, `cvelistv5AffectedEntryIndex`: Array position reference
-- Processing function: `create_source_data_concerns_badge()` in `platform_entry_registry.py`
+- Processing function: `register_source_data_concerns()` in `platform_entry_registry.py`
 
 **II.C.3. Alias Extraction:**
 
 - `aliases`: Alias enumeration groupings based on affected entry data
-- Processing function: `_filter_badge_collector_alias_data()` in `storage/nvd_ish_collector.py`
+- Processing function: `_filter_alias_entry_data()` in `storage/nvd_ish_collector.py`
 
 **II.C.4. CPE Determination:**
 
@@ -516,7 +516,7 @@ Enhanced CVE Record Architecture
 - `confirmedMappings`: Validated CPE base strings from mapping files
 - `cpeMatchStringsSearched`: Enumerated CPE Match Strings used for NVD API queries
 - `cpeMatchStringsCulled`: Rejected CPE Match Strings with validation failure reasons
-- Processing functions: `create_top10_cpe_suggestions_registry_entry()` in `platform_entry_registry.py`, `find_confirmed_mappings()`, `deriveCPEMatchStringList()`, `is_nvd_api_compatible()`, validation functions in `processData.py`
+- Processing functions: `register_cpe_suggestions()` in `platform_entry_registry.py`, `find_confirmed_mappings()`, `deriveCPEMatchStringList()`, `is_nvd_api_compatible()`, validation functions in `processData.py`
 
 **II.C.5. CPE-AS Generation Rules:** (Not Implemented Yet)  
 

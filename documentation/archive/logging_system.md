@@ -62,7 +62,7 @@ Processing {operation}: {current}/{total} ({percentage:.1f}%) - {context}
 | `cpe_queries` | CPE data collection, dictionary queries, API calls |
 | `unique_cpe` | CPE generation, base string creation, uniqueness processing |
 | `data_processing` | Data transformation, validation, parsing operations |
-| `badge_gen` | UI badge generation, metadata processing, confirmed mappings |
+| `penr_collection` | PENR collection, metadata processing, confirmed mappings |
 | `page_generation` | HTML generation, file creation, template processing |
 
 **Note:** Error messages are assigned to the appropriate workflow stage group where the error occurred.
@@ -154,7 +154,7 @@ python test_files/run_all_tests.py
 | **Operations** | gathering, collecting, processing |
 | **Progress** | `Processing X: current/total (percent%)` |
 | **Errors** | `Component operation failed: reason - context` |
-| **Groups** | initialization, cve_queries, cpe_queries, unique_cpe, data_processing, badge_gen, page_generation |
+| **Groups** | initialization, cve_queries, cpe_queries, unique_cpe, data_processing, penr_collection, page_generation |
 
 ---
 

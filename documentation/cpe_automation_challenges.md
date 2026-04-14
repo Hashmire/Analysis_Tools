@@ -64,7 +64,7 @@ The tool tracks and identifies a collection of cases that prevent or impede plat
 - **Source Data Concern Dashboard**: The tool generates a detailed dashboard providing overall Source Data Concern statistics for the CVE records processed. This dashboard also provides searchable, targeted source based statistics enabling overall review and drilldown capabilities directly to the NVD-ish record in question.  
   *Files*:
   - `src/analysis_tool/reporting/generate_sdc_report.py`
-  - `src/analysis_tool/logging/badge_contents_collector.py`
+  - `src/analysis_tool/logging/cve_affected_data_collector.py`
   - `dashboards/sourceDataConcernDashboard.html` (example)
 - **Source Data Concern Detection & Storage**: The tool analyzes platform entries during processing to detect quality issues, storing findings in the Platform Entry Notification Registry (PENR). This data is then integrated into NVD-ish records and rendered via report generation for data contributor review. Each concern is broken down by problem, data and resolution guidance.  
   *Files*:

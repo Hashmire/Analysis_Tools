@@ -1026,7 +1026,7 @@ def analyze_update_patterns(raw_platform_data: Dict) -> Dict:
     
     return update_info
 
-def create_cpe_processing_registry_entry(table_index: int, cpe_base_strings: list, culled_cpe_strings: list) -> None:
+def register_searched_cpe_match_strings(table_index: int, cpe_base_strings: list, culled_cpe_strings: list) -> None:
     """
     Create and register separate CPE match strings searched and culled data for nvd-ish collector.
     
@@ -1055,9 +1055,9 @@ def create_cpe_processing_registry_entry(table_index: int, cpe_base_strings: lis
         register_platform_notification_data(table_index, 'cpeMatchStringsCulled', cpe_culled_data)
             
     except Exception as e:
-        logger.warning(f"Failed to create CPE base string searches registry entry for table {table_index}: {e}", group="badge_modal")
+        logger.warning(f"Failed to register searched CPE match strings for table {table_index}: {e}", group="penr_collection")
 
-def create_confirmed_mappings_registry_entry(table_index: int, confirmed_mappings: list, affected_entry: dict) -> None:
+def register_confirmed_mappings(table_index: int, confirmed_mappings: list, affected_entry: dict) -> None:
     """
     Create and register confirmed mappings data for nvd-ish collector integration.
     
@@ -1087,12 +1087,12 @@ def create_confirmed_mappings_registry_entry(table_index: int, confirmed_mapping
         register_platform_notification_data(table_index, 'confirmedMappings', confirmed_mappings_data)
         
         if logger:
-            logger.debug(f"Registered {len(confirmed_mappings)} confirmed mappings for table {table_index}", group="badge_modal")
+            logger.debug(f"Registered {len(confirmed_mappings)} confirmed mappings for table {table_index}", group="penr_collection")
             
     except Exception as e:
-        logger.warning(f"Failed to create confirmed mappings registry entry for table {table_index}: {e}", group="badge_modal")
+        logger.warning(f"Failed to register confirmed mappings for table {table_index}: {e}", group="penr_collection")
 
-def create_top10_cpe_suggestions_registry_entry(table_index: int, top10_data: dict) -> None:
+def register_cpe_suggestions(table_index: int, top10_data: dict) -> None:
     """
     Create and register top 10 CPE base string suggestions for nvd-ish collector integration.
     
@@ -1123,7 +1123,7 @@ def create_top10_cpe_suggestions_registry_entry(table_index: int, top10_data: di
         register_platform_notification_data(table_index, 'top10CPESuggestions', top10_registry_data)
         
     except Exception as e:
-        logger.warning(f"Failed to create top 10 CPE suggestions registry entry for table {table_index}: {e}", group="badge_modal")
+        logger.warning(f"Failed to register CPE suggestions for table {table_index}: {e}", group="penr_collection")
 
 def detect_cross_affected_entry_overlaps(affected_entries: List[Dict]) -> List[Dict]:
     """
@@ -1553,10 +1553,10 @@ def preprocess_platform_data_for_analysis(raw_platform_data: Dict) -> Dict:
     return curated_data
 
 
-def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict, characteristics: Dict, 
+def register_source_data_concerns(table_index: int, raw_platform_data: Dict, characteristics: Dict, 
                                        platform_metadata: Dict, row: Dict) -> None:
     """
-    Create a unified Source Data Concerns badge for platform entries.
+    Register source data concerns for platform entries in the PLATFORM_ENTRY_NOTIFICATION_REGISTRY.
     
     Analyzes platform data for quality issues and populates PLATFORM_ENTRY_NOTIFICATION_REGISTRY
     with detected concerns for downstream reporting.
@@ -2659,9 +2659,9 @@ def create_source_data_concerns_badge(table_index: int, raw_platform_data: Dict,
     
 
 
-def create_alias_extraction_badge(table_index: int, raw_platform_data: Dict, row: Dict) -> None:
+def register_alias_extraction(table_index: int, raw_platform_data: Dict, row: Dict) -> None:
     """
-    Create an Alias Extraction badge for curator functionality integration.
+    Register alias extraction data for platform entries in the PLATFORM_ENTRY_NOTIFICATION_REGISTRY.
     
     Extracts alias data from CVE platform entries by expanding platforms array into 
     separate alias entries. Each alias entry contains flat key-value pairs with no arrays.

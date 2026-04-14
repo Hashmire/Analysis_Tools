@@ -581,7 +581,7 @@ class NVDishCollector:
     def _generate_cpe_as_for_entry_DEPRECATED(self, affected_entry: Dict, cpe_determination: Dict) -> Dict:
         """
         Generate CPE Applicability Statements directly for an affected entry.
-        Used in nvd-ish-only mode where badge system isn't invoked.
+        Used in nvd-ish-only mode where PENR collection isn't invoked.
         
         Args:
             affected_entry: The affected entry data
@@ -649,9 +649,9 @@ class NVDishCollector:
     
     def collect_source_data_concerns_from_registry(self, registry_instance=None) -> None:
         """
-        Integrate Source Data Concerns from Platform Entry Notification Registry after badge system processing.
+        Integrate Source Data Concerns from Platform Entry Notification Registry after PENR collection processing.
         
-        This method should be called after the badge system has run to pull the source data concerns
+        This method should be called after PENR collection has run to pull the source data concerns
         and populate them into the cveListV5AffectedEntries structure.
         
         Args:
@@ -732,7 +732,7 @@ class NVDishCollector:
                 self.processing_metadata['extensionsApplied'].append('sourceDataConcernsRegistry')
                 self.processing_metadata['dataSources'].append({
                     'type': 'sourceDataConcerns',
-                    'source': 'badge_system_registry',
+                    'source': 'platform_entry_registry',
                     'timestamp': datetime.now(timezone.utc).isoformat(),
                     'description': 'Source data concerns from Platform Entry Notification Registry'
                 })
@@ -753,7 +753,7 @@ class NVDishCollector:
         Integrate Source Data Concerns report with proper attribution.
         
         Args:
-            sdc_concerns_data: Structured concerns data from badge generation
+            sdc_concerns_data: Structured concerns data from PENR collection
             affected_entry_mapping: Optional mapping to associate concerns with specific affected entries
         """
         if not self.current_cve_id:
@@ -1395,9 +1395,9 @@ class NVDishCollector:
 
     def collect_alias_extraction_from_registry(self, registry_instance=None) -> None:
         """
-        Integrate Alias Extraction from Badge Contents Collector.
+        Integrate Alias Extraction from CVE Affected Data Collector.
         
-        This method extracts alias data from the badge contents collector that has already
+        This method extracts alias data from the CVE affected data collector that has already
         processed and structured the PENR data. This ensures proper integration with the
         existing alias extraction infrastructure rather than duplicating processing logic.
         
@@ -1411,37 +1411,37 @@ class NVDishCollector:
             return
 
         try:
-            # Import the badge contents collector to get processed alias data
-            from ..logging.badge_contents_collector import get_badge_contents_collector
+            # Import the CVE affected data collector to get processed alias data
+            from ..logging.cve_affected_data_collector import get_cve_affected_data_collector
             
-            badge_collector = get_badge_contents_collector()
-            if not badge_collector or not badge_collector.current_cve_data:
+            cve_data_collector = get_cve_affected_data_collector()
+            if not cve_data_collector or not cve_data_collector.current_cve_data:
                 if logger:
-                    logger.debug(f"No badge contents collector data available for alias extraction in {self.current_cve_id}", group="data_processing")
+                    logger.debug(f"No CVE affected data collector data available for alias extraction in {self.current_cve_id}", group="data_processing")
                 return
             
-            # Get structured alias extraction data from badge contents collector
-            alias_extractions = badge_collector.current_cve_data.get('alias_extractions', [])
+            # Get structured alias extraction data from CVE affected data collector
+            alias_extractions = cve_data_collector.current_cve_data.get('alias_extractions', [])
             
             if logger:
-                logger.debug(f"Badge contents collector has {len(alias_extractions)} alias extraction entries", group="data_processing")
-                # Debug: Log full badge collector data structure for entry 3
+                logger.debug(f"CVE affected data collector has {len(alias_extractions)} alias extraction entries", group="data_processing")
+                # Debug: Log full data structure for entry 3
                 if alias_extractions and len(alias_extractions) > 3:
                     entry_3_data = alias_extractions[3]
                     logger.debug(f"DEBUG: Entry 3 alias data - table_index: {entry_3_data.get('table_index')}, entry_count: {entry_3_data.get('entry_count')}, alias_data_keys: {list(entry_3_data.get('alias_data', {}).keys())}", group="data_processing")
             
             if not alias_extractions:
                 if logger:
-                    logger.debug(f"No alias extraction data in badge contents collector for {self.current_cve_id}", group="data_processing")
-                    # Debug: Log what IS available in the badge collector
-                    if badge_collector.current_cve_data:
-                        available_keys = list(badge_collector.current_cve_data.keys())
-                        logger.debug(f"DEBUG: Available keys in badge collector current_cve_data: {available_keys}", group="data_processing")
+                    logger.debug(f"No alias extraction data in CVE affected data collector for {self.current_cve_id}", group="data_processing")
+                    # Debug: Log what IS available in the collector
+                    if cve_data_collector.current_cve_data:
+                        available_keys = list(cve_data_collector.current_cve_data.keys())
+                        logger.debug(f"DEBUG: Available keys in CVE affected data collector current_cve_data: {available_keys}", group="data_processing")
                     else:
-                        logger.debug(f"DEBUG: Badge collector current_cve_data is None", group="data_processing")
+                        logger.debug(f"DEBUG: CVE affected data collector current_cve_data is None", group="data_processing")
                 return
             
-            # Process each affected entry to match with badge collector alias data
+            # Process each affected entry to match with CVE data collector alias data
             affected_entries_updated = 0
             
             if 'cveListV5AffectedEntries' in self.enriched_record_data:
@@ -1456,7 +1456,7 @@ class NVDishCollector:
                         product = origin_entry.get('product', 'Unknown')
                         logger.debug(f"Processing entry {entry_index} ({vendor}/{product}) for alias extraction matching", group="data_processing")
                     
-                    # Find matching alias extraction data from badge contents collector
+                    # Find matching alias extraction data from CVE affected data collector
                     matching_alias_data = None
                     for alias_entry in alias_extractions:
                         if alias_entry.get('table_index') == table_index:
@@ -1468,9 +1468,9 @@ class NVDishCollector:
                         alias_data_dict = matching_alias_data.get('alias_data', {})
                         entry_aliases = []
                         
-                        # Convert badge collector format to nvd-ish record format
+                        # Convert CVE data collector format to nvd-ish record format
                         for alias_key, alias_details in alias_data_dict.items():
-                            filtered_alias = self._filter_badge_collector_alias_data(alias_details)
+                            filtered_alias = self._filter_alias_entry_data(alias_details)
                             if filtered_alias:
                                 entry_aliases.append(filtered_alias)
                         
@@ -1504,10 +1504,10 @@ class NVDishCollector:
                 
                 # Add data source tracking
                 self.processing_metadata['dataSources'].append({
-                    'type': 'alias_extraction_badge_collector',
+                    'type': 'alias_extraction_cve_data_collector',
                     'source': self.attribution_source,
                     'timestamp': datetime.now(timezone.utc).isoformat(),
-                    'description': f'Alias extraction from Badge Contents Collector ({affected_entries_updated} entries)'
+                    'description': f'Alias extraction from CVE Affected Data Collector ({affected_entries_updated} entries)'
                 })
                 
                 if logger:
@@ -1518,7 +1518,7 @@ class NVDishCollector:
         
         except Exception as e:
             if logger:
-                logger.error(f"Failed to integrate alias extraction from badge contents collector for {self.current_cve_id}: {e}", group="data_processing")
+                logger.error(f"Failed to integrate alias extraction from CVE affected data collector for {self.current_cve_id}: {e}", group="data_processing")
             # Continue processing other data as requested
         except Exception as e:
             if logger:
@@ -1614,16 +1614,16 @@ class NVDishCollector:
                 logger.error(f"Failed to integrate CPE-AS generation from registry for {self.current_cve_id}: {e}", group="CPE_AS_GEN")
             # Continue processing - this is not a critical failure
 
-    def _filter_badge_collector_alias_data(self, alias_data: Dict) -> Optional[Dict]:
+    def _filter_alias_entry_data(self, alias_data: Dict) -> Optional[Dict]:
         """
-        Filter alias data from badge contents collector format for nvd-ish records.
+        Filter alias data from CVE affected data collector format for nvd-ish records.
         
         Applies comprehensive placeholder filtering to ensure only meaningful alias data
         is included in the final NVD-ish records, matching the filtering patterns used
         in the alias extraction report functionality.
         
         Args:
-            alias_data: Raw alias data from badge contents collector
+            alias_data: Raw alias data from CVE affected data collector
             
         Returns:
             Filtered alias data dict or None if no valid data remains after filtering
@@ -1663,7 +1663,7 @@ class NVDishCollector:
     def _is_placeholder_value(self, value) -> bool:
         """
         Check if a value is considered a placeholder using the centralized patterns
-        from the badge data collection system.
+        from the CVE affected data collection system.
         
         Args:
             value: The value to check

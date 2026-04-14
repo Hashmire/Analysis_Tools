@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Badge Contents Collection System
+CVE Affected Data Collection System
 
-Simple implementation to collect Platform Entry Notification badge contents
+Simple implementation to collect Platform Entry Notification Registry (PENR) data
 during the main processing pipeline and export to JSON reports
 in the existing logs directory structure.
 
@@ -76,9 +76,9 @@ try:
 except ImportError:
     get_global_mapping_manager = None
 
-class BadgeContentsCollector:
+class CveAffectedDataCollector:
     """
-    Collects Platform Entry Notification badge contents during badge generation.
+    Collects Platform Entry Notification Registry (PENR) data during CVE processing.
     Accumulates data across multiple CVEs and exports consolidated JSON report.
     """
     
@@ -121,7 +121,7 @@ class BadgeContentsCollector:
         self.alias_report_source_uuid = source_uuid
         
         if logger:
-            logger.info("Badge contents collector configured for alias report incremental saves", group="INIT")
+            logger.info("CVE affected data collector configured for alias report incremental saves", group="INIT")
     
     def configure_nvd_ish_only_mode(self, enabled: bool = True) -> None:
         """
@@ -171,7 +171,7 @@ class BadgeContentsCollector:
             
         except Exception as e:
             if logger:
-                logger.error(f"Failed to initialize badge contents collector: {e}", group="INIT")
+                logger.error(f"Failed to initialize CVE affected data collector: {e}", group="INIT")
             return False
     
     def start_cve_processing(self, cve_id: str) -> None:
@@ -258,7 +258,7 @@ class BadgeContentsCollector:
             
         except Exception as e:
             if logger:
-                logger.error(f"Failed to save badge contents: {e}", group="badge_generation")
+                logger.error(f"Failed to save CVE affected data: {e}", group="penr_collection")
             # Clean up temp file if it exists
             temp_file_path = self.output_file_path + '.tmp' if self.output_file_path else None
             if temp_file_path and os.path.exists(temp_file_path):
@@ -311,7 +311,7 @@ class BadgeContentsCollector:
             
         except Exception as e:
             if logger:
-                logger.error(f"Auto-save failed: {e}", group="badge_generation")
+                logger.error(f"Auto-save failed: {e}", group="penr_collection")
             return False
     
     def _save_incremental_alias_report(self) -> bool:
@@ -341,37 +341,37 @@ class BadgeContentsCollector:
             
         except Exception as e:
             if logger:
-                logger.error(f"Failed to save incremental alias report: {e}", group="badge_generation")
+                logger.error(f"Failed to save incremental alias report: {e}", group="penr_collection")
             return False
     
     def collect_source_data_concern(self, table_index: int, source_id: str, vendor: str, product: str,
                                    concerns_data: Dict, concerns_count: int, concern_types: List[str]) -> None:
         """
-        Collect Source Data Concerns badge contents during badge generation.
+        Collect Source Data Concerns PENR data during CVE processing.
         
         Args:
             table_index: Table index for the platform entry
             source_id: Actual source UUID from the data
             vendor: Vendor name from the platform entry
             product: Product name from the platform entry
-            concerns_data: Structured concerns data from badge generation
+            concerns_data: Structured concerns data from PENR collection
             concerns_count: Total number of concerns
             concern_types: List of concern type names
         """
         if not self.current_cve_data:
             if logger:
-                logger.warning(f"No current CVE set for badge collection - table_index {table_index}", group="badge_generation")
+                logger.warning(f"No current CVE set for CVE affected data collection - table_index {table_index}", group="penr_collection")
             return
         
         # Validate input data integrity
         if not isinstance(concerns_data, dict):
             if logger:
-                logger.error(f"Invalid concerns_data for table_index {table_index}: must be dictionary", group="badge_generation")
+                logger.error(f"Invalid concerns_data for table_index {table_index}: must be dictionary", group="penr_collection")
             return
             
         if concerns_count < 0:
             if logger:
-                logger.error(f"Invalid concerns_count for table_index {table_index}: cannot be negative", group="badge_generation")
+                logger.error(f"Invalid concerns_count for table_index {table_index}: cannot be negative", group="penr_collection")
             return
         
         # Track consolidated statistics
@@ -400,13 +400,13 @@ class BadgeContentsCollector:
                 if resolved_name:
                     source_name = resolved_name
                     if logger:
-                        logger.debug(f"Source name resolved for concern entry: {source_id} -> {source_name}", group="badge_generation")
+                        logger.debug(f"Source name resolved for concern entry: {source_id} -> {source_name}", group="penr_collection")
                 else:
                     if logger:
-                        logger.warning(f"Source name resolution failed for concern entry: {source_id}", group="badge_generation")
+                        logger.warning(f"Source name resolution failed for concern entry: {source_id}", group="penr_collection")
             else:
                 if logger:
-                    logger.warning(f"Source name resolution unavailable for concern entry: {source_id}", group="badge_generation")
+                    logger.warning(f"Source name resolution unavailable for concern entry: {source_id}", group="penr_collection")
             
             # Create platform entry object with normalized concern type keys
             concern_type_keys = [self._concern_type_to_key(ct) for ct in concern_types]
@@ -439,7 +439,7 @@ class BadgeContentsCollector:
         """
         if not self.current_cve_data:
             if logger:
-                logger.warning(f"No current CVE set for clean platform entry collection - source_id {source_id}", group="badge_generation")
+                logger.warning(f"No current CVE set for clean platform entry collection - source_id {source_id}", group="penr_collection")
             return
             
         # Track consolidated statistics for clean entries
@@ -468,13 +468,13 @@ class BadgeContentsCollector:
                 if resolved_name:
                     source_name = resolved_name
                     if logger:
-                        logger.debug(f"Source name resolved for clean entry: {source_id} -> {source_name}", group="badge_generation")
+                        logger.debug(f"Source name resolved for clean entry: {source_id} -> {source_name}", group="penr_collection")
                 else:
                     if logger:
-                        logger.warning(f"Source name resolution failed for clean entry: {source_id}", group="badge_generation")
+                        logger.warning(f"Source name resolution failed for clean entry: {source_id}", group="penr_collection")
             else:
                 if logger:
-                    logger.warning(f"Source name resolution unavailable for clean entry: {source_id}", group="badge_generation")
+                    logger.warning(f"Source name resolution unavailable for clean entry: {source_id}", group="penr_collection")
             
             # Create new entry for this source with resolved name
             self.current_cve_data['clean_platform_entries'].append({
@@ -489,7 +489,7 @@ class BadgeContentsCollector:
     def collect_alias_extraction(self, table_index: int, source_id: str, alias_data: Dict, 
                                 entry_count: int, cve_id: str = None) -> None:
         """
-        Collect Alias Extraction badge contents during badge generation.
+        Collect Alias Extraction PENR data during CVE processing.
         
         This function collects curator-style alias extraction data for the --alias-report
         functionality, following the exact same patterns as the curator system.
@@ -503,18 +503,18 @@ class BadgeContentsCollector:
         """
         if not self.current_cve_data:
             if logger:
-                logger.warning(f"No current CVE set for alias collection - table_index {table_index}", group="badge_generation")
+                logger.warning(f"No current CVE set for alias collection - table_index {table_index}", group="penr_collection")
             return
         
         # Validate input data integrity
         if not isinstance(alias_data, dict):
             if logger:
-                logger.error(f"Invalid alias_data for table_index {table_index}: must be dictionary", group="badge_generation")
+                logger.error(f"Invalid alias_data for table_index {table_index}: must be dictionary", group="penr_collection")
             return
             
         if entry_count < 0:
             if logger:
-                logger.error(f"Invalid entry_count for table_index {table_index}: cannot be negative", group="badge_generation")
+                logger.error(f"Invalid entry_count for table_index {table_index}: cannot be negative", group="penr_collection")
             return
         
         # Track consolidated statistics
@@ -533,13 +533,13 @@ class BadgeContentsCollector:
                 if resolved_name:
                     source_name = resolved_name
                     if logger:
-                        logger.debug(f"Source name resolved for alias entry: {source_id} -> {source_name}", group="badge_generation")
+                        logger.debug(f"Source name resolved for alias entry: {source_id} -> {source_name}", group="penr_collection")
                 else:
                     if logger:
-                        logger.warning(f"Source name resolution failed for alias entry: {source_id}", group="badge_generation")
+                        logger.warning(f"Source name resolution failed for alias entry: {source_id}", group="penr_collection")
             else:
                 if logger:
-                    logger.warning(f"Source name resolution unavailable for alias entry: {source_id}", group="badge_generation")
+                    logger.warning(f"Source name resolution unavailable for alias entry: {source_id}", group="penr_collection")
             
             # Create platform entry object following curator patterns
             alias_entry = {
@@ -560,7 +560,7 @@ class BadgeContentsCollector:
             self._auto_save()
             
             if logger:
-                logger.debug(f"Collected alias extraction for table_index {table_index}: {entry_count} entries", group="badge_generation")
+                logger.debug(f"Collected alias extraction for table_index {table_index}: {entry_count} entries", group="penr_collection")
 
     def generate_alias_report(self, logs_directory: str, source_uuid: str, is_final: bool = False) -> Optional[str]:
         """
@@ -656,7 +656,7 @@ class BadgeContentsCollector:
                 mapping_manager = get_global_mapping_manager()
                 if not mapping_manager.is_initialized():
                     raise RuntimeError(
-                        "Confirmed mapping manager must be initialized before badge collection. "
+                        "Confirmed mapping manager must be initialized before CVE data collection. "
                         "Check entry point initialization sequence."
                     )
                 
@@ -676,7 +676,7 @@ class BadgeContentsCollector:
                     'total_cves_processed': self.consolidated_metadata['total_cves_processed'],
                     'unique_aliases_extracted': len(all_alias_data),
                     'product_groups_created': len(alias_groups),
-                    'extraction_source': 'Analysis_Tools_Badge_System',
+                    'extraction_source': 'Analysis_Tools_PENR_Collection',
                     'curator_compatibility': True,
                     'status': 'completed' if is_final else 'in_progress',
                     'run_started_at': self.consolidated_metadata.get('run_started_at', datetime.now(timezone.utc).isoformat())
@@ -792,7 +792,7 @@ class BadgeContentsCollector:
             # Force final save with completion metadata
             if not self._auto_save(force=True):
                 if logger:
-                    logger.error(f"Failed to finalize empty badge contents report", group="completion")
+                    logger.error(f"Failed to finalize empty CVE affected data report", group="completion")
             
             return self.output_file_path
         
@@ -806,7 +806,7 @@ class BadgeContentsCollector:
         # Force final save with completion metadata
         if not self._auto_save(force=True):
             if logger:
-                logger.error(f"Failed to finalize badge contents report", group="completion")
+                logger.error(f"Failed to finalize CVE affected data report", group="completion")
             return None
         
         # Print final summary
@@ -815,44 +815,44 @@ class BadgeContentsCollector:
         entries_processed = self.consolidated_metadata['total_platform_entries']
         
         if logger:
-            logger.info(f"Badge contents report complete: {cves_with_concerns}/{cves_processed} CVEs with concerns, "
+            logger.info(f"CVE affected data report complete: {cves_with_concerns}/{cves_processed} CVEs with concerns, "
                       f"{total_entries_with_concerns}/{entries_processed} entries with concerns", group="completion")
         
         return self.output_file_path
 
 # Global collector instance
-_badge_contents_collector = None
+_cve_affected_data_collector = None
 
-def get_badge_contents_collector() -> BadgeContentsCollector:
-    """Get the global badge contents collector instance."""
-    global _badge_contents_collector
-    if _badge_contents_collector is None:
-        _badge_contents_collector = BadgeContentsCollector()
-    return _badge_contents_collector
+def get_cve_affected_data_collector() -> CveAffectedDataCollector:
+    """Get the global CVE affected data collector instance."""
+    global _cve_affected_data_collector
+    if _cve_affected_data_collector is None:
+        _cve_affected_data_collector = CveAffectedDataCollector()
+    return _cve_affected_data_collector
 
-def clear_badge_contents_collector():
-    """Clear the global badge contents collector for a new run."""
-    global _badge_contents_collector
-    _badge_contents_collector = None
+def clear_cve_affected_data_collector():
+    """Clear the global CVE affected data collector for a new run."""
+    global _cve_affected_data_collector
+    _cve_affected_data_collector = None
 
-def initialize_badge_contents_report(logs_directory: str) -> bool:
-    """Initialize the badge contents report file for incremental updates."""
-    collector = get_badge_contents_collector()
+def initialize_cve_affected_data_report(logs_directory: str) -> bool:
+    """Initialize the CVE affected data report file for incremental updates."""
+    collector = get_cve_affected_data_collector()
     return collector.initialize_output_file(logs_directory)
 
 def start_cve_collection(cve_id: str):
-    """Initialize badge collection for a new CVE."""
-    collector = get_badge_contents_collector()
+    """Initialize CVE affected data collection for a new CVE."""
+    collector = get_cve_affected_data_collector()
     collector.start_cve_processing(cve_id)
 
 def complete_cve_collection() -> bool:
     """Complete collection for the current CVE and save to file."""
-    collector = get_badge_contents_collector()
+    collector = get_cve_affected_data_collector()
     return collector.complete_cve_processing()
 
 def collect_clean_platform_entry(source_id: str) -> None:
     """Collect a platform entry that has no source data concerns."""
-    collector = get_badge_contents_collector()
+    collector = get_cve_affected_data_collector()
     collector.collect_clean_platform_entry(source_id)
 
 def collect_alias_extraction_data(table_index: int, source_id: str, alias_data: Dict, 
@@ -867,7 +867,7 @@ def collect_alias_extraction_data(table_index: int, source_id: str, alias_data: 
         entry_count: Number of alias entries extracted (for platform expansion)
         cve_id: CVE identifier for source tracking
     """
-    collector = get_badge_contents_collector()
+    collector = get_cve_affected_data_collector()
     collector.collect_alias_extraction(table_index, source_id, alias_data, entry_count, cve_id)
 
 def generate_alias_extraction_report(logs_directory: str, source_uuid: str, is_final: bool = True) -> Optional[str]:
@@ -882,7 +882,7 @@ def generate_alias_extraction_report(logs_directory: str, source_uuid: str, is_f
     Returns:
         Path to generated aliasReport.json file, or None if generation failed
     """
-    collector = get_badge_contents_collector()
+    collector = get_cve_affected_data_collector()
     return collector.generate_alias_report(logs_directory, source_uuid, is_final)
 
 def configure_alias_reporting(logs_directory: str, source_uuid: str) -> None:
@@ -893,7 +893,7 @@ def configure_alias_reporting(logs_directory: str, source_uuid: str) -> None:
         logs_directory: Directory to save alias reports  
         source_uuid: Source UUID for alias extraction targeting
     """
-    collector = get_badge_contents_collector()
+    collector = get_cve_affected_data_collector()
     collector.configure_alias_reporting(logs_directory, source_uuid)
 
 def configure_nvd_ish_only_mode(enabled: bool = True) -> None:
@@ -906,10 +906,10 @@ def configure_nvd_ish_only_mode(enabled: bool = True) -> None:
     Args:
         enabled: Whether to enable NVD-ish only mode
     """
-    collector = get_badge_contents_collector()
+    collector = get_cve_affected_data_collector()
     collector.configure_nvd_ish_only_mode(enabled)
 
-def finalize_badge_contents_report() -> Optional[str]:
-    """Finalize the badge contents report at the end of a run."""
-    collector = get_badge_contents_collector()
+def finalize_cve_affected_data_report() -> Optional[str]:
+    """Finalize the CVE affected data report at the end of a run."""
+    collector = get_cve_affected_data_collector()
     return collector.finalize_report()
