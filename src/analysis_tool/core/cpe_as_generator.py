@@ -53,7 +53,6 @@ from .platform_entry_registry import (
     VERSION_PLACEHOLDER_VALUES,
     GENERAL_PLACEHOLDER_VALUES,
     determine_vulnerability_from_status,
-    analyze_update_patterns,
     transform_version_with_update_pattern
 )
 from .processData import formatFor23CPE
