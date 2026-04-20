@@ -24,6 +24,7 @@ sys.path.insert(0, str(project_root))
 
 from src.analysis_tool.core.gatherData import validate_http_response, HTTPResponseError
 from src.analysis_tool.core.schema_validator import (
+    validate_against_schema,
     validate_cpe_data,
     validate_cve_data,
     validate_source_data,
@@ -285,6 +286,46 @@ def test_source_valid():
 
 
 # ============================================================================
+# multipleOf Decimal Precision Tests
+# ============================================================================
+
+@test("multipleOf - CVSS 4.0 score 5.1 passes multipleOf 0.1 (Decimal fix)")
+def test_multiple_of_decimal_precision_passes():
+    """Regression test: float 5.1 % 0.1 is non-zero in IEEE 754, causing false failures.
+    The Decimal-based validator must accept 5.1 as a valid multiple of 0.1."""
+    schema = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+            "baseScore": {"type": "number", "minimum": 4.0, "maximum": 6.9, "multipleOf": 0.1}
+        }
+    }
+    # These are all valid CVSS medium-range scores that would fail under stock jsonschema
+    for score in [4.1, 4.2, 5.1, 5.2, 6.1, 6.9]:
+        try:
+            validate_against_schema({"baseScore": score}, schema, f"test score {score}")
+        except NVDSchemaValidationError as e:
+            assert False, f"Valid CVSS score {score} incorrectly rejected: {e}"
+
+
+@test("multipleOf - Non-multiple correctly rejected")
+def test_multiple_of_decimal_precision_rejects():
+    """Confirm the Decimal validator still rejects values that are genuinely not multiples."""
+    schema = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+            "baseScore": {"type": "number", "multipleOf": 0.1}
+        }
+    }
+    try:
+        validate_against_schema({"baseScore": 5.15}, schema, "test score 5.15")
+        assert False, "5.15 should not be a multiple of 0.1"
+    except NVDSchemaValidationError:
+        pass  # Expected
+
+
+# ============================================================================
 # CVE Record V5 Validation Tests
 # ============================================================================
 
@@ -350,6 +391,10 @@ def main():
     # Source API 2.0
     test_source_valid()
     
+    # multipleOf Decimal precision
+    test_multiple_of_decimal_precision_passes()
+    test_multiple_of_decimal_precision_rejects()
+
     # CVE Record V5
     test_cve_record_missing_metadata()
     test_cve_record_wrong_type()

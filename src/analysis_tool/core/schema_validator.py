@@ -13,8 +13,10 @@ Architecture:
 Schema URLs loaded from config.json api.schemas section.
 """
 import json
+from decimal import Decimal, InvalidOperation
 from typing import Dict, Any, Optional
 import jsonschema
+from jsonschema.validators import extend as _extend_validator
 import orjson
 
 from ..logging.workflow_logger import get_logger
@@ -25,6 +27,37 @@ logger = get_logger()
 class NVDSchemaValidationError(Exception):
     """Raised when data fails schema validation"""
     pass
+
+
+def _decimal_multiple_of(validator, divisor, instance, schema):
+    """
+    Custom multipleOf validator using Decimal arithmetic to avoid IEEE 754 float precision issues.
+
+    jsonschema's built-in multipleOf uses float division, which causes false negatives for
+    values like 5.1 / 0.1 ≈ 50.99999999999999 (should be 51). CVSS 4.0 score types define
+    multipleOf: 0.1, so valid NVD scores such as 5.1 (MEDIUM) are incorrectly rejected.
+    Using str-based Decimal conversion gives exact decimal arithmetic: Decimal('5.1') % Decimal('0.1') == 0.
+    """
+    if not isinstance(instance, (int, float)):
+        return
+    try:
+        decimal_instance = Decimal(str(instance))
+        decimal_divisor = Decimal(str(divisor))
+        if decimal_instance % decimal_divisor != Decimal('0'):
+            yield jsonschema.ValidationError(
+                f"{instance!r} is not a multiple of {divisor!r}"
+            )
+    except (InvalidOperation, ZeroDivisionError):
+        yield jsonschema.ValidationError(
+            f"{instance!r} is not a multiple of {divisor!r}"
+        )
+
+
+# Extend Draft7Validator with the Decimal-based multipleOf handler
+_DecimalAwareDraft7Validator = _extend_validator(
+    jsonschema.Draft7Validator,
+    {"multipleOf": _decimal_multiple_of}
+)
 
 
 def validate_against_schema(
@@ -38,6 +71,9 @@ def validate_against_schema(
     Uses locally cached external $ref schemas (e.g., CVSS) first. 
     If external schemas failed to download, unresolved $ref will 
     raise ValidationError, surfacing as a schema validation concern.
+
+    Uses Decimal-based multipleOf validation to avoid IEEE 754 float precision
+    false negatives (e.g., CVSS 4.0 scores like 5.1 failing multipleOf 0.1).
     
     Args:
         data: Parsed API response data
@@ -59,10 +95,10 @@ def validate_against_schema(
         
         # Validate with or without resolver depending on availability
         if resolver:
-            validator = jsonschema.Draft7Validator(schema, resolver=resolver)
+            validator = _DecimalAwareDraft7Validator(schema, resolver=resolver)
             validator.validate(data)
         else:
-            jsonschema.validate(instance=data, schema=schema)
+            _DecimalAwareDraft7Validator(schema).validate(data)
             
     except jsonschema.ValidationError as e:
         error_path = ' -> '.join(str(p) for p in e.path) if e.path else 'root'

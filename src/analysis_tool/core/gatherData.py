@@ -1172,8 +1172,6 @@ def _sync_cvelist_with_nvd_dataset(targetCve):
                 logger.debug(f"CVE List V5 cached record current for {targetCve} (NVD 2.0 API Record: {nvd_last_modified}, CVE List V5 Cached Record: {cvelist_date_updated})", group="CACHE_MANAGEMENT")
     
     except Exception as e:
-        logger.warning(f"CVE List V5 sync check failed for {targetCve}: {e}", group="CACHE_MANAGEMENT")   
-    except Exception as e:
         logger.warning(f"CVE List V5 sync check failed for {targetCve}: {e}", group="CACHE_MANAGEMENT")
 
 def _refresh_cvelist_from_mitre_api(targetCve, local_file_path, refresh_reason="staleness detected", cve_schema=None, update_metadata=True):
@@ -1204,15 +1202,18 @@ def _refresh_cvelist_from_mitre_api(targetCve, local_file_path, refresh_reason="
         fresh_cve_data = validate_http_response(r, f"MITRE CVE API refresh: {targetCve}")
 
         # Validate with schema if provided
-        try:
-            from .schema_validator import validate_cve_record_v5
-            # Load schema only if not provided (batch operations should pre-load)
-            if cve_schema is None:
+        from .schema_validator import validate_cve_record_v5
+        # Load schema only if not provided (batch operations should pre-load)
+        if cve_schema is None:
+            try:
                 cve_schema = load_schema('cve_cve_5_2')
-            validated_data = validate_cve_record_v5(fresh_cve_data, targetCve, cve_schema)
-            fresh_cve_data = validated_data
-        except Exception as validation_error:
-            logger.warning(f"CVE List V5 validation failed for {targetCve}: {validation_error} - Caching without validation", group="CACHE_MANAGEMENT")
+            except Exception as schema_error:
+                logger.warning(f"CVE List V5 schema unavailable for {targetCve}: {schema_error} - Caching without schema validation", group="CACHE_MANAGEMENT")
+        if cve_schema is not None:
+            try:
+                fresh_cve_data = validate_cve_record_v5(fresh_cve_data, targetCve, cve_schema)
+            except Exception as validation_error:
+                logger.warning(f"CVE List V5 validation failed for {targetCve}: {validation_error} - Caching without validation", group="CACHE_MANAGEMENT")
         
         # Basic integrity checks (keep as fallback)
         processData.integrityCheckCVE("cveIdMatch", targetCve, fresh_cve_data)
@@ -1412,13 +1413,17 @@ def gatherCVEListRecord(targetCve):
         cve_config = config['cache_settings']['cve_list_v5']
         try:
             # Validate before caching
+            from .schema_validator import validate_cve_record_v5
             try:
-                from .schema_validator import validate_cve_record_v5
                 cve_schema = load_schema('cve_cve_5_2')
-                validated_data = validate_cve_record_v5(cveRecordDict, targetCve, cve_schema)
-                cveRecordDict = validated_data
-            except Exception as validation_error:
-                logger.warning(f"CVE List V5 validation failed for {targetCve}: {validation_error} - Caching without validation", group="CACHE_MANAGEMENT")
+            except Exception as schema_error:
+                logger.warning(f"CVE List V5 schema unavailable for {targetCve}: {schema_error} - Caching without schema validation", group="CACHE_MANAGEMENT")
+                cve_schema = None
+            if cve_schema is not None:
+                try:
+                    cveRecordDict = validate_cve_record_v5(cveRecordDict, targetCve, cve_schema)
+                except Exception as validation_error:
+                    logger.warning(f"CVE List V5 validation failed for {targetCve}: {validation_error} - Caching without validation", group="CACHE_MANAGEMENT")
             
             local_repo_path = cve_config.get('path', 'cache/cve_list_v5')
             cve_file_path = _resolve_cve_cache_file_path(targetCve, local_repo_path)
