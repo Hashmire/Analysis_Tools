@@ -56,6 +56,8 @@ from src.analysis_tool.reporting.generate_alias_report import (
     scan_nvd_ish_cache,
     calculate_alias_statistics,
     validate_report_statistics,
+    _is_alias_non_actionable,
+    _build_alias_dedup_key,
 )
 
 
@@ -72,6 +74,9 @@ class _MockMappingManager:
     def get_mappings_for_source(self, source_id: str) -> List[Dict]:
         return []
 
+    def get_mapping_info(self, source_id: str):
+        return None
+
 
 class _MockConfirmedMappingManager:
     """Mapping manager stub that returns a fixed confirmed alias list for a specific source ID."""
@@ -87,6 +92,14 @@ class _MockConfirmedMappingManager:
         if source_id == self._source_id:
             return [{'aliases': self._confirmed_aliases}]
         return []
+
+    def get_mapping_info(self, source_id: str):
+        if source_id == self._source_id:
+            return {
+                'cnaId': 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+                'mappings': [{'aliases': self._confirmed_aliases}]
+            }
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -250,6 +263,7 @@ class TestAliasReportGeneration:
         self.failed = 0
         self.results: List[str] = []
         self._template_content: str = None  # lazy-loaded
+        self._index_template_content: str = None  # lazy-loaded
 
     # ------------------------------------------------------------------
     # Assertion helpers
@@ -397,6 +411,20 @@ class TestAliasReportGeneration:
             with open(template_path, 'r', encoding='utf-8') as f:
                 self._template_content = f.read()
         return self._template_content
+
+    def _load_index_template(self) -> str:
+        if self._index_template_content is None:
+            template_path = (
+                project_root
+                / "src"
+                / "analysis_tool"
+                / "static"
+                / "templates"
+                / "Alias_Mapping_Index_Template.html"
+            )
+            with open(template_path, 'r', encoding='utf-8') as f:
+                self._index_template_content = f.read()
+        return self._index_template_content
 
     # ------------------------------------------------------------------
     # Builder factory helpers
@@ -842,6 +870,80 @@ class TestAliasReportGeneration:
             template
         )
 
+    # ==================================================================
+    # GROUP 4c: New template element validation (filter-active signal, ratio card, index columns)
+    # ==================================================================
+
+    def test_37_source_template_has_aliasRatio_element(self):
+        """Test 37: Source report template contains the aliasRatio stat card element."""
+        print("\nTest 37: Source template has id='aliasRatio' stat card")
+        template = self._load_template()
+        self.assert_in("aliasRatio element defined", 'id="aliasRatio"', template)
+
+    def test_38_source_template_has_updateFilterActiveSignal(self):
+        """Test 38: Source report template contains the updateFilterActiveSignal JS function."""
+        print("\nTest 38: Source template has updateFilterActiveSignal function")
+        template = self._load_template()
+        self.assert_in("updateFilterActiveSignal function defined", "function updateFilterActiveSignal", template)
+
+    def test_39_source_template_filters_active_class_toggled(self):
+        """Test 39: Source report template uses filters-active CSS class in toggle logic."""
+        print("\nTest 39: Source template toggles filters-active CSS class")
+        template = self._load_template()
+        self.assert_in("filters-active class referenced in JS", "filters-active", template)
+
+    def test_40_source_template_stat_card_order(self):
+        """Test 40: Stat cards appear in order totalCVEs → totalAliases → aliasRatio."""
+        print("\nTest 40: Source template stat card order totalCVEs → totalAliases → aliasRatio")
+        template = self._load_template()
+        idx_cves = template.find('id="totalCVEs"')
+        idx_aliases = template.find('id="totalAliases"')
+        idx_ratio = template.find('id="aliasRatio"')
+        self.assert_true(
+            "totalCVEs appears before totalAliases",
+            idx_cves != -1 and idx_aliases != -1 and idx_cves < idx_aliases
+        )
+        self.assert_true(
+            "totalAliases appears before aliasRatio",
+            idx_aliases != -1 and idx_ratio != -1 and idx_aliases < idx_ratio
+        )
+
+    def test_41_source_template_has_alias_sets_per_cve_label(self):
+        """Test 41: Source report template contains the 'Alias Sets / CVE' stat label."""
+        print("\nTest 41: Source template has 'Alias Sets / CVE' label")
+        template = self._load_template()
+        self.assert_in("Alias Sets / CVE label defined", "Alias Sets / CVE", template)
+
+    def test_42_index_template_has_unique_alias_sets_column(self):
+        """Test 42: Index template table header contains 'Unique Alias Sets' column."""
+        print("\nTest 42: Index template has 'Unique Alias Sets' column header")
+        index_template = self._load_index_template()
+        self.assert_in("Unique Alias Sets column header defined", "Unique Alias Sets", index_template)
+
+    def test_43_index_template_has_unique_cves_column(self):
+        """Test 43: Index template table header contains 'Unique CVEs' column."""
+        print("\nTest 43: Index template has 'Unique CVEs' column header")
+        index_template = self._load_index_template()
+        self.assert_in("Unique CVEs column header defined", "Unique CVEs", index_template)
+
+    def test_44_source_template_has_aliasFieldSelections_element(self):
+        """Test 44: Source report template contains the aliasFieldSelections container div."""
+        print("\nTest 44: Source template has id='aliasFieldSelections' container")
+        template = self._load_template()
+        self.assert_in("aliasFieldSelections container defined", 'id="aliasFieldSelections"', template)
+
+    def test_45_source_template_has_renderAliasFieldCheckboxes(self):
+        """Test 45: Source report template contains the renderAliasFieldCheckboxes JS function."""
+        print("\nTest 45: Source template has renderAliasFieldCheckboxes function")
+        template = self._load_template()
+        self.assert_in("renderAliasFieldCheckboxes function defined", "function renderAliasFieldCheckboxes", template)
+
+    def test_46_source_template_has_aliasEntryMap_variable(self):
+        """Test 46: Source report template declares the aliasEntryMap tracking variable."""
+        print("\nTest 46: Source template has aliasEntryMap variable")
+        template = self._load_template()
+        self.assert_in("aliasEntryMap variable declared", "aliasEntryMap", template)
+
     def test_22_non_wildcard_edition_preserved_in_base_string(self):
         """Test 22: Only version and update are wildcarded; all other attributes are preserved."""
         print("\nTest 22: Non-wildcard edition/language preserved, only version+update wildcarded")
@@ -940,6 +1042,156 @@ class TestAliasReportGeneration:
         self.assert_true(
             "14-component entry NOT in result",
             'cpe:2.3:a:vendor_a:product_y:*:*:*:*:*:*:*:*' not in result
+        )
+
+    # ==================================================================
+    # GROUP 4b: _is_alias_non_actionable() unit tests
+    # ==================================================================
+
+    def test_24b_non_actionable_all_placeholders(self):
+        """Test 24b: _is_alias_non_actionable() returns True when all identity fields are placeholders."""
+        print("\nTest 24b: _is_alias_non_actionable — all placeholder fields")
+        self.assert_true("n/a vendor+product is non-actionable",
+                         _is_alias_non_actionable({'vendor': 'n/a', 'product': 'n/a'}))
+        self.assert_true("unspecified vendor+product is non-actionable",
+                         _is_alias_non_actionable({'vendor': 'unspecified', 'product': 'unspecified'}))
+        self.assert_true("empty vendor+product is non-actionable",
+                         _is_alias_non_actionable({'vendor': '', 'product': ''}))
+        self.assert_true("None vendor (absent) is non-actionable",
+                         _is_alias_non_actionable({}))
+        self.assert_true("source_cve-only alias is non-actionable",
+                         _is_alias_non_actionable({'source_cve': ['CVE-2024-0001']}))
+
+    def test_24c_non_actionable_returns_false_for_actionable(self):
+        """Test 24c: _is_alias_non_actionable() returns False when any identity field has real data."""
+        print("\nTest 24c: _is_alias_non_actionable — actionable aliases return False")
+        self.assert_true("real vendor+product is actionable",
+                         not _is_alias_non_actionable({'vendor': 'vendor_a', 'product': 'product_x'}))
+        self.assert_true("real packageName is actionable",
+                         not _is_alias_non_actionable({'packageName': 'real-package'}))
+        self.assert_true("real collectionURL is actionable",
+                         not _is_alias_non_actionable({'collectionURL': 'https://example.com/pkg'}))
+        self.assert_true("real repo is actionable",
+                         not _is_alias_non_actionable({'repo': 'https://github.com/org/repo'}))
+        self.assert_true("non-empty modules list is actionable",
+                         not _is_alias_non_actionable({'modules': ['mod_a', 'mod_b']}))
+        self.assert_true("non-empty programFiles list is actionable",
+                         not _is_alias_non_actionable({'programFiles': ['file.exe']}))
+        self.assert_true("n/a vendor but real product is actionable",
+                         not _is_alias_non_actionable({'vendor': 'n/a', 'product': 'real_product'}))
+
+    def test_24d_dedup_key_unchanged_for_non_actionable(self):
+        """Test 24d: _build_alias_dedup_key() still produces a non-empty key for non-actionable aliases."""
+        print("\nTest 24d: dedup key still built for non-actionable aliases (identity and actionability are orthogonal)")
+        alias = {'vendor': 'n/a', 'product': 'n/a', 'source_cve': ['CVE-2024-0001']}
+        key = _build_alias_dedup_key(alias)
+        # The key must be non-empty (dedup is not affected by non-actionability)
+        self.assert_true("dedup key is non-empty for n/a alias", len(key) > 0)
+        self.assert_true("dedup key contains 'product'", 'product' in key)
+        self.assert_true("dedup key contains 'vendor'", 'vendor' in key)
+        # source_cve must be excluded from the key
+        self.assert_true("dedup key does not contain 'source_cve'", 'source_cve' not in key)
+
+    def test_34_by_year_non_actionable_count(self):
+        """Test 34: finalize() tracks non_actionable_count per year in by_year."""
+        print("\nTest 34: by_year non_actionable_count tracked per year")
+        _SRC_34 = 'yr-test-src-34'
+        _ALIAS_34_ACTION = {'vendor': 'yr34_vendor', 'product': 'yr34_product'}
+        _ALIAS_34_NA     = {'vendor': 'n/a',         'product': 'n/a'}
+
+        # SETUP: actionable alias on 2024, non-actionable alias on 2024 + 2025
+        builder = AliasReportBuilder(
+            source_manager=None,
+            mapping_manager=_MockMappingManager(),
+        )
+        entry_action_2024 = {
+            'originAffectedEntry': {'sourceId': _SRC_34},
+            'aliasExtraction': {'aliases': [_ALIAS_34_ACTION]},
+        }
+        entry_na_2024 = {
+            'originAffectedEntry': {'sourceId': _SRC_34},
+            'aliasExtraction': {'aliases': [_ALIAS_34_NA]},
+        }
+        entry_na_2025 = {
+            'originAffectedEntry': {'sourceId': _SRC_34},
+            'aliasExtraction': {'aliases': [_ALIAS_34_NA]},
+        }
+        builder.add_cve_aliases('CVE-2024-3401', [entry_action_2024, entry_na_2024], nvd_cpe_set=set())
+        builder.add_cve_aliases('CVE-2025-3401', [entry_na_2025], nvd_cpe_set=set())
+
+        # EXECUTE
+        reports = builder.finalize()
+        by_year = reports[_SRC_34]['metadata']['by_year']
+
+        # VALIDATE
+        self.assert_true("by_year has '2024'", '2024' in by_year)
+        self.assert_true("by_year has '2025'", '2025' in by_year)
+        self.assert_equals("2024 non_actionable_count == 1", 1, by_year['2024']['non_actionable_count'])
+        self.assert_equals("2024 unconfirmed_count == 1 (actionable only)", 1, by_year['2024']['unconfirmed_count'])
+        self.assert_equals("2025 non_actionable_count == 1", 1, by_year['2025']['non_actionable_count'])
+        self.assert_equals("2025 unconfirmed_count == 0", 0, by_year['2025']['unconfirmed_count'])
+        # Coverage denominator for 2024 = confirmed(0) + unconfirmed(1) = 1; non-actionable excluded
+        self.assert_equals("2024 confirmed_coverage_pct == 0.0 (denominator excludes NA)",
+                           0.0, by_year['2024']['confirmed_coverage_pct'])
+
+        # TEARDOWN
+        builder = None
+
+    def test_35_confirmed_cna_id_present_when_mapping_file_loaded(self):
+        """Test 35: finalize() sets confirmed_cna_id in metadata when an existing mapping file is loaded."""
+        print("\nTest 35: confirmed_cna_id present in metadata when existing mapping file loaded")
+        _SRC_35 = 'test-source-uuid-0035'
+        _ALIAS_35 = {'vendor': 'vendor_35', 'product': 'product_35'}
+        _EXPECTED_CNA_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+
+        builder = AliasReportBuilder(
+            source_manager=None,
+            mapping_manager=_MockConfirmedMappingManager(_SRC_35, []),
+        )
+        entry = {
+            'originAffectedEntry': {'sourceId': _SRC_35},
+            'aliasExtraction': {'aliases': [_ALIAS_35]},
+        }
+        builder.add_cve_aliases('CVE-2024-3500', [entry], nvd_cpe_set=set())
+        reports = builder.finalize()
+
+        org_metadata = list(reports.values())[0]['metadata']
+        self.assert_true(
+            "confirmed_cna_id key present in metadata",
+            'confirmed_cna_id' in org_metadata
+        )
+        self.assert_equals(
+            "confirmed_cna_id matches existing file cnaId",
+            _EXPECTED_CNA_ID,
+            org_metadata['confirmed_cna_id']
+        )
+
+    def test_36_confirmed_cna_id_none_when_no_mapping_file(self):
+        """Test 36: finalize() sets confirmed_cna_id to None in metadata when no existing mapping file is loaded."""
+        print("\nTest 36: confirmed_cna_id is None in metadata when no existing mapping file")
+        _SRC_36 = 'test-source-uuid-0036'
+        _ALIAS_36 = {'vendor': 'vendor_36', 'product': 'product_36'}
+
+        builder = AliasReportBuilder(
+            source_manager=None,
+            mapping_manager=_MockMappingManager(),
+        )
+        entry = {
+            'originAffectedEntry': {'sourceId': _SRC_36},
+            'aliasExtraction': {'aliases': [_ALIAS_36]},
+        }
+        builder.add_cve_aliases('CVE-2024-3600', [entry], nvd_cpe_set=set())
+        reports = builder.finalize()
+
+        org_metadata = list(reports.values())[0]['metadata']
+        self.assert_true(
+            "confirmed_cna_id key present in metadata",
+            'confirmed_cna_id' in org_metadata
+        )
+        self.assert_equals(
+            "confirmed_cna_id is None when no file loaded",
+            None,
+            org_metadata['confirmed_cna_id']
         )
 
     # ==================================================================
@@ -1056,6 +1308,63 @@ class TestAliasReportGeneration:
         self.assert_equals("unconfirmed_count is 2", 2, stats['unconfirmed_count'])
         self.assert_equals("unconfirmed_with_concerns_count is 0", 0,
                            stats['unconfirmed_with_concerns_count'])
+        self.assert_equals("non_actionable_count is 0", 0, stats['non_actionable_count'])
+
+    def test_26b_calculate_alias_statistics_with_non_actionable(self):
+        """Test 26b: calculate_alias_statistics() excludes non-actionable aliases from coverage denominator."""
+        print("\nTest 26b: calculate_alias_statistics() non-actionable excluded from denominator")
+        # 1 confirmed, 1 actionable unconfirmed, 1 non-actionable (all-placeholder vendor+product)
+        report_data = {
+            'aliasGroups': [
+                {
+                    'alias_group': 'group',
+                    'aliases': [
+                        {'vendor': 'vendor_a', 'product': 'product_x'},   # actionable unconfirmed
+                        {'vendor': 'n/a',      'product': 'n/a'},          # non-actionable
+                    ],
+                }
+            ],
+            'confirmedMappings': [
+                {'aliases': [{'vendor': 'vendor_b', 'product': 'product_y'}]},  # confirmed
+            ]
+        }
+        stats = calculate_alias_statistics(report_data)
+        # total = 1 confirmed + 1 actionable unconfirmed + 1 non-actionable = 3
+        self.assert_equals("total_unique_aliases is 3", 3, stats['total_unique_aliases'])
+        self.assert_equals("confirmed_count is 1", 1, stats['confirmed_count'])
+        # confirmed_coverage_pct = 1 / (1+1) = 50.0  (denominator excludes non-actionable)
+        self.assert_equals("confirmed_coverage_pct is 50.0", 50.0, stats['confirmed_coverage_pct'])
+        self.assert_equals("unconfirmed_count is 1", 1, stats['unconfirmed_count'])
+        self.assert_equals("non_actionable_count is 1", 1, stats['non_actionable_count'])
+
+    def test_26c_calculate_alias_statistics_all_confirmed_reaches_100(self):
+        """Test 26c: 100% coverage reachable when all actionable aliases are confirmed."""
+        print("\nTest 26c: calculate_alias_statistics() 100% coverage when all actionable confirmed")
+        # 2 confirmed, 1 non-actionable — coverage should be 100%
+        report_data = {
+            'aliasGroups': [
+                {
+                    'alias_group': 'group',
+                    'aliases': [
+                        {'vendor': 'vendor_a', 'product': 'product_x'},
+                        {'vendor': 'vendor_b', 'product': 'product_y'},
+                        {'vendor': 'unspecified', 'product': 'unspecified'},  # non-actionable
+                    ],
+                }
+            ],
+            'confirmedMappings': [
+                {'aliases': [
+                    {'vendor': 'vendor_a', 'product': 'product_x'},
+                    {'vendor': 'vendor_b', 'product': 'product_y'},
+                ]},
+            ]
+        }
+        stats = calculate_alias_statistics(report_data)
+        self.assert_equals("total_unique_aliases is 3", 3, stats['total_unique_aliases'])
+        self.assert_equals("confirmed_count is 2", 2, stats['confirmed_count'])
+        self.assert_equals("unconfirmed_count is 0", 0, stats['unconfirmed_count'])
+        self.assert_equals("non_actionable_count is 1", 1, stats['non_actionable_count'])
+        self.assert_equals("confirmed_coverage_pct is 100.0", 100.0, stats['confirmed_coverage_pct'])
 
     def test_27_validate_report_statistics_aligned(self):
         """Test 27: validate_report_statistics() returns zero mismatches for consistent file pair."""
@@ -1070,7 +1379,7 @@ class TestAliasReportGeneration:
                     'source_id': 'test-source-validate-0001',
                     'source_name': 'TestOrg',
                     'unique_aliases_extracted': 2,
-                    'product_groups_created': 1,
+                    'alias_groups_confirmed': 0,
                     'total_cves_processed': 2,
                 },
                 'aliasGroups': [
@@ -1089,7 +1398,7 @@ class TestAliasReportGeneration:
                 json.dump(report_data, f)
 
             # Index: values that match what validate_report_statistics() will recalculate
-            # (2 unconfirmed, 0 confirmed, 0 concerns)
+            # (2 unconfirmed, 0 confirmed, 0 concerns, 0 non-actionable)
             index_data = {
                 'metadata': {},
                 'sources': [{
@@ -1100,6 +1409,7 @@ class TestAliasReportGeneration:
                     'confirmed_coverage_pct': 0.0,
                     'confirmed_with_concerns_count': 0,
                     'unconfirmed_with_concerns_count': 0,
+                    'non_actionable_count': 0,
                 }]
             }
             index_file = temp_dir / 'aliasExtractionReport_index.json'
@@ -1492,8 +1802,13 @@ class TestAliasReportGeneration:
         self.test_22_non_wildcard_edition_preserved_in_base_string()
         self.test_23_file_io_preserves_non_wildcard_target_sw()
         self.test_24_criteria_over_13_components_rejected()
+        self.test_24b_non_actionable_all_placeholders()
+        self.test_24c_non_actionable_returns_false_for_actionable()
+        self.test_24d_dedup_key_unchanged_for_non_actionable()
         self.test_25_full_pipeline_subprocess_execute()
         self.test_26_calculate_alias_statistics_pure_unconfirmed()
+        self.test_26b_calculate_alias_statistics_with_non_actionable()
+        self.test_26c_calculate_alias_statistics_all_confirmed_reaches_100()
         self.test_27_validate_report_statistics_aligned()
         self.test_28_by_year_cves_count_two_distinct_years()
         self.test_29_by_year_unique_aliases_alias_spanning_years()
@@ -1501,6 +1816,19 @@ class TestAliasReportGeneration:
         self.test_31_by_year_concern_flags_per_year()
         self.test_32_by_year_comprehensive_stats_three_years()
         self.test_33_four_phase_subprocess_by_year_in_json_output()
+        self.test_34_by_year_non_actionable_count()
+        self.test_35_confirmed_cna_id_present_when_mapping_file_loaded()
+        self.test_36_confirmed_cna_id_none_when_no_mapping_file()
+        self.test_37_source_template_has_aliasRatio_element()
+        self.test_38_source_template_has_updateFilterActiveSignal()
+        self.test_39_source_template_filters_active_class_toggled()
+        self.test_40_source_template_stat_card_order()
+        self.test_41_source_template_has_alias_sets_per_cve_label()
+        self.test_42_index_template_has_unique_alias_sets_column()
+        self.test_43_index_template_has_unique_cves_column()
+        self.test_44_source_template_has_aliasFieldSelections_element()
+        self.test_45_source_template_has_renderAliasFieldCheckboxes()
+        self.test_46_source_template_has_aliasEntryMap_variable()
 
         total = self.passed + self.failed
         print("\n" + "=" * 60)

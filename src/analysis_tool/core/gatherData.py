@@ -259,9 +259,6 @@ _schema_cache = {}
 # Mapping of external ref URLs to local cached filenames
 _external_schema_cache = {}
 
-# Cache of RefResolver instances keyed by schema identity (avoids recreating RefResolvers)
-_resolver_cache = {}
-
 
 def _extract_external_refs(schema: dict, base_url_pattern: str = "https://csrc.nist.gov/schema/") -> set:
     """
@@ -546,63 +543,54 @@ def load_schema(schema_name: str) -> dict:
         raise
 
 
-def get_schema_ref_resolver(schema: dict) -> Optional[Any]:
+def get_schema_registry() -> Optional[Any]:
     """
-    Get or create a cached RefResolver for external schema references.
-    
+    Build a referencing.Registry for external schema references.
+
     This prevents jsonschema from attempting to fetch external URLs (which may be
-    blocked by NIST's User-Agent filtering) and instead uses pre-downloaded cached schemas.
-    
-    Args:
-        schema: The root schema dictionary
-    
+    blocked by NIST's User-Agent filtering) and instead uses pre-downloaded cached
+    schemas loaded from _external_schema_cache.
+
+    Returns a Registry instance keyed by the original download URLs, or None if no
+    external schemas are available (i.e., schema has no external $refs to resolve).
+
     Returns:
-        Cached RefResolver instance, or None if no external refs available
+        referencing.Registry populated with cached CVSS schemas, or None if
+        _external_schema_cache is empty or all files fail to load.
     """
     if not _external_schema_cache:
         return None
-    
-    # Use schema object identity as cache key (same schema dict = same RefResolver)
-    schema_id = id(schema)
-    
-    # Return cached RefResolver if available
-    if schema_id in _resolver_cache:
-        return _resolver_cache[schema_id]
-    
+
     try:
-        # Build store mapping URLs to cached schema data (only done once per schema)
-        store = {}
+        from referencing import Registry, Resource
+        from referencing.jsonschema import DRAFT7
+
+        resources = []
         for url, cache_path in _external_schema_cache.items():
             try:
                 with open(cache_path, 'r', encoding='utf-8') as f:
-                    store[url] = json.load(f)
-                logger.debug(f"Loaded external schema for resolver: {url}", group="CACHE_MANAGEMENT")
+                    schema_data = json.load(f)
+                resource = Resource.from_contents(schema_data, default_specification=DRAFT7)
+                resources.append((url, resource))
+                logger.debug(f"Loaded external schema for registry: {url}", group="CACHE_MANAGEMENT")
             except Exception as e:
                 logger.warning(
                     f"Failed to load cached external schema {cache_path}: {e}",
                     group="CACHE_MANAGEMENT"
                 )
-        
-        if not store:
+
+        if not resources:
             return None
-        
-        # Create RefResolver with custom store
-        # Note: RefResolver is deprecated in jsonschema 4.18+ but still functional
-        # Future enhancement: migrate to referencing library when needed
-        import jsonschema
-        resolver = jsonschema.RefResolver.from_schema(schema, store=store)
+
+        registry = Registry().with_resources(resources)
         logger.debug(
-            f"Created RefResolver with {len(store)} external schema mappings",
+            f"Created referencing.Registry with {len(resources)} external schema mappings",
             group="CACHE_MANAGEMENT"
         )
-        
-        # Cache for future use
-        _resolver_cache[schema_id] = resolver
-        
-        return resolver
-        
+        return registry
+
     except Exception as e:
-        logger.warning(f"Failed to create RefResolver: {e}", group="CACHE_MANAGEMENT")
+        logger.warning(f"Failed to create schema registry: {e}", group="CACHE_MANAGEMENT")
         return None
 
 
@@ -686,9 +674,10 @@ def _update_schema_metadata(schema_name: str, schema_filename: str, schema_sourc
 
 
 def clear_schema_cache():
-    """Clear in-memory schema cache (useful for testing)"""
-    global _schema_cache
+    """Clear in-memory schema cache and external ref cache (useful for testing)"""
+    global _schema_cache, _external_schema_cache
     _schema_cache = {}
+    _external_schema_cache = {}
     logger.debug("Schema cache cleared", group="CACHE_MANAGEMENT")
 
 

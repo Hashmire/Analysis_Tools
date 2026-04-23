@@ -87,15 +87,15 @@ def validate_against_schema(
         return
     
     try:
-        # Import here to get access to get_schema_ref_resolver
-        from .gatherData import get_schema_ref_resolver
-        
-        # Get custom resolver for external refs (uses local cache)
-        resolver = get_schema_ref_resolver(schema)
-        
-        # Validate with or without resolver depending on availability
-        if resolver:
-            validator = _DecimalAwareDraft7Validator(schema, resolver=resolver)
+        # Import here to get access to get_schema_registry
+        from .gatherData import get_schema_registry
+
+        # Get registry for external refs (uses locally cached CVSS schemas)
+        registry = get_schema_registry()
+
+        # Validate with or without registry depending on availability
+        if registry:
+            validator = _DecimalAwareDraft7Validator(schema, registry=registry)
             validator.validate(data)
         else:
             _DecimalAwareDraft7Validator(schema).validate(data)
@@ -106,6 +106,18 @@ def validate_against_schema(
         raise NVDSchemaValidationError(error_msg)
     except jsonschema.SchemaError as e:
         logger.error(f"Invalid schema encountered: {e}", group="DATA_PROC")
+    except Exception as e:
+        # Catch referencing.exceptions.NoSuchResource and similar registry errors
+        # (imported lazily to avoid requiring referencing at module load time)
+        try:
+            from referencing.exceptions import NoSuchResource
+            if isinstance(e, NoSuchResource):
+                raise NVDSchemaValidationError(
+                    f"External schema reference could not be resolved (cached file missing?): {e} - {context}"
+                )
+        except ImportError:
+            pass
+        raise
 
 
 def validate_string_content(data: Any, context: str, path: str = "root") -> None:

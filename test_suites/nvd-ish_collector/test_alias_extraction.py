@@ -43,7 +43,7 @@ class AliasExtractionTestSuite:
     
     def __init__(self):
         self.passed = 0
-        self.total = 3  # Added test for isolated nvd-ish-only mode
+        self.total = 4  # Includes unit tests for expansion functions
         
         # Set up isolated test CPE cache directory to avoid loading production cache
         self.test_cache_dir = CACHE_DIR / "temp_test_caches_alias"
@@ -542,7 +542,7 @@ class AliasExtractionTestSuite:
     
     def test_alias_extraction_placeholder_filtering(self) -> bool:
         """Test alias extraction placeholder filtering unit tests."""
-        print(f"\n=== Test 2: Alias Extraction Placeholder Filtering ===")
+        print(f"\n=== Test 3: Alias Extraction Placeholder Filtering ===")
         
         try:
             # Import NVDishCollector for direct method testing
@@ -659,7 +659,205 @@ class AliasExtractionTestSuite:
             import traceback
             traceback.print_exc()
             return False
-    
+
+    def test_expansion_functions_unit(self) -> bool:
+        """Unit tests for _expand_alias_complex_fields, _recompute_alias_key, _create_alias_data,
+        and register_alias_extraction with multi-value array fields.
+
+        These tests validate the core behavior that was previously untested and led to the bug
+        where modules/programFiles/programRoutines arrays were stored as-is instead of being
+        expanded into separate per-value alias entries.
+        """
+        print(f"\n=== Test 4: Expansion Functions Unit Tests ===")
+
+        try:
+            import sys
+            sys.path.insert(0, str(PROJECT_ROOT))
+            from src.analysis_tool.core.platform_entry_registry import (
+                _expand_alias_complex_fields,
+                _recompute_alias_key,
+                _create_alias_data,
+                register_alias_extraction,
+                PLATFORM_ENTRY_NOTIFICATION_REGISTRY,
+            )
+
+            subtests_passed = 0
+            subtests_total = 9
+
+            # ----- 4.1: _create_alias_data stores complex fields as lists -----
+            raw = {'vendor': 'acme', 'product': 'widget', 'modules': ['mod_a', 'mod_b']}
+            alias = _create_alias_data(raw, vendor='acme', product='widget', platform=None, cve_id='CVE-2024-0001')
+
+            if alias.get('modules') == ['mod_a', 'mod_b']:
+                subtests_passed += 1
+                print("  ✓ 4.1: _create_alias_data preserves modules list before expansion")
+            else:
+                print(f"  ❌ 4.1: Expected ['mod_a', 'mod_b'], got: {alias.get('modules')!r}")
+
+            # ----- 4.2: _expand_alias_complex_fields 2-value modules → 2 scalar entries -----
+            alias_2val = {
+                'vendor': 'acme', 'product': 'widget',
+                'modules': ['mod_a', 'mod_b'],
+                'source_cve': ['CVE-2024-0001'], '_alias_key': 'stale',
+            }
+            results = _expand_alias_complex_fields(alias_2val)
+
+            if (len(results) == 2
+                    and all(isinstance(r.get('modules'), str) for r in results)
+                    and {r['modules'] for r in results} == {'mod_a', 'mod_b'}):
+                subtests_passed += 1
+                print("  ✓ 4.2: 2-value modules array expands to 2 scalar-modules entries")
+            else:
+                print(f"  ❌ 4.2: Expected 2 scalar entries. Got: {results}")
+
+            # ----- 4.3: Single-element array is unwrapped to a scalar -----
+            alias_single = {
+                'vendor': 'acme', 'product': 'widget',
+                'modules': ['mod_a'],
+                'source_cve': ['CVE-2024-0001'],
+            }
+            results_single = _expand_alias_complex_fields(alias_single)
+
+            if len(results_single) == 1 and results_single[0].get('modules') == 'mod_a':
+                subtests_passed += 1
+                print("  ✓ 4.3: Single-element array unwrapped to scalar")
+            else:
+                print(f"  ❌ 4.3: Expected 1 entry with modules='mod_a'. Got: {results_single}")
+
+            # ----- 4.4: All-placeholder array drops the field entirely -----
+            alias_ph = {
+                'vendor': 'acme', 'product': 'widget',
+                'modules': ['n/a', 'unknown'],
+                'source_cve': ['CVE-2024-0001'],
+            }
+            results_ph = _expand_alias_complex_fields(alias_ph)
+
+            if len(results_ph) == 1 and 'modules' not in results_ph[0]:
+                subtests_passed += 1
+                print("  ✓ 4.4: All-placeholder modules array dropped from entry")
+            else:
+                print(f"  ❌ 4.4: Expected 1 entry without 'modules'. Got: {results_ph}")
+
+            # ----- 4.5: Cartesian product across two multi-value fields -----
+            alias_cart = {
+                'vendor': 'acme', 'product': 'widget',
+                'modules': ['m1', 'm2'],
+                'programFiles': ['f1', 'f2'],
+                'source_cve': ['CVE-2024-0001'],
+            }
+            results_cart = _expand_alias_complex_fields(alias_cart)
+            expected_pairs = {('m1', 'f1'), ('m1', 'f2'), ('m2', 'f1'), ('m2', 'f2')}
+            actual_pairs = {(r.get('modules'), r.get('programFiles')) for r in results_cart}
+
+            if len(results_cart) == 4 and actual_pairs == expected_pairs:
+                subtests_passed += 1
+                print("  ✓ 4.5: Cartesian product of modules×programFiles produces all 4 combinations")
+            else:
+                print(f"  ❌ 4.5: Expected 4 entries with pairs {expected_pairs}. Got: {actual_pairs}")
+
+            # ----- 4.6: Scalar fields preserved unchanged on every expanded copy -----
+            alias_scalars = {
+                'vendor': 'acme', 'product': 'widget',
+                'platform': 'Linux', 'repo': 'https://github.com/acme/widget',
+                'modules': ['m1', 'm2'],
+                'source_cve': ['CVE-2024-0001'],
+            }
+            results_scalars = _expand_alias_complex_fields(alias_scalars)
+
+            if (len(results_scalars) == 2
+                    and all(r.get('vendor') == 'acme' for r in results_scalars)
+                    and all(r.get('product') == 'widget' for r in results_scalars)
+                    and all(r.get('platform') == 'Linux' for r in results_scalars)
+                    and all(r.get('repo') == 'https://github.com/acme/widget' for r in results_scalars)):
+                subtests_passed += 1
+                print("  ✓ 4.6: Scalar fields (vendor, product, platform, repo) preserved on all copies")
+            else:
+                print(f"  ❌ 4.6: Scalar fields not uniformly preserved. Got: {results_scalars}")
+
+            # ----- 4.7: source_cve preserved; _alias_key unique per copy, no array syntax -----
+            alias_meta = {
+                'vendor': 'acme', 'product': 'widget',
+                'modules': ['m1', 'm2'],
+                'source_cve': ['CVE-2024-0001'],
+            }
+            results_meta = _expand_alias_complex_fields(alias_meta)
+            all_have_source_cve = all(r.get('source_cve') == ['CVE-2024-0001'] for r in results_meta)
+            keys = [r.get('_alias_key', '') for r in results_meta]
+            all_keys_unique = len(set(keys)) == len(results_meta)
+            no_array_in_keys = all('[' not in k for k in keys)
+
+            if all_have_source_cve and all_keys_unique and no_array_in_keys:
+                subtests_passed += 1
+                print("  ✓ 4.7: source_cve preserved; _alias_key unique per copy with no array syntax")
+            else:
+                print(f"  ❌ 4.7: source_cve={all_have_source_cve}, unique_keys={all_keys_unique}, "
+                      f"no_array_in_keys={no_array_in_keys}. Keys: {keys}")
+
+            # ----- 4.8: _recompute_alias_key excludes source_cve and old _alias_key -----
+            key_test = {
+                'vendor': 'acme', 'product': 'widget',
+                'source_cve': ['CVE-2024-0001'],
+                '_alias_key': 'OLD_KEY',
+            }
+            _recompute_alias_key(key_test)
+            computed_key = key_test.get('_alias_key', '')
+
+            if ('source_cve' not in computed_key
+                    and 'OLD_KEY' not in computed_key
+                    and 'product:widget' in computed_key
+                    and 'vendor:acme' in computed_key):
+                subtests_passed += 1
+                print("  ✓ 4.8: _recompute_alias_key excludes source_cve and old _alias_key; includes data fields")
+            else:
+                print(f"  ❌ 4.8: Unexpected key: {computed_key!r}")
+
+            # ----- 4.9: register_alias_extraction with modules array → 2 scalar-keyed entries -----
+            # Isolate by saving and restoring the alias registry section
+            saved_alias_registry = PLATFORM_ENTRY_NOTIFICATION_REGISTRY.get('aliasExtraction', {}).copy()
+            PLATFORM_ENTRY_NOTIFICATION_REGISTRY['aliasExtraction'] = {}
+
+            try:
+                raw_data = {'vendor': 'acme', 'product': 'widget', 'modules': ['mod_a', 'mod_b']}
+                row = {'cve_id': 'CVE-2024-0009'}
+                register_alias_extraction(table_index=42, raw_platform_data=raw_data, row=row)
+
+                registry = PLATFORM_ENTRY_NOTIFICATION_REGISTRY['aliasExtraction']
+                actual_keys = set(str(k) for k in registry.keys())
+                expected_keys = {'42', '42_complex_1'}
+
+                modules_values = sorted(
+                    registry[k]['modules']
+                    for k in registry
+                    if isinstance(registry[k].get('modules'), str)
+                )
+
+                if (actual_keys == expected_keys
+                        and len(modules_values) == 2
+                        and set(modules_values) == {'mod_a', 'mod_b'}):
+                    subtests_passed += 1
+                    print("  ✓ 4.9: register_alias_extraction produces 2 registry entries, each with a scalar modules value")
+                else:
+                    print(f"  ❌ 4.9: keys={actual_keys} (expected {expected_keys}), "
+                          f"modules_values={modules_values}")
+            finally:
+                PLATFORM_ENTRY_NOTIFICATION_REGISTRY['aliasExtraction'] = saved_alias_registry
+
+            # ----- Summary -----
+            print(f"\n  Subtests passed: {subtests_passed}/{subtests_total}")
+
+            if subtests_passed == subtests_total:
+                print("✅ PASS: All expansion function unit tests passed")
+                return True
+            else:
+                print(f"❌ FAIL: {subtests_total - subtests_passed} expansion function unit test(s) failed")
+                return False
+
+        except Exception as e:
+            print(f"❌ FAIL: Exception during expansion functions unit test: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
     def run_all_tests(self) -> bool:
         """Run all alias extraction tests and return overall success."""
         
@@ -674,6 +872,7 @@ class AliasExtractionTestSuite:
                 ("Alias Extraction Integration (isolated --alias-report)", self.test_alias_extraction_integration),
                 ("NVD-ish Only Enables Alias Extraction", self.test_nvd_ish_only_enables_alias_extraction),
                 ("Alias Extraction Placeholder Filtering", self.test_alias_extraction_placeholder_filtering),
+                ("Expansion Functions Unit Tests", self.test_expansion_functions_unit),
             ]
             
             for test_name, test_func in tests:

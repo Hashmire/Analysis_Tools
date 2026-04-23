@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -7,6 +7,7 @@
     
     <!-- Alias Mapping Dashboard Styles -->
     <link rel="stylesheet" href="../src/analysis_tool/static/css/alias_mapping_dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     
 </head>
 <body>
@@ -91,9 +92,9 @@
                     <h4>📊 Understanding Metrics</h4>
                     <ul>
                         <li><strong>Total CVEs</strong> - Number of CVE records processed for this source</li>
-                        <li><strong>Unique Aliases</strong> - Distinct platform alias entries extracted from source contributions</li>
+                        <li><strong>Unique Alias Sets</strong> - Distinct alias set groups extracted from source contributions</li>
                         <li><strong>Product Groups</strong> - Number of product-based groupings created from alias data</li>
-                        <li><strong>Avg Aliases/CVE</strong> - Average number of unique aliases per CVE record (indicates data richness)</li>
+                        <li><strong>Alias Sets / CVE</strong> - Average number of unique alias sets per CVE record (indicates data richness)</li>
                     </ul>
                 </div>
 
@@ -161,7 +162,7 @@
     </div>
 
     <script>
-        let dashboardData = {"metadata": {"run_started_at": "2026-04-07T11:55:00+00:00", "total_cves_processed": 2341, "total_sources": 3, "extraction_source": "Analysis_Tools_NVDish_Cache_Scanner", "tool_version": "0.3.0", "report_scope": "Alias Extraction - Per-Source Reports", "status": "completed", "last_updated": "2026-04-08T10:00:00+00:00"}, "sources": [{"source_id": "aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee", "source_name": "Alias Extraction Report Example", "all_source_identifiers": ["aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee", "security@example.com"], "report_file": "Alias_Extraction_Source_Report_Example.html", "total_cves_processed": 847, "unique_aliases_extracted": 50, "product_groups_created": 8, "total_unique_aliases": 35, "confirmed_count": 18, "confirmed_coverage_pct": 51.4, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_with_concerns_count": 11, "unconfirmed_with_concerns_pct": 31.4, "by_year": {"2023": {"cves": 67, "unique_aliases": 9, "confirmed_count": 4, "confirmed_coverage_pct": 44.4, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 5, "unconfirmed_with_concerns_count": 2, "unconfirmed_with_concerns_pct": 40.0}, "2024": {"cves": 280, "unique_aliases": 21, "confirmed_count": 10, "confirmed_coverage_pct": 47.6, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 11, "unconfirmed_with_concerns_count": 4, "unconfirmed_with_concerns_pct": 36.4}, "2025": {"cves": 380, "unique_aliases": 28, "confirmed_count": 14, "confirmed_coverage_pct": 50.0, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 14, "unconfirmed_with_concerns_count": 5, "unconfirmed_with_concerns_pct": 35.7}, "2026": {"cves": 120, "unique_aliases": 14, "confirmed_count": 7, "confirmed_coverage_pct": 50.0, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 7, "unconfirmed_with_concerns_count": 2, "unconfirmed_with_concerns_pct": 28.6}}}, {"source_id": "ffff2222-gggg-hhhh-iiii-jjjjjjjjjjjj", "source_name": "High Confirmed Coverage Source", "all_source_identifiers": ["ffff2222-gggg-hhhh-iiii-jjjjjjjjjjjj", "psirt@example-high.com"], "report_file": "aliasExtractionReport_High_Confirmed_Coverage_Source_ffff2222.html", "total_cves_processed": 1494, "unique_aliases_extracted": 61, "product_groups_created": 9, "total_unique_aliases": 53, "confirmed_count": 49, "confirmed_coverage_pct": 92.5, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_with_concerns_count": 1, "unconfirmed_with_concerns_pct": 25.0, "by_year": {"2023": {"cves": 149, "unique_aliases": 18, "confirmed_count": 16, "confirmed_coverage_pct": 88.9, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 2, "unconfirmed_with_concerns_count": 1, "unconfirmed_with_concerns_pct": 50.0}, "2024": {"cves": 490, "unique_aliases": 37, "confirmed_count": 34, "confirmed_coverage_pct": 91.9, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 3, "unconfirmed_with_concerns_count": 0, "unconfirmed_with_concerns_pct": 0.0}, "2025": {"cves": 640, "unique_aliases": 45, "confirmed_count": 42, "confirmed_coverage_pct": 93.3, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 3, "unconfirmed_with_concerns_count": 0, "unconfirmed_with_concerns_pct": 0.0}, "2026": {"cves": 215, "unique_aliases": 22, "confirmed_count": 20, "confirmed_coverage_pct": 90.9, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 2, "unconfirmed_with_concerns_count": 0, "unconfirmed_with_concerns_pct": 0.0}}}, {"source_id": "kkkk3333-llll-mmmm-nnnn-oooooooooooo", "source_name": "Low Confirmed Coverage Source", "all_source_identifiers": ["kkkk3333-llll-mmmm-nnnn-oooooooooooo"], "report_file": "aliasExtractionReport_Low_Confirmed_Coverage_Source_kkkk3333.html", "total_cves_processed": 0, "unique_aliases_extracted": 0, "product_groups_created": 0, "total_unique_aliases": 41, "confirmed_count": 5, "confirmed_coverage_pct": 12.2, "confirmed_with_concerns_count": 3, "confirmed_with_concerns_pct": 60.0, "unconfirmed_with_concerns_count": 11, "unconfirmed_with_concerns_pct": 30.6, "by_year": {}}]};
+        let dashboardData = {"metadata": {"run_started_at": "2026-04-07T11:55:00+00:00", "total_cves_processed": 197, "total_sources": 3, "extraction_source": "Analysis_Tools_NVDish_Cache_Scanner", "tool_version": "0.3.0", "report_scope": "Alias Extraction - Per-Source Reports", "status": "completed", "last_updated": "2026-04-08T10:00:00+00:00"}, "sources": [{"source_id": "aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee", "source_name": "Alias Extraction Report Example", "all_source_identifiers": ["aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee", "security@example.com"], "report_file": "Alias_Extraction_Source_Report_Example.html", "total_cves_processed": 88, "unique_aliases_extracted": 50, "alias_groups_confirmed": 4, "total_unique_aliases": 35, "confirmed_count": 18, "confirmed_coverage_pct": 56.3, "confirmed_with_concerns_count": 2, "confirmed_with_concerns_pct": 11.1, "unconfirmed_count": 14, "unconfirmed_with_concerns_count": 5, "unconfirmed_with_concerns_pct": 35.7, "non_actionable_count": 3, "by_year": {"2023": {"cves": 7, "unique_aliases": 9, "confirmed_count": 4, "confirmed_coverage_pct": 44.4, "confirmed_with_concerns_count": 1, "confirmed_with_concerns_pct": 25.0, "unconfirmed_count": 5, "unconfirmed_with_concerns_count": 2, "unconfirmed_with_concerns_pct": 40.0, "non_actionable_count": 0}, "2024": {"cves": 29, "unique_aliases": 21, "confirmed_count": 10, "confirmed_coverage_pct": 47.6, "confirmed_with_concerns_count": 1, "confirmed_with_concerns_pct": 10.0, "unconfirmed_count": 11, "unconfirmed_with_concerns_count": 4, "unconfirmed_with_concerns_pct": 36.4, "non_actionable_count": 0}, "2025": {"cves": 40, "unique_aliases": 28, "confirmed_count": 14, "confirmed_coverage_pct": 50.0, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 14, "unconfirmed_with_concerns_count": 5, "unconfirmed_with_concerns_pct": 35.7, "non_actionable_count": 2}, "2026": {"cves": 12, "unique_aliases": 14, "confirmed_count": 7, "confirmed_coverage_pct": 58.3, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 5, "unconfirmed_with_concerns_count": 2, "unconfirmed_with_concerns_pct": 40.0, "non_actionable_count": 1}}}, {"source_id": "ffff2222-gggg-hhhh-iiii-jjjjjjjjjjjj", "source_name": "High Confirmed Coverage Source", "all_source_identifiers": ["ffff2222-gggg-hhhh-iiii-jjjjjjjjjjjj", "psirt@example-high.com"], "report_file": "aliasExtractionReport_High_Confirmed_Coverage_Source_ffff2222.html", "total_cves_processed": 75, "unique_aliases_extracted": 61, "alias_groups_confirmed": 7, "total_unique_aliases": 53, "confirmed_count": 49, "confirmed_coverage_pct": 92.5, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 4, "unconfirmed_with_concerns_count": 1, "unconfirmed_with_concerns_pct": 25.0, "non_actionable_count": 0, "by_year": {"2023": {"cves": 7, "unique_aliases": 18, "confirmed_count": 16, "confirmed_coverage_pct": 88.9, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 2, "unconfirmed_with_concerns_count": 1, "unconfirmed_with_concerns_pct": 50.0, "non_actionable_count": 0}, "2024": {"cves": 25, "unique_aliases": 37, "confirmed_count": 34, "confirmed_coverage_pct": 91.9, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 3, "unconfirmed_with_concerns_count": 0, "unconfirmed_with_concerns_pct": 0.0, "non_actionable_count": 0}, "2025": {"cves": 32, "unique_aliases": 45, "confirmed_count": 42, "confirmed_coverage_pct": 93.3, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 3, "unconfirmed_with_concerns_count": 0, "unconfirmed_with_concerns_pct": 0.0, "non_actionable_count": 0}, "2026": {"cves": 11, "unique_aliases": 22, "confirmed_count": 20, "confirmed_coverage_pct": 90.9, "confirmed_with_concerns_count": 0, "confirmed_with_concerns_pct": 0.0, "unconfirmed_count": 2, "unconfirmed_with_concerns_count": 0, "unconfirmed_with_concerns_pct": 0.0, "non_actionable_count": 0}}}, {"source_id": "kkkk3333-llll-mmmm-nnnn-oooooooooooo", "source_name": "Low Confirmed Coverage Source", "all_source_identifiers": ["kkkk3333-llll-mmmm-nnnn-oooooooooooo"], "report_file": "aliasExtractionReport_Low_Confirmed_Coverage_Source_kkkk3333.html", "total_cves_processed": 34, "unique_aliases_extracted": 41, "alias_groups_confirmed": 1, "total_unique_aliases": 41, "confirmed_count": 5, "confirmed_coverage_pct": 14.3, "confirmed_with_concerns_count": 3, "confirmed_with_concerns_pct": 60.0, "unconfirmed_count": 30, "unconfirmed_with_concerns_count": 11, "unconfirmed_with_concerns_pct": 36.7, "non_actionable_count": 6, "by_year": {"2024": {"cves": 14, "unique_aliases": 15, "confirmed_count": 2, "confirmed_coverage_pct": 15.4, "confirmed_with_concerns_count": 1, "confirmed_with_concerns_pct": 50.0, "unconfirmed_count": 11, "unconfirmed_with_concerns_count": 4, "unconfirmed_with_concerns_pct": 36.4, "non_actionable_count": 2}, "2025": {"cves": 20, "unique_aliases": 26, "confirmed_count": 3, "confirmed_coverage_pct": 15.0, "confirmed_with_concerns_count": 2, "confirmed_with_concerns_pct": 66.7, "unconfirmed_count": 17, "unconfirmed_with_concerns_count": 7, "unconfirmed_with_concerns_pct": 41.2, "non_actionable_count": 4}}}]};
         
         let currentFilteredSources = null; // Null = no filter active, use dashboardData.sources
 
@@ -219,6 +220,7 @@
                 let cves = 0, uniqueAliases = 0;
                 let confirmedCount = 0, confirmedWithConcerns = 0;
                 let unconfirmedCount = 0, unconfirmedWithConcerns = 0;
+                let nonActionableCount = 0;
                 const byYear = source.by_year || {};
                 IndexYearFilter.activeYears.forEach(year => {
                     const ys = byYear[year] || {};
@@ -228,19 +230,23 @@
                     confirmedWithConcerns += ys.confirmed_with_concerns_count || 0;
                     unconfirmedCount += ys.unconfirmed_count || 0;
                     unconfirmedWithConcerns += ys.unconfirmed_with_concerns_count || 0;
+                    nonActionableCount += ys.non_actionable_count || 0;
                 });
-                const totalAliasesYr = confirmedCount + unconfirmedCount;
+                const coverageDenomYr = confirmedCount + unconfirmedCount;
+                const totalAliasesYr = coverageDenomYr + nonActionableCount;
                 return {
                     ...source,
                     total_cves_processed: cves,
                     unique_aliases_extracted: uniqueAliases,
                     total_unique_aliases: totalAliasesYr,
                     confirmed_count: confirmedCount,
-                    confirmed_coverage_pct: totalAliasesYr > 0 ? Math.round(confirmedCount / totalAliasesYr * 1000) / 10 : 0,
+                    confirmed_coverage_pct: coverageDenomYr > 0 ? Math.round(confirmedCount / coverageDenomYr * 1000) / 10 : 0,
                     confirmed_with_concerns_count: confirmedWithConcerns,
                     confirmed_with_concerns_pct: confirmedCount > 0 ? Math.round(confirmedWithConcerns / confirmedCount * 1000) / 10 : 0,
+                    unconfirmed_count: unconfirmedCount,
                     unconfirmed_with_concerns_count: unconfirmedWithConcerns,
-                    unconfirmed_with_concerns_pct: unconfirmedCount > 0 ? Math.round(unconfirmedWithConcerns / unconfirmedCount * 1000) / 10 : 0
+                    unconfirmed_with_concerns_pct: unconfirmedCount > 0 ? Math.round(unconfirmedWithConcerns / unconfirmedCount * 1000) / 10 : 0,
+                    non_actionable_count: nonActionableCount,
                 };
             });
 
@@ -258,7 +264,7 @@
                 totalSources: visibleSources.length,
                 totalCVEs,
                 totalAliases,
-                totalProductGroups: visibleSources.reduce((s, x) => s + (x.product_groups_created || 0), 0),
+                totalConfirmedGroups: visibleSources.reduce((s, x) => s + (x.alias_groups_confirmed || 0), 0),
                 avgAliasesPerCVE: totalCVEs > 0 ? (totalAliases / totalCVEs).toFixed(1) : 0
             };
 
@@ -367,7 +373,7 @@
                 totalSources: data.sources.length,
                 totalCVEs: data.sources.reduce((sum, s) => sum + s.total_cves_processed, 0),
                 totalAliases: data.sources.reduce((sum, s) => sum + s.unique_aliases_extracted, 0),
-                totalProductGroups: data.sources.reduce((sum, s) => sum + s.product_groups_created, 0)
+                totalConfirmedGroups: data.sources.reduce((sum, s) => sum + (s.alias_groups_confirmed || 0), 0)
             };
             
             // Calculate average aliases per CVE
@@ -377,6 +383,19 @@
 
             // Populate CVE year filter (requires by_year on each source)
             IndexYearFilter.populate(data.sources);
+        }
+
+        // Chart instance registry — prevents "Canvas already in use" errors on re-render
+        const _chartInstances = {};
+        function _getOrCreateChart(canvasId, config) {
+            if (_chartInstances[canvasId]) {
+                _chartInstances[canvasId].destroy();
+            }
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return null;
+            const chart = new Chart(canvas, config);
+            _chartInstances[canvasId] = chart;
+            return chart;
         }
 
         // Sorting state
@@ -422,8 +441,8 @@
                     <div class="stat-label">Unique Aliases Extracted</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value">${stats.totalProductGroups.toLocaleString()}</div>
-                    <div class="stat-label">Product Groups Created</div>
+                    <div class="stat-value">${stats.totalConfirmedGroups.toLocaleString()}</div>
+                    <div class="stat-label">Confirmed Alias Set Mappings</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value">${stats.avgAliasesPerCVE}</div>
@@ -435,52 +454,48 @@
         function renderSourcesTable() {
             const container = document.getElementById('sources-table-container');
             if (!container) return;
-            
+
             // Sort sources based on current sort column and direction
             const sources = [...(currentFilteredSources || dashboardData.sources)].sort((a, b) => {
                 let aVal, bVal;
-                
+
                 switch(currentSortColumn) {
                     case 'source_name':
                         aVal = a.source_name.toLowerCase();
                         bVal = b.source_name.toLowerCase();
-                        return currentSortDirection === 'desc' 
+                        return currentSortDirection === 'desc'
                             ? bVal.localeCompare(aVal)
                             : aVal.localeCompare(bVal);
-                    
+
                     case 'total_cves_processed':
                         aVal = a.total_cves_processed || 0;
                         bVal = b.total_cves_processed || 0;
                         break;
-                    
+
+                    case 'aliases_per_cve':
+                        aVal = (a.total_cves_processed || 0) > 0 ? (a.total_unique_aliases || 0) / a.total_cves_processed : 0;
+                        bVal = (b.total_cves_processed || 0) > 0 ? (b.total_unique_aliases || 0) / b.total_cves_processed : 0;
+                        break;
+
                     case 'total_unique_aliases':
                         aVal = a.total_unique_aliases || 0;
                         bVal = b.total_unique_aliases || 0;
                         break;
-                    
+
                     case 'confirmed_coverage_pct':
+                    case 'coverage_pct':
                         aVal = a.confirmed_coverage_pct || 0;
                         bVal = b.confirmed_coverage_pct || 0;
                         break;
-                    
-                    case 'confirmed_concerns_pct':
-                        aVal = a.confirmed_with_concerns_pct || 0;
-                        bVal = b.confirmed_with_concerns_pct || 0;
-                        break;
-                    
-                    case 'unconfirmed_concerns_pct':
-                        aVal = a.unconfirmed_with_concerns_pct || 0;
-                        bVal = b.unconfirmed_with_concerns_pct || 0;
-                        break;
-                    
+
                     default:
                         aVal = a.total_unique_aliases || 0;
                         bVal = b.total_unique_aliases || 0;
                 }
-                
+
                 return currentSortDirection === 'desc' ? bVal - aVal : aVal - bVal;
             });
-            
+
             // Helper function to generate sort indicator
             function getSortIndicator(column) {
                 if (currentSortColumn !== column) {
@@ -488,7 +503,7 @@
                 }
                 return currentSortDirection === 'desc' ? '▼' : '▲';
             }
-            
+
             container.innerHTML = `
                 <table style="width: 100%; border-collapse: collapse; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                     <thead>
@@ -497,36 +512,48 @@
                                 Source ${getSortIndicator('source_name')}
                             </th>
                             <th style="padding: 12px; text-align: center; font-weight: 600; cursor: pointer; user-select: none;" onclick="sortSources('total_cves_processed')">
-                                CVEs Processed ${getSortIndicator('total_cves_processed')}
+                                Unique CVEs ${getSortIndicator('total_cves_processed')}
                             </th>
-                            <th style="padding: 12px; text-align: center; font-weight: 600; cursor: pointer; user-select: none;" onclick="sortSources('total_unique_aliases')">
-                                Total Unique Aliases ${getSortIndicator('total_unique_aliases')}
+                            <th style="padding: 12px; text-align: center; font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap;" onclick="sortSources('total_unique_aliases')">
+                                Unique Alias Sets ${getSortIndicator('total_unique_aliases')}
                             </th>
-                            <th style="padding: 12px; text-align: center; font-weight: 600; cursor: pointer; user-select: none;" onclick="sortSources('confirmed_coverage_pct')">
-                                Confirmed Mapping Coverage ${getSortIndicator('confirmed_coverage_pct')}
+                            <th style="padding: 12px; text-align: center; font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap;" onclick="sortSources('aliases_per_cve')">
+                                Alias Sets / CVE ${getSortIndicator('aliases_per_cve')}
                             </th>
-                            <th style="padding: 12px; text-align: center; font-weight: 600; cursor: pointer; user-select: none;" onclick="sortSources('confirmed_concerns_pct')">
-                                Confirmed Mapping Alias Data Concerns ${getSortIndicator('confirmed_concerns_pct')}
+                            <th style="padding: 12px; text-align: center; font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap;" onclick="sortSources('coverage_pct')">
+                                Alias Mapping Breakdown ${getSortIndicator('coverage_pct')}
                             </th>
-                            <th style="padding: 12px; text-align: center; font-weight: 600; cursor: pointer; user-select: none;" onclick="sortSources('unconfirmed_concerns_pct')">
-                                Unconfirmed Alias Data Concerns ${getSortIndicator('unconfirmed_concerns_pct')}
-                            </th>
-                            <th style="padding: 12px; text-align: center; font-weight: 600;">Report File</th>
+                            <th style="padding: 12px; text-align: center; font-weight: 600;">Report</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${sources.map((source, index) => {
+                            const cves = source.total_cves_processed || 0;
                             const totalAliases = source.total_unique_aliases || 0;
-                            const confirmedCoverage = source.confirmed_coverage_pct || 0;
-                            const confirmedConcerns = source.confirmed_with_concerns_count || 0;
-                            const confirmedConcernsPct = source.confirmed_with_concerns_pct || 0;
-                            const unconfirmedConcerns = source.unconfirmed_with_concerns_count || 0;
-                            const unconfirmedConcernsPct = source.unconfirmed_with_concerns_pct || 0;
-                            
+                            const aliasesPerCve = cves > 0 ? (totalAliases / cves) : 0;
+                            const aliasesPerCveStr = cves > 0 ? aliasesPerCve.toFixed(1) : '—';
+                            const aliasPerCveColor = '#6B7280';
+
+                            const confirmedCount    = source.confirmed_count || 0;
+                            const confConcerns      = source.confirmed_with_concerns_count || 0;
+                            const confClean        = Math.max(0, confirmedCount - confConcerns);
+                            const unconfirmedCount  = source.unconfirmed_count || 0;
+                            const unconfConcerns    = source.unconfirmed_with_concerns_count || 0;
+                            const unconfClean      = Math.max(0, unconfirmedCount - unconfConcerns);
+                            const nonActionable    = source.non_actionable_count || 0;
+
+                            const coverageDenom = confirmedCount + unconfirmedCount;
+                            const coveragePct   = coverageDenom > 0
+                                ? Math.round(confirmedCount / coverageDenom * 1000) / 10
+                                : 0;
+
+                            const chartId = `chart-alias-${index}`;
+                            const hasData = totalAliases > 0;
+
                             // Get source identifiers from metadata if available
                             const sourceIdentifiers = source.all_source_identifiers || [];
-                            const hasIdentifiers = sourceIdentifiers.length > 1; // More than just the source_id
-                            
+                            const hasIdentifiers = sourceIdentifiers.length > 1;
+
                             return `
                                 <tr style="border-bottom: 1px solid #E5E7EB; ${index % 2 === 0 ? 'background: #F9FAFB;' : ''}">
                                     <td style="padding: 12px;">
@@ -541,29 +568,36 @@
                                         ` : `<div style="color: #9CA3AF; font-size: 0.85em;">${source.source_id}</div>`}
                                     </td>
                                     <td style="padding: 12px; text-align: center;">
-                                        <div style="font-weight: 600; color: #6B7280; font-size: 1.1em;">${(source.total_cves_processed || 0).toLocaleString()}</div>
+                                        <div style="font-weight: 600; color: #6B7280; font-size: 1.1em;">${cves.toLocaleString()}</div>
                                     </td>
                                     <td style="padding: 12px; text-align: center;">
-                                        <div style="font-weight: 600; color: #4CAF50; font-size: 1.2em;">${totalAliases}</div>
+                                        <div style="font-weight: 600; color: #6B7280; font-size: 1.1em;">${totalAliases.toLocaleString()}</div>
                                     </td>
                                     <td style="padding: 12px; text-align: center;">
-                                        <div style="font-weight: 600; color: #4CAF50; font-size: 1.2em;">${confirmedCoverage.toFixed(1)}%</div>
+                                        <div style="font-weight: 600; color: ${aliasPerCveColor}; font-size: 1.1em;">${aliasesPerCveStr}</div>
                                     </td>
-                                    <td style="padding: 12px; text-align: center;">
-                                        <div style="font-weight: 600; color: ${confirmedConcerns > 0 ? '#F59E0B' : '#4CAF50'}; font-size: 1.1em;">
-                                            ${confirmedConcerns} (${confirmedConcernsPct.toFixed(1)}%)
-                                        </div>
-                                    </td>
-                                    <td style="padding: 12px; text-align: center;">
-                                        <div style="font-weight: 600; color: ${unconfirmedConcerns > 0 ? '#F59E0B' : '#4CAF50'}; font-size: 1.1em;">
-                                            ${unconfirmedConcerns} (${unconfirmedConcernsPct.toFixed(1)}%)
-                                        </div>
+                                    <td style="padding: 8px 12px; text-align: center;">
+                                        ${hasData ? `
+                                            <div style="display: flex; align-items: center; gap: 12px; justify-content: center;">
+                                                <canvas id="${chartId}" width="70" height="70" style="flex-shrink: 0;"></canvas>
+                                                <div style="text-align: left; font-size: 0.78em; line-height: 1.6;">
+                                                    ${confClean > 0       ? `<div><span style="color:#10B981;">&#9632;</span> Clean Confirmed: ${confClean}</div>` : ''}
+                                                    ${confConcerns > 0    ? `<div><span style="color:#6A9E8A;">&#9632;</span> Confirmed w/ Concerns: ${confConcerns}</div>` : ''}
+                                                    ${unconfClean > 0     ? `<div><span style="color:#FBBF24;">&#9632;</span> Clean Unconfirmed: ${unconfClean}</div>` : ''}
+                                                    ${unconfConcerns > 0  ? `<div><span style="color:#C47E8A;">&#9632;</span> Unconfirmed w/ Concerns: ${unconfConcerns}</div>` : ''}
+                                                    ${nonActionable > 0   ? `<div><span style="color:#9CA3AF;">&#9632;</span> Non-Actionable: ${nonActionable}</div>` : ''}
+                                                    <div style="margin-top: 4px; padding-top: 4px; border-top: 1px solid #E5E7EB; color: #4CAF50; font-weight: 600;">
+                                                        Mapping Coverage: ${coveragePct.toFixed(1)}%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ` : `<div style="color: #9CA3AF; font-size: 0.85em;">No aliases</div>`}
                                     </td>
                                     <td style="padding: 12px; text-align: center;">
                                         <a href="${source.report_file}"
-                                           style="display: inline-block; background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%); color: white; 
-                                                  text-decoration: none; padding: 6px 16px; border-radius: 6px; font-size: 0.9em; 
-                                                  font-weight: 500; box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3); 
+                                           style="display: inline-block; background: linear-gradient(135deg, #4CAF50 0%, #66BB6A 100%); color: white;
+                                                  text-decoration: none; padding: 6px 16px; border-radius: 6px; font-size: 0.9em;
+                                                  font-weight: 500; box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);
                                                   transition: all 0.2s ease;"
                                            onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(76, 175, 80, 0.4)'"
                                            onmouseout="this.style.transform=''; this.style.boxShadow='0 2px 4px rgba(76, 175, 80, 0.3)'"
@@ -577,8 +611,97 @@
                     </tbody>
                 </table>
             `;
+
+            // Render alias breakdown donut charts after the table is in the DOM
+            sources.forEach((source, index) => {
+                const confirmedCount   = source.confirmed_count || 0;
+                const confConcerns     = source.confirmed_with_concerns_count || 0;
+                const confClean       = Math.max(0, confirmedCount - confConcerns);
+                const unconfirmedCount = source.unconfirmed_count || 0;
+                const unconfConcerns   = source.unconfirmed_with_concerns_count || 0;
+                const unconfClean     = Math.max(0, unconfirmedCount - unconfConcerns);
+                const nonActionable   = source.non_actionable_count || 0;
+                const totalAliases    = source.total_unique_aliases || 0;
+                if (!totalAliases) return;
+
+                const labels = [];
+                const data   = [];
+                const bg     = [];
+                const border = [];
+
+                if (confClean > 0) {
+                    labels.push('✓ Clean Confirmed');
+                    data.push(confClean);
+                    bg.push('#10B981');
+                    border.push('#059669');
+                }
+                if (confConcerns > 0) {
+                    labels.push('⚠ Confirmed w/ Concerns');
+                    data.push(confConcerns);
+                    bg.push('#6A9E8A');
+                    border.push('#4B7A6C');
+                }
+                if (unconfClean > 0) {
+                    labels.push('↻ Clean Unconfirmed');
+                    data.push(unconfClean);
+                    bg.push('#FBBF24');
+                    border.push('#D97706');
+                }
+                if (unconfConcerns > 0) {
+                    labels.push('⚠ Unconfirmed w/ Concerns');
+                    data.push(unconfConcerns);
+                    bg.push('#C47E8A');
+                    border.push('#A05A6A');
+                }
+                if (nonActionable > 0) {
+                    labels.push('− Non-Actionable');
+                    data.push(nonActionable);
+                    bg.push('#9CA3AF');
+                    border.push('#6B7280');
+                }
+
+                _getOrCreateChart(`chart-alias-${index}`, {
+                    type: 'doughnut',
+                    data: {
+                        labels,
+                        datasets: [{
+                            data,
+                            backgroundColor: bg,
+                            borderColor: border,
+                            borderWidth: 2,
+                            hoverOffset: 6,
+                            hoverBorderWidth: 3,
+                        }]
+                    },
+                    options: {
+                        responsive: false,
+                        maintainAspectRatio: true,
+                        layout: { padding: 4 },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                enabled: true,
+                                displayColors: false,
+                                titleFont: { size: 0 },
+                                bodyFont: { size: 10, weight: '600' },
+                                padding: 4,
+                                bodyAlign: 'center',
+                                callbacks: {
+                                    title: function() { return ''; },
+                                    label: function(context) {
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const pct = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : '0.0';
+                                        return [context.label, `${context.parsed} (${pct}%)`];
+                                    }
+                                }
+                            }
+                        },
+                        cutout: '50%'
+                    }
+                });
+            });
         }
-        
+
         // Toggle source identifiers visibility
         function toggleSourceIdentifiers(index) {
             const identifiersDiv = document.getElementById(`source-identifiers-${index}`);

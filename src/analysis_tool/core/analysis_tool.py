@@ -474,8 +474,11 @@ def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, 
                     entry_count = 0
                     
                     for reg_key, reg_data in alias_registry_data.items():
-                        # Check for direct match or platform expansion match
-                        if reg_key == str(index) or reg_key.startswith(f"{index}_platform_"):
+                        # Match direct entry, platform expansion, complex-field expansion,
+                        # and combined platform+complex expansion for this table index.
+                        if (reg_key == str(index)
+                                or reg_key.startswith(f"{index}_platform_")
+                                or reg_key.startswith(f"{index}_complex_")):
                             matching_entries[reg_key] = reg_data
                             entry_count += 1
                     

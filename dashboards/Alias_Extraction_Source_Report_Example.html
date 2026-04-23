@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CPE Alias Mapping Dashboard - Example</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <style>
 /* ========================================
    CPE Alias Mapping Dashboard Styles
@@ -643,6 +644,12 @@ body::before {
     padding: 15px;
     background: #F8F9FA;
     overflow: visible;
+    transition: background 0.3s ease;
+}
+
+/* Subtle tint applied when year or alias-type pill filters are active */
+.stats-grid.filters-active {
+    background: #D6EDDA;
 }
 
 .stat-card {
@@ -931,6 +938,13 @@ body::before {
     margin-bottom: 0;
 }
 
+/* Subtle tint applied when year or alias-type pill filters are active */
+.filter-pill-row.filters-active {
+    background: rgba(76, 175, 80, 0.18);
+    border-color: rgba(76, 175, 80, 0.45);
+    transition: background 0.3s ease, border-color 0.3s ease;
+}
+
 .filter-pills-container {
     display: flex;
     gap: 6px;
@@ -1141,6 +1155,175 @@ body::before {
 .modal-btn-secondary {
     background: #666;
     color: white;
+}
+
+/* ========== ALIAS FIELD SELECTIONS (modal) ========== */
+.alias-field-selections {
+    margin-bottom: 16px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 10px 12px;
+    background: #fafafa;
+}
+
+.alias-field-selections-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.alias-field-selections-title {
+    font-weight: 600;
+    font-size: 0.8em;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.alias-set-group {
+    margin-bottom: 8px;
+    border: 1px solid #e4e4e4;
+    border-radius: 4px;
+    padding: 7px 9px;
+    background: white;
+}
+
+.alias-set-group:last-child {
+    margin-bottom: 0;
+}
+
+.alias-set-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #e8e8e8;
+}
+
+.alias-set-label-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.alias-set-label {
+    font-size: 0.8em;
+    font-weight: 600;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.alias-set-merge-badge {
+    font-size: 0.7em;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.merge-complete {
+    background: #e8f5e9;
+    color: #2e7d32;
+    border: 1px solid #c8e6c9;
+}
+
+.merge-partial {
+    background: #fff3e0;
+    color: #e65100;
+    border: 1px solid #ffe0b2;
+}
+
+.merge-none {
+    background: #fce4ec;
+    color: #b71c1c;
+    border: 1px solid #f8bbd0;
+}
+
+.alias-entry-group {
+    margin-bottom: 8px;
+}
+
+.alias-entry-group:last-child {
+    margin-bottom: 0;
+}
+
+.alias-entry-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid #e8e8e8;
+}
+
+.alias-entry-label {
+    font-size: 0.75em;
+    font-weight: 600;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.alias-entry-toggle-btns {
+    display: flex;
+    gap: 4px;
+}
+
+.alias-entry-toggle-btn {
+    font-size: 0.7em;
+    padding: 1px 7px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    background: white;
+    cursor: pointer;
+    color: #555;
+}
+
+.alias-entry-toggle-btn:hover {
+    background: #efefef;
+}
+
+.alias-field-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.alias-field-item {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 0.82em;
+    cursor: pointer;
+}
+
+.alias-field-item input[type="checkbox"] {
+    flex-shrink: 0;
+    margin: 0;
+    cursor: pointer;
+    accent-color: #4CAF50;
+}
+
+.alias-field-name {
+    font-weight: 600;
+    color: #444;
+    min-width: 90px;
+    flex-shrink: 0;
+}
+
+.alias-field-value {
+    color: #666;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 320px;
 }
 
 /* ========== CHARTS ========== */
@@ -1932,20 +2115,26 @@ body::before {
                             <div style="text-align: left; flex: 1;">
                                 <span style="font-weight: 600;">Source Alias Statistics</span>
                                 <div style="font-size: 0.8em; opacity: 0.9; margin-top: 1px;">Analysis and breakdown of confirmed mappings and unconfirmed aliases</div>
+                                <div style="font-size: 0.75em; opacity: 0.75; margin-top: 2px; font-style: italic;">Note: Keyword searches do not update the statistics below.</div>
                             </div>
                             <span id="analysis-chevron" style="font-size: 1.1em; flex-shrink: 0;">▲</span>
                         </div>
                     </div>
                     <div class="analysis-content expanded" id="analysis-content">
                         <div class="section-content">
-                            <div id="statsGrid" class="stats-grid">
+                            <div id="statsGrid" class="stats-grid" style="grid-template-columns: auto 1fr;">
+                                <div style="display: flex; flex-direction: column; gap: 8px;">
+                                <div class="stat-card">
+                                    <div class="stat-value" id="totalCVEs">-</div>
+                                    <div class="stat-label">Unique CVEs</div>
+                                </div>
                                 <div class="stat-card coverage-tooltip">
                                     <div class="stat-value" id="totalAliases">-</div>
-                                    <div class="stat-label">Total Unique Aliases</div>
+                                    <div class="stat-label">Unique Alias Sets</div>
                                     <div class="tooltiptext" id="aliasTooltip">
                                         <div class="tooltip-section">
                                             <div class="tooltip-formula">
-                                                Confirmed Mapping + Unconfirmed Aliases + Unconfirmed Aliases with Data Concerns
+                                                Confirmed Alias Sets + Unconfirmed Alias Sets + Unconfirmed Alias Sets with Data Concerns
                                             </div>
                                         </div>
                                         <div class="tooltip-section">
@@ -1958,65 +2147,34 @@ body::before {
                                         </div>
                                     </div>
                                 </div>
-                                <div class="stat-card coverage-tooltip">
-                                    <div class="stat-value" id="confirmedMappingCoverage">-</div>
-                                    <div class="stat-label">Confirmed Mapping Coverage</div>
-                                    <div class="tooltiptext" id="coverageTooltip">
-                                        <div class="tooltip-section">
-                                            <span class="tooltip-highlight">Intersection-Based Coverage Calculation</span><br>
-                                            <div class="tooltip-formula">
-                                                (Unique Aliases in Confirmed Mappings ÷ Total Unique Aliases) × 100%
-                                            </div>
+                                <div class="stat-card">
+                                    <div class="stat-value" id="aliasRatio">-</div>
+                                    <div class="stat-label">Alias Sets / CVE</div>
+                                </div>
+                                </div>
+                                <!-- Charts: Alias Set Mapping Breakdown, CVE-YYYY Distribution, Alias Type -->
+                                <div id="chartRow" style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch;">
+                                    <!-- Alias Set Mapping Breakdown donut -->
+                                    <div style="background: white; border-radius: 8px; padding: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; justify-content: center; align-items: center; min-width: 210px;">
+                                        <div style="font-size: 0.85em; font-weight: 600; color: #374151; margin-bottom: 12px; text-align: center;">Alias Set Mapping Breakdown</div>
+                                        <div style="display: flex; align-items: center; gap: 16px; justify-content: center;">
+                                            <canvas id="srcAliasBreakdownChart" width="120" height="120" style="flex-shrink: 0;"></canvas>
+                                            <div id="srcAliasBreakdownLegend" style="font-size: 0.78em; line-height: 1.8;"></div>
                                         </div>
-                                        <div class="tooltip-section">
-                                            <span class="tooltip-highlight">Properties Compared:</span><br>
-                                            <span style="font-size: 0.85em;">vendor, product, platform, platforms, collectionURL, repo, packageName, packageURL</span>
-                                        </div>
-                                        <div class="tooltip-section">
-                                            <span class="tooltip-highlight">Current Calculation:</span><br>
-                                            <span id="tooltipCalculation">Loading...</span>
-                                        </div>
-                                        <div class="tooltip-section">
-                                            <span class="tooltip-highlight">Data Sources:</span><br>
-                                            <span id="tooltipCoverageBreakdown">Loading...</span>
+                                        <div id="srcMappingCoverage" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #E5E7EB; text-align: center; color: #4CAF50; font-weight: 600; font-size: 0.85em;"></div>
+                                    </div>
+                                    <!-- CVE-YYYY Distribution line chart -->
+                                    <div style="background: white; border-radius: 8px; padding: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); flex: 1; min-width: 240px; display: flex; flex-direction: column;">
+                                        <div style="font-size: 0.85em; font-weight: 600; color: #374151; margin-bottom: 8px; text-align: center;">CVE-YYYY Distribution</div>
+                                        <div style="position: relative; flex: 1; min-height: 130px;">
+                                            <canvas id="srcCveYearChart"></canvas>
                                         </div>
                                     </div>
-                                </div>
-                                <div class="stat-card coverage-tooltip">
-                                    <div class="stat-value" id="confirmedConcernCount">-</div>
-                                    <div class="stat-label">Confirmed Mapping Alias Data Concerns</div>
-                                    <div class="tooltiptext" id="concernTooltip">
-                                        <div class="tooltip-section">
-                                            <div class="tooltip-formula">
-                                                (Confirmed Aliases with Data Quality Issues ÷ Total Confirmed Aliases) × 100%
-                                            </div>
-                                        </div>
-                                        <div class="tooltip-section">
-                                            <span class="tooltip-highlight">Current Calculation:</span><br>
-                                            <span id="tooltipConcernCalculation">Loading...</span>
-                                        </div>
-                                        <div class="tooltip-section">
-                                            <span class="tooltip-highlight">Breakdown:</span><br>
-                                            <span id="tooltipConcernBreakdown">Loading...</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="stat-card coverage-tooltip">
-                                    <div class="stat-value" id="externalConcernCount">-</div>
-                                    <div class="stat-label">Unconfirmed Alias Data Concerns</div>
-                                    <div class="tooltiptext" id="externalConcernTooltip">
-                                        <div class="tooltip-section">
-                                            <div class="tooltip-formula">
-                                                (Unconfirmed Aliases with Data Quality Issues ÷ Total External Aliases) × 100%
-                                            </div>
-                                        </div>
-                                        <div class="tooltip-section">
-                                            <span class="tooltip-highlight">Current Calculation:</span><br>
-                                            <span id="tooltipExternalConcernCalculation">Loading...</span>
-                                        </div>
-                                        <div class="tooltip-section">
-                                            <span class="tooltip-highlight">Breakdown:</span><br>
-                                            <span id="tooltipExternalConcernBreakdown">Loading...</span>
+                                    <!-- Alias Type bar chart -->
+                                    <div style="background: white; border-radius: 8px; padding: 15px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); flex: 1; min-width: 240px; display: flex; flex-direction: column;">
+                                        <div style="font-size: 0.85em; font-weight: 600; color: #374151; margin-bottom: 8px; text-align: center;">Alias Type</div>
+                                        <div style="position: relative; flex: 1; min-height: 130px;">
+                                            <canvas id="srcAliasTypeChart"></canvas>
                                         </div>
                                     </div>
                                 </div>
@@ -2039,7 +2197,7 @@ body::before {
                 </div>
 
                 <div class="filter-pill-row" id="aliasTypeFilter" style="display: none;">
-                    <label class="font-500 color-333">Alias Fields:</label>
+                    <label class="font-500 color-333">Alias Type:</label>
                     <div id="aliasTypePillsContainer" class="filter-pills-container"></div>
                 </div>
 
@@ -2055,7 +2213,7 @@ body::before {
     <div class="selection-panel white-card" id="selectionPanel">
         <h4>Selected Aliases (<span id="selectionCount">0</span>)</h4>
         <div class="selection-list" id="selectionList"></div>
-        <button class="consolidate-btn" id="consolidateBtn" onclick="consolidateAliases()">
+        <button class="consolidate-btn" id="consolidateBtn" onclick="openConfirmMappingModal()">
             Update Confirmed Mappings
         </button>
     </div>
@@ -2089,6 +2247,7 @@ body::before {
                     </select>
                 </div>
             </div>
+            <div id="aliasFieldSelections" style="display:none;"></div>
             <pre id="outputContent" class="code-output"></pre>
             <div class="modal-actions">
                 <button class="modal-btn modal-btn-primary" onclick="updateConfirmedMappings()">Update Confirmed Mappings</button>
@@ -2112,7 +2271,14 @@ body::before {
 
     <script>
         // Active global variables still needed by current system
-        let currentData = {"metadata": {"source_id": "example-cna-org", "source_name": "Example CNA Organization", "generated": "2026-04-08T00:00:00Z", "tool_version": "Example"}, "aliasGroups": [{"aliasGroup": "acme-corp_acme-lib", "aliases": [{"vendor": "Acme Corp", "product": "Acme Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001", "CVE-2025-05001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 5, "isSuggestedMatch": true}]}, {"vendor": "acme-corp", "product": "acme-lib", "source_cve": ["CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 3, "isSuggestedMatch": true}]}, {"vendor": "The Acme Project", "product": "Acme Core Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}]}, {"vendor": "acme-project", "product": "acme-lib-core", "source_cve": ["CVE-2025-05001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 1, "isSuggestedMatch": true}]}]}, {"aliasGroup": "apex-systems_apex-server", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Linux", "source_cve": ["CVE-2022-02010", "CVE-2023-03010", "CVE-2024-04010", "CVE-2025-05010"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:linux:*", "cveCount": 4}]}, {"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Windows", "source_cve": ["CVE-2022-02010", "CVE-2023-03010"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:windows:*", "cveCount": 2}]}, {"vendor": "apex-systems", "product": "apex-server", "platform": "macOS", "source_cve": ["CVE-2024-04010", "CVE-2025-05010"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:macos:*", "cveCount": 2}]}, {"vendor": "Apex", "product": "apex-httpd", "platform": "FreeBSD", "source_cve": ["CVE-2021-01010"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "netsend_netsend-client", "aliases": [{"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-client", "collectionURL": "https://packages.example-registry.org/netsend-client", "source_cve": ["CVE-2021-01020", "CVE-2022-02020", "CVE-2023-03020", "CVE-2024-04020"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 4, "isSuggestedMatch": true}]}, {"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-dev", "collectionURL": "https://packages.example-linux.org/netsend", "source_cve": ["CVE-2022-02020", "CVE-2023-03020"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}, {"cpeBaseString": "cpe:2.3:a:somevendor:somelib:*:*:*:*:*:*:*:*", "cveCount": 1, "isSuggestedMatch": false}]}, {"vendor": "netsend-project", "product": "netsend", "packageName": "libnetsend", "collectionURL": "https://packages.example-linux.org/libnetsend", "source_cve": ["CVE-2021-01020", "CVE-2024-04020"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}]}]}, {"aliasGroup": "utilkit_util-kit", "aliases": [{"vendor": "UtilKit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:npm/util-kit", "collectionURL": "https://registry.example-npm.org/util-kit", "source_cve": ["CVE-2021-01030", "CVE-2022-02030", "CVE-2023-03030", "CVE-2024-04030", "CVE-2025-05030"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "cveCount": 5}]}, {"vendor": "UtilKit", "product": "util-kit-esm", "packageName": "util-kit-esm", "packageURL": "pkg:npm/util-kit-esm", "source_cve": ["CVE-2021-01030", "CVE-2022-02030"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "cveCount": 2}]}, {"vendor": "utilkit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:pypi/util-kit", "source_cve": ["CVE-2023-03030"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:python:*:*", "cveCount": 1}]}, {"vendor": "utilkit-project", "product": "util-kit", "packageName": "util-kit-rs", "packageURL": "pkg:cargo/util-kit-rs", "source_cve": ["CVE-2024-04030", "CVE-2025-05030"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "packlib_pack-compress", "aliases": [{"vendor": "PackLib", "product": "pack-compress", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040", "CVE-2024-04040"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "packlib-project", "product": "pack-compress-dev", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "PackLib", "product": "pack-compress", "repo": "https://gitlab.com/example-org/pack-compress", "source_cve": ["CVE-2021-01040", "CVE-2024-04040"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 2}]}]}, {"aliasGroup": "streamworks_stream-proxy", "aliases": [{"vendor": "StreamWorks", "product": "stream-proxy", "modules": ["proxy_http_core_module"], "source_cve": ["CVE-2022-02050", "CVE-2023-03050", "CVE-2024-04050", "CVE-2025-05050"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 4}]}, {"vendor": "StreamWorks", "product": "stream-proxy", "modules": ["proxy_http_compress_module", "proxy_http_forward_module"], "source_cve": ["CVE-2021-01050", "CVE-2022-02050"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "streamworks-oss", "product": "stream-proxy-community", "modules": ["proxy_stream_core_module"], "source_cve": ["CVE-2023-03050", "CVE-2024-04050"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 2}]}]}, {"aliasGroup": "pixelforge_pixel-render", "aliases": [{"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/pixel.c"], "source_cve": ["CVE-2021-01060", "CVE-2022-02060", "CVE-2023-03060"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/draw.c", "src/render/composite.c"], "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "pixelforge-project", "product": "pixel-render", "programFiles": ["lib/Image.cpp"], "source_cve": ["CVE-2025-05060"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 1}]}]}, {"aliasGroup": "cachedb_cache-engine", "aliases": [{"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbExprCodeTarget"], "source_cve": ["CVE-2021-01070", "CVE-2022-02070", "CVE-2023-03070", "CVE-2024-04070"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 4}]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbVdbeExec", "db_prepare_v2"], "source_cve": ["CVE-2022-02070", "CVE-2023-03070"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "cachedb-consortium", "product": "cache-engine-lite", "programRoutines": ["dbBtreeInsert"], "source_cve": ["CVE-2024-04070", "CVE-2025-05070"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "concern_placeholder_vendor", "aliases": [{"vendor": "n/a", "product": "affected-component", "source_cve": ["CVE-2021-01100", "CVE-2022-02100", "CVE-2023-03100"]}, {"vendor": "affected-vendor", "product": "n/a", "source_cve": ["CVE-2022-02100", "CVE-2024-04100"]}, {"vendor": "affected-vendor", "product": "affected-component", "packageName": "unknown", "collectionURL": "https://packages.example-registry.org/affected-component", "source_cve": ["CVE-2023-03100", "CVE-2025-05100"]}, {"vendor": "affected-vendor", "product": "affected-component", "platform": "unspecified", "source_cve": ["CVE-2024-04100"]}, {"vendor": "affected-vendor", "product": "affected-component", "platform": "all platforms", "source_cve": ["CVE-2025-05100"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_whitespace", "aliases": [{"vendor": " whitespace-vendor", "product": "ws-product", "source_cve": ["CVE-2021-01200", "CVE-2022-02200"]}, {"vendor": "whitespace-vendor", "product": "ws-product ", "source_cve": ["CVE-2022-02200", "CVE-2023-03200"]}, {"vendor": "whitespace-vendor", "product": "ws-pkg", "packageName": " ws-package ", "collectionURL": "https://packages.example-registry.org/ws-package", "source_cve": ["CVE-2023-03200", "CVE-2024-04200"]}, {"vendor": "whitespace-vendor", "product": "ws  product", "source_cve": ["CVE-2024-04200", "CVE-2025-05200"]}, {"vendor": "whitespace-vendor", "product": "ws-os", "platform": " Linux", "source_cve": ["CVE-2025-05200"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_text_comparator", "aliases": [{"vendor": "comparator-vendor", "product": "comp-app before 3.0", "source_cve": ["CVE-2021-01300", "CVE-2022-02300"]}, {"vendor": "comparator-vendor", "product": "comp-app through 4.2", "source_cve": ["CVE-2022-02300", "CVE-2023-03300"]}, {"vendor": "comparator-vendor", "product": "comp-pkg", "packageName": "comp-pkg prior to 2.0", "source_cve": ["CVE-2023-03300", "CVE-2024-04300"]}, {"vendor": "comparator-vendor", "product": "comp-app earlier than 5.1", "source_cve": ["CVE-2024-04300"]}, {"vendor": "comparator-vendor", "product": "comp-app from version 2", "source_cve": ["CVE-2025-05300"]}, {"vendor": "comparator-vendor", "product": "comp-app 1.0 - 2.5", "source_cve": ["CVE-2021-01300", "CVE-2025-05300"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_invalid_chars", "aliases": [{"vendor": "invalid-char-vendor", "product": "ic-component", "packageName": "ic-pkg, ic-extra", "source_cve": ["CVE-2021-01400", "CVE-2022-02400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component, plugin", "source_cve": ["CVE-2022-02400", "CVE-2023-03400"]}, {"vendor": "Invalid Char Vendor", "product": "ic-component", "source_cve": ["CVE-2023-03400", "CVE-2024-04400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component", "packageName": "ic pkg name", "source_cve": ["CVE-2024-04400", "CVE-2025-05400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component, suite", "packageName": "ic-pkg, ic-dev", "packageURL": "pkg:pypi/ic-component", "source_cve": ["CVE-2025-05400"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_bloat_text", "aliases": [{"vendor": "mesh-corp", "product": "mesh-corp firewall appliance", "source_cve": ["CVE-2021-01500", "CVE-2022-02500"]}, {"vendor": "mesh-corp", "product": "firewall", "packageName": "mesh-corp-firewall-pkg", "source_cve": ["CVE-2022-02500", "CVE-2023-03500"]}, {"vendor": "mesh-corp", "product": "mesh-corp vpn client", "packageName": "mesh-corp-vpn", "packageURL": "pkg:npm/mesh-corp-vpn", "source_cve": ["CVE-2023-03500", "CVE-2024-04500"]}, {"vendor": "mesh-corp", "product": "mesh-corp sdk", "repo": "https://github.com/example-org/mesh-corp-sdk", "source_cve": ["CVE-2024-04500", "CVE-2025-05500"]}, {"vendor": "mesh software", "product": "mesh software enterprise suite", "source_cve": ["CVE-2025-05500"]}], "topNvdCpeBaseStrings": []}], "confirmedMappings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "Acme Corp", "product": "Acme Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001", "CVE-2025-05001"]}, {"vendor": "acme-corp", "product": "acme-lib"}]}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:linux:*", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Linux", "source_cve": ["CVE-2022-02010", "CVE-2023-03010", "CVE-2024-04010", "CVE-2025-05010"]}]}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:windows:*", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Windows", "source_cve": ["CVE-2022-02010", "CVE-2023-03010"]}]}, {"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-client", "collectionURL": "https://packages.example-registry.org/netsend-client", "source_cve": ["CVE-2021-01020", "CVE-2022-02020", "CVE-2023-03020", "CVE-2024-04020"]}, {"vendor": "netsend-project", "product": "netsend", "packageName": "libnetsend", "collectionURL": "https://packages.example-linux.org/libnetsend", "source_cve": ["CVE-2021-01020", "CVE-2024-04020"]}]}, {"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "aliases": [{"vendor": "UtilKit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:npm/util-kit", "collectionURL": "https://registry.example-npm.org/util-kit", "source_cve": ["CVE-2021-01030", "CVE-2022-02030", "CVE-2023-03030", "CVE-2024-04030", "CVE-2025-05030"]}, {"vendor": "UtilKit", "product": "util-kit-esm", "packageName": "util-kit-esm", "packageURL": "pkg:npm/util-kit-esm", "source_cve": ["CVE-2021-01030", "CVE-2022-02030"]}, {"vendor": "utilkit-project", "product": "util-kit", "packageName": "util-kit-rs", "packageURL": "pkg:cargo/util-kit-rs", "source_cve": ["CVE-2024-04030", "CVE-2025-05030"]}]}, {"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "PackLib", "product": "pack-compress", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040", "CVE-2024-04040"]}, {"vendor": "packlib-project", "product": "pack-compress-dev", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040"]}]}, {"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "StreamWorks", "product": "stream-proxy", "modules": ["proxy_http_core_module"], "source_cve": ["CVE-2022-02050", "CVE-2023-03050", "CVE-2024-04050", "CVE-2025-05050"]}, {"vendor": "streamworks-oss", "product": "stream-proxy-community", "modules": ["proxy_stream_core_module"], "source_cve": ["CVE-2023-03050", "CVE-2024-04050"]}]}, {"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/pixel.c"], "source_cve": ["CVE-2021-01060", "CVE-2022-02060", "CVE-2023-03060"]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": ["src/render/draw.c", "src/render/composite.c"], "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"]}, {"vendor": "pixelforge-project", "product": "pixel-render", "programFiles": ["lib/Image.cpp"], "source_cve": ["CVE-2025-05060"]}]}, {"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbExprCodeTarget"], "source_cve": ["CVE-2021-01070", "CVE-2022-02070", "CVE-2023-03070", "CVE-2024-04070"]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": ["dbVdbeExec", "db_prepare_v2"], "source_cve": ["CVE-2022-02070", "CVE-2023-03070"]}, {"vendor": "cachedb-consortium", "product": "cache-engine-lite", "programRoutines": ["dbBtreeInsert"], "source_cve": ["CVE-2024-04070", "CVE-2025-05070"]}]}]};  // Used for compatibility and download functions
+
+        // NOTE: No aliasGroup example for the placeholderValues SDC concern type is included here.
+        // The pipeline's _filter_alias_entry_data() in nvd_ish_collector strips all fields whose
+        // values match GENERAL_PLACEHOLDER_VALUES before NVD-ish storage, making this concern
+        // type impossible to encounter in pipeline-generated report output. The detection group is
+        // retained as defense-in-depth only for the edge case of confirmed mapping .json files
+        // that were manually edited with placeholder values.
+        let currentData = {"metadata": {"source_id": "example-cna-org", "source_name": "Example CNA Organization", "generated": "2026-04-08T00:00:00Z", "tool_version": "Example", "target_uuid": "aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee", "confirmed_cna_id": "aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee"}, "aliasGroups": [{"aliasGroup": "acme-corp_acme-lib", "aliases": [{"vendor": "Acme Corp", "product": "Acme Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001", "CVE-2025-05001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 5, "isSuggestedMatch": true}]}, {"vendor": "acme-corp", "product": "acme-lib", "source_cve": ["CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 3, "isSuggestedMatch": true}]}, {"vendor": "The Acme Project", "product": "Acme Core Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}]}, {"vendor": "acme-project", "product": "acme-lib-core", "source_cve": ["CVE-2025-05001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 1, "isSuggestedMatch": true}]}]}, {"aliasGroup": "apex-systems_apex-server", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Linux", "source_cve": ["CVE-2022-02010", "CVE-2023-03010", "CVE-2024-04010", "CVE-2025-05010"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:linux:*", "cveCount": 4}]}, {"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Windows", "source_cve": ["CVE-2022-02010", "CVE-2023-03010"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:windows:*", "cveCount": 2}]}, {"vendor": "apex-systems", "product": "apex-server", "platform": "macOS", "source_cve": ["CVE-2024-04010", "CVE-2025-05010"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:macos:*", "cveCount": 2}]}, {"vendor": "Apex", "product": "apex-httpd", "platform": "FreeBSD", "source_cve": ["CVE-2021-01010"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "netsend_netsend-client", "aliases": [{"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-client", "collectionURL": "https://packages.example-registry.org/netsend-client", "source_cve": ["CVE-2021-01020", "CVE-2022-02020", "CVE-2023-03020", "CVE-2024-04020"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 4, "isSuggestedMatch": true}]}, {"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-dev", "collectionURL": "https://packages.example-linux.org/netsend", "source_cve": ["CVE-2022-02020", "CVE-2023-03020"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}, {"cpeBaseString": "cpe:2.3:a:somevendor:somelib:*:*:*:*:*:*:*:*", "cveCount": 1, "isSuggestedMatch": false}]}, {"vendor": "netsend-project", "product": "netsend", "packageName": "libnetsend", "collectionURL": "https://packages.example-linux.org/libnetsend", "source_cve": ["CVE-2021-01020", "CVE-2024-04020"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}]}]}, {"aliasGroup": "utilkit_util-kit", "aliases": [{"vendor": "UtilKit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:npm/util-kit", "collectionURL": "https://registry.example-npm.org/util-kit", "source_cve": ["CVE-2021-01030", "CVE-2022-02030", "CVE-2023-03030", "CVE-2024-04030", "CVE-2025-05030"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "cveCount": 5}]}, {"vendor": "UtilKit", "product": "util-kit-esm", "packageName": "util-kit-esm", "packageURL": "pkg:npm/util-kit-esm", "source_cve": ["CVE-2021-01030", "CVE-2022-02030"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "cveCount": 2}]}, {"vendor": "utilkit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:pypi/util-kit", "source_cve": ["CVE-2023-03030"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:python:*:*", "cveCount": 1}]}, {"vendor": "utilkit-project", "product": "util-kit", "packageName": "util-kit-rs", "packageURL": "pkg:cargo/util-kit-rs", "source_cve": ["CVE-2024-04030", "CVE-2025-05030"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "packlib_pack-compress", "aliases": [{"vendor": "PackLib", "product": "pack-compress", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040", "CVE-2024-04040"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "packlib-project", "product": "pack-compress-dev", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "PackLib", "product": "pack-compress", "repo": "https://gitlab.com/example-org/pack-compress", "source_cve": ["CVE-2021-01040", "CVE-2024-04040"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 2}]}]}, {"aliasGroup": "streamworks_stream-proxy", "aliases": [{"vendor": "StreamWorks", "product": "stream-proxy", "modules": "proxy_http_core_module", "source_cve": ["CVE-2022-02050", "CVE-2023-03050", "CVE-2024-04050", "CVE-2025-05050"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 4}]}, {"vendor": "StreamWorks", "product": "stream-proxy", "modules": "proxy_http_compress_module", "source_cve": ["CVE-2021-01050", "CVE-2022-02050"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "StreamWorks", "product": "stream-proxy", "modules": "proxy_http_forward_module", "source_cve": ["CVE-2021-01050", "CVE-2022-02050"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "streamworks-oss", "product": "stream-proxy-community", "modules": "proxy_stream_core_module", "source_cve": ["CVE-2023-03050", "CVE-2024-04050"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 2}]}]}, {"aliasGroup": "pixelforge_pixel-render", "aliases": [{"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/pixel.c", "source_cve": ["CVE-2021-01060", "CVE-2022-02060", "CVE-2023-03060"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/draw.c", "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/composite.c", "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "pixelforge-project", "product": "pixel-render", "programFiles": "lib/Image.cpp", "source_cve": ["CVE-2025-05060"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 1}]}]}, {"aliasGroup": "cachedb_cache-engine", "aliases": [{"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "dbExprCodeTarget", "source_cve": ["CVE-2021-01070", "CVE-2022-02070", "CVE-2023-03070", "CVE-2024-04070"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 4}]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "dbVdbeExec", "source_cve": ["CVE-2022-02070", "CVE-2023-03070"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "db_prepare_v2", "source_cve": ["CVE-2022-02070", "CVE-2023-03070"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "cachedb-consortium", "product": "cache-engine-lite", "programRoutines": "dbBtreeInsert", "source_cve": ["CVE-2024-04070", "CVE-2025-05070"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "concern_whitespace", "aliases": [{"vendor": " whitespace-vendor", "product": "ws-product", "source_cve": ["CVE-2021-01200", "CVE-2022-02200"]}, {"vendor": "whitespace-vendor", "product": "ws-product ", "source_cve": ["CVE-2022-02200", "CVE-2023-03200"]}, {"vendor": "whitespace-vendor", "product": "ws-pkg", "packageName": " ws-package ", "collectionURL": "https://packages.example-registry.org/ws-package", "source_cve": ["CVE-2023-03200", "CVE-2024-04200"]}, {"vendor": "whitespace-vendor", "product": "ws  product", "source_cve": ["CVE-2024-04200", "CVE-2025-05200"]}, {"vendor": "whitespace-vendor", "product": "ws-os", "platform": " Linux", "source_cve": ["CVE-2025-05200"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_text_comparator", "aliases": [{"vendor": "comparator-vendor", "product": "comp-app before 3.0", "source_cve": ["CVE-2021-01300", "CVE-2022-02300"]}, {"vendor": "comparator-vendor", "product": "comp-app through 4.2", "source_cve": ["CVE-2022-02300", "CVE-2023-03300"]}, {"vendor": "comparator-vendor", "product": "comp-pkg", "packageName": "comp-pkg prior to 2.0", "source_cve": ["CVE-2023-03300", "CVE-2024-04300"]}, {"vendor": "comparator-vendor", "product": "comp-app earlier than 5.1", "source_cve": ["CVE-2024-04300"]}, {"vendor": "comparator-vendor", "product": "comp-app from version 2", "source_cve": ["CVE-2025-05300"]}, {"vendor": "comparator-vendor", "product": "comp-app 1.0 - 2.5", "source_cve": ["CVE-2021-01300", "CVE-2025-05300"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_invalid_chars", "aliases": [{"vendor": "invalid-char-vendor", "product": "ic-component", "packageName": "ic-pkg, ic-extra", "source_cve": ["CVE-2021-01400", "CVE-2022-02400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component, plugin", "source_cve": ["CVE-2022-02400", "CVE-2023-03400"]}, {"vendor": "Invalid Char Vendor", "product": "ic-component", "source_cve": ["CVE-2023-03400", "CVE-2024-04400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component", "packageName": "ic pkg name", "source_cve": ["CVE-2024-04400", "CVE-2025-05400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component, suite", "packageName": "ic-pkg, ic-dev", "packageURL": "pkg:pypi/ic-component", "source_cve": ["CVE-2025-05400"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_bloat_text", "aliases": [{"vendor": "mesh-corp", "product": "mesh-corp firewall appliance", "source_cve": ["CVE-2021-01500", "CVE-2022-02500"]}, {"vendor": "mesh-corp", "product": "firewall", "packageName": "mesh-corp-firewall-pkg", "source_cve": ["CVE-2022-02500", "CVE-2023-03500"]}, {"vendor": "mesh-corp", "product": "mesh-corp vpn client", "packageName": "mesh-corp-vpn", "packageURL": "pkg:npm/mesh-corp-vpn", "source_cve": ["CVE-2023-03500", "CVE-2024-04500"]}, {"vendor": "mesh-corp", "product": "mesh-corp sdk", "repo": "https://github.com/example-org/mesh-corp-sdk", "source_cve": ["CVE-2024-04500", "CVE-2025-05500"]}, {"vendor": "mesh software", "product": "mesh software enterprise suite", "source_cve": ["CVE-2025-05500"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "no_identity_non_actionable", "aliases": [{"source_cve": ["CVE-2021-09900", "CVE-2022-09901", "CVE-2023-09902", "CVE-2024-09903"]}, {"source_cve": ["CVE-2024-09800", "CVE-2025-09801"]}]}], "confirmedMappings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "Acme Corp", "product": "Acme Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001", "CVE-2025-05001"]}, {"vendor": "acme-corp", "product": "acme-lib"}]}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:linux:*", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Linux", "source_cve": ["CVE-2022-02010", "CVE-2023-03010", "CVE-2024-04010", "CVE-2025-05010"]}]}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:windows:*", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Windows", "source_cve": ["CVE-2022-02010", "CVE-2023-03010"]}]}, {"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-client", "collectionURL": "https://packages.example-registry.org/netsend-client", "source_cve": ["CVE-2021-01020", "CVE-2022-02020", "CVE-2023-03020", "CVE-2024-04020"]}, {"vendor": "netsend-project", "product": "netsend", "packageName": "libnetsend", "collectionURL": "https://packages.example-linux.org/libnetsend", "source_cve": ["CVE-2021-01020", "CVE-2024-04020"]}]}, {"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "aliases": [{"vendor": "UtilKit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:npm/util-kit", "collectionURL": "https://registry.example-npm.org/util-kit", "source_cve": ["CVE-2021-01030", "CVE-2022-02030", "CVE-2023-03030", "CVE-2024-04030", "CVE-2025-05030"]}, {"vendor": "UtilKit", "product": "util-kit-esm", "packageName": "util-kit-esm", "packageURL": "pkg:npm/util-kit-esm", "source_cve": ["CVE-2021-01030", "CVE-2022-02030"]}, {"vendor": "utilkit-project", "product": "util-kit", "packageName": "util-kit-rs", "packageURL": "pkg:cargo/util-kit-rs", "source_cve": ["CVE-2024-04030", "CVE-2025-05030"]}]}, {"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "PackLib", "product": "pack-compress", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040", "CVE-2024-04040"]}, {"vendor": "packlib-project", "product": "pack-compress-dev", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040"]}]}, {"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "StreamWorks", "product": "stream-proxy", "modules": "proxy_http_core_module", "source_cve": ["CVE-2022-02050", "CVE-2023-03050", "CVE-2024-04050", "CVE-2025-05050"]}, {"vendor": "streamworks-oss", "product": "stream-proxy-community", "modules": "proxy_stream_core_module", "source_cve": ["CVE-2023-03050", "CVE-2024-04050"]}]}, {"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/pixel.c", "source_cve": ["CVE-2021-01060", "CVE-2022-02060", "CVE-2023-03060"]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/draw.c", "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/composite.c", "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"]}, {"vendor": "pixelforge-project", "product": "pixel-render", "programFiles": "lib/Image.cpp", "source_cve": ["CVE-2025-05060"]}]}, {"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "dbExprCodeTarget", "source_cve": ["CVE-2021-01070", "CVE-2022-02070", "CVE-2023-03070", "CVE-2024-04070"]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "dbVdbeExec", "source_cve": ["CVE-2022-02070", "CVE-2023-03070"]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "db_prepare_v2", "source_cve": ["CVE-2022-02070", "CVE-2023-03070"]}, {"vendor": "cachedb-consortium", "product": "cache-engine-lite", "programRoutines": "dbBtreeInsert", "source_cve": ["CVE-2024-04070", "CVE-2025-05070"]}]}]};  // Used for compatibility and download functions
 
         // ========== DATA MANAGER ==========
         const DataManager = {
@@ -2126,7 +2292,8 @@ body::before {
             datasets: {
                 confirmedMapping: [],           // From confirmedMappings array
                 unconfirmedAliases: [],        // From aliasGroups with no data concerns  
-                sourceDataConcernAliases: []   // From aliasGroups with data quality issues
+                sourceDataConcernAliases: [],  // From aliasGroups with data quality issues
+                nonActionableAliases: []       // All identity fields absent/placeholder — excluded from alias sections
             },
             
             // Processed data for display
@@ -2147,6 +2314,7 @@ body::before {
                 this.datasets.confirmedMapping = [];
                 this.datasets.unconfirmedAliases = [];
                 this.datasets.sourceDataConcernAliases = [];
+                this.datasets.nonActionableAliases = [];
                 this.displayData.confirmedMapping = [];
                 this.displayData.unconfirmedAliases = [];
                 this.displayData.sourceDataConcernAliases = [];
@@ -2249,8 +2417,10 @@ body::before {
                             
                             console.log(`Processed unconfirmed alias:`, alias.vendor, alias.product, `platform: "${alias.platform || alias.platforms || 'N/A'}"`, `concerns: ${concerns.length}`);
                             
-                            // Separate into datasets based on concerns
-                            if (concerns.length > 0) {
+                            // Separate into datasets based on actionability and concerns
+                            if (isAliasNonActionable(alias)) {
+                                this.datasets.nonActionableAliases.push(processedAlias);
+                            } else if (concerns.length > 0) {
                                 console.log(`Adding unconfirmed alias with concerns to sourceDataConcernAliases:`, alias.vendor, alias.product);
                                 this.datasets.sourceDataConcernAliases.push(processedAlias);
                             } else {
@@ -2263,13 +2433,6 @@ body::before {
                     if (jsonData.confirmedMappings) {
                         console.log('Processing confirmedMappings data with', jsonData.confirmedMappings.length, 'mappings');
                         
-                        // Build deduplication key using all cve5Properties fields for precise matching
-                        const buildAliasDedupKey = (a) => cve5Properties.map(prop => {
-                            const val = a[prop];
-                            if (!val) return '';
-                            return Array.isArray(val) ? val.slice().sort().join(',') : String(val).toLowerCase().trim();
-                        }).join('|');
-
                         // Build NVD CPE base strings crosswalk lookup from aliasGroups
                         // Allows confirmed mapping aliases to display topNvdCpeBaseStrings even if not stored in their JSON
                         const nvdCpeStringsLookup = new Map();
@@ -2294,7 +2457,6 @@ body::before {
                             
                             console.log(`Processing confirmed mapping ${index + 1}:`, cpeBaseString, 'with', confirmedMapping.aliases.length, 'aliases');
                             
-                            // confirmedMapping dataset should receive processed confirmed mappings
                             // Process aliases for this CPE base string
                             const processedAliases = [];
                             confirmedMapping.aliases.forEach(alias => {
@@ -2428,8 +2590,11 @@ body::before {
                 }
             },
             
-            // Move alias from source dataset to confirmedMapping with CPE base string
-            mergeWithConfirmed: function(aliasId, sourceDataset, cpeBaseString) {
+            // Merge an alias into confirmedMapping for a given CPE base string.
+            // Full selection (partialFieldsData=null): moves the alias from its source dataset to confirmedMapping.
+            // Partial field selection (partialFieldsData provided): adds a field-filtered subset entry to
+            // confirmedMapping while the original alias remains in its source dataset.
+            mergeWithConfirmed: function(aliasId, sourceDataset, cpeBaseString, partialFieldsData = null) {
                 try {
                     // Validate inputs
                     if (!this.datasets[sourceDataset]) {
@@ -2471,27 +2636,28 @@ body::before {
                     
                     const aliasItem = sourceData[aliasIndex];
                     
-                    // Check for conflicts: alias already exists in different CPE base string
+                    // Check for conflicts: alias already exists in different CPE base string.
+                    // Skipped for partial field selections (partialFieldsData provided) because the
+                    // user is intentionally extracting a subset of fields — that partial entry
+                    // represents a distinct identity and is not subject to full-alias conflict rules.
                     const confirmedData = this.datasets.confirmedMapping;
-                    console.log(`Checking conflicts for alias ${aliasId} against ${confirmedData.length} existing CPE mappings`);
-                    
-                    for (const mapping of confirmedData) {
-                        if (mapping.cpeBaseString !== cpeBaseString) {
-                            // Check if this alias already exists in a different CPE mapping
-                            // Must match vendor, product, AND platform (including null/undefined cases)
-                            const hasConflict = mapping.aliases && mapping.aliases.some(alias => 
-                                (alias.vendor === aliasItem.vendor && 
-                                 alias.product === aliasItem.product &&
-                                 (alias.platform || '') === (aliasItem.platform || '')) ||
-                                (aliasItem.aliases && aliasItem.aliases.some(subAlias => 
-                                    alias.vendor === subAlias.vendor && 
-                                    alias.product === subAlias.product &&
-                                    (alias.platform || '') === (subAlias.platform || '')
-                                ))
-                            );
-                            if (hasConflict) {
-                                console.error(`Conflict detected: alias ${aliasId} (${aliasItem.vendor}:${aliasItem.product}:${aliasItem.platform || 'no-platform'}) already exists in CPE: ${mapping.cpeBaseString}`);
-                                throw new Error(`Alias already exists in different CPE base string: ${mapping.cpeBaseString}`);
+                    if (partialFieldsData === null) {
+                        console.log(`Checking conflicts for alias ${aliasId} against ${confirmedData.length} existing CPE mappings`);
+                        const aliasItemKey = buildAliasDedupKey(aliasItem);
+                        for (const mapping of confirmedData) {
+                            if (mapping.cpeBaseString !== cpeBaseString) {
+                                // Use all cve5Properties fields so aliases that differ only by packageName,
+                                // repo, collectionURL, etc. are correctly treated as distinct.
+                                const conflictingAlias = mapping.aliases && mapping.aliases.find(alias =>
+                                    buildAliasDedupKey(alias) === aliasItemKey
+                                );
+                                if (conflictingAlias) {
+                                    const keyFields = cve5Properties
+                                        .filter(p => aliasItem[p] && !isPlaceholderValue(aliasItem[p]))
+                                        .map(p => `${p}=${aliasItem[p]}`).join(', ');
+                                    console.error(`Conflict detected: alias ${aliasId} (${keyFields}) already exists in CPE: ${mapping.cpeBaseString}`);
+                                    throw new Error(`Alias already exists in different CPE base string: ${mapping.cpeBaseString}`);
+                                }
                             }
                         }
                     }
@@ -2501,25 +2667,25 @@ body::before {
                     
                     // Prepare alias data for confirmed mapping format
                     const aliasData = [];
-                    if (aliasItem.aliases && Array.isArray(aliasItem.aliases)) {
-                        // Multiple aliases from alias group - filter placeholders from each
-                        const cleanedAliases = aliasItem.aliases.map(alias => {
-                            const cleanedAlias = { ...alias };
-                            // Filter out placeholder platform values
-                            if (cleanedAlias.platform && (
-                                cleanedAlias.platform === '' || 
-                                cleanedAlias.platform === 'N/A' || 
-                                cleanedAlias.platform === 'n/a' || 
-                                cleanedAlias.platform === 'unknown' || 
-                                cleanedAlias.platform === '*' ||
-                                cleanedAlias.platform === 'null' ||
-                                cleanedAlias.platform === 'none'
-                            )) {
-                                delete cleanedAlias.platform;
+                    if (partialFieldsData !== null && partialFieldsData.length > 0) {
+                        // Use field-filtered entries provided by the caller (user selected specific fields).
+                        // Only inherit structural/display metadata so the confirmed entry reflects exactly
+                        // what the user chose to confirm. CVE data, NVD suggestions, SDC concerns, and
+                        // the search index are analysis artefacts tied to specific alias fields — they
+                        // must not leak into the confirmed entry unless the user selected those fields.
+                        // The user-selected entry fields are spread last so they can override defaults.
+                        partialFieldsData.forEach(entry => {
+                            if (Object.keys(entry).length > 0) {
+                                aliasData.push({
+                                    id: aliasItem.id,
+                                    isConfirmedMapping: true,
+                                    cpeBaseString: cpeBaseString,
+                                    aliasGroup: aliasItem.aliasGroup || 'Confirmed_Mapping_NoData',
+                                    frequency: aliasItem.frequency || 0,
+                                    ...entry
+                                });
                             }
-                            return cleanedAlias;
                         });
-                        aliasData.push(...cleanedAliases);
                     } else {
                         // Single alias item - preserve properties but filter placeholders
                         const singleAlias = {
@@ -2556,18 +2722,20 @@ body::before {
                         confirmedData.push(newMapping);
                     }
                     
-                    // Remove from source dataset
-                    sourceData.splice(aliasIndex, 1);
-                    
-                    // CRITICAL: Update both datasets and displayData to ensure synchronization
-                    this.datasets[sourceDataset] = [...sourceData];
-                    this.displayData[sourceDataset] = [...sourceData];
+                    // For partial field selections (partialFieldsData provided), keep the original in its
+                    // source section — only the derived custom entry moves to confirmed mappings.
+                    if (partialFieldsData === null) {
+                        sourceData.splice(aliasIndex, 1);
+                        // CRITICAL: Update both datasets and displayData to ensure synchronization
+                        this.datasets[sourceDataset] = [...sourceData];
+                        this.displayData[sourceDataset] = [...sourceData];
+                    }
                     this.datasets.confirmedMapping = [...confirmedData];
                     this.displayData.confirmedMapping = [...confirmedData];
                     
                     // Note: Display update will be handled by the calling function to avoid race conditions
                     
-                    console.log(`After removal: ${sourceDataset} has ${sourceData.length} items, confirmedMapping has ${confirmedData.length} items`);
+                    console.log(`After merge: ${sourceDataset} has ${sourceData.length} items, confirmedMapping has ${confirmedData.length} items`);
                     
                     console.log(`Merged alias ${aliasId} from ${sourceDataset} to confirmed mapping: ${cpeBaseString}`);
                     return { success: true, cpeBaseString: cpeBaseString, aliasCount: aliasData.length };
@@ -2578,9 +2746,10 @@ body::before {
                 }
             },
             
-            // Alias function for moveToConfirmed (same as mergeWithConfirmed)
+            // Convenience wrapper around mergeWithConfirmed for direct single-alias confirmations
+            // (outside the modal workflow). Performs a full-alias transfer and refreshes display + stats.
             moveToConfirmed: function(aliasId, sourceDataset, cpeBaseString) {
-                // Use the existing mergeWithConfirmed implementation
+                // Delegate to mergeWithConfirmed with no field filter (full-alias transfer)
                 const result = this.mergeWithConfirmed(aliasId, sourceDataset, cpeBaseString);
                 
                 // Update display for both source dataset and confirmed mapping
@@ -2597,7 +2766,8 @@ body::before {
                 return result;
             },
             
-            // Batch merge multiple aliases with confirmed mappings
+            // Batch merge multiple aliases with confirmed mappings (full-alias transfer only;
+            // partial field selections are not supported — use mergeWithConfirmed directly for those).
             batchMergeWithConfirmed: function(transferMap) {
                 try {
                     // Validate transferMap structure
@@ -2869,6 +3039,17 @@ body::before {
             'modules', 'programFiles', 'programRoutines', 'repo'
         ];
 
+        /**
+         * Build a deduplication key for an alias using all cve5Properties fields.
+         * Two aliases are considered identical only when every field matches.
+         * Used by both loadData (dedup on load) and mergeWithConfirmed (conflict check).
+         */
+        const buildAliasDedupKey = (a) => cve5Properties.map(prop => {
+            const val = a[prop];
+            if (!val) return '';
+            return Array.isArray(val) ? val.slice().sort().join(',') : String(val).toLowerCase().trim();
+        }).join('|');
+
         // ========== UTILITY FUNCTIONS ==========
         function initializeCachedElements() {
             fileInput = document.getElementById('fileInput');
@@ -2899,6 +3080,27 @@ body::before {
             return isPlaceholderValue(value) ? fallback : value;
         }
 
+        /**
+         * Mirror of Python _is_alias_non_actionable(): returns true when every identity
+         * field is absent or a placeholder, meaning the alias cannot be confirmed/unconfirmed.
+         */
+        function isAliasNonActionable(alias) {
+            const stringFields = ['vendor', 'product', 'platform', 'packageName', 'packageURL', 'collectionURL', 'repo'];
+            for (const field of stringFields) {
+                if (!isPlaceholderValue(alias[field])) return false;
+            }
+            const listFields = ['programRoutines', 'programFiles', 'modules'];
+            for (const field of listFields) {
+                const val = alias[field];
+                if (Array.isArray(val) && val.length > 0) return false;
+                // Pipeline now produces scalar strings for these fields (not arrays).
+                // Check scalar values so aliases with only a modules/programFiles/programRoutines
+                // identity field are not incorrectly classified as non-actionable.
+                if (typeof val === 'string' && !isPlaceholderValue(val)) return false;
+            }
+            return true;
+        }
+
         function detectSourceDataConcerns(alias) {
             const concerns = [];
             
@@ -2921,6 +3123,11 @@ body::before {
             );
             
             // === 1. PLACEHOLDER DETECTION (Python: placeholderValues) ===
+            // Defense-in-depth check: in pipeline-generated reports, _filter_alias_entry_data() in
+            // nvd_ish_collector strips placeholder-valued fields before NVD-ish cache storage, so this
+            // group will not fire for aliases originating from source mapping registries. The only real
+            // path where it fires is aliases in confirmed mapping .json files that were manually edited
+            // with placeholder values — those bypass _filter_alias_entry_data() entirely.
             aliasFields.forEach(fieldName => {
                 if (alias[fieldName] && typeof alias[fieldName] === 'string') {
                     const fieldValue = alias[fieldName];
@@ -3334,8 +3541,16 @@ body::before {
             
             const isValidCpe = cpeInput.hasAttribute('data-final-cpe') && cpeInput.getAttribute('data-final-cpe');
             const hasSelectedAliases = selectedAliases && selectedAliases.size > 0;
+            // Ensure at least one field is selected across all consolidated entries.
+            // Catches the state where the user has deselected all field checkboxes,
+            // preventing a no-op submit that would surface as a runtime error.
+            const hasAnyFieldSelected = !currentConsolidatedData ||
+                currentConsolidatedData.some((_, i) => {
+                    const selected = fieldSelections.get(i);
+                    return selected && selected.size > 0;
+                });
             
-            if (isValidCpe && hasSelectedAliases) {
+            if (isValidCpe && hasSelectedAliases && hasAnyFieldSelected) {
                 updateBtn.disabled = false;
                 updateBtn.style.opacity = '1';
                 updateBtn.style.cursor = 'pointer';
@@ -3351,6 +3566,8 @@ body::before {
                     updateBtn.title = 'Please enter a valid CPE base string';
                 } else if (!hasSelectedAliases) {
                     updateBtn.title = 'Please select aliases to map';
+                } else if (!hasAnyFieldSelected) {
+                    updateBtn.title = 'Please select at least one field to confirm';
                 }
             }
         }
@@ -3414,6 +3631,7 @@ body::before {
                 AliasTypeFilter.compute();
                 renderAliasTypeFilterUI();
                 performSearch('');
+                updateFilterActiveSignal();
             };
 
             // Include Confirmed toggle - group-level filter against confirmed mappings
@@ -3630,8 +3848,10 @@ body::before {
             if (alias.product && !isPlaceholderValue(alias.product)) mapping.product = alias.product;
             
             // Optional fields - only include if they have meaningful values
+            // Only include cve5Properties identifier fields (vendor/product handled above).
+            // container_type and defaultStatus are not cve5Properties fields and are excluded.
             const optionalFields = ['platform', 'packageName', 'packageURL', 'repo', 'collectionURL',
-                                  'container_type', 'programRoutines', 'programFiles', 'modules', 'defaultStatus'];
+                                  'programRoutines', 'programFiles', 'modules'];
             
             optionalFields.forEach(field => {
                 if (alias[field] && !isPlaceholderValue(alias[field])) {
@@ -3648,24 +3868,26 @@ body::before {
                 const confirmedMappings = [];
                 
                 Object.entries(cpeGroups).forEach(([cpeBaseString, aliases]) => {
-                    // Create aliases array with only the essential fields
-                    const cleanAliases = aliases.map(alias => {
+                    // Create aliases array from confirmed alias entries.
+                    // Array-valued identifier fields (modules, programFiles, programRoutines) are no
+                    // longer produced by the pipeline — Python expands them into separate scalar alias
+                    // entries during registration. Pass fields through directly.
+                    // cpes is intentionally excluded — it is not an alias identifier field.
+                    const cleanAliases = [];
+                    const optionalFields = cve5Properties.filter(f => f !== 'vendor' && f !== 'product' && f !== 'cpes');
+
+                    aliases.forEach(alias => {
                         const cleanAlias = {};
-                        
-                        // Add vendor and product (required fields)
-                        if (alias.vendor) cleanAlias.vendor = alias.vendor;
-                        if (alias.product) cleanAlias.product = alias.product;
-                        
-                        // Add optional fields if they exist and aren't placeholder values
-                        const optionalFields = ['platform', 'collectionURL', 'packageName', 'packageURL',
-                                               'programRoutines', 'programFiles', 'modules', 'repo'];
+                        if (alias.vendor && !isPlaceholderValue(alias.vendor)) cleanAlias.vendor = alias.vendor;
+                        if (alias.product && !isPlaceholderValue(alias.product)) cleanAlias.product = alias.product;
+
                         optionalFields.forEach(field => {
-                            if (alias[field] && !isPlaceholderValue(alias[field])) {
-                                cleanAlias[field] = Array.isArray(alias[field]) ? alias[field][0] : alias[field];
-                            }
+                            const val = alias[field];
+                            if (!val || isPlaceholderValue(val)) return;
+                            cleanAlias[field] = val;
                         });
-                        
-                        return cleanAlias;
+
+                        if (Object.keys(cleanAlias).length > 0) cleanAliases.push(cleanAlias);
                     });
                     
                     // Create the confirmed mapping entry
@@ -3682,15 +3904,17 @@ body::before {
                     throw new Error('Cannot download: No metadata found in loaded data');
                 }
                 
-                // Use source_id (preferred) or source_name as the identifier
-                const sourceId = DataManager.rawData.metadata.source_id || DataManager.rawData.metadata.source_name;
-                if (!sourceId) {
-                    throw new Error('Cannot download: No source_id or source_name found in metadata');
+                // Prefer the cnaId from the original injected mapping file for consistency;
+                // fall back to target_uuid for new files (no prior mapping file loaded).
+                const metadata = DataManager.rawData.metadata;
+                const sourceUuid = metadata.confirmed_cna_id || metadata.target_uuid;
+                if (!sourceUuid) {
+                    throw new Error('Cannot download: No cnaId found in metadata');
                 }
-                
+
                 // Create the full JSON structure
                 const jsonData = {
-                    cnaId: sourceId,
+                    cnaId: sourceUuid,
                     confirmedMappings: confirmedMappings
                 };
                 
@@ -4076,25 +4300,18 @@ body::before {
          * Query functions to gather data from the three distinct datasets
          */
         const DataQueries = {
-            // Get all aliases from all three datasets (properly handling nested confirmed mappings)
+            // Get all aliases from all datasets as a flat array.
+            // DataManager.getDataset('confirmedMapping') already returns a flat alias array
+            // (nested {cpeBaseString, aliases[]} mapped out in getDataset), so no re-flattening needed.
             getAllAliases: function() {
                 const confirmed = DataManager.getDataset('confirmedMapping');
                 const unconfirmed = DataManager.getDataset('unconfirmedAliases');
                 const concern = DataManager.getDataset('sourceDataConcernAliases');
+                const nonActionable = DataManager.datasets.nonActionableAliases;
                 
-                console.debug(`[getAllAliases] Confirmed: ${confirmed.length}, Unconfirmed: ${unconfirmed.length}, Concern: ${concern.length}`);
+                console.debug(`[getAllAliases] Confirmed: ${confirmed.length}, Unconfirmed: ${unconfirmed.length}, Concern: ${concern.length}, NonActionable: ${nonActionable.length}`);
                 
-                // Flatten confirmed mappings to handle nested structure
-                const flattenedConfirmed = [];
-                confirmed.forEach(mapping => {
-                    if (mapping.aliases && Array.isArray(mapping.aliases)) {
-                        flattenedConfirmed.push(...mapping.aliases);
-                    } else {
-                        flattenedConfirmed.push(mapping);
-                    }
-                });
-                
-                return [...flattenedConfirmed, ...unconfirmed, ...concern];
+                return [...confirmed, ...unconfirmed, ...concern, ...nonActionable];
             },
             
             // Get total unique alias count across all datasets (deduplicating by alias key)
@@ -4212,7 +4429,8 @@ body::before {
                     ((coveredCount / totalCount) * 100).toFixed(1) + '%' : '0%';
             },
             
-            // Get dataset counts for dashboard display (intersection-based confirmed count)
+            // Get dataset counts for dashboard display (intersection-based confirmed count).
+            // confirmed is a flat alias array from getDataset — iterate aliases directly.
             getDatasetCounts: function() {
                 const confirmed = DataManager.getDataset('confirmedMapping');
                 const allSourceAliases = this.getAllAliases();
@@ -4234,20 +4452,14 @@ body::before {
                     return keyParts.sort().join('|');
                 };
                 
-                // Get all aliases covered by confirmed mappings
+                // Build the set of confirmed alias keys from the flat alias array
                 const coveredAliases = new Set();
-                confirmed.forEach(mapping => {
-                    if (mapping.aliases && Array.isArray(mapping.aliases)) {
-                        mapping.aliases.forEach(alias => {
-                            const aliasKey = createAliasKey(alias);
-                            if (aliasKey) { // Only add non-empty keys
-                                coveredAliases.add(aliasKey);
-                            }
-                        });
-                    }
+                confirmed.forEach(alias => {
+                    const aliasKey = createAliasKey(alias);
+                    if (aliasKey) coveredAliases.add(aliasKey);
                 });
                 
-                // Count how many source aliases are covered
+                // Count how many source aliases are covered by confirmed mappings
                 let coveredCount = 0;
                 allSourceAliases.forEach(sourceAlias => {
                     const sourceKey = createAliasKey(sourceAlias);
@@ -4346,6 +4558,9 @@ body::before {
             }
         };
 
+        // Year filter applies only to unconfirmed alias sections.
+        // Confirmed mappings are always shown when the Include Confirmed toggle is active
+        // and are not subject to year filtering — their section is toggled separately.
         function populateYearFilter() {
             const allUnconfirmed = [
                 ...DataManager.datasets.unconfirmedAliases,
@@ -4378,6 +4593,26 @@ body::before {
             programRoutines:  'Program Routines',
             cpes:             'CPEs'
         };
+
+        // Returns a human-readable display title for an alias entry.
+        // Tries vendor+product first, then either alone, then falls back to the first
+        // available identifying field (packageName, packageURL, repo, etc.) in
+        // ALIAS_TYPE_FIELD_ORDER priority. Last resort is aliasGroup or "Alias N".
+        function getAliasDisplayTitle(alias, fallbackIndex) {
+            const v = alias.vendor && !isPlaceholderValue(alias.vendor) ? alias.vendor.trim() : null;
+            const p = alias.product && !isPlaceholderValue(alias.product) ? alias.product.trim() : null;
+            if (v && p) return `${v} ${p}`;
+            if (v || p) return v || p;
+            // Neither vendor nor product — search remaining fields in priority order.
+            for (const f of ALIAS_TYPE_FIELD_ORDER) {
+                if (f === 'vendor' || f === 'product' || f === 'platform' || f === 'cpes') continue;
+                const val = alias[f];
+                if (!val || isPlaceholderValue(val)) continue;
+                const display = Array.isArray(val) ? val[0] : String(val);
+                if (display && display.trim()) return display.trim();
+            }
+            return alias.aliasGroup || `Alias ${fallbackIndex + 1}`;
+        }
 
         const AliasTypeFilter = {
             availableFields: [],   // ordered subset of ALIAS_TYPE_FIELD_ORDER present in data
@@ -4461,7 +4696,13 @@ body::before {
                 AliasTypeFilter.activeFields.add(field);
             }
             renderAliasTypeFilterUI();
-            applyFilters();
+            const filterInput = document.getElementById('filterInput');
+            const hasTextFilter = filterInput && filterInput.value.trim().length > 0;
+            if (hasTextFilter) {
+                applyFilters();
+            } else {
+                applyAliasTypeFilterDOM();
+            }
         }
 
         function renderYearFilterUI() {
@@ -4511,16 +4752,48 @@ body::before {
             if (unconfirmedTitle) {
                 const rawTotal = DataManager.datasets.unconfirmedAliases.length;
                 unconfirmedTitle.textContent = yearFilterActive
-                    ? `Unconfirmed Aliases (${visibleUnconfirmed} / ${rawTotal})`
-                    : `Unconfirmed Aliases (${rawTotal})`;
+                    ? `Unconfirmed Alias Sets (${visibleUnconfirmed} / ${rawTotal})`
+                    : `Unconfirmed Alias Sets (${rawTotal})`;
             }
             const concernTitle = document.getElementById('concern-section-title');
             if (concernTitle) {
                 const rawTotal = DataManager.datasets.sourceDataConcernAliases.length;
                 concernTitle.textContent = yearFilterActive
-                    ? `Unconfirmed Aliases - Data Concerns (${visibleConcern} / ${rawTotal})`
-                    : `Unconfirmed Aliases - Data Concerns (${rawTotal})`;
+                    ? `Unconfirmed Alias Sets - Data Concerns (${visibleConcern} / ${rawTotal})`
+                    : `Unconfirmed Alias Sets - Data Concerns (${rawTotal})`;
             }
+            refreshChartsFromFilters();
+        }
+
+        function applyAliasTypeFilterDOM() {
+            const typeFilterActive = AliasTypeFilter.isFilteringActive();
+            let visibleUnconfirmed = 0, visibleConcern = 0;
+            document.querySelectorAll('.alias-group[data-section]').forEach(el => {
+                const section = el.dataset.section;
+                let visible = true;
+                if (typeFilterActive) {
+                    const fields = el.dataset.aliasFields ? el.dataset.aliasFields.split(' ') : [];
+                    visible = fields.some(f => AliasTypeFilter.activeFields.has(f));
+                }
+                el.style.display = visible ? '' : 'none';
+                if (section === 'unconfirmed' && visible) visibleUnconfirmed++;
+                if (section === 'concern' && visible) visibleConcern++;
+            });
+            const unconfirmedTitle = document.getElementById('unconfirmed-section-title');
+            if (unconfirmedTitle) {
+                const rawTotal = DataManager.datasets.unconfirmedAliases.length;
+                unconfirmedTitle.textContent = typeFilterActive
+                    ? `Unconfirmed Alias Sets (${visibleUnconfirmed} / ${rawTotal})`
+                    : `Unconfirmed Alias Sets (${rawTotal})`;
+            }
+            const concernTitle = document.getElementById('concern-section-title');
+            if (concernTitle) {
+                const rawTotal = DataManager.datasets.sourceDataConcernAliases.length;
+                concernTitle.textContent = typeFilterActive
+                    ? `Unconfirmed Alias Sets - Data Concerns (${visibleConcern} / ${rawTotal})`
+                    : `Unconfirmed Alias Sets - Data Concerns (${rawTotal})`;
+            }
+            refreshChartsFromFilters();
         }
 
         let _yearFilterTimer = null;
@@ -4635,6 +4908,7 @@ body::before {
             // Pass totals only when a filter is active so section headers show X / Total
             displayAliasesByFrequency(mainData, anyFilterActive ? totalUnconfirmed : null, autoExpandConfirmed);
             displaySourceDataConcerns(concernData, anyFilterActive ? totalConcern : null);
+            refreshChartsFromFilters();
         }
 
         /**
@@ -4644,10 +4918,7 @@ body::before {
             try {
                 const tooltipCalculationElement = document.getElementById('tooltipCalculation');
                 const tooltipBreakdownElement = document.getElementById('tooltipCoverageBreakdown');
-                if (!tooltipCalculationElement || !tooltipBreakdownElement) {
-                    console.warn('🔍 Coverage tooltip elements not found');
-                    return;
-                }
+                if (!tooltipCalculationElement || !tooltipBreakdownElement) { return; }
                 
                 // Use the passed values directly - no recalculation
                 const confirmedCount = DataManager.getDataset('confirmedMapping').length;
@@ -4807,10 +5078,7 @@ body::before {
             try {
                 const tooltipCalculationElement = document.getElementById('tooltipConcernCalculation');
                 const tooltipBreakdownElement = document.getElementById('tooltipConcernBreakdown');
-                if (!tooltipCalculationElement || !tooltipBreakdownElement) {
-                    console.warn('🔍 Concern tooltip elements not found');
-                    return;
-                }
+                if (!tooltipCalculationElement || !tooltipBreakdownElement) { return; }
                 
                 // Update calculation section
                 const calculationText = `${concernData.count} ÷ ${concernData.total} = ${concernData.percentage}%`;
@@ -4834,10 +5102,7 @@ body::before {
             try {
                 const tooltipCalculationElement = document.getElementById('tooltipExternalConcernCalculation');
                 const tooltipBreakdownElement = document.getElementById('tooltipExternalConcernBreakdown');
-                if (!tooltipCalculationElement || !tooltipBreakdownElement) {
-                    console.warn('🔍 External concern tooltip elements not found');
-                    return;
-                }
+                if (!tooltipCalculationElement || !tooltipBreakdownElement) { return; }
                 
                 // Get dataset counts for detailed breakdown
                 const unconfirmedCount = DataManager.getDataset('unconfirmedAliases').length;
@@ -4858,6 +5123,300 @@ body::before {
             }
         }
         
+        // Chart instance registry for source report — prevents canvas reuse errors
+        const _srcChartInstances = {};
+        function _getOrCreateSrcChart(canvasId, config) {
+            if (_srcChartInstances[canvasId]) {
+                _srcChartInstances[canvasId].destroy();
+            }
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return null;
+            const chart = new Chart(canvas, config);
+            _srcChartInstances[canvasId] = chart;
+            return chart;
+        }
+
+        /**
+         * Render the alias breakdown donut chart and update the Mapping Coverage label.
+         * Reads counts directly from DataManager + concern calculations.
+         */
+        function renderAliasBreakdownChart() {
+            try {
+                const { confirmed: confirmedAliases, unconfirmed: unconfirmedAliases, concern: concernAliases } = getFilteredPerDataset();
+                const confConcernCount = confirmedAliases.filter(a => {
+                    const c = detectSourceDataConcerns(a);
+                    return c && c.length > 0;
+                }).length;
+
+                const confClean      = Math.max(0, confirmedAliases.length - confConcernCount);
+                const confConcerns   = Math.min(confConcernCount, confirmedAliases.length);
+                const unconfClean    = unconfirmedAliases.length;
+                const unconfConc     = concernAliases.length;
+                const nonActionable  = DataManager.datasets.nonActionableAliases.length;
+                const total          = confClean + confConcerns + unconfClean + unconfConc + nonActionable;
+
+                // Coverage: confirmed ÷ (confirmed + actionable unconfirmed)
+                const coverageDenom = confirmedAliases.length + unconfClean + unconfConc;
+                const coveragePct   = coverageDenom > 0
+                    ? (confirmedAliases.length / coverageDenom * 100).toFixed(1)
+                    : '0.0';
+
+                // Update coverage label
+                const coverageEl = document.getElementById('srcMappingCoverage');
+                if (coverageEl) coverageEl.textContent = `Mapping Coverage: ${coveragePct}%`;
+
+                // Build legend HTML
+                const legendEl = document.getElementById('srcAliasBreakdownLegend');
+                if (legendEl) {
+                    const rows = [];
+                    if (confClean > 0)     rows.push(`<div><span style="color:#10B981;">&#9632;</span> Clean Confirmed: ${confClean}</div>`);
+                    if (confConcerns > 0)  rows.push(`<div><span style="color:#6A9E8A;">&#9632;</span> Confirmed w/ Concerns: ${confConcerns}</div>`);
+                    if (unconfClean > 0)   rows.push(`<div><span style="color:#FBBF24;">&#9632;</span> Clean Unconfirmed: ${unconfClean}</div>`);
+                    if (unconfConc > 0)    rows.push(`<div><span style="color:#D4902A;">&#9632;</span> Unconfirmed w/ Concerns: ${unconfConc}</div>`);
+                    if (nonActionable > 0) rows.push(`<div><span style="color:#9CA3AF;">&#9632;</span> Non-Actionable: ${nonActionable}</div>`);
+                    legendEl.innerHTML = rows.join('');
+                }
+
+                if (!total) return;
+
+                const labels = [], data = [], bg = [], border = [];
+                if (confClean > 0)     { labels.push('✓ Clean Confirmed');          data.push(confClean);      bg.push('#10B981'); border.push('#059669'); }
+                if (confConcerns > 0)  { labels.push('⚠ Confirmed w/ Concerns');   data.push(confConcerns);   bg.push('#6A9E8A'); border.push('#4B7A6C'); }
+                if (unconfClean > 0)   { labels.push('↻ Clean Unconfirmed');        data.push(unconfClean);    bg.push('#FBBF24'); border.push('#D97706'); }
+                if (unconfConc > 0)    { labels.push('⚠ Unconfirmed w/ Concerns'); data.push(unconfConc);     bg.push('#D4902A'); border.push('#B8721A'); }
+                if (nonActionable > 0) { labels.push('− Non-Actionable');           data.push(nonActionable);  bg.push('#9CA3AF'); border.push('#6B7280'); }
+
+                _getOrCreateSrcChart('srcAliasBreakdownChart', {
+                    type: 'doughnut',
+                    data: {
+                        labels,
+                        datasets: [{ data, backgroundColor: bg, borderColor: border, borderWidth: 2, hoverOffset: 6, hoverBorderWidth: 3 }]
+                    },
+                    options: {
+                        responsive: false,
+                        maintainAspectRatio: true,
+                        layout: { padding: 4 },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                enabled: true,
+                                displayColors: false,
+                                titleFont: { size: 0 },
+                                bodyFont: { size: 10, weight: '600' },
+                                padding: 4,
+                                bodyAlign: 'center',
+                                callbacks: {
+                                    title: function() { return ''; },
+                                    label: function(context) {
+                                        const t = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const pct = t > 0 ? ((context.parsed / t) * 100).toFixed(1) : '0.0';
+                                        return [context.label, `${context.parsed} (${pct}%)`];
+                                    }
+                                }
+                            }
+                        },
+                        cutout: '50%'
+                    }
+                });
+            } catch (e) {
+                console.error('renderAliasBreakdownChart failed:', e.message);
+            }
+        }
+
+        /**
+         * Get per-dataset aliases filtered by currently active year/type pills.
+         * Returns { confirmed, unconfirmed, concern } each as a filtered array.
+         */
+        function getFilteredPerDataset() {
+            const confirmed   = DataManager.getDataset('confirmedMapping');
+            const unconfirmed = DataManager.getDataset('unconfirmedAliases');
+            const concern     = DataManager.getDataset('sourceDataConcernAliases');
+            const yearActive  = YearFilter.isFilteringActive();
+            const typeActive  = AliasTypeFilter.isFilteringActive();
+            if (!yearActive && !typeActive) {
+                return { confirmed, unconfirmed, concern };
+            }
+            const keep = alias => {
+                if (yearActive && !YearFilter.matchesAlias(alias)) return false;
+                if (typeActive && !AliasTypeFilter.matchesAlias(alias)) return false;
+                return true;
+            };
+            return {
+                confirmed:   confirmed.filter(keep),
+                unconfirmed: unconfirmed.filter(keep),
+                concern:     concern.filter(keep)
+            };
+        }
+
+        /**
+         * Get all aliases from all datasets filtered by current Year and AliasType pills.
+         * Text filter is intentionally excluded — these charts show aggregate pill-filtered views.
+         */
+        function getFilteredAliases() {
+            const { confirmed, unconfirmed, concern } = getFilteredPerDataset();
+            return [...confirmed, ...unconfirmed, ...concern];
+        }
+
+        /**
+         * Render CVE-YYYY Distribution line chart (top 15 years, filter-responsive).
+         */
+        function renderCveYearChart() {
+            try {
+                const aliases = getFilteredAliases();
+                const yearCountsDeduped = {};
+                aliases.forEach(alias => {
+                    const seen = new Set();
+                    (alias.source_cve || []).forEach(cve => {
+                        const m = cve.match(/CVE-(\d{4})-/);
+                        if (!m) return; // skip non-standard / unknown
+                        const yr = m[1];
+                        // Respect active year pills: skip years that are filtered out
+                        if (YearFilter.isFilteringActive() && !YearFilter.activeYears.has(yr)) return;
+                        if (!seen.has(yr)) {
+                            seen.add(yr);
+                            yearCountsDeduped[yr] = (yearCountsDeduped[yr] || 0) + 1;
+                        }
+                    });
+                });
+                // top-15 by count, then sort ascending (oldest left → newest right)
+                const topPairs = Object.entries(yearCountsDeduped)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 15);
+                const sorted = topPairs.sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+                const labels = sorted.map(([yr]) => yr);
+                const data   = sorted.map(([, n]) => n);
+                if (!data.length) {
+                    if (_srcChartInstances['srcCveYearChart']) {
+                        _srcChartInstances['srcCveYearChart'].destroy();
+                        delete _srcChartInstances['srcCveYearChart'];
+                    }
+                    return;
+                }
+                _getOrCreateSrcChart('srcCveYearChart', {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            data,
+                            borderColor: '#4CAF50',
+                            backgroundColor: 'rgba(76,175,80,0.08)',
+                            borderWidth: 2,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            pointBackgroundColor: '#2E7D32',
+                            fill: true,
+                            tension: 0.3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { callbacks: { label: ctx => `${ctx.parsed.y} alias set${ctx.parsed.y !== 1 ? 's' : ''}` } }
+                        },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { font: { size: 9 } } },
+                            y: { beginAtZero: true, ticks: { precision: 0, font: { size: 9 } }, grid: { color: '#F3F4F6' } }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error('renderCveYearChart failed:', e.message);
+            }
+        }
+
+        /**
+         * Render Alias Type distribution bar chart (filter-responsive).
+         */
+        function renderAliasTypeChart() {
+            try {
+                const aliases = getFilteredAliases();
+                const typeCounts = {};
+                aliases.forEach(alias => {
+                    ALIAS_TYPE_FIELD_ORDER.forEach(field => {
+                        // Respect active type pills: skip fields that are filtered out
+                        if (AliasTypeFilter.isFilteringActive() && !AliasTypeFilter.activeFields.has(field)) return;
+                        const val = alias[field];
+                        if (val && !isPlaceholderValue(val) && !(Array.isArray(val) && val.length === 0)) {
+                            typeCounts[field] = (typeCounts[field] || 0) + 1;
+                        }
+                    });
+                });
+                const sorted = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
+                const labels = sorted.map(([f]) => ALIAS_TYPE_FIELD_LABELS[f] || f);
+                const data   = sorted.map(([, n]) => n);
+                if (!data.length) {
+                    if (_srcChartInstances['srcAliasTypeChart']) {
+                        _srcChartInstances['srcAliasTypeChart'].destroy();
+                        delete _srcChartInstances['srcAliasTypeChart'];
+                    }
+                    return;
+                }
+                const PALETTE = ['#2E7D32','#4CAF50','#10B981','#14B8A6','#059669','#0D9488','#66BB6A','#1B5E20','#00695C','#388E3C','#00796B'];
+                _getOrCreateSrcChart('srcAliasTypeChart', {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{ data, backgroundColor: PALETTE.slice(0, data.length), borderWidth: 0, borderRadius: 3 }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { callbacks: { label: ctx => `${ctx.parsed.y} alias${ctx.parsed.y !== 1 ? 'es' : ''}` } }
+                        },
+                        scales: {
+                            x: { grid: { display: false }, ticks: { font: { size: 9 } } },
+                            y: { beginAtZero: true, ticks: { precision: 0, font: { size: 9 } }, grid: { color: '#F3F4F6' } }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error('renderAliasTypeChart failed:', e.message);
+            }
+        }
+
+        /**
+         * Refresh all stat charts and the Total Unique Aliases stat from active pill filters.
+         * Called whenever year or alias-type pills change without a full data reload.
+         */
+        function refreshChartsFromFilters() {
+            const filtered = getFilteredAliases();
+            const aliasCount = filtered.length + DataManager.datasets.nonActionableAliases.length;
+            const totalEl = document.getElementById('totalAliases');
+            // Non-actionable aliases are always shown in the donut but not filterable — always add their count
+            if (totalEl) totalEl.textContent = aliasCount;
+            // Compute CVE set from filtered aliases
+            const cveSet = new Set();
+            filtered.forEach(a => (a.source_cve || []).forEach(c => cveSet.add(c)));
+            const cveCount = cveSet.size;
+            const totalCVEsEl = document.getElementById('totalCVEs');
+            if (totalCVEsEl) totalCVEsEl.textContent = cveCount;
+            // Update alias sets / CVE ratio card
+            const ratioEl = document.getElementById('aliasRatio');
+            if (ratioEl) ratioEl.textContent = cveCount > 0 ? (aliasCount / cveCount).toFixed(1) : '—';
+            renderAliasBreakdownChart();
+            renderCveYearChart();
+            renderAliasTypeChart();
+            updateFilterActiveSignal();
+        }
+
+        /**
+         * Toggle a subtle background tint on the stats grid and filter pill rows
+         * when any CVE year or alias type pill filter is active.
+         */
+        function updateFilterActiveSignal() {
+            const isActive = YearFilter.isFilteringActive() || AliasTypeFilter.isFilteringActive();
+            const statsGrid = document.getElementById('statsGrid');
+            const yearFilter = document.getElementById('yearFilter');
+            const aliasTypeFilter = document.getElementById('aliasTypeFilter');
+            if (statsGrid) statsGrid.classList.toggle('filters-active', isActive);
+            if (yearFilter) yearFilter.classList.toggle('filters-active', isActive);
+            if (aliasTypeFilter) aliasTypeFilter.classList.toggle('filters-active', isActive);
+        }
+
         /**
          * Update dashboard stats using DataManager data via query functions
          */
@@ -4902,40 +5461,23 @@ body::before {
                 
                 // Update DOM elements
                 const totalAliasesEl = document.getElementById('totalAliases');
-                const confirmedMappingCoverageEl = document.getElementById('confirmedMappingCoverage');
-                const confirmedConcernCountEl = document.getElementById('confirmedConcernCount');
-                const externalConcernCountEl = document.getElementById('externalConcernCount');
                 
-                console.debug('🔍 DOM Elements found:', {
-                    totalAliasesEl: !!totalAliasesEl,
-                    confirmedMappingCoverageEl: !!confirmedMappingCoverageEl,
-                    confirmedConcernCountEl: !!confirmedConcernCountEl,
-                    externalConcernCountEl: !!externalConcernCountEl
-                });
-                
-                if (!totalAliasesEl || !confirmedMappingCoverageEl || !confirmedConcernCountEl || !externalConcernCountEl) {
-                    console.warn('🎯 DASHBOARD: Missing DOM elements for statistics');
+                if (!totalAliasesEl) {
+                    console.warn('🎯 DASHBOARD: Missing DOM element: totalAliases');
                     return;
                 }
                 
-                // Log current values before update with detailed analysis
-                const currentCoverage = confirmedMappingCoverageEl.textContent;
-                const newCoverage = confirmedMappingCoverage;
-                const coverageChanged = currentCoverage !== newCoverage;
-                
-                console.debug(`🔄 DOM UPDATE BEFORE: Total: "${totalAliasesEl.textContent}", Coverage: "${currentCoverage}"`);
-                console.debug(`🔄 DOM UPDATE PLANNED: Total: "${totalAliases}", Coverage: "${newCoverage}"`);
-                console.debug(`🔄 COVERAGE CHANGE CHECK: "${currentCoverage}" → "${newCoverage}" (Changed: ${coverageChanged})`);
-                
                 totalAliasesEl.textContent = totalAliases;
-                confirmedMappingCoverageEl.textContent = confirmedMappingCoverage;
-                confirmedConcernCountEl.textContent = `${confirmedConcernData.count} (${confirmedConcernData.percentage}%)`;
-                externalConcernCountEl.textContent = `${externalConcernData.count} (${externalConcernData.percentage}%)`;
-                
-                // Log values after update to confirm DOM was actually changed
-                console.debug(`🔄 DOM UPDATE AFTER: Total: "${totalAliasesEl.textContent}", Coverage: "${confirmedMappingCoverageEl.textContent}"`);
-                console.debug(`🔄 DOM UPDATE VERIFICATION: Coverage set to "${confirmedMappingCoverage}" and DOM now shows "${confirmedMappingCoverageEl.textContent}"`);
-                console.debug(`🔄 UPDATE SUMMARY: ${coverageChanged ? 'COVERAGE CHANGED' : 'COVERAGE UNCHANGED'} from "${currentCoverage}" to "${confirmedMappingCoverageEl.textContent}"`);
+
+                // Update unique CVE count across all filtered aliases
+                const cveSet = new Set();
+                DataQueries.getAllAliases().forEach(a => (a.source_cve || []).forEach(c => cveSet.add(c)));
+                const cveCount = cveSet.size;
+                const totalCVEsEl = document.getElementById('totalCVEs');
+                if (totalCVEsEl) totalCVEsEl.textContent = cveCount;
+                // Update alias sets / CVE ratio card
+                const ratioEl = document.getElementById('aliasRatio');
+                if (ratioEl) ratioEl.textContent = cveCount > 0 ? (totalAliases / cveCount).toFixed(1) : '—';
                 
                 // Update tooltips with detailed calculations
                 updateAliasTooltip(datasetCounts, totalAliases);
@@ -4943,6 +5485,11 @@ body::before {
                 updateConcernTooltip(confirmedConcernData);
                 updateExternalConcernTooltip(externalConcernData);
                 
+                // Render alias breakdown donut chart and filter-responsive charts
+                renderAliasBreakdownChart();
+                renderCveYearChart();
+                renderAliasTypeChart();
+
                 console.info(`🎯 DASHBOARD: Updated stats - ${totalAliases} aliases, ${confirmedMappingCoverage} coverage`);
                 
             } catch (error) {
@@ -4978,6 +5525,9 @@ body::before {
 
                 // Initialize text filter system
                 initializeFilter();
+
+                // Ensure filter-active signal reflects current state (no filters on fresh load)
+                updateFilterActiveSignal();
                 
                 console.info('🎯 DASHBOARD: Charts and UI initialized successfully');
                 
@@ -5050,12 +5600,14 @@ body::before {
             const container = document.getElementById('aliasGroups');
             container.innerHTML = '';
 
-            // Filter out any invalid or corrupted aliases before storing
+            // Filter out any invalid or corrupted aliases before storing.
+            // Confirmed entries are always kept — they are anchored by cpeBaseString and have
+            // already been validated through the modal workflow. Unconfirmed entries must have
+            // at least a numeric id and one identifying display field.
             const validAliases = sortedAliases.filter(alias => {
-                // An alias must have at least an ID and some identifying information
-                return alias && 
-                       alias.id && 
-                       (alias.vendor || alias.product || alias.alias || alias.packageName);
+                if (!alias || !alias.id) return false;
+                if (alias.isConfirmedMapping) return true;
+                return alias.vendor || alias.product || alias.alias || alias.packageName;
             });
 
             // Store current alias data for selection functionality
@@ -5097,15 +5649,15 @@ body::before {
                     aliases: [], // Will be rendered as CPE groups 
                     priority: 'confirmed-parent',
                     collapsed: !autoExpandConfirmed,
-                    description: 'Previously validated CPE mappings from authoritative sources',
+                    description: 'Alias set <--> CPE Match String mappings that have already been affirmed',
                     isConfirmedParent: true,
                     cpeGroups: cpeGroups
                 });
             }
             
             const unconfirmedTitle = (totalUnconfirmedCount !== null)
-                ? `Unconfirmed Aliases (${otherAliases.length} / ${totalUnconfirmedCount})`
-                : `Unconfirmed Aliases (${otherAliases.length})`;
+                ? `Unconfirmed Alias Sets (${otherAliases.length} / ${totalUnconfirmedCount})`
+                : `Unconfirmed Alias Sets (${otherAliases.length})`;
 
             if (otherAliases.length > 0 || totalUnconfirmedCount !== null) {
                 sections.push({
@@ -5113,7 +5665,7 @@ body::before {
                     aliases: otherAliases, 
                     priority: 'unconfirmed',
                     collapsed: false,
-                    description: 'Aliases requiring manual validation and CPE mapping'
+                    description: 'Alias sets identified from source that are not currently mapped to a CPE Match String'
                 });
             }
 
@@ -5269,25 +5821,6 @@ body::before {
                                 priority: 'confirmed'
                             };
                             
-                            // Use the same alias rendering logic as unconfirmed aliases
-                            const globalIndex = currentAliasData ? currentAliasData.findIndex(item => 
-                                item === alias || (
-                                    item.vendor === alias.vendor && 
-                                    item.product === alias.product && 
-                                    item.frequency === alias.frequency &&
-                                    item.platform === alias.platform &&
-                                    item.version === alias.version &&
-                                    item.update === alias.update &&
-                                    item.edition === alias.edition &&
-                                    item.language === alias.language &&
-                                    item.sw_edition === alias.sw_edition &&
-                                    item.target_sw === alias.target_sw &&
-                                    item.target_hw === alias.target_hw &&
-                                    item.other === alias.other &&
-                                    JSON.stringify(item.source_cve || []) === JSON.stringify(alias.source_cve || [])
-                                )
-                            ) : aliasIndex;
-                            
                             const aliasDiv = document.createElement('div');
                             aliasDiv.className = 'alias-group';
                             aliasDiv.style.margin = '0';
@@ -5303,35 +5836,15 @@ body::before {
                             // This alias is confirmed
                             const isConfirmed = true;
                             
-                            // Create comprehensive alias summary using the same logic
+                            // Render all alias identifier fields in canonical order (excluding cpes)
+                            // using centralized labels and placeholder detection — consistent with unconfirmed rendering.
                             const aliasProps = [];
-                            
-                    // Core properties - only show if they exist and are not placeholders
-                    if (alias.vendor && alias.vendor !== '' && alias.vendor !== 'N/A' && alias.vendor !== 'n/a' && alias.vendor !== 'unknown') {
-                        aliasProps.push(`<strong>Vendor:</strong> ${alias.vendor}`);
-                    }
-                    if (alias.product && alias.product !== '' && alias.product !== 'N/A' && alias.product !== 'n/a' && alias.product !== 'unknown') {
-                        aliasProps.push(`<strong>Product:</strong> ${alias.product}`);
-                    }
-                    if (alias.platform && alias.platform !== '' && alias.platform !== 'N/A' && alias.platform !== 'n/a' && alias.platform !== 'unknown' && alias.platform !== '*') {
-                        aliasProps.push(`<strong>Platform:</strong> ${alias.platform}`);
-                    }
-                            
-                            // Additional CVE 5.X properties that might be present
-                            const additionalFields = ['collectionURL', 'packageName', 'packageURL', 'programRoutines', 
-                                                    'programFiles', 'modules', 'defaultStatus', 'repo'];
-                            
-                            additionalFields.forEach(field => {
-                                if (alias[field] && alias[field] !== 'N/A' && alias[field] !== '') {
-                                    let value = alias[field];
-                                    if (Array.isArray(value)) {
-                                        value = value.join(', ');
-                                    }
-                                    
-                                    // Format field name for display
-                                    const displayField = field.charAt(0).toUpperCase() + field.slice(1);
-                                    aliasProps.push(`<strong>${displayField}:</strong> ${value}`);
-                                }
+                            ALIAS_TYPE_FIELD_ORDER.filter(f => f !== 'cpes').forEach(field => {
+                                const val = alias[field];
+                                if (!val || isPlaceholderValue(val)) return;
+                                let display = Array.isArray(val) ? val.join(', ') : String(val);
+                                if (display.length > 50) display = display.substring(0, 47) + '...';
+                                aliasProps.push(`<strong>${ALIAS_TYPE_FIELD_LABELS[field] || field}:</strong> ${display}`);
                             });
                             
                             // Add confirmed metadata if available  
@@ -5345,12 +5858,8 @@ body::before {
                                 aliasProps.push(`<strong>Confirmed By:</strong> ${confirmedBy}`);
                             }
                             
-                            // Create alias title using the same logic
-                            const aliasTitle = alias.vendor && alias.product ? 
-                                `${alias.vendor} ${alias.product}` :
-                                alias.product || alias.vendor || 
-                                alias.packageName || alias.programFiles || 
-                                `Alias ${aliasIndex + 1}`;
+                            // Create alias title using shared helper (handles missing/placeholder vendor+product)
+                            const aliasTitle = getAliasDisplayTitle(alias, aliasIndex);
                             
                             // Use the same header HTML structure as unconfirmed aliases
                             headerDiv.innerHTML = `
@@ -5454,24 +5963,7 @@ body::before {
                 } else {
                     // Normal section rendering for unconfirmed aliases
                     section.aliases.forEach((alias, index) => {
-                    // Find the global index of this alias in currentAliasData using comprehensive comparison
-                    const globalIndex = currentAliasData ? currentAliasData.findIndex(item => 
-                        item === alias || (
-                            item.vendor === alias.vendor && 
-                            item.product === alias.product && 
-                            item.frequency === alias.frequency &&
-                            item.platform === alias.platform &&
-                            item.version === alias.version &&
-                            item.update === alias.update &&
-                            item.edition === alias.edition &&
-                            item.language === alias.language &&
-                            item.sw_edition === alias.sw_edition &&
-                            item.target_sw === alias.target_sw &&
-                            item.target_hw === alias.target_hw &&
-                            item.other === alias.other &&
-                            JSON.stringify(item.source_cve || []) === JSON.stringify(alias.source_cve || [])
-                        )
-                    ) : index;
+                    const globalIndex = index;
                     
                     const aliasDiv = document.createElement('div');
                     aliasDiv.className = 'alias-group';
@@ -5483,6 +5975,8 @@ body::before {
                     const _uy = [...new Set((alias.source_cve || []).map(cve => { const m = cve.match(/CVE-(\d{4})-/); return m ? m[1] : 'Unknown'; }))];
                     aliasDiv.dataset.years = _uy.length ? _uy.join(' ') : 'Unknown';
                     aliasDiv.dataset.section = 'unconfirmed';
+                    const _af = ALIAS_TYPE_FIELD_ORDER.filter(f => { const _v = alias[f]; return _v && !isPlaceholderValue(_v) && !(Array.isArray(_v) && _v.length === 0); });
+                    aliasDiv.dataset.aliasFields = _af.length ? _af.join(' ') : '';
 
                     const headerDiv = document.createElement('div');
                     headerDiv.className = 'alias-group-header';
@@ -5501,32 +5995,13 @@ body::before {
                     }
                     // Note: Removed frequency-based priority and group display as requested
                     
-                    // Core properties - only show if they exist and are not placeholders
-                    if (alias.vendor && alias.vendor !== '' && alias.vendor !== 'N/A' && alias.vendor !== 'n/a' && alias.vendor !== 'unknown') {
-                        aliasProps.push(`<strong>Vendor:</strong> ${alias.vendor}`);
-                    }
-                    if (alias.product && alias.product !== '' && alias.product !== 'N/A' && alias.product !== 'n/a' && alias.product !== 'unknown') {
-                        aliasProps.push(`<strong>Product:</strong> ${alias.product}`);
-                    }
-                    if (alias.platform && alias.platform !== '' && alias.platform !== 'N/A' && alias.platform !== 'n/a' && alias.platform !== 'unknown' && alias.platform !== '*') {
-                        aliasProps.push(`<strong>Platform:</strong> ${alias.platform}`);
-                    }
-                    
-                    // Additional CVE 5.X properties that might be present
-                    const additionalFields = ['collectionURL', 'packageName', 'packageURL', 'programRoutines', 
-                                            'programFiles', 'modules', 'defaultStatus', 'repo'];
-                    
-                    additionalFields.forEach(field => {
-                        if (alias[field] && alias[field] !== 'N/A' && alias[field] !== '') {
-                            let value = alias[field];
-                            if (Array.isArray(value)) {
-                                value = value.join(', ');
-                            }
-                            if (typeof value === 'string' && value.length > 50) {
-                                value = value.substring(0, 47) + '...';
-                            }
-                            aliasProps.push(`<strong>${field}:</strong> ${value}`);
-                        }
+                    // Render all alias identifier fields in canonical order (excluding cpes)
+                    ALIAS_TYPE_FIELD_ORDER.filter(f => f !== 'cpes').forEach(field => {
+                        const val = alias[field];
+                        if (!val || isPlaceholderValue(val)) return;
+                        let display = Array.isArray(val) ? val.join(', ') : String(val);
+                        if (display.length > 50) display = display.substring(0, 47) + '...';
+                        aliasProps.push(`<strong>${ALIAS_TYPE_FIELD_LABELS[field] || field}:</strong> ${display}`);
                     });
                     
                     // Enhanced property display features
@@ -5540,12 +6015,8 @@ body::before {
                         aliasProps.push(`<strong>Confirmed By:</strong> ${confirmedBy}`);
                     }
                     
-                    // Create alias title from vendor/product or other identifying fields
-                    const aliasTitle = alias.vendor && alias.product ? 
-                        `${alias.vendor} ${alias.product}` :
-                        alias.product || alias.vendor || 
-                        alias.packageName || alias.programFiles || 
-                        `Alias ${globalIndex + 1}`;
+                    // Derive alias title using shared helper (handles missing/placeholder vendor+product)
+                    const aliasTitle = getAliasDisplayTitle(alias, globalIndex);
                     
                     headerDiv.innerHTML = `
                         <div class="alias-header">
@@ -5656,8 +6127,8 @@ body::before {
             const toggleId = 'source-data-concerns';
 
             const concernTitle = (totalConcernCount !== null)
-                ? `Unconfirmed Aliases - Data Concerns (${concerningAliases.length} / ${totalConcernCount})`
-                : `Unconfirmed Aliases - Data Concerns (${concerningAliases.length})`;
+                ? `Unconfirmed Alias Sets - Data Concerns (${concerningAliases.length} / ${totalConcernCount})`
+                : `Unconfirmed Alias Sets - Data Concerns (${concerningAliases.length})`;
             
             sectionHeader.className = 'aliases-section-header gradient-green';
             
@@ -5665,7 +6136,7 @@ body::before {
                 <div class="section-header-flex">
                     <div style="text-align: left; flex: 1;">
                         <span style="font-weight: 600;">${concernTitle}</span>
-                        <div style="font-size: 0.8em; opacity: 0.9; margin-top: 1px;">Aliases that likely require upstream data contributor attention</div>
+                        <div style="font-size: 0.8em; opacity: 0.9; margin-top: 1px;">Alias sets identified from source, containing possible data concerns, that are not currently mapped to a CPE Match String</div>
                     </div>
                     <span id="${toggleId}-toggle" class="collapsible-toggle" style="font-size: 1.1em; flex-shrink: 0;">▼</span>
                 </div>
@@ -5712,6 +6183,8 @@ body::before {
                 const _cy = [...new Set((alias.source_cve || []).map(cve => { const m = cve.match(/CVE-(\d{4})-/); return m ? m[1] : 'Unknown'; }))];
                 aliasDiv.dataset.years = _cy.length ? _cy.join(' ') : 'Unknown';
                 aliasDiv.dataset.section = 'concern';
+                const _af2 = ALIAS_TYPE_FIELD_ORDER.filter(f => { const _v = alias[f]; return _v && !isPlaceholderValue(_v) && !(Array.isArray(_v) && _v.length === 0); });
+                aliasDiv.dataset.aliasFields = _af2.length ? _af2.join(' ') : '';
 
                 const headerDiv = document.createElement('div');
                 headerDiv.className = 'alias-group-header';
@@ -5730,18 +6203,16 @@ body::before {
                                 <div style="flex: 1; min-width: 0;">
                                     <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
                                         <span style="color: #333; font-size: 0.95em; font-weight: 600;">
-                                            ${[getDisplayValue(alias.vendor), getDisplayValue(alias.product, 'Product')].filter(v => v).join(' ')}
+                                            ${getAliasDisplayTitle(alias, 0)}
                                         </span>
                                     </div>
                                     <div style="font-size: 0.85em; line-height: 1.3;">
-                                        ${!isPlaceholderValue(alias.vendor) ? `<strong>Vendor:</strong> ${alias.vendor}<br>` : ''}
-                                        ${!isPlaceholderValue(alias.product) ? `<strong>Product:</strong> ${alias.product}<br>` : ''}
-                                        ${!isPlaceholderValue(alias.platform) ? `<strong>Platform:</strong> ${alias.platform}<br>` : ''}
-                                        ${['collectionURL', 'packageName', 'packageURL', 'programRoutines', 'programFiles', 'modules', 'defaultStatus', 'repo'].map(f => {
-                                            if (!alias[f] || alias[f] === 'N/A' || alias[f] === '') return '';
-                                            let v = Array.isArray(alias[f]) ? alias[f].join(', ') : String(alias[f]);
-                                            if (v.length > 50) v = v.substring(0, 47) + '...';
-                                            return `<strong>${f}:</strong> ${v}<br>`;
+                                        ${ALIAS_TYPE_FIELD_ORDER.filter(f => f !== 'cpes').map(f => {
+                                            const _v = alias[f];
+                                            if (!_v || isPlaceholderValue(_v)) return '';
+                                            let _d = Array.isArray(_v) ? _v.join(', ') : String(_v);
+                                            if (_d.length > 50) _d = _d.substring(0, 47) + '...';
+                                            return `<strong>${ALIAS_TYPE_FIELD_LABELS[f] || f}:</strong> ${_d}<br>`;
                                         }).join('')}
                                     </div>
                                 </div>
@@ -5932,6 +6403,8 @@ body::before {
         let selectedAliases = new Set();
         let currentAliasData = null;
         let currentConsolidatedData = null; // Store the raw consolidated data
+        let fieldSelections = new Map();     // Map<entryIndex, Set<fieldName>> — active field selections in modal
+        let aliasEntryMap = new Map();        // Map<selectionKey, entryIndices[]> — which entries belong to each alias
 
         function makeDraggable() {
             const modal = document.getElementById('modalContent');
@@ -6041,9 +6514,11 @@ body::before {
             updateModalButtonState();
         }
 
-        function consolidateAliases() {
+        // Opens the confirm-mapping modal for the currently selected aliases.
+        // Builds currentConsolidatedData and initializes fieldSelections from the selected alias set.
+        function openConfirmMappingModal() {
             if (selectedAliases.size < 1) {
-                alert('Please select at least 1 alias to consolidate.');
+                alert('Please select at least 1 alias to confirm.');
                 return;
             }
 
@@ -6060,97 +6535,60 @@ body::before {
                     alias = DataManager.datasets[sourceDataset].find(item => item.id === numericId);
                 }
                 
-                return alias;
-            }).filter(alias => alias);
+                return { alias, selectionKey };
+            }).filter(item => item.alias);
 
-            // Store the raw consolidated data
+            // Store the raw consolidated data and track entry ranges per selection key
             currentConsolidatedData = [];
+            aliasEntryMap = new Map();
 
             // Create separate entry for each selected alias (no consolidation)
-            aliasesToConsolidate.forEach(alias => {
+            aliasesToConsolidate.forEach(({ alias, selectionKey }) => {
                 const aliasEntry = {};
 
-                // Include relevant properties only if they exist and have valid values
-                ['vendor', 'product', 'version', 'update', 'edition', 'language', 'sw_edition', 'target_sw', 'target_hw', 'other'].forEach(prop => {
-                    if (!isPlaceholderValue(alias[prop])) {
-                        // Convert arrays to single string values
-                        if (Array.isArray(alias[prop])) {
-                            aliasEntry[prop] = alias[prop][0]; // Take first element
-                        } else {
-                            aliasEntry[prop] = alias[prop];
-                        }
+                // Include vendor and product if not placeholder
+                ['vendor', 'product'].forEach(prop => {
+                    if (alias[prop] && !isPlaceholderValue(alias[prop])) {
+                        aliasEntry[prop] = alias[prop];
                     }
                 });
 
-                // Handle special properties - only include if they exist, convert arrays to strings
-                if (!isPlaceholderValue(alias.platform)) {
-                    if (Array.isArray(alias.platform)) {
-                        aliasEntry.platform = alias.platform[0]; // Take first platform
+                // Handle cve5Properties identifier fields (excluding cpes — not an alias identifier).
+                // Array-valued fields are expanded into separate alias entries rather than truncated.
+                const aliasIdFields = cve5Properties.filter(f => f !== 'vendor' && f !== 'product' && f !== 'cpes');
+                const idScalars = {};
+                const idArrays = {};
+                aliasIdFields.forEach(field => {
+                    const val = alias[field];
+                    if (!val || isPlaceholderValue(val)) return;
+                    if (Array.isArray(val)) {
+                        const valid = val.filter(v => !isPlaceholderValue(v));
+                        if (valid.length > 1) { idArrays[field] = valid; }
+                        else if (valid.length === 1) { idScalars[field] = valid[0]; }
                     } else {
-                        aliasEntry.platform = alias.platform;
+                        idScalars[field] = val;
                     }
-                }
-                
-                if (!isPlaceholderValue(alias.collectionURL)) {
-                    if (Array.isArray(alias.collectionURL)) {
-                        aliasEntry.collectionURL = alias.collectionURL[0];
-                    } else {
-                        aliasEntry.collectionURL = alias.collectionURL;
-                    }
-                }
-                
-                if (!isPlaceholderValue(alias.packageName)) {
-                    if (Array.isArray(alias.packageName)) {
-                        aliasEntry.packageName = alias.packageName[0];
-                    } else {
-                        aliasEntry.packageName = alias.packageName;
-                    }
-                }
-                
-                if (!isPlaceholderValue(alias.programRoutines)) {
-                    if (Array.isArray(alias.programRoutines)) {
-                        aliasEntry.programRoutines = alias.programRoutines[0];
-                    } else {
-                        aliasEntry.programRoutines = alias.programRoutines;
-                    }
-                }
-                
-                if (!isPlaceholderValue(alias.programFiles)) {
-                    if (Array.isArray(alias.programFiles)) {
-                        aliasEntry.programFiles = alias.programFiles[0];
-                    } else {
-                        aliasEntry.programFiles = alias.programFiles;
-                    }
-                }
-                
-                if (!isPlaceholderValue(alias.modules)) {
-                    if (Array.isArray(alias.modules)) {
-                        aliasEntry.modules = alias.modules[0];
-                    } else {
-                        aliasEntry.modules = alias.modules;
-                    }
-                }
-                
-                if (!isPlaceholderValue(alias.repo)) {
-                    if (Array.isArray(alias.repo)) {
-                        aliasEntry.repo = alias.repo[0];
-                    } else {
-                        aliasEntry.repo = alias.repo;
-                    }
-                }
+                });
 
-                if (!isPlaceholderValue(alias.packageURL)) {
-                    if (Array.isArray(alias.packageURL)) {
-                        aliasEntry.packageURL = alias.packageURL[0];
-                    } else {
-                        aliasEntry.packageURL = alias.packageURL;
-                    }
-                }
+                // Expand: generate one aliasEntry per array-field value combination
+                let expandedEntries = [{...aliasEntry, ...idScalars}];
+                Object.entries(idArrays).forEach(([field, values]) => {
+                    const next = [];
+                    expandedEntries.forEach(entry => values.forEach(v => next.push({...entry, [field]: v})));
+                    expandedEntries = next;
+                });
 
-                // Only add the entry if it has at least some properties
-                if (Object.keys(aliasEntry).length > 0) {
-                    currentConsolidatedData.push(aliasEntry);
-                }
+                const entryStartIdx = currentConsolidatedData.length;
+                expandedEntries.forEach(entry => {
+                    if (Object.keys(entry).length > 0) {
+                        currentConsolidatedData.push(entry);
+                    }
+                });
+                // Track which entry indices belong to this selection key
+                const entryEndIdx = currentConsolidatedData.length;
+                const entryIndices = [];
+                for (let i = entryStartIdx; i < entryEndIdx; i++) entryIndices.push(i);
+                aliasEntryMap.set(selectionKey, entryIndices);
             });
 
             // Clear the CPE input and show modal
@@ -6158,6 +6596,12 @@ body::before {
             cpeInput.value = 'cpe:2.3:';
             handleCpeInput(cpeInput); // Initialize the display
             populateExistingCpeDropdown();
+            // Initialize field selections: all fields checked by default
+            fieldSelections = new Map();
+            currentConsolidatedData.forEach((entry, i) => {
+                fieldSelections.set(i, new Set(Object.keys(entry)));
+            });
+            renderAliasFieldCheckboxes();
             updateConsolidatedOutput();
             document.getElementById('outputModal').style.display = 'flex';
             
@@ -6218,6 +6662,17 @@ body::before {
             
             // Get the final CPE (either generated or validated input)
             const finalCpe = input.getAttribute('data-final-cpe') || inputValue;
+
+            // Apply field selections: filter to only checked fields per entry
+            const filteredData = currentConsolidatedData.map((entry, i) => {
+                const selected = fieldSelections.get(i);
+                if (!selected || selected.size === 0) return null;
+                const filtered = {};
+                Object.keys(entry).forEach(key => {
+                    if (selected.has(key)) filtered[key] = entry[key];
+                });
+                return Object.keys(filtered).length > 0 ? filtered : null;
+            }).filter(e => e !== null);
             
             let outputData;
             
@@ -6225,8 +6680,8 @@ body::before {
                 // Get existing aliases for this CPE base string
                 const existingAliases = getExistingAliasesForCpe(finalCpe);
                 
-                // Combine existing aliases with new ones
-                const allAliases = [...existingAliases, ...currentConsolidatedData];
+                // Combine existing aliases with new ones (field-filtered)
+                const allAliases = [...existingAliases, ...filteredData];
                 
                 // Include cpeBaseString in the structure
                 outputData = {
@@ -6236,21 +6691,16 @@ body::before {
             } else {
                 // No valid CPE base string
                 outputData = {
-                    "aliases": currentConsolidatedData
+                    "aliases": filteredData
                 };
             }
 
-            // Use JSON.stringify with proper replacer to handle escaping
-            const jsonOutput = JSON.stringify(outputData, (key, value) => {
-                // Ensure proper JSON string escaping for all string values
-                if (typeof value === 'string') {
-                    // JSON.stringify already handles proper escaping, but let's be explicit about CPE strings
-                    return value;
-                }
-                return value;
-            }, 2);
+            const jsonOutput = JSON.stringify(outputData, null, 2);
             
             document.getElementById('outputContent').textContent = jsonOutput;
+            
+            // Keep button state in sync with current field selections
+            updateModalButtonState();
         }
 
         function getExistingAliasesForCpe(cpeBaseString) {
@@ -6267,26 +6717,42 @@ body::before {
                 if (mapping.cpeBaseString === cpeBaseString && mapping.aliases) {
                     // Add all aliases from this mapping
                     mapping.aliases.forEach(alias => {
-                        // Clean the alias - remove internal fields and ensure string properties
+                        // Build clean alias: vendor/product + cve5Properties identifier fields.
+                        // cpes is intentionally excluded — not an alias identifier.
                         const cleanAlias = {};
 
-                        ['vendor', 'product', 'version', 'update', 'edition', 'language',
-                         'sw_edition', 'target_sw', 'target_hw', 'other'].forEach(prop => {
+                        ['vendor', 'product'].forEach(prop => {
                             if (alias[prop] && !isPlaceholderValue(alias[prop])) {
-                                cleanAlias[prop] = Array.isArray(alias[prop]) ? alias[prop][0] : alias[prop];
+                                cleanAlias[prop] = alias[prop];
                             }
                         });
 
-                        ['platform', 'collectionURL', 'packageName', 'packageURL',
-                         'programRoutines', 'programFiles', 'modules', 'repo'].forEach(prop => {
-                            if (alias[prop] && !isPlaceholderValue(alias[prop])) {
-                                cleanAlias[prop] = Array.isArray(alias[prop]) ? alias[prop][0] : alias[prop];
+                        // cve5Properties identifier fields (minus vendor/product already handled, minus cpes)
+                        const idFields = cve5Properties.filter(f => f !== 'vendor' && f !== 'product' && f !== 'cpes');
+                        const idScalars = {};
+                        const idArrays = {};
+                        idFields.forEach(field => {
+                            const val = alias[field];
+                            if (!val || isPlaceholderValue(val)) return;
+                            if (Array.isArray(val)) {
+                                const valid = val.filter(v => !isPlaceholderValue(v));
+                                if (valid.length > 1) { idArrays[field] = valid; }
+                                else if (valid.length === 1) { idScalars[field] = valid[0]; }
+                            } else {
+                                idScalars[field] = val;
                             }
                         });
 
-                        if (Object.keys(cleanAlias).length > 0) {
-                            existingAliases.push(cleanAlias);
-                        }
+                        // Expand array-valued fields into separate entries
+                        let expanded = [{...cleanAlias, ...idScalars}];
+                        Object.entries(idArrays).forEach(([field, values]) => {
+                            const next = [];
+                            expanded.forEach(entry => values.forEach(v => next.push({...entry, [field]: v})));
+                            expanded = next;
+                        });
+                        expanded.forEach(entry => {
+                            if (Object.keys(entry).length > 0) existingAliases.push(entry);
+                        });
                     });
                 }
             });
@@ -6297,6 +6763,153 @@ body::before {
         function closeOutputModal() {
             document.getElementById('outputModal').style.display = 'none';
             currentConsolidatedData = null;
+            fieldSelections = new Map();
+            aliasEntryMap = new Map();
+        }
+
+        function renderAliasFieldCheckboxes() {
+            const container = document.getElementById('aliasFieldSelections');
+            if (!container) return;
+            if (!currentConsolidatedData || currentConsolidatedData.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            const multipleAliasSets = aliasEntryMap.size > 1;
+            container.style.display = 'block';
+
+            let html = '<div class="alias-field-selections">';
+            html += '<div class="alias-field-selections-header">';
+            html += '<span class="alias-field-selections-title">Included Fields</span>';
+            if (multipleAliasSets) {
+                html += '<div class="alias-entry-toggle-btns">'
+                    + '<button class="alias-entry-toggle-btn" onclick="toggleAllEntryFields(true)">All</button>'
+                    + '<button class="alias-entry-toggle-btn" onclick="toggleAllEntryFields(false)">None</button>'
+                    + '</div>';
+            }
+            html += '</div>';
+
+            // Render entries grouped by alias set (selection key = "aliasId:sourceDataset")
+            for (const [selectionKey, entryIndices] of aliasEntryMap.entries()) {
+                if (entryIndices.length === 0) continue;
+
+                // Build alias set label from vendor/product of the original alias
+                const [aliasId, sourceDataset] = selectionKey.split(':');
+                const alias = DataManager.datasets[sourceDataset] &&
+                    DataManager.datasets[sourceDataset].find(a => a.id === parseInt(aliasId));
+                const labelParts = [];
+                if (alias && alias.vendor && !isPlaceholderValue(alias.vendor)) labelParts.push(alias.vendor);
+                if (alias && alias.product && !isPlaceholderValue(alias.product)) labelParts.push(alias.product);
+                const aliasSetLabel = labelParts.length > 0 ? labelParts.join(' / ') : `Alias ${aliasId}`;
+
+                // Determine complete vs partial: complete = every entry has all its fields selected
+                const isFullMerge = entryIndices.every(i => {
+                    const sel = fieldSelections.get(i);
+                    const allFields = Object.keys(currentConsolidatedData[i] || {});
+                    return sel && sel.size === allFields.length;
+                });
+                const hasAnySelected = entryIndices.some(i => {
+                    const sel = fieldSelections.get(i);
+                    return sel && sel.size > 0;
+                });
+                let mergeLabel, mergeClass;
+                if (isFullMerge) {
+                    mergeLabel = 'Complete'; mergeClass = 'merge-complete';
+                } else if (hasAnySelected) {
+                    mergeLabel = 'Partial'; mergeClass = 'merge-partial';
+                } else {
+                    mergeLabel = 'None'; mergeClass = 'merge-none';
+                }
+
+                html += '<div class="alias-set-group">';
+                html += '<div class="alias-set-header">';
+                html += '<div class="alias-set-label-group">'
+                    + `<span class="alias-set-label">${aliasSetLabel}</span>`
+                    + `<span class="alias-set-merge-badge ${mergeClass}">${mergeLabel}</span>`
+                    + '</div>';
+                html += '<div class="alias-entry-toggle-btns">'
+                    + `<button class="alias-entry-toggle-btn" onclick="toggleAliasSetFields('${selectionKey}', true)">All</button>`
+                    + `<button class="alias-entry-toggle-btn" onclick="toggleAliasSetFields('${selectionKey}', false)">None</button>`
+                    + '</div>';
+                html += '</div>'; // alias-set-header
+
+                const multipleEntries = entryIndices.length > 1;
+                entryIndices.forEach((i, localIdx) => {
+                    const entry = currentConsolidatedData[i];
+                    if (!entry) return;
+                    const fields = Object.keys(entry);
+                    const selected = fieldSelections.get(i) || new Set();
+                    html += '<div class="alias-entry-group">';
+                    if (multipleEntries) {
+                        html += '<div class="alias-entry-header">'
+                            + `<span class="alias-entry-label">Entry ${localIdx + 1}</span>`
+                            + '<div class="alias-entry-toggle-btns">'
+                            + `<button class="alias-entry-toggle-btn" onclick="toggleEntryFields(${i}, true)">All</button>`
+                            + `<button class="alias-entry-toggle-btn" onclick="toggleEntryFields(${i}, false)">None</button>`
+                            + '</div></div>';
+                    }
+                    html += '<div class="alias-field-list">';
+                    fields.forEach(field => {
+                        const isChecked = selected.has(field);
+                        const rawVal = entry[field];
+                        const displayVal = String(rawVal).length > 60
+                            ? String(rawVal).slice(0, 57) + '\u2026'
+                            : String(rawVal);
+                        const escapedVal = String(rawVal)
+                            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                        html += `<label class="alias-field-item">`
+                            + `<input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleFieldSelection(${i}, '${field}', this.checked)">`
+                            + `<span class="alias-field-name">${field}:</span>`
+                            + `<span class="alias-field-value" title="${escapedVal}">${displayVal}</span>`
+                            + `</label>`;
+                    });
+                    html += '</div></div>'; // alias-field-list, alias-entry-group
+                });
+                html += '</div>'; // alias-set-group
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function toggleFieldSelection(entryIndex, fieldName, checked) {
+            const selected = fieldSelections.get(entryIndex);
+            if (selected) {
+                if (checked) selected.add(fieldName);
+                else selected.delete(fieldName);
+            }
+            renderAliasFieldCheckboxes();
+            updateConsolidatedOutput();
+        }
+
+        function toggleEntryFields(entryIndex, checkAll) {
+            const entry = currentConsolidatedData && currentConsolidatedData[entryIndex];
+            if (!entry) return;
+            fieldSelections.set(entryIndex, checkAll ? new Set(Object.keys(entry)) : new Set());
+            renderAliasFieldCheckboxes();
+            updateConsolidatedOutput();
+        }
+
+        function toggleAllEntryFields(checkAll) {
+            if (!currentConsolidatedData) return;
+            currentConsolidatedData.forEach((entry, i) => {
+                fieldSelections.set(i, checkAll ? new Set(Object.keys(entry)) : new Set());
+            });
+            renderAliasFieldCheckboxes();
+            updateConsolidatedOutput();
+        }
+
+        // Toggle all field checkboxes for all entries belonging to a single alias set.
+        function toggleAliasSetFields(selectionKey, checkAll) {
+            const entryIndices = aliasEntryMap.get(selectionKey) || [];
+            entryIndices.forEach(i => {
+                const entry = currentConsolidatedData && currentConsolidatedData[i];
+                if (!entry) return;
+                fieldSelections.set(i, checkAll ? new Set(Object.keys(entry)) : new Set());
+            });
+            renderAliasFieldCheckboxes();
+            updateConsolidatedOutput();
         }
 
         function updateConfirmedMappings() {
@@ -6394,8 +7007,41 @@ body::before {
                         `Processing alias ${i + 1} of ${aliasArray.length}`
                     );
                     
-                    // Use DataManager helper function to move the alias
-                    const result = DataManager.mergeWithConfirmed(numericId, sourceDataset, cpeBaseString);
+                    // Compute field-filtered entries for this alias (if user deselected any fields)
+                    const entryIndices = aliasEntryMap.get(selectionKey) || [];
+                    let filteredEntries = null;
+                    if (entryIndices.length > 0 && fieldSelections.size > 0) {
+                        const allSelected = entryIndices.every(idx => {
+                            const selected = fieldSelections.get(idx);
+                            const allFields = Object.keys(currentConsolidatedData[idx] || {});
+                            return !selected || selected.size === allFields.length;
+                        });
+                        if (!allSelected) {
+                            filteredEntries = entryIndices
+                                .map(idx => {
+                                    const selected = fieldSelections.get(idx);
+                                    if (!selected || selected.size === 0) return null;
+                                    const entry = currentConsolidatedData[idx];
+                                    if (!entry) return null;
+                                    const filtered = {};
+                                    selected.forEach(key => {
+                                        if (entry[key] !== undefined) filtered[key] = entry[key];
+                                    });
+                                    return Object.keys(filtered).length > 0 ? filtered : null;
+                                })
+                                .filter(e => e !== null);
+                            if (filteredEntries.length === 0) {
+                                // All fields were deselected — skip rather than falling through to the
+                                // full-path merge (which would incorrectly move the alias out of its source).
+                                errorCount++;
+                                errors.push(`ID ${aliasId}: No fields selected — nothing to confirm`);
+                                console.warn(`Skipping alias ${numericId}: all field checkboxes deselected`);
+                                continue;
+                            }
+                        }
+                    }
+                    // Use DataManager helper function to move the alias (with optional field filter)
+                    const result = DataManager.mergeWithConfirmed(numericId, sourceDataset, cpeBaseString, filteredEntries);
                     
                     if (result.success) {
                         successCount++;
@@ -6481,107 +7127,15 @@ body::before {
             }
         }
 
-        // Store alias data when displaying
+        // Updates the current alias data reference and resets selection state.
+        // Selections are intentionally cleared on every display refresh to prevent stale
+        // state after data mutations (alias moved to confirmed) or filter changes.
         function storeCurrentAliasData(aliases) {
             currentAliasData = aliases;
             selectedAliases.clear();
             updateSelectionPanel();
         }
-
-        // Modal interaction enhancements for confirmed mappings
-        function showModalConfirmed(confirmedMapping) {
-            // Show modal specific to confirmed mapping data
-            const modal = document.getElementById('outputModal');
-            const content = document.getElementById('outputContent');
-            
-            content.textContent = JSON.stringify({
-                "modal": "confirmed mapping data",
-                "cve": confirmedMapping.cve,
-                "platform": confirmedMapping.platform,
-                "aliases": confirmedMapping.aliases
-            }, null, 2);
-            
-            modal.style.display = 'flex';
-        }
-
-        function openModalConfirmed(mappingData) {
-            // Open modal with confirmed mapping context
-            const modalData = {
-                "confirmedMappings": mappingData,
-                "enhanced": true
-            };
-            showModalConfirmed(modalData);
-        }
-
-        function populateModalConfirmed(data) {
-            // Populate modal with data from confirmedMappings array
-            if (data && data.confirmedMappings) {
-                data.confirmedMappings.forEach(mapping => {
-                    // Modal data confirmedMappings processing
-                    console.log('Modal processing:', mapping);
-                });
-            }
-        }
     </script>
-
-    <!-- Selection Panel -->
-    <div class="selection-panel white-card" id="selectionPanel">
-        <h4>Selected Aliases (<span id="selectionCount">0</span>)</h4>
-        <div class="selection-list" id="selectionList"></div>
-        <button class="consolidate-btn" id="consolidateBtn" onclick="consolidateAliases()">
-            Update Confirmed Mappings
-        </button>
-    </div>
-
-    <!-- Output Modal -->
-    <div class="output-modal" id="outputModal">
-        <div class="output-modal-content white-card" id="modalContent">
-            <div class="modal-header" id="modalHeader">
-                <h3>Update Confirmed Mappings</h3>
-            </div>
-            <div style="margin-bottom: 16px;">
-                <label for="cpeBaseString" style="display: block; margin-bottom: 4px; font-weight: 500;">CPE Base String:</label>
-                
-                <!-- CPE Builder Input -->
-                <div style="margin-bottom: 6px;">
-                    <input type="text" id="cpeBaseString" placeholder="a:vendor:product" 
-                           class="code-input"
-                           oninput="handleCpeInput(this)"
-                           onkeydown="handleCpeKeydown(event)">
-                    <div id="cpeValidationMessage" style="font-size: 0.75em; margin-top: 2px; height: 18px; overflow: hidden; line-height: 1.2;"></div>
-                    <div id="cpePreview" class="code-preview" style="height: 14px; overflow: hidden;"></div>
-                </div>
-                
-                <!-- Existing CPE Dropdown -->
-                <div>
-                    <select id="existingCpeSelect" 
-                            onchange="selectExistingCpe()" 
-                            class="form-select"
-                            style="width: 100%;">
-                        <option value="">Or select from existing CPE strings...</option>
-                    </select>
-                </div>
-            </div>
-            <pre id="outputContent" class="code-output"></pre>
-            <div class="modal-actions">
-                <button class="modal-btn modal-btn-primary" onclick="updateConfirmedMappings()">Update Confirmed Mappings</button>
-                <button class="modal-btn modal-btn-secondary" onclick="closeOutputModal()">Close</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Processing Overlay (positioned at body level for maximum z-index effectiveness) -->
-    <div id="processingOverlay" class="processing-overlay">
-        <div class="processing-card">
-            <div class="processing-spinner"></div>
-            <div id="processingTitle" class="processing-title">Processing Data</div>
-            <div id="processingMessage" class="processing-message">Please wait while we process your request...</div>
-            <div class="processing-progress">
-                <div id="processingProgressBar" class="processing-progress-bar" style="width: 0%;"></div>
-            </div>
-            <div id="processingDetails" class="processing-details"></div>
-        </div>
-    </div>
 
 </body>
 </html>

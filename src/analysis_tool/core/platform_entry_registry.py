@@ -2303,8 +2303,10 @@ def register_alias_extraction(table_index: int, raw_platform_data: Dict, row: Di
     """
     Register alias extraction data for platform entries in the PLATFORM_ENTRY_NOTIFICATION_REGISTRY.
     
-    Extracts alias data from CVE platform entries by expanding platforms array into 
-    separate alias entries. Each alias entry contains flat key-value pairs with no arrays.
+    Extracts alias data from CVE platform entries by expanding the platforms array into 
+    separate alias entries.  Additionally, multi-value complex fields (modules, programFiles,
+    programRoutines) are expanded in the same way — each distinct value gets its own entry.
+    Each alias entry contains flat key-value pairs with no arrays.
     Populates PLATFORM_ENTRY_NOTIFICATION_REGISTRY for downstream reporting.
     
     Args:
@@ -2347,23 +2349,99 @@ def register_alias_extraction(table_index: int, raw_platform_data: Dict, row: Di
         # Create single entry without platform data
         alias_data = _create_alias_data(raw_platform_data, vendor, product, None, cve_id)
         if alias_data:  # Only store if meaningful data exists
-            PLATFORM_ENTRY_NOTIFICATION_REGISTRY['aliasExtraction'][str(table_index)] = alias_data
-            entry_count += 1
+            # Further expand multi-value complex fields (modules, programFiles, programRoutines)
+            for j, expanded in enumerate(_expand_alias_complex_fields(alias_data)):
+                key = str(table_index) if j == 0 else f"{table_index}_complex_{j}"
+                PLATFORM_ENTRY_NOTIFICATION_REGISTRY['aliasExtraction'][key] = expanded
+                entry_count += 1
     else:
         # Create separate entries for each platform (curator pattern)
         for i, platform in enumerate(platforms):
             # Always create alias entry - let _create_alias_data handle platform filtering
             alias_data = _create_alias_data(raw_platform_data, vendor, product, platform, cve_id)
             if alias_data:  # Only store if meaningful data exists
-                # Use unique table index for each platform entry (collector compatibility)
-                platform_index = f"{table_index}_platform_{i}"
-                PLATFORM_ENTRY_NOTIFICATION_REGISTRY['aliasExtraction'][platform_index] = alias_data
-                entry_count += 1
+                # Further expand multi-value complex fields (modules, programFiles, programRoutines)
+                for j, expanded in enumerate(_expand_alias_complex_fields(alias_data)):
+                    key = f"{table_index}_platform_{i}" if j == 0 else f"{table_index}_platform_{i}_complex_{j}"
+                    PLATFORM_ENTRY_NOTIFICATION_REGISTRY['aliasExtraction'][key] = expanded
+                    entry_count += 1
     
     # Return None if no valid entries created (curator pattern)
     if entry_count == 0:
         return None
     
+
+
+def _expand_alias_complex_fields(alias_data: Dict) -> list:
+    """
+    Expand an alias entry whose complex array fields (modules, programFiles,
+    programRoutines) contain more than one meaningful value into separate
+    single-value alias entries — one per unique value per field.
+
+    This mirrors the platform expansion pattern already applied in
+    register_alias_extraction: each distinct module / program file / routine
+    gets its own entry so downstream deduplication and report rendering treat
+    it as an independent alias.
+
+    Single-element arrays are unwrapped to a scalar value.  All-placeholder or
+    empty arrays drop the field entirely.  Non-expandable fields
+    (source_cve, vendor, product, platform, …) are preserved unchanged on
+    every expanded copy and the _alias_key is recomputed for each variant.
+
+    Args:
+        alias_data: Alias dict produced by _create_alias_data (may already
+                    contain a stale _alias_key — it will be recomputed).
+
+    Returns:
+        A list of one or more alias dicts, each with scalar complex-field values.
+    """
+    expandable = ['modules', 'programFiles', 'programRoutines']
+
+    # Build a base copy, partitioning multi-value arrays for expansion
+    base = {k: v for k, v in alias_data.items() if k != '_alias_key'}
+    to_expand = {}  # field -> [scalar values to fan out]
+
+    for field in expandable:
+        val = base.get(field)
+        if not isinstance(val, list):
+            continue  # scalar or absent — leave as-is
+        meaningful = [v for v in val if not _is_placeholder_value(v)]
+        if len(meaningful) > 1:
+            to_expand[field] = meaningful
+            del base[field]           # will be set per expanded copy
+        elif len(meaningful) == 1:
+            base[field] = meaningful[0]  # unwrap single-element array
+        else:
+            base.pop(field, None)     # all-placeholder — drop field
+
+    # If nothing to expand, just recompute the key on the cleaned base and return.
+    if not to_expand:
+        _recompute_alias_key(base)
+        return [base]
+
+    # Cartesian-product expansion across all multi-value fields
+    expanded = [base]
+    for field, values in to_expand.items():
+        next_expanded = []
+        for entry in expanded:
+            for v in values:
+                next_expanded.append({**entry, field: v})
+        expanded = next_expanded
+
+    # Recompute _alias_key for every variant
+    for entry in expanded:
+        _recompute_alias_key(entry)
+
+    return expanded
+
+
+def _recompute_alias_key(alias_data: Dict) -> None:
+    """Recompute and update _alias_key in-place, excluding source_cve and _alias_key itself."""
+    key_parts = []
+    for key_field in sorted(alias_data.keys()):
+        if key_field not in ('source_cve', '_alias_key'):
+            key_parts.append(f"{key_field}:{str(alias_data[key_field]).lower()}")
+    alias_data['_alias_key'] = '||'.join(key_parts)
 
 
 def _create_alias_data(affected_item: Dict, vendor: str = None, product: str = None, platform: str = None, cve_id: str = None) -> Dict:
