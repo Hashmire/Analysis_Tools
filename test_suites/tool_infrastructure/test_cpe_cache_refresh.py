@@ -2,7 +2,7 @@
 """
 CPE Cache Refresh Script Test Suite
 
-Tests for utilities/refresh_nvd_cpe_base_strings_cache.py functionality covering:
+Tests for utilities/refresh_tool_cpematchstring_2_0_cache.py functionality covering:
 - Shard data preservation during refresh
 - Query count incrementing behavior
 - Timestamp updates
@@ -36,7 +36,7 @@ import orjson
 from src.analysis_tool.core.gatherData import load_config
 
 # Import refresh script functions for testing
-import utilities.refresh_nvd_cpe_base_strings_cache as refresh_module
+import utilities.refresh_tool_cpematchstring_2_0_cache as refresh_module
 
 # =============================================================================
 # DATA INTEGRITY TESTS: Load Failure Protection
@@ -822,8 +822,8 @@ def test_refresh_script_exists():
     """Integration test: Verify refresh script exists and is executable"""
     print("Testing refresh script existence...")
     
-    script_path = project_root / "utilities" / "refresh_nvd_cpe_base_strings_cache.py"
-    assert script_path.exists(), f"utilities/refresh_nvd_cpe_base_strings_cache.py not found at {script_path}"
+    script_path = project_root / "utilities" / "refresh_tool_cpematchstring_2_0_cache.py"
+    assert script_path.exists(), f"utilities/refresh_tool_cpematchstring_2_0_cache.py not found at {script_path}"
     
     # Verify it's a Python script
     with open(script_path, 'r') as f:
@@ -837,13 +837,13 @@ def test_refresh_script_imports():
     """Integration test: Verify refresh script has all required imports"""
     print("Testing refresh script imports...")
     
-    script_path = project_root / "utilities" / "refresh_nvd_cpe_base_strings_cache.py"
+    script_path = project_root / "utilities" / "refresh_tool_cpematchstring_2_0_cache.py"
     with open(script_path, 'r') as f:
         content = f.read()
     
     required_imports = [
         'from src.analysis_tool.storage.cpe_cache import ShardedCPECache',
-        'from src.analysis_tool.core.gatherData import config, query_nvd_cpematch_by_modified_date, gatherNVDCPEData',
+        'from src.analysis_tool.core.gatherData import config, query_nvd_cpematch_by_modified_date, gatherNVDCPEData, _update_manual_refresh_timestamp',
         'from src.analysis_tool.logging.workflow_logger import get_logger',
         'from src.analysis_tool.storage.run_organization import get_analysis_tools_root'
     ]
@@ -858,42 +858,471 @@ def test_refresh_script_imports():
     print("[OK] Refresh script has correct imports")
     return True
 
-def test_configuration_independence():
-    """Integration test: Verify refresh script operates independently of notify_age_hours"""
-    print("Testing configuration independence...")
-    
+def test_phase1a_uses_oldest_entry_not_ttl():
+    """Integration test: Phase 1a NVD discovery uses oldest entry timestamp, not notify_age_hours TTL"""
+    print("Testing Phase 1a uses oldest entry timestamp (not notify_age_hours)...")
+
     notify_age = load_config()['cache_settings']['cpe_cache']['refresh_strategy'].get('notify_age_hours', 100)
-    
-    # Refresh script should NOT be limited by notify_age_hours
-    # It queries from oldest cache entry timestamp
-    # This is documented in the script's docstring
-    
-    script_path = project_root / "utilities" / "refresh_nvd_cpe_base_strings_cache.py"
+
+    script_path = project_root / "utilities" / "refresh_tool_cpematchstring_2_0_cache.py"
     with open(script_path, 'r') as f:
         content = f.read()
-    
-    # Verify documentation mentions independence
-    assert 'forced refresh' in content.lower() or 'manual refresh' in content.lower(), \
-        "Script should document forced/manual refresh behavior"
-    
-    # Verify script doesn't use notify_age_hours for query logic (mentions in comments are OK)
-    # Check that it's not imported from config for query date calculations
-    lines = content.split('\n')
-    code_lines = [l for l in lines if not l.strip().startswith('#') and l.strip()]
-    code_only = '\n'.join(code_lines)
-    
-    # The script should mention it in docs but not use it in query logic
-    has_config_awareness = 'notify_age_hours' in content  # Documentation mentions it
-    uses_in_code = 'get_query_start_date' in code_only  # Has independent query date logic
-    
-    assert has_config_awareness and uses_in_code, \
-        "Script should document relationship but use independent query logic"
-    
-    print("[OK] Refresh script operates independently of runtime expiration")
-    print(f"  - Runtime cache expiration: {notify_age} hours")
-    print(f"  - Refresh strategy: Query from oldest cache entry (forced refresh)")
-    print(f"  - Documentation: Clearly explains independence from notify_age_hours")
+
+    # Phase 1a must use oldest-entry-based date logic, not the TTL
+    assert 'get_query_start_date' in content, \
+        "Phase 1a should use get_query_start_date() for NVD query window"
+    assert 'find_oldest_cache_entry' in content, \
+        "Phase 1a should call find_oldest_cache_entry() to anchor the NVD query"
+
+    # Phase 1b must exist and read notify_age_hours from config
+    assert 'find_expired_cache_entries' in content, \
+        "Phase 1b should call find_expired_cache_entries()"
+    assert 'notify_age_hours' in content, \
+        "notify_age_hours should be read from config for Phase 1b expiry scan"
+
+    # Both phases must be documented in the module docstring
+    assert 'Phase 1a' in content, "Module should document Phase 1a"
+    assert 'Phase 1b' in content, "Module should document Phase 1b"
+
+    print("[OK] Phase 1a uses oldest entry timestamp for NVD query window")
+    print("[OK] Phase 1b uses notify_age_hours for local expiry scan")
+    print(f"  - Configured notify_age_hours: {notify_age}h")
     return True
+
+# =============================================================================
+# EXPIRY SCAN TESTS - Phase 1b: find_expired_cache_entries
+# =============================================================================
+
+def _make_shard_entry(last_queried_iso: str, query_count: int = 1) -> dict:
+    """Helper: build a minimal valid cache entry dict."""
+    return {
+        "query_response": {"totalResults": 1},
+        "last_queried": last_queried_iso,
+        "query_count": query_count,
+        "total_results": 1,
+    }
+
+
+def test_find_expired_disabled_when_zero_or_negative():
+    """Phase 1b returns empty set immediately when notify_age_hours <= 0."""
+    print("Testing find_expired_cache_entries disabled for notify_age_hours <= 0...")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir) / "cpe_base_strings"
+        cache_dir.mkdir()
+
+        # Put a very old entry in shard 00 — would be stale under any positive threshold
+        old_ts = (datetime.now(timezone.utc) - timedelta(days=9999)).isoformat()
+        shard_path = cache_dir / "cpe_cache_shard_00.json"
+        ShardedCPECache.save_shard_to_disk(shard_path, {
+            "cpe:2.3:a:old:vendor:*:*:*:*:*:*:*:*": _make_shard_entry(old_ts)
+        })
+
+        for threshold in [0, -1, -720]:
+            result = refresh_module.find_expired_cache_entries(cache_dir, threshold, num_shards=1)
+            assert result == set(), \
+                f"Expected empty set for notify_age_hours={threshold}, got {result}"
+            print(f"  [OK] notify_age_hours={threshold} -> empty set (scan disabled)")
+
+    print("[OK] Expiry scan correctly disabled for threshold <= 0")
+    return True
+
+
+def test_find_expired_detects_stale_entries():
+    """Phase 1b returns entries whose last_queried exceeds the TTL threshold."""
+    print("Testing find_expired_cache_entries detects stale entries...")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir) / "cpe_base_strings"
+        cache_dir.mkdir()
+
+        threshold = 24  # hours
+        stale_ts = (datetime.now(timezone.utc) - timedelta(hours=threshold + 1)).isoformat()
+        stale_key = "cpe:2.3:a:stale:vendor:*:*:*:*:*:*:*:*"
+
+        shard_path = cache_dir / "cpe_cache_shard_00.json"
+        ShardedCPECache.save_shard_to_disk(shard_path, {
+            stale_key: _make_shard_entry(stale_ts)
+        })
+
+        result = refresh_module.find_expired_cache_entries(cache_dir, threshold, num_shards=1)
+        assert stale_key in result, f"Expected stale key in result, got {result}"
+        assert len(result) == 1, f"Expected exactly 1 expired entry, got {len(result)}"
+
+        print(f"  [OK] Entry {threshold+1}h old detected as stale (threshold: {threshold}h)")
+    print("[OK] Stale entry detection works correctly")
+    return True
+
+
+def test_find_expired_ignores_fresh_entries():
+    """Phase 1b does not return entries whose last_queried is within the TTL."""
+    print("Testing find_expired_cache_entries ignores fresh entries...")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir) / "cpe_base_strings"
+        cache_dir.mkdir()
+
+        threshold = 720  # hours
+        # Entry queried 1 hour ago — well within threshold
+        fresh_ts = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        fresh_key = "cpe:2.3:a:fresh:vendor:*:*:*:*:*:*:*:*"
+
+        shard_path = cache_dir / "cpe_cache_shard_00.json"
+        ShardedCPECache.save_shard_to_disk(shard_path, {
+            fresh_key: _make_shard_entry(fresh_ts)
+        })
+
+        result = refresh_module.find_expired_cache_entries(cache_dir, threshold, num_shards=1)
+        assert fresh_key not in result, f"Fresh entry should not be in expired set, got {result}"
+        assert result == set(), f"Expected empty set for all-fresh cache, got {result}"
+
+        print(f"  [OK] Entry 1h old not flagged (threshold: {threshold}h)")
+    print("[OK] Fresh entries correctly excluded from expiry scan")
+    return True
+
+
+def test_find_expired_mixed_entries():
+    """Phase 1b correctly separates stale and fresh entries in the same shard."""
+    print("Testing find_expired_cache_entries with mixed fresh/stale entries...")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir) / "cpe_base_strings"
+        cache_dir.mkdir()
+
+        threshold = 48  # hours
+        now = datetime.now(timezone.utc)
+
+        stale_keys = {
+            f"cpe:2.3:a:stale{i}:vendor:*:*:*:*:*:*:*:*"
+            for i in range(3)
+        }
+        fresh_keys = {
+            f"cpe:2.3:a:fresh{i}:vendor:*:*:*:*:*:*:*:*"
+            for i in range(4)
+        }
+
+        shard_data = {}
+        for key in stale_keys:
+            ts = (now - timedelta(hours=threshold + 10)).isoformat()
+            shard_data[key] = _make_shard_entry(ts)
+        for key in fresh_keys:
+            ts = (now - timedelta(hours=threshold - 1)).isoformat()
+            shard_data[key] = _make_shard_entry(ts)
+
+        shard_path = cache_dir / "cpe_cache_shard_00.json"
+        ShardedCPECache.save_shard_to_disk(shard_path, shard_data)
+
+        result = refresh_module.find_expired_cache_entries(cache_dir, threshold, num_shards=1)
+
+        assert result == stale_keys, \
+            f"Expected stale_keys={stale_keys}, got {result}"
+        assert not (result & fresh_keys), \
+            f"Fresh keys should not appear in expired set: {result & fresh_keys}"
+
+        print(f"  [OK] {len(stale_keys)} stale entries detected, {len(fresh_keys)} fresh entries excluded")
+    print("[OK] Mixed entry separation works correctly")
+    return True
+
+
+def test_find_expired_empty_cache():
+    """Phase 1b returns empty set when no shard files exist."""
+    print("Testing find_expired_cache_entries with empty cache directory...")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir) / "cpe_base_strings"
+        cache_dir.mkdir()
+        # No shard files created
+
+        result = refresh_module.find_expired_cache_entries(cache_dir, 720, num_shards=16)
+        assert result == set(), f"Expected empty set for empty cache, got {result}"
+
+        print("  [OK] Empty cache returns empty set")
+    print("[OK] Empty cache handled correctly")
+    return True
+
+
+def test_find_expired_unparseable_timestamps_treated_as_expired():
+    """Phase 1b treats entries with unparseable timestamps as expired (fail-safe)."""
+    print("Testing find_expired_cache_entries treats bad timestamps as expired...")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir) / "cpe_base_strings"
+        cache_dir.mkdir()
+
+        bad_ts_key = "cpe:2.3:a:badts:vendor:*:*:*:*:*:*:*:*"
+        missing_ts_key = "cpe:2.3:a:nots:vendor:*:*:*:*:*:*:*:*"
+
+        shard_data = {
+            bad_ts_key: {
+                "query_response": {"totalResults": 1},
+                "last_queried": "not-a-real-timestamp",
+                "query_count": 1,
+                "total_results": 1,
+            },
+            missing_ts_key: {
+                "query_response": {"totalResults": 1},
+                # last_queried key absent entirely
+                "query_count": 1,
+                "total_results": 1,
+            },
+        }
+
+        shard_path = cache_dir / "cpe_cache_shard_00.json"
+        ShardedCPECache.save_shard_to_disk(shard_path, shard_data)
+
+        result = refresh_module.find_expired_cache_entries(cache_dir, 720, num_shards=1)
+
+        assert bad_ts_key in result, "Bad timestamp entry should be treated as expired"
+        assert missing_ts_key in result, "Missing timestamp entry should be treated as expired"
+        assert len(result) == 2, f"Expected 2 expired entries, got {len(result)}"
+
+        print("  [OK] Unparseable timestamp treated as expired")
+        print("  [OK] Missing timestamp treated as expired")
+    print("[OK] Unparseable/missing timestamp handling correct")
+    return True
+
+
+def test_find_expired_unreadable_shard_skipped():
+    """Phase 1b skips unreadable shards and continues scanning remaining shards."""
+    print("Testing find_expired_cache_entries skips unreadable shards...")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir) / "cpe_base_strings"
+        cache_dir.mkdir()
+
+        threshold = 24
+        # Shard 00: corrupted (unreadable)
+        with open(cache_dir / "cpe_cache_shard_00.json", 'wb') as f:
+            f.write(b'\xFF\xFE binary garbage')
+
+        # Shard 01: valid with a stale entry
+        stale_ts = (datetime.now(timezone.utc) - timedelta(hours=threshold + 5)).isoformat()
+        stale_key = "cpe:2.3:a:stale:vendor:*:*:*:*:*:*:*:*"
+        ShardedCPECache.save_shard_to_disk(
+            cache_dir / "cpe_cache_shard_01.json",
+            {stale_key: _make_shard_entry(stale_ts)}
+        )
+
+        # Should NOT raise, should skip shard 00 and return stale entry from shard 01
+        result = refresh_module.find_expired_cache_entries(cache_dir, threshold, num_shards=2)
+
+        assert stale_key in result, f"Stale key from readable shard should be in result"
+        assert len(result) == 1, f"Expected 1 entry from readable shard, got {len(result)}"
+
+        print("  [OK] Corrupted shard 00 skipped without crash")
+        print("  [OK] Stale entry from valid shard 01 still detected")
+    print("[OK] Unreadable shard skip behavior correct")
+    return True
+
+
+def test_find_expired_multiple_shards():
+    """Phase 1b scans entries across all shards and returns the union of expired keys."""
+    print("Testing find_expired_cache_entries scans across multiple shards...")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir) / "cpe_base_strings"
+        cache_dir.mkdir()
+
+        threshold = 100  # hours
+        now = datetime.now(timezone.utc)
+
+        expected_stale = set()
+
+        for shard_idx in range(4):
+            stale_key = f"cpe:2.3:a:shard{shard_idx}stale:vendor:*:*:*:*:*:*:*:*"
+            fresh_key = f"cpe:2.3:a:shard{shard_idx}fresh:vendor:*:*:*:*:*:*:*:*"
+            stale_ts = (now - timedelta(hours=threshold + 24)).isoformat()
+            fresh_ts = (now - timedelta(hours=1)).isoformat()
+
+            ShardedCPECache.save_shard_to_disk(
+                cache_dir / f"cpe_cache_shard_{shard_idx:02d}.json",
+                {
+                    stale_key: _make_shard_entry(stale_ts),
+                    fresh_key: _make_shard_entry(fresh_ts),
+                }
+            )
+            expected_stale.add(stale_key)
+
+        result = refresh_module.find_expired_cache_entries(cache_dir, threshold, num_shards=4)
+
+        assert result == expected_stale, \
+            f"Expected {expected_stale}, got {result}"
+        print(f"  [OK] {len(result)} stale entries found across 4 shards (4 fresh ignored)")
+    print("[OK] Multi-shard expiry scan returns correct union of expired keys")
+    return True
+
+
+# =============================================================================
+# DEDUPLICATION & STATS TESTS - Phase 1a + 1b merge
+# =============================================================================
+
+def test_stats_fields_exist_and_initialize():
+    """CPECacheRefreshStats has the expected Phase 1b fields initialized to zero."""
+    print("Testing CPECacheRefreshStats Phase 1b field initialization...")
+
+    stats = refresh_module.CPECacheRefreshStats()
+
+    assert hasattr(stats, 'expired_entries_found'), "Stats should have expired_entries_found"
+    assert hasattr(stats, 'expired_bases_added'), "Stats should have expired_bases_added"
+    assert stats.expired_entries_found == 0, "expired_entries_found should initialize to 0"
+    assert stats.expired_bases_added == 0, "expired_bases_added should initialize to 0"
+
+    # Verify report() includes both fields
+    report = stats.report()
+    assert 'Expired entries found' in report, "report() should include 'Expired entries found'"
+    assert 'Additional from expiry' in report, "report() should include 'Additional from expiry'"
+
+    print("  [OK] expired_entries_found initialized to 0")
+    print("  [OK] expired_bases_added initialized to 0")
+    print("  [OK] report() includes both Phase 1b fields")
+    return True
+
+
+def test_expiry_deduplication_overlap_collapsed():
+    """Entries found by both Phase 1a (NVD) and Phase 1b (expiry) are not double-counted."""
+    print("Testing deduplication: Phase 1a + Phase 1b overlap collapsed...")
+
+    # Simulate the deduplication logic from smart_refresh
+    nvd_bases = {
+        "cpe:2.3:a:vendor1:product:*:*:*:*:*:*:*:*",
+        "cpe:2.3:a:vendor2:product:*:*:*:*:*:*:*:*",
+        "cpe:2.3:a:vendor3:product:*:*:*:*:*:*:*:*",
+    }
+    # All expired entries overlap with NVD set (nothing new from expiry)
+    expired_bases = {
+        "cpe:2.3:a:vendor1:product:*:*:*:*:*:*:*:*",
+        "cpe:2.3:a:vendor2:product:*:*:*:*:*:*:*:*",
+    }
+
+    additional_from_expiry = expired_bases - nvd_bases
+    unique_bases = nvd_bases | additional_from_expiry
+
+    assert additional_from_expiry == set(), \
+        f"No additional entries expected (full overlap), got {additional_from_expiry}"
+    assert unique_bases == nvd_bases, \
+        f"unique_bases should equal nvd_bases when no additions, got {unique_bases}"
+    assert len(unique_bases) == 3, \
+        f"Total entries should be 3 (no duplicates), got {len(unique_bases)}"
+
+    # Simulate stats tracking
+    stats = refresh_module.CPECacheRefreshStats()
+    stats.unique_cpe_bases = len(nvd_bases)
+    stats.expired_entries_found = len(expired_bases)
+    stats.expired_bases_added = len(additional_from_expiry)
+
+    assert stats.expired_bases_added == 0, "No additional bases when full overlap"
+    assert stats.unique_cpe_bases == 3, "NVD unique count unaffected by expiry"
+
+    print(f"  [OK] {len(nvd_bases)} from NVD, {len(expired_bases)} expired (full overlap) -> {len(unique_bases)} total")
+    print("  [OK] No double-counting: union == NVD set")
+    return True
+
+
+def test_expiry_deduplication_additive():
+    """Entries found only by Phase 1b (expired but not in NVD set) are added to the refresh set."""
+    print("Testing deduplication: Phase 1b adds new entries not in NVD set...")
+
+    nvd_bases = {
+        "cpe:2.3:a:vendor1:product:*:*:*:*:*:*:*:*",
+        "cpe:2.3:a:vendor2:product:*:*:*:*:*:*:*:*",
+    }
+    expired_bases = {
+        "cpe:2.3:a:vendor1:product:*:*:*:*:*:*:*:*",  # Overlaps with NVD
+        "cpe:2.3:a:vendor3:product:*:*:*:*:*:*:*:*",  # New — only from expiry
+        "cpe:2.3:a:vendor4:product:*:*:*:*:*:*:*:*",  # New — only from expiry
+    }
+
+    additional_from_expiry = expired_bases - nvd_bases
+    unique_bases = nvd_bases | additional_from_expiry
+
+    assert additional_from_expiry == {
+        "cpe:2.3:a:vendor3:product:*:*:*:*:*:*:*:*",
+        "cpe:2.3:a:vendor4:product:*:*:*:*:*:*:*:*",
+    }, f"Expected 2 additional entries, got {additional_from_expiry}"
+
+    assert len(unique_bases) == 4, \
+        f"Total should be 4 (2 NVD + 2 expiry-only), got {len(unique_bases)}"
+
+    # Simulate stats tracking
+    stats = refresh_module.CPECacheRefreshStats()
+    stats.unique_cpe_bases = len(nvd_bases)
+    stats.expired_entries_found = len(expired_bases)
+    stats.expired_bases_added = len(additional_from_expiry)
+
+    assert stats.unique_cpe_bases == 2, "NVD unique count unchanged"
+    assert stats.expired_entries_found == 3, "Total expired entries"
+    assert stats.expired_bases_added == 2, "2 additional from expiry"
+
+    print(f"  [OK] {len(nvd_bases)} from NVD + {len(additional_from_expiry)} from expiry = {len(unique_bases)} total")
+    print(f"  [OK] expired_bases_added={stats.expired_bases_added} (overlap not double-counted)")
+    return True
+
+
+def test_expiry_deduplication_disjoint():
+    """When Phase 1a and Phase 1b sets are completely disjoint, the union contains all entries."""
+    print("Testing deduplication: disjoint Phase 1a and Phase 1b sets produce full union...")
+
+    nvd_bases = {f"cpe:2.3:a:nvd{i}:product:*:*:*:*:*:*:*:*" for i in range(3)}
+    expired_bases = {f"cpe:2.3:a:expired{i}:product:*:*:*:*:*:*:*:*" for i in range(5)}
+
+    additional_from_expiry = expired_bases - nvd_bases
+    unique_bases = nvd_bases | additional_from_expiry
+
+    assert additional_from_expiry == expired_bases, \
+        "All expired entries are additional when sets are disjoint"
+    assert unique_bases == nvd_bases | expired_bases, \
+        "Union should contain all entries from both sets"
+    assert len(unique_bases) == len(nvd_bases) + len(expired_bases), \
+        f"No overlap -> sizes add: {len(nvd_bases)} + {len(expired_bases)} = {len(unique_bases)}"
+
+    stats = refresh_module.CPECacheRefreshStats()
+    stats.unique_cpe_bases = len(nvd_bases)
+    stats.expired_entries_found = len(expired_bases)
+    stats.expired_bases_added = len(additional_from_expiry)
+
+    assert stats.expired_bases_added == 5, "All 5 expired entries are additional"
+
+    print(f"  [OK] Disjoint sets: {len(nvd_bases)} NVD + {len(expired_bases)} expiry = {len(unique_bases)} total")
+    return True
+
+
+def test_find_expired_keys_match_cache_key_format():
+    """Keys returned by find_expired_cache_entries match the 13-component base string format."""
+    print("Testing find_expired_cache_entries returns keys in correct CPE base string format...")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = Path(tmpdir) / "cpe_base_strings"
+        cache_dir.mkdir()
+
+        threshold = 1
+        stale_ts = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+
+        # Keys as stored by the main tool (13-component base strings with version/update=*)
+        expected_keys = [
+            "cpe:2.3:a:microsoft:windows:*:*:*:*:*:*:*:*",
+            "cpe:2.3:a:openssl:openssl:*:*:*:*:*:*:*:*",
+            "cpe:2.3:o:linux:linux_kernel:*:*:*:*:*:*:*:*",
+        ]
+
+        shard_data = {k: _make_shard_entry(stale_ts) for k in expected_keys}
+        shard_path = cache_dir / "cpe_cache_shard_00.json"
+        ShardedCPECache.save_shard_to_disk(shard_path, shard_data)
+
+        result = refresh_module.find_expired_cache_entries(cache_dir, threshold, num_shards=1)
+
+        assert result == set(expected_keys), \
+            f"Returned keys should exactly match stored keys, got {result}"
+
+        for key in result:
+            parts = key.split(':')
+            assert len(parts) == 13, f"Key should have 13 components: {key}"
+            assert parts[0] == 'cpe', f"Key should start with 'cpe': {key}"
+            assert parts[1] == '2.3', f"Key should be CPE 2.3: {key}"
+
+        print(f"  [OK] {len(result)} keys returned in correct 13-component format")
+    print("[OK] Returned keys match CPE base string format stored in shards")
+    return True
+
 
 # =============================================================================
 # Test Runner
@@ -901,13 +1330,13 @@ def test_configuration_independence():
 
 def run_all_tests():
     """Execute all test functions"""
-    
+
     data_integrity_tests = [
         ("Load Failure Protection (Bug Fix)", test_load_failure_raises_error),
         ("Load Success With Valid Data", test_load_success_with_valid_data),
         ("Load Nonexistent File Returns Empty", test_load_nonexistent_file_returns_empty),
     ]
-    
+
     unit_tests = [
         ("Static Method Reuse", test_static_method_reuse),
         ("Query Count Preservation", test_query_count_preservation),
@@ -917,7 +1346,7 @@ def run_all_tests():
         ("Empty Shard Handling", test_empty_shard_handling),
         ("Compact JSON Format", test_compact_json_format),
     ]
-    
+
     corruption_recovery_tests = [
         ("Auto-Recovery: Empty File", test_corruption_auto_recovery_empty_file),
         ("Auto-Recovery: Malformed JSON", test_corruption_auto_recovery_invalid_json),
@@ -925,121 +1354,80 @@ def run_all_tests():
         ("Diagnostic Accuracy", test_corruption_diagnostic_accuracy),
         ("Multi-Shard Resilience", test_corruption_multi_shard_resilience),
     ]
-    
+
+    expiry_scan_tests = [
+        ("Expiry Scan: Disabled When notify_age_hours <= 0", test_find_expired_disabled_when_zero_or_negative),
+        ("Expiry Scan: Detects Stale Entries", test_find_expired_detects_stale_entries),
+        ("Expiry Scan: Ignores Fresh Entries", test_find_expired_ignores_fresh_entries),
+        ("Expiry Scan: Mixed Fresh and Stale", test_find_expired_mixed_entries),
+        ("Expiry Scan: Empty Cache Returns Empty Set", test_find_expired_empty_cache),
+        ("Expiry Scan: Unparseable Timestamps Treated as Expired", test_find_expired_unparseable_timestamps_treated_as_expired),
+        ("Expiry Scan: Unreadable Shard Skipped Gracefully", test_find_expired_unreadable_shard_skipped),
+        ("Expiry Scan: Multiple Shards Scanned", test_find_expired_multiple_shards),
+        ("Expiry Scan: Keys Match CPE Base String Format", test_find_expired_keys_match_cache_key_format),
+    ]
+
+    dedup_stats_tests = [
+        ("Phase 1b Stats: Fields Exist and Initialize to Zero", test_stats_fields_exist_and_initialize),
+        ("Deduplication: Full Overlap Not Double-Counted", test_expiry_deduplication_overlap_collapsed),
+        ("Deduplication: Additive Entries Merged Into Refresh Set", test_expiry_deduplication_additive),
+        ("Deduplication: Disjoint Sets Produce Full Union", test_expiry_deduplication_disjoint),
+    ]
+
     integration_tests = [
         ("End-to-End Data Preservation", test_end_to_end_data_preservation),
         ("End-to-End Multi-Shard Handling", test_end_to_end_multiple_shards),
         ("Refresh Script Exists", test_refresh_script_exists),
         ("Refresh Script Imports", test_refresh_script_imports),
-        ("Configuration Independence", test_configuration_independence),
+        ("Phase 1a Uses Oldest Entry Timestamp (Not TTL)", test_phase1a_uses_oldest_entry_not_ttl),
     ]
-    
-    print("="*70)
-    print("DATA INTEGRITY TESTS - Load Failure Protection")
-    print("="*70 + "\n")
-    
+
+    def _run_group(label, tests):
+        nonlocal passed, failed
+        print("\n" + "="*70)
+        print(label)
+        print("="*70 + "\n")
+        for test_name, test_func in tests:
+            print(f"\n{'-'*70}")
+            print(f"Running: {test_name}")
+            print(f"{'-'*70}")
+            try:
+                result = test_func()
+                if result:
+                    passed += 1
+                    print(f"PASSED: {test_name}\n")
+                else:
+                    failed += 1
+                    print(f"FAILED: {test_name}\n")
+            except Exception as e:
+                failed += 1
+                print(f"FAILED: {test_name}")
+                print(f"  Error: {e}")
+                import traceback
+                traceback.print_exc()
+                print()
+
     passed = 0
     failed = 0
-    
-    for test_name, test_func in data_integrity_tests:
-        print(f"\n{'-'*70}")
-        print(f"Running: {test_name}")
-        print(f"{'-'*70}")
-        try:
-            result = test_func()
-            if result:
-                passed += 1
-                print(f"PASSED: {test_name}\n")
-            else:
-                failed += 1
-                print(f"FAILED: {test_name}\n")
-        except Exception as e:
-            failed += 1
-            print(f"FAILED: {test_name}")
-            print(f"ERROR: {e}")
-            import traceback
-            traceback.print_exc()
-            print()
-    
-    print("\n" + "="*70)
-    print("UNIT TESTS - CPE Cache Refresh Functionality")
-    print("="*70 + "\n")
-    
-    for test_name, test_func in unit_tests:
-        print(f"\n{'-'*70}")
-        print(f"Running: {test_name}")
-        print(f"{'-'*70}")
-        try:
-            result = test_func()
-            if result:
-                passed += 1
-                print(f"PASSED: {test_name}\n")
-            else:
-                failed += 1
-                print(f"FAILED: {test_name}\n")
-        except Exception as e:
-            failed += 1
-            print(f"FAILED: {test_name}")
-            print(f"  Error: {e}")
-            import traceback
-            traceback.print_exc()
-            print()
-    
-    print("\n" + "="*70)
-    print("CORRUPTION DIAGNOSTIC & AUTO-RECOVERY TESTS")
-    print("="*70 + "\n")
-    
-    for test_name, test_func in corruption_recovery_tests:
-        print(f"\n{'-'*70}")
-        print(f"Running: {test_name}")
-        print(f"{'-'*70}")
-        try:
-            result = test_func()
-            if result:
-                passed += 1
-                print(f"PASSED: {test_name}\n")
-            else:
-                failed += 1
-                print(f"FAILED: {test_name}\n")
-        except Exception as e:
-            failed += 1
-            print(f"FAILED: {test_name}")
-            print(f"  Error: {e}")
-            import traceback
-            traceback.print_exc()
-            print()
-    
-    print("\n" + "="*70)
-    print("INTEGRATION TESTS - Refresh Script Validation")
-    print("="*70 + "\n")
-    
-    for test_name, test_func in integration_tests:
-        print(f"\n{'-'*70}")
-        print(f"Running: {test_name}")
-        print(f"{'-'*70}")
-        try:
-            result = test_func()
-            if result:
-                passed += 1
-                print(f"PASSED: {test_name}\n")
-            else:
-                failed += 1
-                print(f"FAILED: {test_name}\n")
-        except Exception as e:
-            failed += 1
-            print(f"FAILED: {test_name}")
-            print(f"  Error: {e}")
-            import traceback
-            traceback.print_exc()
-            print()
-    
-    total_tests = len(data_integrity_tests) + len(unit_tests) + len(corruption_recovery_tests) + len(integration_tests)
-    
+
+    _run_group("DATA INTEGRITY TESTS - Load Failure Protection", data_integrity_tests)
+    _run_group("UNIT TESTS - CPE Cache Refresh Functionality", unit_tests)
+    _run_group("CORRUPTION DIAGNOSTIC & AUTO-RECOVERY TESTS", corruption_recovery_tests)
+    _run_group("EXPIRY SCAN TESTS - Phase 1b: find_expired_cache_entries", expiry_scan_tests)
+    _run_group("DEDUPLICATION & STATS TESTS - Phase 1a + 1b merge", dedup_stats_tests)
+    _run_group("INTEGRATION TESTS - Refresh Script Validation", integration_tests)
+
+    total_tests = (
+        len(data_integrity_tests) + len(unit_tests) + len(corruption_recovery_tests)
+        + len(expiry_scan_tests) + len(dedup_stats_tests) + len(integration_tests)
+    )
+
     print("\n" + "="*70)
     print(f"TEST_RESULTS: PASSED={passed} TOTAL={total_tests} SUITE=\"CPE Cache Refresh\"")
     print("="*70 + "\n")
-    
+
     return failed == 0
+
 
 if __name__ == "__main__":
     success = run_all_tests()

@@ -7,8 +7,9 @@ change tracking APIs to identify which CPE data has actually changed, avoiding
 unnecessary API calls for unchanged entries.
 
 Features:
-- Phase 1: Discovery - Scan shards to find oldest entries, query NVD for changes
-- Phase 2: Selective Refresh - Only refresh CPE base strings that changed at NVD
+- Phase 1a: NVD Discovery - Scan shards for oldest entry, query NVD for changed CPEs
+- Phase 1b: Expiry Scan - Find cache entries exceeding notify_age_hours TTL
+- Phase 2: Selective Refresh - Refresh all CPE match strings from both discovery methods
 - Phase 3: Finalize - Save updates and generate statistics report
 
 Architecture:
@@ -17,13 +18,13 @@ Architecture:
 - Uses hash-based routing matching ShardedCPECache implementation
 - Respects NVD API 180-day query limit
 Configuration:
-- Queries from oldest cache entry timestamp (not notify_age_hours)
-- This is a manual refresh tool - runs independently of main cache expiration
-- Main cache uses notify_age_hours for automatic expiration during runtime
-- This script refreshes based on NVD changes, not age-based expiration
+- Phase 1a queries from oldest cache entry timestamp
+- Phase 1b uses notify_age_hours from config to find locally expired entries
+- Both discovery methods feed into the same Phase 2 refresh pipeline
+- Counts for each discovery method are tracked separately in the final report
 
 Usage:
-    python -m utilities.refresh_nvd_cpe_base_strings_cache
+    python -m utilities.refresh_tool_cpematchstring_2_0_cache
 """
 
 import sys
@@ -35,7 +36,7 @@ from typing import Dict, List, Set, Tuple, Optional, Any
 from src.analysis_tool.logging.workflow_logger import get_logger
 from src.analysis_tool.storage.run_organization import get_analysis_tools_root
 from src.analysis_tool.storage.cpe_cache import ShardedCPECache
-from src.analysis_tool.core.gatherData import config, query_nvd_cpematch_by_modified_date, gatherNVDCPEData
+from src.analysis_tool.core.gatherData import config, query_nvd_cpematch_by_modified_date, gatherNVDCPEData, _update_manual_refresh_timestamp
 
 logger = get_logger()
 
@@ -54,6 +55,8 @@ class CPECacheRefreshStats:
         self.query_limited_by_api: bool = False
         self.changed_matches_found: int = 0
         self.unique_cpe_bases: int = 0
+        self.expired_entries_found: int = 0
+        self.expired_bases_added: int = 0
         self.entries_refreshed: int = 0
         self.api_calls_made: int = 0
         self.shards_updated: int = 0
@@ -73,7 +76,9 @@ class CPECacheRefreshStats:
             f"Query start date:          {self.query_start_date}",
             f"Limited by 180-day API:    {'YES' if self.query_limited_by_api else 'NO'}",
             f"Changed CPE matches found: {self.changed_matches_found:,}",
-            f"Unique CPE base strings:   {self.unique_cpe_bases:,}",
+            f"Unique CPE bases (NVD):    {self.unique_cpe_bases:,}",
+            f"Expired entries found:     {self.expired_entries_found:,}",
+            f"Additional from expiry:    {self.expired_bases_added:,}",
             f"Entries refreshed:         {self.entries_refreshed:,}",
             f"API calls (Phase 2):       {self.api_calls_made:,}",
             f"Shards updated:            {self.shards_updated:,}",
@@ -230,11 +235,9 @@ def get_shard_index(cpe_string: str, num_shards: int = 16) -> int:
     Returns:
         Shard index (0 to num_shards-1)
     """
-    # Use temporary instance just for hash calculation (instance methods only)
-    # Create with minimal config to avoid unnecessary logging
-    temp_cache = ShardedCPECache.__new__(ShardedCPECache)
-    temp_cache.num_shards = num_shards
-    return temp_cache._get_shard_index(cpe_string)
+    if num_shards != _cache_utils.num_shards:
+        _cache_utils.num_shards = num_shards
+    return _cache_utils._get_shard_index(cpe_string)
 
 
 def find_oldest_cache_entry(cache_dir: Path, num_shards: int = 16) -> datetime:
@@ -484,36 +487,117 @@ def flush_staged_updates(staged: Dict[int, Dict[str, Any]], cache_dir: Path, sta
     return total_flushed
 
 
+def find_expired_cache_entries(cache_dir: Path, notify_age_hours: int, num_shards: int = 16) -> Set[str]:
+    """
+    Scan shard files to collect CPE cache keys whose last_queried timestamp
+    exceeds the notify_age_hours TTL threshold.
+
+    Operates independently of NVD change detection — identifies entries that are
+    locally stale regardless of whether NVD has flagged them as changed.
+
+    Args:
+        cache_dir: Path to cache/cpe_base_strings directory
+        notify_age_hours: Age threshold in hours (from config refresh_strategy).
+            If <= 0, returns an empty set (expiry-based scan disabled).
+        num_shards: Number of shards to scan (default: 16)
+
+    Returns:
+        Set of CPE base strings (cache keys) whose entries have exceeded the TTL
+    """
+    if notify_age_hours <= 0:
+        logger.info("notify_age_hours <= 0 — expiry-based scan disabled", group="CACHE_REFRESH")
+        return set()
+
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=notify_age_hours)
+    expired: Set[str] = set()
+    total_scanned = 0
+
+    logger.info(
+        f"Scanning cache for entries older than {notify_age_hours}h (cutoff: {cutoff.date()})",
+        group="CACHE_REFRESH"
+    )
+
+    if num_shards != 16:
+        _cache_utils.num_shards = num_shards
+
+    for shard_index in range(num_shards):
+        shard_path = cache_dir / _cache_utils._get_shard_filename(shard_index)
+        if not shard_path.exists():
+            continue
+
+        try:
+            shard_data = ShardedCPECache.load_shard_from_disk(shard_path)
+        except Exception as e:
+            logger.warning(
+                f"Shard {shard_index:02d} unreadable during expiry scan — skipping: {e}",
+                group="CACHE_REFRESH"
+            )
+            continue
+
+        for cpe_key, entry_data in shard_data.items():
+            total_scanned += 1
+            try:
+                last_queried = ShardedCPECache.parse_cache_entry_timestamp(entry_data)
+                if last_queried < cutoff:
+                    expired.add(cpe_key)
+            except Exception:
+                expired.add(cpe_key)  # Treat unparseable timestamps as expired
+
+        del shard_data  # Free memory before next shard
+
+    logger.info(
+        f"Expiry scan complete: {len(expired):,} expired out of {total_scanned:,} total entries",
+        group="CACHE_REFRESH"
+    )
+    return expired
+
+
 def smart_refresh(
     api_key: str,
     cache_dir: Path,
     nvd_cpe_api: str,
-    num_shards: int = 16
+    num_shards: int = 16,
+    notify_age_hours: Optional[int] = None
 ) -> CPECacheRefreshStats:
     """
-    Execute smart refresh using NVD change detection.
-    
+    Execute smart refresh combining NVD change detection and local expiry scanning.
+
+    Phase 1a queries NVD's change tracking API to find CPE entries updated at the
+    source. Phase 1b independently scans the local cache for entries that have
+    exceeded the notify_age_hours TTL. Both sets feed into Phase 2 refresh, with
+    each source counted separately in the final report.
+
     PERFORMANCE OPTIMIZATION: Processes CPEs by shard to eliminate thrashing.
     Groups CPE base strings by shard index, then processes each shard's CPEs
     consecutively. This reduces shard loading from O(N) to O(16) operations.
-    
+
     Args:
         api_key: NVD API key
         cache_dir: Path to cache/cpe_base_strings directory
         nvd_cpe_api: NVD CPE API endpoint URL
         num_shards: Number of shards
-    
+        notify_age_hours: TTL threshold for expiry-based scan. If None, reads
+            from config['cache_settings']['cpe_cache']['refresh_strategy']['notify_age_hours'].
+
     Returns:
         Statistics object with refresh results
     """
+    if notify_age_hours is None:
+        notify_age_hours = (
+            config['cache_settings']['cpe_cache']
+            .get('refresh_strategy', {})
+            .get('notify_age_hours', 0)
+        )
+
     stats = CPECacheRefreshStats()
     
     logger.info("="*80, group="CACHE_REFRESH")
     logger.info("Starting CPE Cache Smart Refresh (Shard-Optimized)", group="CACHE_REFRESH")
     logger.info("="*80, group="CACHE_REFRESH")
-    
-    # Phase 1: Discovery
-    logger.info("\n--- PHASE 1: DISCOVERY ---", group="CACHE_REFRESH")
+
+    # Phase 1a: NVD change detection
+    logger.info("\n--- PHASE 1a: NVD CHANGE DETECTION ---", group="CACHE_REFRESH")
     
     oldest_entry = find_oldest_cache_entry(cache_dir, num_shards)
     stats.oldest_entry_timestamp = oldest_entry
@@ -539,12 +623,31 @@ def smart_refresh(
     stats.changed_matches_found = len(changed_matches)
     # Note: Phase 1 API calls tracked internally by gatherData, Phase 2 calls tracked below
     
-    # Extract unique CPE base strings
+    # Extract unique CPE base strings from NVD change set
     unique_bases = extract_unique_cpe_bases(changed_matches)
     stats.unique_cpe_bases = len(unique_bases)
-    
+
+    # Phase 1b: Expiry-based scan (independent of NVD change detection)
+    logger.info("\n--- PHASE 1b: EXPIRY SCAN ---", group="CACHE_REFRESH")
+    expired_bases = find_expired_cache_entries(cache_dir, notify_age_hours, num_shards)
+    stats.expired_entries_found = len(expired_bases)
+
+    # Determine entries from expiry not already captured by NVD change detection
+    additional_from_expiry = expired_bases - unique_bases
+    stats.expired_bases_added = len(additional_from_expiry)
+
+    if additional_from_expiry:
+        logger.info(
+            f"Expiry scan adds {len(additional_from_expiry):,} additional CPE base strings "
+            f"not already in NVD change set",
+            group="CACHE_REFRESH"
+        )
+        unique_bases = unique_bases | additional_from_expiry
+    else:
+        logger.info("Expiry scan: no additional entries beyond NVD change set", group="CACHE_REFRESH")
+
     if not unique_bases:
-        logger.info("No CPE base strings need refreshing - cache is up to date!", group="CACHE_REFRESH")
+        logger.info("No CPE base strings need refreshing — cache is up to date!", group="CACHE_REFRESH")
         return stats
     
     # Phase 2: Selective Refresh
@@ -636,7 +739,14 @@ def main():
     # Get cache settings
     cache_config = config['cache_settings']['cpe_cache']
     num_shards = cache_config.get('sharding', {}).get('num_shards', 16)
-    
+    notify_age_hours = cache_config.get('refresh_strategy', {}).get('notify_age_hours')
+    if notify_age_hours is None:
+        logger.error(
+            "Missing 'cpe_cache.refresh_strategy.notify_age_hours' in config.json — cannot proceed",
+            group="CACHE_REFRESH"
+        )
+        return 1
+
     # Determine cache directory using same logic as ShardedCPECache
     cache_dir = get_analysis_tools_root() / "cache" / "cpe_base_strings"
     
@@ -646,6 +756,7 @@ def main():
     
     logger.info(f"Using cache directory: {cache_dir}", group="CACHE_REFRESH")
     logger.info(f"Number of shards: {num_shards}", group="CACHE_REFRESH")
+    logger.info(f"Expiry threshold:  {notify_age_hours}h", group="CACHE_REFRESH")
     
     # Execute smart refresh
     try:
@@ -653,7 +764,8 @@ def main():
             api_key=api_key,
             cache_dir=cache_dir,
             nvd_cpe_api=nvd_cpe_api,
-            num_shards=num_shards
+            num_shards=num_shards,
+            notify_age_hours=notify_age_hours
         )
         
         if stats.errors:

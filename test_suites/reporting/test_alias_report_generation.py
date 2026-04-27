@@ -1075,8 +1075,16 @@ class TestAliasReportGeneration:
                          not _is_alias_non_actionable({'repo': 'https://github.com/org/repo'}))
         self.assert_true("non-empty modules list is actionable",
                          not _is_alias_non_actionable({'modules': ['mod_a', 'mod_b']}))
+        # Pipeline now produces scalar strings (not lists) for modules/programFiles/programRoutines
+        # after _expand_alias_complex_fields() expansion — verify scalar values are also actionable.
+        self.assert_true("scalar modules string is actionable",
+                         not _is_alias_non_actionable({'modules': 'proxy_http_core_module'}))
         self.assert_true("non-empty programFiles list is actionable",
                          not _is_alias_non_actionable({'programFiles': ['file.exe']}))
+        self.assert_true("scalar programFiles string is actionable",
+                         not _is_alias_non_actionable({'programFiles': 'src/render/pixel.c'}))
+        self.assert_true("scalar programRoutines string is actionable",
+                         not _is_alias_non_actionable({'programRoutines': 'dbExprCodeTarget'}))
         self.assert_true("n/a vendor but real product is actionable",
                          not _is_alias_non_actionable({'vendor': 'n/a', 'product': 'real_product'}))
 

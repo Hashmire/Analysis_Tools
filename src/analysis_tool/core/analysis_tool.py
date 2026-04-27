@@ -943,10 +943,6 @@ def main():
             )
         
         mapping_manager.initialize(source_manager=source_manager)
-        logger.info(
-            f"Confirmed mapping manager initialized: {mapping_manager.get_stats()['files_loaded']} files loaded",
-            group="initialization"
-        )
     else:
         logger.info("Confirmed mapping manager already initialized", group="initialization")
     

@@ -245,6 +245,15 @@ def build_nvd_api_headers(api_key=None):
         "User-Agent": f"{TOOLNAME}/{VERSION}"
     }
     if api_key:
+        import re
+        if not re.fullmatch(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', api_key):
+            msg = (
+                f"api.api_key in config.json is not a valid UUID "
+                f"(got {len(api_key)} chars, expected 36 in format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx). "
+                f"Verify at https://nvd.nist.gov/developers/request-an-api-key"
+            )
+            logger.error(msg, group="DATA_PROC")
+            raise ValueError(msg)
         headers["apiKey"] = api_key
     return headers
 
@@ -258,6 +267,11 @@ _schema_cache = {}
 
 # Mapping of external ref URLs to local cached filenames
 _external_schema_cache = {}
+
+# Cached referencing.Registry built from _external_schema_cache.
+# Rebuilt only when _external_schema_cache keys change so the registry is constructed at most once per session.
+_schema_registry_cache = None
+_schema_registry_cache_keys: Optional[frozenset] = None
 
 
 def _extract_external_refs(schema: dict, base_url_pattern: str = "https://csrc.nist.gov/schema/") -> set:
@@ -350,7 +364,7 @@ def _download_external_schema(url: str, schema_dir: Path) -> Optional[Path]:
                 cache_path.write_text(json.dumps(schema_data, indent=2), encoding='utf-8')
                 logger.debug(f"FIRST CVSS schema cached: first_cvss/{url_filename}", group="CACHE_MANAGEMENT")
                 
-                # Store mapping for RefResolver
+                # Add to in-memory cache so get_schema_registry() can build the registry
                 _external_schema_cache[url] = cache_path
                 
                 return cache_path
@@ -545,11 +559,12 @@ def load_schema(schema_name: str) -> dict:
 
 def get_schema_registry() -> Optional[Any]:
     """
-    Build a referencing.Registry for external schema references.
+    Return a referencing.Registry for external schema references.
 
-    This prevents jsonschema from attempting to fetch external URLs (which may be
-    blocked by NIST's User-Agent filtering) and instead uses pre-downloaded cached
-    schemas loaded from _external_schema_cache.
+    The registry is built from _external_schema_cache on first call and then
+    cached at module level.  It is only rebuilt when the set of URLs in
+    _external_schema_cache changes (i.e., after new external schemas are
+    downloaded).
 
     Returns a Registry instance keyed by the original download URLs, or None if no
     external schemas are available (i.e., schema has no external $refs to resolve).
@@ -558,8 +573,14 @@ def get_schema_registry() -> Optional[Any]:
         referencing.Registry populated with cached CVSS schemas, or None if
         _external_schema_cache is empty or all files fail to load.
     """
+    global _schema_registry_cache, _schema_registry_cache_keys
+
     if not _external_schema_cache:
         return None
+
+    current_keys = frozenset(_external_schema_cache.keys())
+    if _schema_registry_cache is not None and current_keys == _schema_registry_cache_keys:
+        return _schema_registry_cache
 
     try:
         from referencing import Registry, Resource
@@ -570,7 +591,9 @@ def get_schema_registry() -> Optional[Any]:
             try:
                 with open(cache_path, 'r', encoding='utf-8') as f:
                     schema_data = json.load(f)
-                resource = Resource.from_contents(schema_data, default_specification=DRAFT7)
+                # Strip the $schema meta-schema URI before registering so the calling validator's custom multipleOf is preserved.
+                schema_for_registry = {k: v for k, v in schema_data.items() if k != "$schema"}
+                resource = Resource.from_contents(schema_for_registry, default_specification=DRAFT7)
                 resources.append((url, resource))
                 logger.debug(f"Loaded external schema for registry: {url}", group="CACHE_MANAGEMENT")
             except Exception as e:
@@ -587,6 +610,9 @@ def get_schema_registry() -> Optional[Any]:
             f"Created referencing.Registry with {len(resources)} external schema mappings",
             group="CACHE_MANAGEMENT"
         )
+
+        _schema_registry_cache = registry
+        _schema_registry_cache_keys = current_keys
         return registry
 
     except Exception as e:
@@ -1173,6 +1199,12 @@ def _refresh_cvelist_from_mitre_api(targetCve, local_file_path, refresh_reason="
         refresh_reason: Reason for refresh (default: "staleness detected")
         cve_schema: Optional pre-loaded CVE List V5 schema for validation (to avoid repeated loads)
         update_metadata: Whether to update cache metadata after individual save (default True, set False for batch operations)
+    
+    Returns:
+        True if the file was successfully written (even if schema validation was skipped).
+        False if the refresh failed (API error, integrity check failure, file write error, or
+        any other exception that prevented the file from being saved). Schema validation failures
+        are treated as non-fatal: the record is cached without validation and True is returned.
     """
     try:
         # Load cache config once for this operation
@@ -1221,16 +1253,20 @@ def _refresh_cvelist_from_mitre_api(targetCve, local_file_path, refresh_reason="
         # Update cache metadata (skip for batch operations - will update once at end)
         if update_metadata:
             _update_cache_metadata('cve_list_v5', cve_repo_path)
+        return True
         
     except requests.exceptions.RequestException as e:
         logger.info(f"CVE 5.x  {targetCve:<20} ERROR (API error)", group="CACHE_MANAGEMENT")
         logger.error(f"MITRE API refresh failed for {targetCve}: {e}", group="CACHE_MANAGEMENT")
+        return False
     except (IOError, OSError) as e:
         logger.info(f"CVE 5.x  {targetCve:<20} ERROR (file write)", group="CACHE_MANAGEMENT")
         logger.error(f"File write failed during CVE refresh for {targetCve}: {e}", group="CACHE_MANAGEMENT")
+        return False
     except Exception as e:
         logger.info(f"CVE 5.x  {targetCve:<20} ERROR", group="CACHE_MANAGEMENT")
         logger.error(f"Unexpected error during CVE refresh for {targetCve}: {e}", group="CACHE_MANAGEMENT")
+        return False
 
 
 

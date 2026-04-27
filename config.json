@@ -5,16 +5,13 @@
     },
     "cache_settings": {
         "cpe_cache": {
-            "filename": "cpe_base_string_cache.json",
             "auto_save_threshold": 50,
             "max_loaded_shards": 16,
             "description": "NVD CPE API responses with per-entry expiration, sharding for better scaling across organizational dataset volume",
             "sharding": {
-                "enabled": true,
                 "num_shards": 16
             },
             "refresh_strategy": {
-                "field_path": "$.*.last_queried",
                 "notify_age_hours": 720
             }
         },
@@ -22,7 +19,6 @@
             "filename": "nvd_source_data.json",
             "description": "NVD source organization data, derived from the NVD /source/ API",
             "refresh_strategy": {
-                "field_path": "$.created_at",
                 "notify_age_hours": 168
             }
         },
@@ -53,7 +49,6 @@
     "logging": {
         "enabled": true,
         "level": "DEBUG",
-        "description": "Log format: [{timestamp}] [{level}] {message}. Available levels (most to least verbose): DEBUG, INFO, WARNING, ERROR.",
         "sdc_report": {
             "progress_interval": 2000
         },

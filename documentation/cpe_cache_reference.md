@@ -28,7 +28,7 @@ Hash-based distributed cache with lazy loading and compact JSON persistence.
 Proactive eviction maintains configurable shard limits to prevent memory exhaustion during processing.
 
 ### 4. Manual Refresh Tool
-Standalone script (`refresh_nvd_cpe_base_strings_cache.py`) for controlled cache updates independent of runtime expiration settings.
+Standalone script (`refresh_tool_cpematchstring_2_0_cache.py`) for controlled cache updates independent of runtime expiration settings.
 
 ---
 
@@ -132,7 +132,7 @@ Processing Run (default: max 4 shards in memory):
 
 ## Manual Cache Refresh Script
 
-**Script**: [utilities/refresh_nvd_cpe_base_strings_cache.py](../utilities/refresh_nvd_cpe_base_strings_cache.py)  
+**Script**: [utilities/refresh_tool_cpematchstring_2_0_cache.py](../utilities/refresh_tool_cpematchstring_2_0_cache.py)  
 **Purpose**: Standalone forced refresh of oldest cached CPE base strings independent of runtime expiration settings
 
 ### Refresh Process
@@ -182,7 +182,7 @@ The script includes reactive corruption handling that activates when shard loadi
 
 ```bash
 # Run cache refresh (requires NVD API key configured in config.json)
-python -m utilities.refresh_nvd_cpe_base_strings_cache
+python -m utilities.refresh_tool_cpematchstring_2_0_cache
 ```
 
 **Requirements**:
@@ -231,10 +231,10 @@ python -m utilities.refresh_nvd_cpe_base_strings_cache
 - `cache/schemas/nvd_project/nvd_source_2_0_schema.json` - NVD Source API 2.0 schema
 - `cache/schemas/cve_program/cve_cve_5_2_schema.json` - CVE Program List V5.2 schema
 - `cache/schemas/first_cvss/cvss-v*.json` - FIRST CVSS schemas (v2.0, v3.0, v3.1, v4.0)
-- `cache/schemas/analysis_tool/cpe_base_strings_cache_schema.json` - Analysis Tool CPE base strings cache schema (optimized)
+- `cache/schemas/analysis_tool/cpe_match_string_schema.json` - Analysis Tool CPE match string cache schema (optimized)
 
 **Scripts**:
-- [utilities/refresh_nvd_cpe_base_strings_cache.py](../utilities/refresh_nvd_cpe_base_strings_cache.py) - Manual cache refresh utility
+- [utilities/refresh_tool_cpematchstring_2_0_cache.py](../utilities/refresh_tool_cpematchstring_2_0_cache.py) - Manual cache refresh utility
 - [utilities/refresh_nvd_cves_2_0_cache.py](../utilities/refresh_nvd_cves_2_0_cache.py) - Manual NVD CVE cache refresh utility
 - [src/analysis_tool/core/schema_validator.py](../src/analysis_tool/core/schema_validator.py) - Validation implementation
 

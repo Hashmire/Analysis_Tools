@@ -298,7 +298,7 @@ class TestSuiteRunner:
                 'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_confirmed_mapping_manager.py']
             },
             {
-                'name': 'CPE Base String Cache Manager',
+                'name': 'CPE Match String Cache Manager',
                 'command': ['python', 'test_suites\\\\tool_infrastructure\\\\test_cpe_cache.py']
             },
             {

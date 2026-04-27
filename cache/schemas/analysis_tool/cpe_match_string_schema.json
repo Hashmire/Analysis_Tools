@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "CPE Base Strings Datafeed Schema",
-  "$id": "https://github.com/Hashmire/Analysis_Tools/schemas/cpe_base_strings_cache.json",
+  "title": "CPE Match Strings Datafeed Schema",
+  "$id": "https://github.com/Hashmire/Analysis_Tools/schemas/cpe_match_string_schema.json",
   "description": "CPE Match String Schema. Contains a metadata block and an entries map keyed by CPE 2.3 base string.",
   "definitions": {
     "defTitle": {

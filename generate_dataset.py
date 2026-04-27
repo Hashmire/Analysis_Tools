@@ -1202,7 +1202,7 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, sdc_report
                 cpe_cache_manager.evict_all_shards()
                 
                 logger.info(
-                    "CPE base string cache shards saved and evicted - memory cleared for next run",
+                    "CPE match string cache shards saved and evicted - memory cleared for next run",
                     group="CACHE_MANAGEMENT"
                 )
         except Exception as cpe_eviction_error:

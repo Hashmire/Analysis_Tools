@@ -7,10 +7,10 @@ Uses CVE Project's change tracking to efficiently identify and refresh only modi
 
 Usage:
     # Auto-detect from cache metadata (recommended)
-    python -m utilities.refresh_cve_list_v5_cache
+    python -m utilities.refresh_cve_cvelist_5_2_cache
     
     # Force refresh of last N days regardless of cache state
-    python -m utilities.refresh_cve_list_v5_cache --days 7
+    python -m utilities.refresh_cve_cvelist_5_2_cache --days 7
 """
 
 import sys
@@ -153,7 +153,7 @@ def determine_cutoff_date(args) -> Optional[datetime]:
     
     # No valid timestamp in config — default to last 30 days
     cutoff = now - timedelta(days=30)
-    logger.warning(f"No last_manual_update in config — defaulting to last 30 days. Run: python -m utilities.refresh_cve_list_v5_cache --days N to establish a baseline.", group="CACHE_MANAGEMENT")
+    logger.warning(f"No last_manual_update in config — defaulting to last 30 days. Run: python -m utilities.refresh_cve_cvelist_5_2_cache --days N to establish a baseline.", group="CACHE_MANAGEMENT")
     logger.info(f"Cutoff date: {cutoff.strftime('%Y-%m-%d %H:%M:%S %Z')} (default 30 days)", group="CACHE_MANAGEMENT")
     return cutoff
 
@@ -245,30 +245,36 @@ def _process_single_cve_v5(
         'current'  — within TTL, no refresh needed
         'added'    — new file written
         'updated'  — existing file refreshed
-        'error'    — path resolution failed (logged by caller)
+        'error'    — path resolution failed or refresh failed (logged inside refresh function)
     """
-    cve_file_path = _resolve_cve_cache_file_path(cve_id, cve_repo_path)
-    if not cve_file_path:
+    try:
+        cve_file_path = _resolve_cve_cache_file_path(cve_id, cve_repo_path)
+        if not cve_file_path:
+            return cve_id, "error"
+
+        file_existed = cve_file_path.exists()
+
+        if file_existed:
+            file_age_hours = (
+                datetime.now(timezone.utc)
+                - datetime.fromtimestamp(cve_file_path.stat().st_mtime, tz=timezone.utc)
+            ).total_seconds() / 3600
+            if file_age_hours < cache_ttl_hours:
+                return cve_id, "current"
+
+        success = _refresh_cvelist_from_mitre_api(
+            cve_id,
+            cve_file_path,
+            refresh_reason="deltaLog change detected",
+            cve_schema=cve_schema,
+            update_metadata=False,
+        )
+        if not success:
+            return cve_id, "error"
+        return cve_id, "updated" if file_existed else "added"
+    except Exception as e:
+        logger.warning(f"CVE 5.x  {cve_id:<20} ERROR (unexpected: {str(e)[:80]})", group="CACHE_MANAGEMENT")
         return cve_id, "error"
-
-    file_existed = cve_file_path.exists()
-
-    if file_existed:
-        file_age_hours = (
-            datetime.now(timezone.utc)
-            - datetime.fromtimestamp(cve_file_path.stat().st_mtime, tz=timezone.utc)
-        ).total_seconds() / 3600
-        if file_age_hours < cache_ttl_hours:
-            return cve_id, "current"
-
-    _refresh_cvelist_from_mitre_api(
-        cve_id,
-        cve_file_path,
-        refresh_reason="deltaLog change detected",
-        cve_schema=cve_schema,
-        update_metadata=False,
-    )
-    return cve_id, "updated" if file_existed else "added"
 
 
 def smart_refresh(args=None, max_workers: int = 20):
@@ -360,15 +366,14 @@ def smart_refresh(args=None, max_workers: int = 20):
                         stats.cves_updated += 1
                     else:  # error
                         stats.error_count += 1
-                        logger.warning(f"CVE 5.x  {cve_id:<20} ERROR (path resolution failed)", group="CACHE_MANAGEMENT")
-                        stats.errors.append(f"Path resolution failed for {cve_id}")
+                        stats.errors.append(f"Refresh failed for {cve_id}")
             except Exception as e:
                 cve_id = futures[future]
                 with stats_lock:
                     stats.cves_checked += 1
                     stats.error_count += 1
                     stats.errors.append(f"Processing error for {cve_id}: {str(e)[:100]}")
-                logger.debug(f"Error processing {cve_id}: {e}", group="CACHE_MANAGEMENT")
+                logger.warning(f"CVE 5.x  {cve_id:<20} ERROR (unexpected: {str(e)[:80]})", group="CACHE_MANAGEMENT")
     except KeyboardInterrupt:
         logger.warning("Interrupt received — cancelling pending CVE workers...", group="CACHE_MANAGEMENT")
         executor.shutdown(wait=False, cancel_futures=True)
@@ -409,10 +414,10 @@ def main():
         epilog="""
 Examples:
   # Auto-detect from cache metadata (RECOMMENDED - default)
-  python -m utilities.refresh_cve_list_v5_cache
+  python -m utilities.refresh_cve_cvelist_5_2_cache
   
   # Force refresh of last N days regardless of cache state
-  python -m utilities.refresh_cve_list_v5_cache --days 30
+  python -m utilities.refresh_cve_cvelist_5_2_cache --days 30
 
 Note: Default behavior queries deltaLog.json for changes since last manual update,
       then checks cache staleness (TTL) before refreshing individual CVEs.

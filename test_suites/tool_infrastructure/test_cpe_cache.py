@@ -276,7 +276,6 @@ def test_global_manager_with_sharding():
             'compression': False,
             'auto_save_threshold': 0,
             'sharding': {
-                'enabled': True,
                 'num_shards': 8
             },
             'refresh_strategy': {'notify_age_hours': 100}
@@ -413,7 +412,7 @@ def test_cache_expiration_workflow():
     
     cache_config = load_config()['cache_settings']['cpe_cache'].copy()
     cache_config['refresh_strategy'] = {'notify_age_hours': 0.001}  # ~3.6 seconds
-    cache_config['sharding'] = {'enabled': True, 'num_shards': 16}
+    cache_config['sharding'] = {'num_shards': 16}
     
     with tempfile.TemporaryDirectory() as tmpdir:
         cache = ShardedCPECache(cache_config, num_shards=16)
@@ -534,7 +533,7 @@ def test_cache_corruption_recovery():
             'enabled': True,
             'compression': False,
             'auto_save_threshold': 0,
-            'sharding': {'enabled': True, 'num_shards': 16},
+            'sharding': {'num_shards': 16},
             'refresh_strategy': {'notify_age_hours': 100}
         }
         
@@ -586,19 +585,18 @@ def test_cache_mode_compatibility():
     cache_config = load_config()['cache_settings']['cpe_cache']
     
     # Sharding is now mandatory - verify it's configured
-    sharding_enabled = cache_config.get('sharding', {}).get('enabled', True)
-    
+    num_shards = cache_config.get('sharding', {}).get('num_shards', 16)
+
     # Verify shard files exist
     shard_dir = project_root / 'cache' / 'cpe_base_strings'
     shards_exist = shard_dir.exists() and len(list(shard_dir.glob('*.json'))) > 0
-    
+
     print("[OK] Sharded cache mode compatibility validated")
-    print(f"  - Sharding enabled: {sharding_enabled}")
+    print(f"  - Shards configured: {num_shards}")
     print(f"  - Shard files exist: {shards_exist}")
-    
-    if sharding_enabled and not shards_exist:
-        print("  ℹ INFO: Sharding enabled but no shards yet (created on first run)")
-    
+
+    if not shards_exist:
+        print("  INFO: No shard files yet (created on first run)")
     return True
 
 def test_cache_persistence_across_runs():

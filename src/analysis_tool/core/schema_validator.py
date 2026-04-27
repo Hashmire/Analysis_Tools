@@ -66,15 +66,12 @@ def validate_against_schema(
     context: str
 ) -> None:
     """
-    Validate data against JSON schema.
-    
-    Uses locally cached external $ref schemas (e.g., CVSS) first. 
-    If external schemas failed to download, unresolved $ref will 
-    raise ValidationError, surfacing as a schema validation concern.
+    Validate data against JSON schema using Decimal-based multipleOf to avoid
+    IEEE 754 float precision false negatives (e.g., CVSS 4.0 score 5.1 failing multipleOf 0.1).
 
-    Uses Decimal-based multipleOf validation to avoid IEEE 754 float precision
-    false negatives (e.g., CVSS 4.0 scores like 5.1 failing multipleOf 0.1).
-    
+    Requires a local $ref registry for schemas with external URIs; skips validation
+    rather than making unintended network calls if the registry is unavailable.
+
     Args:
         data: Parsed API response data
         schema: JSON schema (None = skip validation)
@@ -87,17 +84,26 @@ def validate_against_schema(
         return
     
     try:
-        # Import here to get access to get_schema_registry
-        from .gatherData import get_schema_registry
+        # Import here to get access to get_schema_registry and _extract_external_refs
+        from .gatherData import get_schema_registry, _extract_external_refs
 
         # Get registry for external refs (uses locally cached CVSS schemas)
         registry = get_schema_registry()
 
-        # Validate with or without registry depending on availability
         if registry:
             validator = _DecimalAwareDraft7Validator(schema, registry=registry)
             validator.validate(data)
         else:
+            #  Skip validation and surface the gap explicitly. 
+            external_refs = _extract_external_refs(schema)
+            if external_refs:
+                raise NVDSchemaValidationError(
+                    f"Schema has {len(external_refs)} external $ref URI(s) but no local "
+                    f"registry is available — skipping validation to avoid unintended "
+                    f"network calls. Ensure load_schema() was called before validation. "
+                    f"- {context}"
+                )
+            # Schema has no external refs — safe to validate without a registry.
             _DecimalAwareDraft7Validator(schema).validate(data)
             
     except jsonschema.ValidationError as e:
@@ -106,18 +112,21 @@ def validate_against_schema(
         raise NVDSchemaValidationError(error_msg)
     except jsonschema.SchemaError as e:
         logger.error(f"Invalid schema encountered: {e}", group="DATA_PROC")
+    except NVDSchemaValidationError:
+        raise  # Already formatted — don't wrap again
     except Exception as e:
-        # Catch referencing.exceptions.NoSuchResource and similar registry errors
-        # (imported lazily to avoid requiring referencing at module load time)
+        # Convert any unexpected validator exception (including referencing.exceptions.*)
         try:
             from referencing.exceptions import NoSuchResource
             if isinstance(e, NoSuchResource):
                 raise NVDSchemaValidationError(
                     f"External schema reference could not be resolved (cached file missing?): {e} - {context}"
-                )
+                ) from e
         except ImportError:
             pass
-        raise
+        raise NVDSchemaValidationError(
+            f"Unexpected schema validation error: {type(e).__name__}: {e} - {context}"
+        ) from e
 
 
 def validate_string_content(data: Any, context: str, path: str = "root") -> None:
@@ -175,30 +184,23 @@ def validate_string_content(data: Any, context: str, path: str = "root") -> None
 def validate_orjson_serializable(data: Dict[str, Any], context: str) -> None:
     """
     Validate data is serializable by orjson (required for cache storage).
-    
-    CRITICAL: Multi-layer validation to catch all corruption types:
-    1. Content validation: Scans for null bytes, control chars, invalid UTF-8
-    2. Serialization test: Verifies orjson.dumps() succeeds
-    3. Round-trip test: Verifies orjson.loads() succeeds (catches surrogates)
-    
+    Performs content scan, serialization test, and round-trip test to catch surrogates.
+
     Args:
         data: Parsed API response
         context: Description for error messages
-    
+
     Raises:
         NVDSchemaValidationError: If data is not serializable or contains invalid UTF-8
     """
-    # LAYER 1: Content validation (catches null bytes, control chars, etc.)
     validate_string_content(data, context)
     
-    # LAYER 2: Serialization test
     try:
         serialized = orjson.dumps(data)
     except (orjson.JSONEncodeError, TypeError, ValueError) as e:
         error_msg = f"Data contains non-serializable content: {type(e).__name__}: {str(e)[:200]} - {context}"
         raise NVDSchemaValidationError(error_msg)
     
-    # LAYER 3: Round-trip test (catches UTF-8 surrogate pairs)
     try:
         orjson.loads(serialized)
     except (orjson.JSONDecodeError, ValueError) as e:

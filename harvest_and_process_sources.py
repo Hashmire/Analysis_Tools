@@ -48,10 +48,7 @@ def initialize_source_manager_for_harvest(api_key):
     from analysis_tool.storage.nvd_source_manager import get_or_refresh_source_manager
     
     # Initialize source manager - fails fast if unable to initialize
-    source_manager = get_or_refresh_source_manager(api_key, log_group="CACHE_MANAGEMENT")
-    
-    logger.info(f"Source manager initialized with {source_manager.get_source_count()} sources", 
-               group="CACHE_MANAGEMENT")
+    get_or_refresh_source_manager(api_key, log_group="CACHE_MANAGEMENT")
 
 
 def run_generate_dataset(source_name, source_uuid, allow_logging=True, 

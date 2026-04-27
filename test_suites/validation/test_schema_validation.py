@@ -16,7 +16,7 @@ Standard Output Format: TEST_RESULTS: PASSED=X TOTAL=Y SUITE="Schema Validation"
 import sys
 import json
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 # Add project root to path
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -361,6 +361,108 @@ def test_cve_record_array_type():
 
 
 # ============================================================================
+# Network-call protection tests (validate_against_schema no-registry guard)
+# ============================================================================
+
+@test("No-network guard - external $ref + no registry raises NVDSchemaValidationError without invoking validator")
+def test_no_network_external_ref_no_registry():
+    """When the registry is unavailable and the schema has external $ref URIs,
+    validate_against_schema must raise NVDSchemaValidationError immediately
+    rather than falling through to _DecimalAwareDraft7Validator.validate(),
+    which would rely on implicit jsonschema resolver behaviour and could make
+    unintended network calls."""
+    schema_with_external_ref = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+            "cvssData": {"$ref": "https://csrc.nist.gov/schema/nvd/api/2.0/external/cvss-v4.0.json"}
+        }
+    }
+    data = {"cvssData": {"version": "4.0"}}
+
+    # Track whether the validator's .validate() was ever called
+    validate_called = []
+
+    class _SentinelValidator:
+        def __init__(self, *args, **kwargs):
+            pass
+        def validate(self, instance):
+            validate_called.append(True)
+
+    with patch("src.analysis_tool.core.gatherData.get_schema_registry", return_value=None), \
+         patch("src.analysis_tool.core.schema_validator._DecimalAwareDraft7Validator", _SentinelValidator):
+        try:
+            validate_against_schema(data, schema_with_external_ref, "test context")
+            assert False, "Should have raised NVDSchemaValidationError"
+        except NVDSchemaValidationError as e:
+            assert "external" in str(e).lower() or "$ref" in str(e).lower() or "registry" in str(e).lower(), \
+                f"Error message should explain why validation was skipped: {e}"
+
+    assert not validate_called, \
+        "_DecimalAwareDraft7Validator.validate() must NOT be called when schema has external $refs and no registry is available"
+
+
+@test("No-network guard - no external $refs + no registry validates normally (no false blocking)")
+def test_no_network_no_external_refs_validates():
+    """When the schema has NO external $ref URIs, validate_against_schema must
+    proceed with validation even if no registry is available.  The guard must
+    not block schemas that are self-contained."""
+    self_contained_schema = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+            "version": {"type": "string"},
+            "score": {"type": "number", "minimum": 0.0, "maximum": 10.0}
+        },
+        "required": ["version"]
+    }
+
+    # Valid data — should pass
+    with patch("src.analysis_tool.core.gatherData.get_schema_registry", return_value=None):
+        try:
+            validate_against_schema({"version": "4.0", "score": 7.5}, self_contained_schema, "test")
+        except NVDSchemaValidationError as e:
+            assert False, f"Self-contained schema should validate without a registry: {e}"
+
+    # Invalid data — should still raise
+    with patch("src.analysis_tool.core.gatherData.get_schema_registry", return_value=None):
+        try:
+            validate_against_schema({"score": 7.5}, self_contained_schema, "test")  # missing required 'version'
+            assert False, "Missing required field should have raised NVDSchemaValidationError"
+        except NVDSchemaValidationError:
+            pass  # Expected
+
+
+@test("No-network guard - unexpected validator exception converted to NVDSchemaValidationError (no bare re-raise)")
+def test_unexpected_validator_exception_wrapped():
+    """Any exception that is neither jsonschema.ValidationError nor jsonschema.SchemaError
+    must be converted to NVDSchemaValidationError rather than re-raised unwrapped.
+    A bare re-raise would bypass the 'cache without validation' safety nets in callers."""
+    self_contained_schema = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object"
+    }
+
+    class _BoomValidator:
+        def __init__(self, *args, **kwargs):
+            pass
+        def validate(self, instance):
+            raise RuntimeError("Simulated unexpected internal validator error")
+
+    with patch("src.analysis_tool.core.gatherData.get_schema_registry", return_value=None), \
+         patch("src.analysis_tool.core.schema_validator._DecimalAwareDraft7Validator", _BoomValidator):
+        try:
+            validate_against_schema({}, self_contained_schema, "test context")
+            assert False, "Should have raised NVDSchemaValidationError"
+        except NVDSchemaValidationError as e:
+            # Correct: wrapped as a typed, handleable error
+            assert "RuntimeError" in str(e) or "unexpected" in str(e).lower(), \
+                f"Wrapped error should mention original type: {e}"
+        except RuntimeError:
+            assert False, "RuntimeError must NOT propagate raw — callers rely on NVDSchemaValidationError"
+
+
+# ============================================================================
 # Run all tests
 # ============================================================================
 
@@ -399,6 +501,11 @@ def main():
     test_cve_record_missing_metadata()
     test_cve_record_wrong_type()
     test_cve_record_array_type()
+
+    # No-network-call protection (validate_against_schema no-registry guard)
+    test_no_network_external_ref_no_registry()
+    test_no_network_no_external_refs_validates()
+    test_unexpected_validator_exception_wrapped()
     
     print()
     print("=" * 80)

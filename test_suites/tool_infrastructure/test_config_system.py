@@ -17,7 +17,7 @@ GOLD COPY INTEGRITY (config.json structure):
         confirmed_mappings: non-empty path (always enabled)
 - api: api_key non-empty string, timeout positivity, retry bounds, all endpoint
         keys, https:// URL format, all schema keys
-- logging: enabled (bool), level (valid set), description (non-empty string);
+- logging: enabled (bool), level (valid set);
         progress: (removed — always-on behavior, not config-driven)
         Report sections (sdc_report, alias_report, cpeas_automation_report):
         progress_interval is a positive int
@@ -340,7 +340,7 @@ class TestConfigSystem:
             self.add_result("api section", False, f"Error: {e}")
 
     def test_logging_section(self):
-        """Test 6: logging section — enabled bool, valid level, description, and nested progress/report sub-sections."""
+        """Test 6: logging section — enabled bool, valid level, and nested progress/report sub-sections."""
         print("\nTest 6: logging Section")
         print("-" * 50)
         try:
@@ -358,12 +358,6 @@ class TestConfigSystem:
                 f"logging.level is in valid set ({', '.join(sorted(VALID_LOG_LEVELS))})",
                 level in VALID_LOG_LEVELS,
                 repr(level),
-            )
-
-            self.add_result(
-                "logging.description is a non-empty string",
-                isinstance(log.get('description'), str) and bool(log.get('description')),
-                repr(log.get('description')),
             )
 
             # progress sub-section removed — show_progress/show_eta/show_timing are always-on
@@ -454,19 +448,15 @@ class TestConfigSystem:
             chk('application.version',  '0.4.0')
 
             # -- cache_settings.cpe_cache ------------------------------------------
-            chk('cache_settings.cpe_cache.filename',             'cpe_base_string_cache.json')
             chk('cache_settings.cpe_cache.auto_save_threshold',  50)
             chk('cache_settings.cpe_cache.max_loaded_shards',    16)
             chk('cache_settings.cpe_cache.description',          'NVD CPE API responses with per-entry expiration, sharding for better scaling across organizational dataset volume')
-            chk('cache_settings.cpe_cache.sharding.enabled',     True)
             chk('cache_settings.cpe_cache.sharding.num_shards',  16)
-            chk('cache_settings.cpe_cache.refresh_strategy.field_path',       '$.*.last_queried')
             chk('cache_settings.cpe_cache.refresh_strategy.notify_age_hours', 720)
 
             # -- cache_settings.nvd_source_data ------------------------------------
             chk('cache_settings.nvd_source_data.filename',                        'nvd_source_data.json')
             chk('cache_settings.nvd_source_data.description',                     'NVD source organization data, derived from the NVD /source/ API')
-            chk('cache_settings.nvd_source_data.refresh_strategy.field_path',       '$.created_at')
             chk('cache_settings.nvd_source_data.refresh_strategy.notify_age_hours', 168)
 
             # -- cache_settings.cve_list_v5 ----------------------------------------
@@ -492,7 +482,6 @@ class TestConfigSystem:
             # -- logging -----------------------------------------------------------
             chk('logging.enabled', True)
             chk('logging.level',   'DEBUG')
-            chk('logging.description', 'Log format: [{timestamp}] [{level}] {message}. Available levels (most to least verbose): DEBUG, INFO, WARNING, ERROR.')
 
             # -- logging.progress removed (always-on, not config-driven)
 

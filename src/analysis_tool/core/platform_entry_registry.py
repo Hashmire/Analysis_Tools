@@ -1,27 +1,16 @@
 #!/usr/bin/env python3
 """
-Registry and Data Collection System for NVD-ish Pipeline
-=========================================================
+Registry and data collection for the NVD-ish pipeline.
 
-This module provides registry-based data collection for the Analysis Tools NVD-ish pipeline.
-It handles:
-
-1. Platform entry notification registry (PENR) for data transfer between processing stages
-2. Placeholder value detection and constants
-3. Source data concern (SDC) detection and analysis
-4. Alias extraction
-5. Update pattern detection and transformation
-6. CPE-AS generation support functions
-
-The registry pattern enables data collection during CVE processing that is later consumed
-by nvd_ish_collector for integration into enhanced NVD-ish JSON records.
+Provides the Platform Entry Notification Registry (PENR) for transferring data
+between CVE processing stages, along with placeholder detection, SDC analysis,
+alias extraction, update pattern detection, and CPE-AS generation support.
 """
 from typing import Dict, List, Tuple, Optional, Any
 import json
 import re
 from ..logging.workflow_logger import get_logger
 
-# Get logger instance
 logger = get_logger()
 
 # ===== GLOBAL REGISTRIES =====
@@ -103,23 +92,7 @@ BLOAT_TEXT_VALUES = [
 # ===== UTILITY FUNCTIONS FOR CPE-AS GENERATION =====
 
 def determine_vulnerability_from_status(status: str) -> bool:
-    """
-    Centralized vulnerability determination logic for CPE Applicability Statements.
-    
-    Args:
-        status: Status value from CVE 5.0 data ('affected', 'unaffected', 'unknown')
-    
-    Returns:
-        Boolean indicating vulnerability status (True if affected, False otherwise)
-    
-    Examples:
-        >>> determine_vulnerability_from_status('affected')
-        True
-        >>> determine_vulnerability_from_status('unaffected')
-        False
-        >>> determine_vulnerability_from_status('unknown')
-        False
-    """
+    """Return True if status is 'affected', False otherwise."""
     return status == 'affected'
 
 # ===== REGISTRY MANAGEMENT FUNCTIONS =====
@@ -153,18 +126,14 @@ def register_platform_notification_data(table_index: int, data_type: str, data: 
     """
     global PLATFORM_ENTRY_NOTIFICATION_REGISTRY
     
-    # Ensure the data_type key exists
     if data_type not in PLATFORM_ENTRY_NOTIFICATION_REGISTRY:
         PLATFORM_ENTRY_NOTIFICATION_REGISTRY[data_type] = {}
     
-    # Check if this table data is already registered
     if table_index in PLATFORM_ENTRY_NOTIFICATION_REGISTRY[data_type]:
-        return False  # Already registered
+        return False
     
-    # CRITICAL: Do NOT skip registration for identical data with different table indices
     PLATFORM_ENTRY_NOTIFICATION_REGISTRY[data_type][table_index] = data
-    
-    return True  # Newly registered
+    return True
 
 # ===== UPDATE PATTERN ANALYSIS FUNCTIONS =====
 
@@ -201,8 +170,7 @@ def get_update_patterns():
     This function ensures consistency between detection (transform_version_with_update_pattern)
     and transformation logic across Python and JavaScript implementations.
     """
-    # KB EXCLUSION PATTERNS - These patterns detect KB references and exclude them
-    # KB patterns are documentation references, not version patterns
+    # KB exclusion patterns - detect KB references and exclude them from version matching
     kb_exclusion_patterns = [
         r'(?i)^.*?kb\d+.*?$',                    # Basic KB pattern (case insensitive)
         r'(?i)^.*?KB\d+.*?$',                    # Uppercase KB pattern  

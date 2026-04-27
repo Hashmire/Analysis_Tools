@@ -141,7 +141,7 @@ flowchart TD
 
 ### CVE List V5 Cache Refresh
 
-**Entry point:** `python -m utilities.refresh_cve_list_v5_cache`
+**Entry point:** `python -m utilities.refresh_cve_cvelist_5_2_cache`
 
 Fetches `deltaLog.json` from the CVE Project GitHub repository to identify CVEs changed since a cutoff date, then refreshes only those whose cache files are stale (age ≥ `notify_age_hours` TTL). `last_manual_update` in `config.json` is written automatically in Phase 3 when any CVEs are written; subsequent default runs read this value to narrow the deltaLog scan.
 
