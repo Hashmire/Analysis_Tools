@@ -160,7 +160,7 @@ flowchart TD
     B -->|default| D[Read config.json<br>→ last_manual_update]
     B -->|no config value| E[now − 30 days<br>default fallback]
     C & D & E --> P1
-    P1[PHASE 1: DISCOVERY<br>Fetch deltaLog.json<br>from CVE Project GitHub] --> PARSE[For each batch record:<br>skip batch if fetchTime ≤ cutoff<br>→ collect CVE IDs from new[] + updated[]]
+    P1[PHASE 1: DISCOVERY<br>Fetch deltaLog.json<br>from CVE Project GitHub] --> PARSE["For each batch record:<br>skip batch if fetchTime ≤ cutoff<br>→ collect CVE IDs from new[] + updated[]"]
     PARSE --> CHK{CVEs changed?}
     CHK -->|0| DONE([Cache up to date])
     CHK -->|N CVEs| P2
