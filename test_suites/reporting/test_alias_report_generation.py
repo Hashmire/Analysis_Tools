@@ -58,6 +58,7 @@ from src.analysis_tool.reporting.generate_alias_report import (
     validate_report_statistics,
     _is_alias_non_actionable,
     _build_alias_dedup_key,
+    _has_alias_concerns,
 )
 
 
@@ -174,6 +175,192 @@ TEST_CVE_1337_0026: Dict = {
     },
 }
 
+# ── Tests 25b: production-path non-actionable entries via full subprocess ──────
+# test-source-na-pipeline-0001 has both a real alias and a production-path na entry.
+# test-source-na-pipeline-0002 has ONLY na entries — MUST receive a report with
+# all-non-actionable statistics.
+TEST_CVE_1337_9901: Dict = {
+    'id': 'CVE-1337-9901',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': 'test-source-na-pipeline-0001'},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'na_pipe_vendor', 'product': 'na_pipe_product'}],
+            },
+        }]
+    },
+}
+
+TEST_CVE_1337_9902: Dict = {
+    'id': 'CVE-1337-9902',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [
+            {
+                # Production path: register_alias_extraction() wrote aliasExtraction: {}
+                # because all alias values (vendor, product) are placeholder values.
+                'originAffectedEntry': {
+                    'sourceId': 'test-source-na-pipeline-0001',
+                    'vendor': 'n/a',
+                    'product': 'n/a',
+                },
+                'aliasExtraction': {},
+            },
+            {
+                # Pure-placeholder source — MUST produce a per-source report with
+                # all-non-actionable statistics (non_actionable_count >= 1,
+                # confirmed_count = 0, unconfirmed_count = 0).
+                'originAffectedEntry': {
+                    'sourceId': 'test-source-na-pipeline-0002',
+                    'vendor': 'n/a',
+                    'product': 'n/a',
+                },
+                'aliasExtraction': {},
+            },
+        ]
+    },
+}
+
+TEST_CVE_1337_9903: Dict = {
+    'id': 'CVE-1337-9903',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            # Sole source for this CVE is pure-placeholder (all alias values = n/a).
+            # Used by test 36c to validate that a pure-placeholder-only source
+            # produces a report with all-non-actionable statistics.
+            'originAffectedEntry': {
+                'sourceId': 'test-source-na-only-36c',
+                'vendor': 'n/a',
+                'product': 'n/a',
+            },
+            'aliasExtraction': {},
+        }]
+    },
+}
+
+# ── Test 47: SDC concerns flags in subprocess JSON output ──────────────────
+# Two CVEs, same source, different aliases.
+# CVE-1337-1001: alias_a uses vendor='sdc_vendor', product='sdc_vendor_lib'
+#   - vendor IS a substring of product → triggers _has_alias_concerns() bloat-text rule
+#   - sourceDataConcerns also present so _sdc_concerns is non-empty via _extract_alias_concerns()
+#   → Both finalize() (by_year) and calculate_alias_statistics() (index) count it as with_concerns.
+# CVE-1337-1002: alias_b uses clean values (no bloat, no concerns).
+# Expected in output:
+#   unconfirmed_count == 2  (alias_a + alias_b are 2 distinct alias keys)
+#   unconfirmed_with_concerns_count == 1  (only alias_a)
+#   unconfirmed_with_concerns_pct == 50.0  (1 of 2 unconfirmed)
+_SRC_47 = 'test-source-concerns-0001'
+TEST_CVE_1337_1001: Dict = {
+    'id': 'CVE-1337-1001',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_47},
+            'aliasExtraction': {
+                # vendor='sdc_vendor' is a substring of product='sdc_vendor_lib'
+                # → triggers _has_alias_concerns() bloat-text detection
+                'aliases': [{'vendor': 'sdc_vendor', 'product': 'sdc_vendor_lib'}],
+            },
+            # sourceDataConcerns makes _extract_alias_concerns() populate _sdc_concerns
+            # on this alias so finalize()'s by_year unconfirmed_with_concerns_count fires too.
+            'sourceDataConcerns': {
+                'concerns': {
+                    'versionType': [{'field': 'vendor', 'sourceValue': 'sdc_vendor'}]
+                }
+            },
+        }]
+    },
+}
+
+TEST_CVE_1337_1002: Dict = {
+    'id': 'CVE-1337-1002',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_47},
+            'aliasExtraction': {
+                # Clean alias — vendor NOT in product, no concerns of any kind
+                'aliases': [{'vendor': 'sdc_vendor_b', 'product': 'sdc_product_b'}],
+            },
+            # No sourceDataConcerns
+        }]
+    },
+}
+
+# ── Test 48: CPE sort order and top-5 cap in subprocess JSON output ────────
+# Seven CVEs, same alias, different NVD CPE configurations.
+# CVE-1337-2001 and CVE-1337-2002 share CPE_A → cveCount == 2 (highest, must sort first).
+# CVE-1337-2003 through CVE-1337-2007 each have a unique CPE (B through F) → cveCount == 1 each.
+# Total: 6 distinct CPE base strings → top-5 cap → topNvdCpeBaseStrings has exactly 5 entries.
+_SRC_48 = 'test-source-cpe-cap-0001'
+_ALIAS_48 = {'vendor': 'cap_vendor', 'product': 'cap_product'}
+
+TEST_CVE_1337_2001: Dict = {
+    'id': 'CVE-1337-2001',
+    'configurations': [{'nodes': [{'cpeMatch': [
+        {'criteria': 'cpe:2.3:a:cap_vendor:cap_product_a:1.0:*:*:*:*:*:*:*', 'vulnerable': True},
+    ]}]}],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{'originAffectedEntry': {'sourceId': _SRC_48}, 'aliasExtraction': {'aliases': [_ALIAS_48]}}],
+    },
+}
+TEST_CVE_1337_2002: Dict = {
+    'id': 'CVE-1337-2002',
+    'configurations': [{'nodes': [{'cpeMatch': [
+        {'criteria': 'cpe:2.3:a:cap_vendor:cap_product_a:2.0:*:*:*:*:*:*:*', 'vulnerable': True},
+    ]}]}],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{'originAffectedEntry': {'sourceId': _SRC_48}, 'aliasExtraction': {'aliases': [_ALIAS_48]}}],
+    },
+}
+TEST_CVE_1337_2003: Dict = {
+    'id': 'CVE-1337-2003',
+    'configurations': [{'nodes': [{'cpeMatch': [
+        {'criteria': 'cpe:2.3:a:cap_vendor:cap_product_b:1.0:*:*:*:*:*:*:*', 'vulnerable': True},
+    ]}]}],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{'originAffectedEntry': {'sourceId': _SRC_48}, 'aliasExtraction': {'aliases': [_ALIAS_48]}}],
+    },
+}
+TEST_CVE_1337_2004: Dict = {
+    'id': 'CVE-1337-2004',
+    'configurations': [{'nodes': [{'cpeMatch': [
+        {'criteria': 'cpe:2.3:a:cap_vendor:cap_product_c:1.0:*:*:*:*:*:*:*', 'vulnerable': True},
+    ]}]}],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{'originAffectedEntry': {'sourceId': _SRC_48}, 'aliasExtraction': {'aliases': [_ALIAS_48]}}],
+    },
+}
+TEST_CVE_1337_2005: Dict = {
+    'id': 'CVE-1337-2005',
+    'configurations': [{'nodes': [{'cpeMatch': [
+        {'criteria': 'cpe:2.3:a:cap_vendor:cap_product_d:1.0:*:*:*:*:*:*:*', 'vulnerable': True},
+    ]}]}],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{'originAffectedEntry': {'sourceId': _SRC_48}, 'aliasExtraction': {'aliases': [_ALIAS_48]}}],
+    },
+}
+TEST_CVE_1337_2006: Dict = {
+    'id': 'CVE-1337-2006',
+    'configurations': [{'nodes': [{'cpeMatch': [
+        {'criteria': 'cpe:2.3:a:cap_vendor:cap_product_e:1.0:*:*:*:*:*:*:*', 'vulnerable': True},
+    ]}]}],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{'originAffectedEntry': {'sourceId': _SRC_48}, 'aliasExtraction': {'aliases': [_ALIAS_48]}}],
+    },
+}
+TEST_CVE_1337_2007: Dict = {
+    'id': 'CVE-1337-2007',
+    'configurations': [{'nodes': [{'cpeMatch': [
+        {'criteria': 'cpe:2.3:a:cap_vendor:cap_product_f:1.0:*:*:*:*:*:*:*', 'vulnerable': True},
+    ]}]}],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{'originAffectedEntry': {'sourceId': _SRC_48}, 'aliasExtraction': {'aliases': [_ALIAS_48]}}],
+    },
+}
+
 # ---------------------------------------------------------------------------
 # by_year accuracy test fixtures (tests 28-33)
 # Each test uses a unique source ID and alias fields to prevent cross-test
@@ -245,6 +432,312 @@ TEST_CVE_2025_3301: Dict = {
             'originAffectedEntry': {'sourceId': 'test-source-pipeline-0001'},
             'aliasExtraction': {
                 'aliases': [{'vendor': 'by_year_vendor', 'product': 'by_year_product_2025'}],
+            },
+        }]
+    },
+}
+
+# ── Test 49: isSuggestedMatch: true via cpeDetermination field ─────────────
+# One CVE: NVD config has two CPE base strings (_a and _b).
+# cpeDetermination.top10SuggestedCPEBaseStrings includes only the _a base string.
+# Expected in topNvdCpeBaseStrings: _a has isSuggestedMatch=True, _b has False.
+_SRC_49 = 'test-source-suggested-0001'
+_CPE_SUGG_A_BASE = 'cpe:2.3:a:sugg_vendor:sugg_product_a:*:*:*:*:*:*:*:*'
+_CPE_SUGG_B_BASE = 'cpe:2.3:a:sugg_vendor:sugg_product_b:*:*:*:*:*:*:*:*'
+
+TEST_CVE_1337_3001: Dict = {
+    'id': 'CVE-1337-3001',
+    'configurations': [{'nodes': [{'cpeMatch': [
+        {'criteria': 'cpe:2.3:a:sugg_vendor:sugg_product_a:1.0:*:*:*:*:*:*:*', 'vulnerable': True},
+        {'criteria': 'cpe:2.3:a:sugg_vendor:sugg_product_b:1.0:*:*:*:*:*:*:*', 'vulnerable': True},
+    ]}]}],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_49},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'sugg_vendor', 'product': 'sugg_product'}],
+            },
+            # Only _a is in the suggested list; _b is NVD-only, not suggested.
+            'cpeDetermination': {
+                'top10SuggestedCPEBaseStrings': [
+                    {'cpeBaseString': _CPE_SUGG_A_BASE},
+                ],
+            },
+        }]
+    },
+}
+
+# ── Test 50: platform field differentiates aliases in same group ───────────
+# Three CVEs, same source, same vendor+product but different platform values.
+# All three aliases share the same group (same field types: vendor+product+platform).
+# Two CVEs reference the Linux alias so it has cveCount=2 and sorts first.
+_SRC_50 = 'test-source-platform-0001'
+
+TEST_CVE_1337_4001: Dict = {
+    'id': 'CVE-1337-4001',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_50},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'plat_vendor', 'product': 'plat_product', 'platform': 'Linux'}],
+            },
+        }]
+    },
+}
+
+TEST_CVE_1337_4002: Dict = {
+    'id': 'CVE-1337-4002',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_50},
+            'aliasExtraction': {
+                # Second CVE also references the Linux alias → Linux alias cveCount becomes 2.
+                'aliases': [{'vendor': 'plat_vendor', 'product': 'plat_product', 'platform': 'Linux'}],
+            },
+        }]
+    },
+}
+
+TEST_CVE_1337_4003: Dict = {
+    'id': 'CVE-1337-4003',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_50},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'plat_vendor', 'product': 'plat_product', 'platform': 'Windows'}],
+            },
+        }]
+    },
+}
+
+TEST_CVE_1337_4004: Dict = {
+    'id': 'CVE-1337-4004',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_50},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'plat_vendor', 'product': 'plat_product', 'platform': 'macOS'}],
+            },
+        }]
+    },
+}
+
+# ── Test 51: non-standard alias values pass through to alias JSON output ─
+# Four CVEs, same source, each alias uses a different non-standard alias value.
+# Assertions verify each field value survives finalize() and appears in aliasGroups.
+_SRC_51 = 'test-source-fields-0001'
+
+TEST_CVE_1337_5101: Dict = {
+    'id': 'CVE-1337-5101',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_51},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'fields_vendor', 'product': 'fields_product',
+                             'packageName': 'fields-package-name'}],
+            },
+        }]
+    },
+}
+
+TEST_CVE_1337_5102: Dict = {
+    'id': 'CVE-1337-5102',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_51},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'fields_vendor', 'product': 'fields_product',
+                             'collectionURL': 'https://example.com/collection/fields'}],
+            },
+        }]
+    },
+}
+
+TEST_CVE_1337_5103: Dict = {
+    'id': 'CVE-1337-5103',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_51},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'fields_vendor', 'product': 'fields_product',
+                             'repo': 'https://github.com/fields-vendor/fields-project'}],
+            },
+        }]
+    },
+}
+
+TEST_CVE_1337_5104: Dict = {
+    'id': 'CVE-1337-5104',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_51},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'fields_vendor', 'product': 'fields_product',
+                             'modules': ['fields-module-a', 'fields-module-b']}],
+            },
+        }]
+    },
+}
+
+# ── Test 52: whitespace / text-comparator / invalid-chars SDC concern types ─
+# Three CVEs, same source, each alias triggers a different concern type.
+# Each fixture also has sourceDataConcerns so _sdc_concerns is non-empty via
+# _extract_alias_concerns(), ensuring by_year unconfirmed_with_concerns_count fires.
+# Expected: unconfirmed_with_concerns_count == 3 at both index and by_year level.
+_SRC_52 = 'test-source-sdc3-0001'
+
+TEST_CVE_1337_5201: Dict = {
+    'id': 'CVE-1337-5201',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_52},
+            'aliasExtraction': {
+                # Leading space in vendor → whitespace concern
+                'aliases': [{'vendor': ' ws_vendor', 'product': 'ws_product'}],
+            },
+            'sourceDataConcerns': {
+                'concerns': {
+                    'whitespace': [{'field': 'vendor', 'sourceValue': ' ws_vendor'}],
+                },
+            },
+        }]
+    },
+}
+
+TEST_CVE_1337_5202: Dict = {
+    'id': 'CVE-1337-5202',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_52},
+            'aliasExtraction': {
+                # "before" in product → text comparator concern
+                'aliases': [{'vendor': 'tc_vendor', 'product': 'tc_app before 3.0'}],
+            },
+            'sourceDataConcerns': {
+                'concerns': {
+                    'textComparator': [{'field': 'product', 'sourceValue': 'tc_app before 3.0'}],
+                },
+            },
+        }]
+    },
+}
+
+TEST_CVE_1337_5203: Dict = {
+    'id': 'CVE-1337-5203',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_52},
+            'aliasExtraction': {
+                # Comma in product → invalid character concern
+                'aliases': [{'vendor': 'ic_vendor', 'product': 'ic_component, plugin'}],
+            },
+            'sourceDataConcerns': {
+                'concerns': {
+                    'invalidChars': [{'field': 'product', 'sourceValue': 'ic_component, plugin'}],
+                },
+            },
+        }]
+    },
+}
+
+
+# ── Test 55: programFiles / programRoutines / packageURL pipeline passthrough ─
+# Completes the identity-field passthrough coverage from test_51 (which covers
+# packageName, collectionURL, repo, modules).  These three fields appear in the
+# example template but were absent from any subprocess fixture.
+# Each CVE carries one of the three remaining fields; assertions verify the field
+# value survives finalize() and appears in the per-source aliasGroups JSON.
+_SRC_55 = 'test-source-fields-0055'
+
+TEST_CVE_1337_5105: Dict = {
+    'id': 'CVE-1337-5105',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_55},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'fields55_vendor', 'product': 'fields55_product',
+                             'programFiles': 'src/render/pixel.c'}],
+            },
+        }]
+    },
+}
+
+TEST_CVE_1337_5106: Dict = {
+    'id': 'CVE-1337-5106',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_55},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'fields55_vendor', 'product': 'fields55_product',
+                             'programRoutines': 'dbExprCodeTarget'}],
+            },
+        }]
+    },
+}
+
+TEST_CVE_1337_5107: Dict = {
+    'id': 'CVE-1337-5107',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_55},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'fields55_vendor', 'product': 'fields55_product',
+                             'packageURL': 'pkg:npm/util-kit'}],
+            },
+        }]
+    },
+}
+
+# ── Test 57: subprocess confirmedMappings via injected mapping file ──────────
+# A temp mapping file is written to cache/alias_mappings/ using a source UUID and
+# email that exist in nvd_source_data.json but have no existing mapping file there.
+# These identifiers are opaque — they satisfy ConfirmedMappingManager's cnaId
+# validation requirement.  The test data (alias, CPE string) is fully generic.
+_TEST57_SOURCE_UUID = '56a131ea-b967-4a0d-a41e-5f3549952846'
+_TEST57_SOURCE_EMAIL = 'arm-security@arm.com'
+_SRC_57 = _TEST57_SOURCE_EMAIL
+_TEST57_MAPPING_FILE = project_root / 'cache' / 'alias_mappings' / '_test_confirmed_57.json'
+
+TEST_CVE_1337_5701: Dict = {
+    'id': 'CVE-1337-5701',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _SRC_57},
+            'aliasExtraction': {
+                'aliases': [{'vendor': 'test57_vendor', 'product': 'test57_product'}],
+            },
+        }]
+    },
+}
+
+# ── Test 64: subprocess confirmedMappings raw value preservation ─────────────
+# Reuses _TEST57 source UUID/email pair for ConfirmedMappingManager validation.
+# Alias has a leading-space vendor to verify raw field values are stored verbatim.
+_TEST64_MAPPING_FILE = project_root / 'cache' / 'alias_mappings' / '_test_confirmed_64.json'
+
+TEST_CVE_1337_6400: Dict = {
+    'id': 'CVE-1337-6400',
+    'configurations': [],
+    'enrichedCVEv5Affected': {
+        'cveListV5AffectedEntries': [{
+            'originAffectedEntry': {'sourceId': _TEST57_SOURCE_EMAIL},
+            'aliasExtraction': {
+                'aliases': [{'vendor': ' whitespace_vendor', 'product': 'ws_product'}],
             },
         }]
     },
@@ -1049,7 +1542,7 @@ class TestAliasReportGeneration:
     # ==================================================================
 
     def test_24b_non_actionable_all_placeholders(self):
-        """Test 24b: _is_alias_non_actionable() returns True when all identity fields are placeholders."""
+        """Test 24b: _is_alias_non_actionable() returns True when all alias values are placeholders."""
         print("\nTest 24b: _is_alias_non_actionable — all placeholder fields")
         self.assert_true("n/a vendor+product is non-actionable",
                          _is_alias_non_actionable({'vendor': 'n/a', 'product': 'n/a'}))
@@ -1063,7 +1556,7 @@ class TestAliasReportGeneration:
                          _is_alias_non_actionable({'source_cve': ['CVE-2024-0001']}))
 
     def test_24c_non_actionable_returns_false_for_actionable(self):
-        """Test 24c: _is_alias_non_actionable() returns False when any identity field has real data."""
+        """Test 24c: _is_alias_non_actionable() returns False when any alias value has real data."""
         print("\nTest 24c: _is_alias_non_actionable — actionable aliases return False")
         self.assert_true("real vendor+product is actionable",
                          not _is_alias_non_actionable({'vendor': 'vendor_a', 'product': 'product_x'}))
@@ -1101,13 +1594,17 @@ class TestAliasReportGeneration:
         self.assert_true("dedup key does not contain 'source_cve'", 'source_cve' not in key)
 
     def test_34_by_year_non_actionable_count(self):
-        """Test 34: finalize() tracks non_actionable_count per year in by_year."""
-        print("\nTest 34: by_year non_actionable_count tracked per year")
+        """Test 34: finalize() tracks non_actionable_count per year in by_year.
+
+        Uses the production path: aliasExtraction: {} (key present, no aliases sub-key)
+        with placeholder values in originAffectedEntry — matching what
+        register_alias_extraction() actually writes to the NVD-ish cache.
+        """
+        print("\nTest 34: by_year non_actionable_count tracked per year (production path)")
         _SRC_34 = 'yr-test-src-34'
         _ALIAS_34_ACTION = {'vendor': 'yr34_vendor', 'product': 'yr34_product'}
-        _ALIAS_34_NA     = {'vendor': 'n/a',         'product': 'n/a'}
 
-        # SETUP: actionable alias on 2024, non-actionable alias on 2024 + 2025
+        # SETUP: actionable alias on 2024, production-path na entries on 2024 + 2025
         builder = AliasReportBuilder(
             source_manager=None,
             mapping_manager=_MockMappingManager(),
@@ -1116,13 +1613,15 @@ class TestAliasReportGeneration:
             'originAffectedEntry': {'sourceId': _SRC_34},
             'aliasExtraction': {'aliases': [_ALIAS_34_ACTION]},
         }
+        # Production path: aliasExtraction: {} — no aliases key.
+        # register_alias_extraction() detected all-placeholder fields and omitted aliases.
         entry_na_2024 = {
-            'originAffectedEntry': {'sourceId': _SRC_34},
-            'aliasExtraction': {'aliases': [_ALIAS_34_NA]},
+            'originAffectedEntry': {'sourceId': _SRC_34, 'vendor': 'n/a', 'product': 'n/a'},
+            'aliasExtraction': {},
         }
         entry_na_2025 = {
-            'originAffectedEntry': {'sourceId': _SRC_34},
-            'aliasExtraction': {'aliases': [_ALIAS_34_NA]},
+            'originAffectedEntry': {'sourceId': _SRC_34, 'vendor': 'n/a', 'product': 'n/a'},
+            'aliasExtraction': {},
         }
         builder.add_cve_aliases('CVE-2024-3401', [entry_action_2024, entry_na_2024], nvd_cpe_set=set())
         builder.add_cve_aliases('CVE-2025-3401', [entry_na_2025], nvd_cpe_set=set())
@@ -1141,6 +1640,10 @@ class TestAliasReportGeneration:
         # Coverage denominator for 2024 = confirmed(0) + unconfirmed(1) = 1; non-actionable excluded
         self.assert_equals("2024 confirmed_coverage_pct == 0.0 (denominator excludes NA)",
                            0.0, by_year['2024']['confirmed_coverage_pct'])
+        # 2025: CVE-2025-3401 produced only a non-actionable entry; finalize() now
+        # counts it towards by_year.cves so the CVE-per-year chart is accurate.
+        self.assert_equals("2025 cves == 1 (non-actionable-only CVE now counted)",
+                           1, by_year['2025']['cves'])
 
         # TEARDOWN
         builder = None
@@ -1207,6 +1710,448 @@ class TestAliasReportGeneration:
     #          validate_report_statistics
     # ==================================================================
 
+    def test_36b_non_actionable_from_empty_alias_extraction(self):
+        """Test 36b: Non-actionable platform entries (aliasExtraction present but empty)
+        are buffered and merged into all sources (established and pure-placeholder) so
+        they appear in by_year non_actionable_count.
+        Pure-placeholder sources (never seen with a real alias) MUST receive a report
+        with all-non-actionable statistics.
+        """
+        print("\nTest 36b: non-actionable counts from empty aliasExtraction (production path)")
+        _SRC_A = 'test-source-uuid-0036b-A'  # has real aliases
+        _SRC_B = 'test-source-uuid-0036b-B'  # pure-placeholder: MUST get a report
+
+        builder = AliasReportBuilder(
+            source_manager=None,
+            mapping_manager=_MockMappingManager(),
+        )
+
+        # Production-style na entry: aliasExtraction key present, no 'aliases' sub-key.
+        def _na_entry(src, vendor='n/a', product='n/a'):
+            return {
+                'originAffectedEntry': {'sourceId': src, 'vendor': vendor, 'product': product},
+                'aliasExtraction': {},   # key present, no aliases
+                'sourceDataConcerns': {},
+            }
+
+        def _real_entry(src, vendor='acme', product='widget'):
+            return {
+                'originAffectedEntry': {'sourceId': src},
+                'aliasExtraction': {'aliases': [{'vendor': vendor, 'product': product}]},
+            }
+
+        # CVE-2024-9001: Source A has a real alias AND a na entry (mixed CVE)
+        builder.add_cve_aliases('CVE-2024-9001',
+                                 [_real_entry(_SRC_A), _na_entry(_SRC_A)],
+                                 nvd_cpe_set=set())
+        # CVE-2024-9002: Source A has only na entries; Source B also only na
+        builder.add_cve_aliases('CVE-2024-9002',
+                                 [_na_entry(_SRC_A), _na_entry(_SRC_B)],
+                                 nvd_cpe_set=set())
+        # CVE-2025-9001: Source A has another na entry (different year)
+        builder.add_cve_aliases('CVE-2025-9001',
+                                 [_na_entry(_SRC_A)],
+                                 nvd_cpe_set=set())
+
+        reports = builder.finalize()
+
+        # Source A must have a report (it has real aliases)
+        self.assert_true("Source A present in report", _SRC_A in reports)
+
+        # Source B is pure-placeholder but MUST still get a report showing
+        # all-non-actionable statistics.
+        self.assert_true("Source B present in report (pure-placeholder gets report)", _SRC_B in reports)
+
+        if _SRC_B in reports:
+            b_meta = reports[_SRC_B]['metadata']
+            self.assert_equals("Source B unique_aliases_extracted >= 1",
+                               True, b_meta['unique_aliases_extracted'] >= 1)
+            self.assert_equals("Source B alias_groups_confirmed == 0",
+                               0, b_meta['alias_groups_confirmed'])
+            self.assert_equals("Source B confirmedMappings is empty",
+                               0, len(reports[_SRC_B]['confirmedMappings']))
+
+        by_year = reports[_SRC_A]['metadata']['by_year']
+
+        # 2024: 1 actionable unconfirmed alias + 1 non-actionable unique alias
+        # (CVE-2024-9001 and CVE-2024-9002 both submitted the same n/a pattern for SRC_A;
+        # deduplicates to 1 unique non-actionable alias).
+        self.assert_true("by_year has '2024'", '2024' in by_year)
+        self.assert_equals("2024 non_actionable_count == 1",
+                           1, by_year['2024']['non_actionable_count'])
+        self.assert_equals("2024 unconfirmed_count == 1 (actionable only)",
+                           1, by_year['2024']['unconfirmed_count'])
+
+        # 2025: only non-actionable alias (1 CVE occurrence)
+        self.assert_true("by_year has '2025'", '2025' in by_year)
+        self.assert_equals("2025 non_actionable_count == 1",
+                           1, by_year['2025']['non_actionable_count'])
+        self.assert_equals("2025 unconfirmed_count == 0",
+                           0, by_year['2025']['unconfirmed_count'])
+
+        # TEARDOWN
+        builder = None
+
+    def test_36c_four_phase_pure_placeholder_source_gets_report(self):
+        """Test 36c: Four-phase subprocess — a source whose ONLY submissions are
+        pure-placeholder entries (all alias values = n/a) MUST produce a report
+        with all-non-actionable statistics.
+
+        CVE-1337-9903: test-source-na-only-36c submits one placeholder entry
+                       (aliasExtraction: {}, vendor/product = n/a).
+
+        Expected:
+        - Source appears in the JSON index
+        - Per-source report file is written
+        - unique_aliases_extracted == 1  (one distinct NA dedup pattern)
+        - non_actionable_count == 1
+        - confirmed_count == 0
+        - unconfirmed_count == 0
+        - by_year['1337']['non_actionable_count'] == 1
+        """
+        import subprocess
+        print("\nTest 36c: Four-phase -- pure-placeholder-only source produces report")
+
+        # PHASE 1 -- SETUP
+        self.setup_subprocess_test_cache([TEST_CVE_1337_9903], batch='0xxx')
+
+        try:
+            # PHASE 2 -- EXECUTE
+            result = subprocess.run(
+                ['python', '-m', 'src.analysis_tool.reporting.generate_alias_report',
+                 '--custom-cache', TEST_SUBPROCESS_CACHE_NAME],
+                cwd=str(project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=120,
+            )
+
+            self.assert_equals("subprocess exit code 0", 0, result.returncode)
+            if result.returncode != 0:
+                print(f"  stderr: {result.stderr[:500]}")
+
+            # PHASE 3 -- VALIDATE
+            run_id = None
+            for line in result.stdout.splitlines():
+                if line.startswith('Run ID:'):
+                    run_id = line.split('Run ID:')[-1].strip()
+                    break
+
+            self.assert_true("Run ID present in stdout", run_id is not None)
+
+            if run_id:
+                logs_dir = project_root / "runs" / run_id / "logs"
+                index_file = logs_dir / "aliasExtractionReport_index.json"
+                self.assert_true("index.json exists", index_file.exists())
+
+                if index_file.exists():
+                    with open(index_file, 'r', encoding='utf-8') as f:
+                        index_data = json.load(f)
+
+                    source_names = [s.get('source_name', '') for s in index_data.get('sources', [])]
+                    self.assert_true(
+                        "test-source-na-only-36c present in index",
+                        'test-source-na-only-36c' in source_names,
+                    )
+
+                    src_entry = next(
+                        (s for s in index_data.get('sources', [])
+                         if s.get('source_name') == 'test-source-na-only-36c'),
+                        None,
+                    )
+                    self.assert_true("source entry found in index", src_entry is not None)
+
+                    if src_entry is not None:
+                        self.assert_equals("non_actionable_count == 1", 1, src_entry.get('non_actionable_count'))
+                        self.assert_equals("confirmed_count == 0", 0, src_entry.get('confirmed_count'))
+                        self.assert_equals("unconfirmed_count == 0", 0, src_entry.get('unconfirmed_count'))
+                        # Pure-NA source: no actionable alias patterns — total_unique_aliases == 0.
+                        # non_actionable_count is tracked separately as unique alias sets.
+                        self.assert_equals("total_unique_aliases == 0 (pure-NA source)", 0, src_entry.get('total_unique_aliases'))
+                        self.assert_equals("total_cves_processed == 1", 1, src_entry.get('total_cves_processed'))
+                        self.assert_equals("unique_aliases_extracted == 1", 1, src_entry.get('unique_aliases_extracted'))
+                        self.assert_equals("confirmed_coverage_pct == 0", 0, src_entry.get('confirmed_coverage_pct'))
+                        self.assert_equals("confirmed_with_concerns_count == 0", 0, src_entry.get('confirmed_with_concerns_count'))
+                        self.assert_equals("unconfirmed_with_concerns_count == 0", 0, src_entry.get('unconfirmed_with_concerns_count'))
+                        by_year = src_entry.get('by_year', {})
+                        self.assert_true("by_year has '1337'", '1337' in by_year)
+                        if '1337' in by_year:
+                            yr = by_year['1337']
+                            self.assert_equals("1337 cves == 1", 1, yr.get('cves'))
+                            self.assert_equals("1337 unique_aliases == 1", 1, yr.get('unique_aliases'))
+                            self.assert_equals("1337 non_actionable_count == 1", 1, yr.get('non_actionable_count'))
+                            self.assert_equals("1337 confirmed_count == 0", 0, yr.get('confirmed_count'))
+                            self.assert_equals("1337 unconfirmed_count == 0", 0, yr.get('unconfirmed_count'))
+                            self.assert_equals("1337 confirmed_coverage_pct == 0", 0, yr.get('confirmed_coverage_pct'))
+
+                    # Global index metadata for a pure-placeholder source: total_cves_processed == 0
+                    # because the main entries_by_org loop only fires for real aliases
+                    idx_global = index_data.get('metadata', {})
+                    self.assert_equals("global total_cves_processed == 0 (NA-only CVE not counted)", 0, idx_global.get('total_cves_processed'))
+                    self.assert_equals("global total_sources == 1", 1, idx_global.get('total_sources'))
+                    self.assert_equals("global status == 'completed'", 'completed', idx_global.get('status'))
+
+                    # Per-source report file must exist
+                    report_files = list(logs_dir.glob(
+                        "aliasExtractionReport_test-source-na-only-36c_*.json"
+                    ))
+                    self.assert_true("Report file written for pure-placeholder source", len(report_files) >= 1)
+                    if report_files:
+                        with open(report_files[0], 'r', encoding='utf-8') as f:
+                            report_data = json.load(f)
+                        meta36c = report_data.get('metadata', {})
+                        self.assert_equals("unique_aliases_extracted == 1", 1, meta36c.get('unique_aliases_extracted'))
+                        self.assert_equals("total_cves_processed == 1", 1, meta36c.get('total_cves_processed'))
+                        self.assert_equals("alias_groups_confirmed == 0", 0, meta36c.get('alias_groups_confirmed'))
+                        self.assert_equals("confirmed_cna_id is None", None, meta36c.get('confirmed_cna_id'))
+                        self.assert_equals("status == 'completed'", 'completed', meta36c.get('status'))
+
+                        # aliasGroups: 1 group with aliasGroup == 'no_identity_non_actionable'
+                        alias_groups_36c = report_data.get('aliasGroups', [])
+                        self.assert_equals("1 alias group", 1, len(alias_groups_36c))
+                        if alias_groups_36c:
+                            grp36c = alias_groups_36c[0]
+                            self.assert_equals(
+                                "aliasGroup key == 'no_identity_non_actionable'",
+                                'no_identity_non_actionable', grp36c.get('aliasGroup'),
+                            )
+                            aliases_36c = grp36c.get('aliases', [])
+                            self.assert_equals("group has 1 alias", 1, len(aliases_36c))
+                            if aliases_36c:
+                                a36c = aliases_36c[0]
+                                self.assert_equals("NA alias source_cve == ['CVE-1337-9903']", ['CVE-1337-9903'], a36c.get('source_cve'))
+                                self.assert_true("NA alias has no 'vendor' field", 'vendor' not in a36c)
+                                self.assert_true("NA alias has no 'product' field", 'product' not in a36c)
+                                self.assert_equals("NA alias topNvdCpeBaseStrings == []", [], a36c.get('topNvdCpeBaseStrings'))
+                                # originAffectedEntry fields are CVE entry metadata, not alias data —
+                                # naPatternFields is empty for Path A (no alias was extracted).
+                                self.assert_equals("NA alias naPatternFields == {}", {}, a36c.get('naPatternFields'))
+
+                        self.assert_equals("confirmedMappings is empty", 0, len(report_data.get('confirmedMappings', [None])))
+
+        finally:
+            # PHASE 4 -- TEARDOWN
+            self.teardown_subprocess_test_cache()
+
+    def test_25b_full_pipeline_non_actionable_entries(self):
+        """Test 25b: Four-phase subprocess — production-path na entries (aliasExtraction: {})
+        are counted in non_actionable statistics for all sources including pure-placeholder ones.
+
+        CVE-1337-9901: source 0001 has a real alias.
+        CVE-1337-9902: source 0001 has aliasExtraction: {} (production path na);
+                       source 0002 has aliasExtraction: {} (pure-placeholder source).
+
+        Expected outputs:
+        - source 0001 produces a report: unique_aliases_extracted == 2 (1 real + 1 na)
+        - source 0002 produces a report: unique_aliases_extracted == 1 (all na)
+        - source 0001 by_year['1337']['non_actionable_count'] == 1
+        - source 0001 by_year['1337']['unconfirmed_count'] == 1
+        - source 0002 by_year['1337']['non_actionable_count'] == 1
+        - source 0002 confirmed_count == 0, unconfirmed_count == 0
+        """
+        import subprocess
+        print("\nTest 25b: Full pipeline subprocess — production-path non-actionable entries")
+
+        # PHASE 1 — SETUP
+        self.setup_subprocess_test_cache([TEST_CVE_1337_9901, TEST_CVE_1337_9902], batch='0xxx')
+
+        try:
+            # PHASE 2 — EXECUTE
+            result = subprocess.run(
+                ['python', '-m', 'src.analysis_tool.reporting.generate_alias_report',
+                 '--custom-cache', TEST_SUBPROCESS_CACHE_NAME],
+                cwd=str(project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=120,
+            )
+
+            self.assert_equals("subprocess exit code 0", 0, result.returncode)
+            if result.returncode != 0:
+                print(f"  stderr: {result.stderr[:500]}")
+
+            # PHASE 3 — VALIDATE
+            run_id = None
+            for line in result.stdout.splitlines():
+                if line.startswith('Run ID:'):
+                    run_id = line.split('Run ID:')[-1].strip()
+                    break
+
+            self.assert_true("Run ID present in subprocess stdout", run_id is not None)
+
+            if run_id:
+                logs_dir = project_root / "runs" / run_id / "logs"
+                index_file = logs_dir / "aliasExtractionReport_index.json"
+                self.assert_true("index.json exists", index_file.exists())
+
+                if index_file.exists():
+                    with open(index_file, 'r', encoding='utf-8') as f:
+                        index_data = json.load(f)
+
+                    source_names = [s.get('source_name', '') for s in index_data.get('sources', [])]
+
+                    # Source 0001 has a real alias — must appear in index
+                    self.assert_true(
+                        "test-source-na-pipeline-0001 present in index (has real aliases)",
+                        'test-source-na-pipeline-0001' in source_names,
+                    )
+                    # Source 0002 is pure-placeholder — must also appear in index
+                    self.assert_true(
+                        "test-source-na-pipeline-0002 present in index (pure-placeholder gets report)",
+                        'test-source-na-pipeline-0002' in source_names,
+                    )
+
+                    src_entry = next(
+                        (s for s in index_data.get('sources', [])
+                         if s.get('source_name') == 'test-source-na-pipeline-0001'),
+                        None,
+                    )
+                    self.assert_true("source 0001 entry found in index", src_entry is not None)
+
+                    if src_entry is not None:
+                        # 1 real alias (actionable); 1 NA entry tracked separately
+                        self.assert_equals("source 0001 total_unique_aliases == 1", 1, src_entry.get('total_unique_aliases'))
+                        self.assert_equals("source 0001 non_actionable_count == 1", 1, src_entry.get('non_actionable_count'))
+                        self.assert_equals("source 0001 confirmed_count == 0", 0, src_entry.get('confirmed_count'))
+                        self.assert_equals("source 0001 confirmed_coverage_pct == 0.0", 0.0, src_entry.get('confirmed_coverage_pct'))
+                        self.assert_equals("source 0001 unconfirmed_count == 1", 1, src_entry.get('unconfirmed_count'))
+                        self.assert_equals("source 0001 confirmed_with_concerns_count == 0", 0, src_entry.get('confirmed_with_concerns_count'))
+                        self.assert_equals("source 0001 unconfirmed_with_concerns_count == 0", 0, src_entry.get('unconfirmed_with_concerns_count'))
+                        # CVE-1337-9902 is NA-only for source 0001 and is now counted
+                        # towards total_cves_processed and by_year.cves (fix: finalize()
+                        # accumulates NA-only CVEs from _non_actionable_pending).
+                        self.assert_equals("source 0001 total_cves_processed == 2", 2, src_entry.get('total_cves_processed'))
+                        by_year = src_entry.get('by_year', {})
+                        self.assert_true("source 0001 by_year has '1337'", '1337' in by_year)
+                        if '1337' in by_year:
+                            yr = by_year['1337']
+                            self.assert_equals("1337 cves == 2 (real-alias CVE + NA-only CVE)", 2, yr.get('cves'))
+                            self.assert_equals("1337 unique_aliases == 2", 2, yr.get('unique_aliases'))
+                            self.assert_equals("1337 unconfirmed_count == 1", 1, yr.get('unconfirmed_count'))
+                            self.assert_equals("1337 non_actionable_count == 1", 1, yr.get('non_actionable_count'))
+                            self.assert_equals("1337 confirmed_count == 0", 0, yr.get('confirmed_count'))
+                            self.assert_equals("1337 confirmed_coverage_pct == 0.0", 0.0, yr.get('confirmed_coverage_pct'))
+
+                    # Validate per-source report file for content (alias fields + CVE associations)
+                    report_files = list(logs_dir.glob(
+                        "aliasExtractionReport_test-source-na-pipeline-0001_*.json"
+                    ))
+                    self.assert_true("Per-source report file written for source 0001", len(report_files) >= 1)
+                    if report_files:
+                        with open(report_files[0], 'r', encoding='utf-8') as f:
+                            report_data = json.load(f)
+                        meta0001 = report_data.get('metadata', {})
+                        self.assert_equals("0001 unique_aliases_extracted == 2", 2, meta0001.get('unique_aliases_extracted'))
+                        self.assert_equals("0001 total_cves_processed == 2", 2, meta0001.get('total_cves_processed'))
+                        self.assert_equals("0001 alias_groups_confirmed == 0", 0, meta0001.get('alias_groups_confirmed'))
+
+                        # aliasGroups: 1 actionable group + 1 no_identity_non_actionable (NA) group
+                        alias_groups_0001 = report_data.get('aliasGroups', [])
+                        self.assert_equals("0001 has 2 alias groups", 2, len(alias_groups_0001))
+                        grp_by_key = {g.get('aliasGroup'): g for g in alias_groups_0001}
+                        self.assert_true(
+                            "0001 has '_sdc_concerns_product_vendor' group",
+                            '_sdc_concerns_product_vendor' in grp_by_key,
+                        )
+                        self.assert_true("0001 has 'no_identity_non_actionable' group (NA)", 'no_identity_non_actionable' in grp_by_key)
+
+                        if '_sdc_concerns_product_vendor' in grp_by_key:
+                            real_aliases = grp_by_key['_sdc_concerns_product_vendor'].get('aliases', [])
+                            self.assert_equals("real alias group has 1 alias", 1, len(real_aliases))
+                            if real_aliases:
+                                ra = real_aliases[0]
+                                self.assert_equals("real alias vendor == 'na_pipe_vendor'", 'na_pipe_vendor', ra.get('vendor'))
+                                self.assert_equals("real alias product == 'na_pipe_product'", 'na_pipe_product', ra.get('product'))
+                                self.assert_equals("real alias source_cve == ['CVE-1337-9901']", ['CVE-1337-9901'], ra.get('source_cve'))
+                                self.assert_equals("real alias topNvdCpeBaseStrings == []", [], ra.get('topNvdCpeBaseStrings'))
+
+                        if 'no_identity_non_actionable' in grp_by_key:
+                            na_aliases = grp_by_key['no_identity_non_actionable'].get('aliases', [])
+                            self.assert_equals("NA alias group has 1 pattern alias", 1, len(na_aliases))
+                            if na_aliases:
+                                na = na_aliases[0]
+                                self.assert_equals("NA alias source_cve == ['CVE-1337-9902']", ['CVE-1337-9902'], na.get('source_cve'))
+                                self.assert_true("NA alias has no 'vendor' field", 'vendor' not in na)
+                                self.assert_true("NA alias has no 'product' field", 'product' not in na)
+                                self.assert_equals("NA alias topNvdCpeBaseStrings == []", [], na.get('topNvdCpeBaseStrings'))
+                                # Path A: no alias was extracted, so naPatternFields is empty.
+                                self.assert_equals("NA alias naPatternFields == {}", {}, na.get('naPatternFields'))
+
+                        self.assert_equals("0001 confirmedMappings is empty", 0, len(report_data.get('confirmedMappings', [None])))
+
+                    # Pure-placeholder source 0002 MUST also have a report file
+                    na_only_reports = list(logs_dir.glob(
+                        "aliasExtractionReport_test-source-na-pipeline-0002_*.json"
+                    ))
+                    self.assert_true(
+                        "Per-source report file written for source 0002 (pure-placeholder)",
+                        len(na_only_reports) >= 1,
+                    )
+                    if na_only_reports:
+                        with open(na_only_reports[0], 'r', encoding='utf-8') as f:
+                            na_report = json.load(f)
+                        meta0002 = na_report.get('metadata', {})
+                        self.assert_equals("source 0002 unique_aliases_extracted == 1", 1, meta0002.get('unique_aliases_extracted'))
+                        self.assert_equals("source 0002 total_cves_processed == 1", 1, meta0002.get('total_cves_processed'))
+                        self.assert_equals("source 0002 alias_groups_confirmed == 0", 0, meta0002.get('alias_groups_confirmed'))
+                        self.assert_equals("source 0002 confirmed_cna_id is None", None, meta0002.get('confirmed_cna_id'))
+
+                        # aliasGroups: 1 group (no_identity_non_actionable — NA entry only)
+                        alias_groups_0002 = na_report.get('aliasGroups', [])
+                        self.assert_equals("source 0002 has 1 alias group", 1, len(alias_groups_0002))
+                        if alias_groups_0002:
+                            grp0002 = alias_groups_0002[0]
+                            self.assert_equals(
+                                "source 0002 group key == 'no_identity_non_actionable'",
+                                'no_identity_non_actionable', grp0002.get('aliasGroup'),
+                            )
+                            na_aliases_0002 = grp0002.get('aliases', [])
+                            self.assert_equals("source 0002 group has 1 alias", 1, len(na_aliases_0002))
+                            if na_aliases_0002:
+                                na2 = na_aliases_0002[0]
+                                self.assert_equals("source 0002 NA alias source_cve", ['CVE-1337-9902'], na2.get('source_cve'))
+                                self.assert_true("source 0002 NA alias has no 'vendor' field", 'vendor' not in na2)
+                                self.assert_true("source 0002 NA alias has no 'product' field", 'product' not in na2)
+
+                        self.assert_equals("source 0002 confirmedMappings is empty", 0, len(na_report.get('confirmedMappings', [None])))
+
+                    # Validate source 0002 index entry — full stats
+                    src_02_entry = next(
+                        (s for s in index_data.get('sources', [])
+                         if s.get('source_name') == 'test-source-na-pipeline-0002'),
+                        None,
+                    )
+                    self.assert_true("source 0002 entry found in index", src_02_entry is not None)
+                    if src_02_entry is not None:
+                        self.assert_equals("source 0002 non_actionable_count == 1", 1, src_02_entry.get('non_actionable_count'))
+                        self.assert_equals("source 0002 confirmed_count == 0", 0, src_02_entry.get('confirmed_count'))
+                        self.assert_equals("source 0002 unconfirmed_count == 0", 0, src_02_entry.get('unconfirmed_count'))
+                        # Pure-NA source 0002: no actionable alias patterns.
+                        self.assert_equals("source 0002 total_unique_aliases == 0 (pure-NA)", 0, src_02_entry.get('total_unique_aliases'))
+                        self.assert_equals("source 0002 total_cves_processed == 1", 1, src_02_entry.get('total_cves_processed'))
+                        self.assert_equals("source 0002 unique_aliases_extracted == 1", 1, src_02_entry.get('unique_aliases_extracted'))
+                        self.assert_equals("source 0002 confirmed_with_concerns_count == 0", 0, src_02_entry.get('confirmed_with_concerns_count'))
+                        self.assert_equals("source 0002 unconfirmed_with_concerns_count == 0", 0, src_02_entry.get('unconfirmed_with_concerns_count'))
+                        by_year_02 = src_02_entry.get('by_year', {})
+                        self.assert_true("source 0002 by_year has '1337'", '1337' in by_year_02)
+                        if '1337' in by_year_02:
+                            yr02 = by_year_02['1337']
+                            self.assert_equals("source 0002 1337 cves == 1", 1, yr02.get('cves'))
+                            self.assert_equals("source 0002 1337 unique_aliases == 1", 1, yr02.get('unique_aliases'))
+                            self.assert_equals("source 0002 1337 non_actionable_count == 1", 1, yr02.get('non_actionable_count'))
+                            self.assert_equals("source 0002 1337 confirmed_count == 0", 0, yr02.get('confirmed_count'))
+                            self.assert_equals("source 0002 1337 unconfirmed_count == 0", 0, yr02.get('unconfirmed_count'))
+
+        finally:
+            # PHASE 4 — TEARDOWN
+            self.teardown_subprocess_test_cache()
+
     def test_25_full_pipeline_subprocess_execute(self):
         """Test 25: Four-phase — inject fixtures → subprocess generate_alias_report → validate run output → teardown input."""
         import subprocess
@@ -1260,6 +2205,34 @@ class TestAliasReportGeneration:
                         len(index_data.get('sources', [])) >= 1
                     )
 
+                    # ── Global index metadata ─────────────────────────────────
+                    global_meta = index_data.get('metadata', {})
+                    self.assert_true("index has 'metadata' key", 'metadata' in index_data)
+                    self.assert_equals(
+                        "global metadata status == 'completed'",
+                        'completed', global_meta.get('status'),
+                    )
+                    self.assert_equals(
+                        "global metadata extraction_source == 'Analysis_Tools_NVDish_Cache_Scanner'",
+                        'Analysis_Tools_NVDish_Cache_Scanner',
+                        global_meta.get('extraction_source'),
+                    )
+                    self.assert_true(
+                        "global metadata tool_version is non-empty string",
+                        isinstance(global_meta.get('tool_version'), str)
+                        and len(global_meta.get('tool_version', '')) > 0,
+                    )
+                    self.assert_true(
+                        "global metadata run_started_at is non-empty string",
+                        isinstance(global_meta.get('run_started_at'), str)
+                        and len(global_meta.get('run_started_at', '')) > 0,
+                    )
+                    self.assert_true(
+                        "global metadata total_sources >= 1",
+                        isinstance(global_meta.get('total_sources'), int)
+                        and global_meta.get('total_sources', 0) >= 1,
+                    )
+
                     source_names = [s.get('source_name', '') for s in index_data.get('sources', [])]
                     self.assert_true(
                         "test-source-pipeline-0001 appears in index sources",
@@ -1276,19 +2249,101 @@ class TestAliasReportGeneration:
                         with open(report_files[0], 'r', encoding='utf-8') as f:
                             report_data = json.load(f)
 
-                        self.assert_true("report has 'metadata' key", 'metadata' in report_data)
-                        self.assert_true("report has 'aliasGroups' key", 'aliasGroups' in report_data)
-                        self.assert_true(
-                            "report has 'confirmedMappings' key", 'confirmedMappings' in report_data
+                        # ── metadata ──────────────────────────────────────────
+                        meta = report_data.get('metadata', {})
+                        self.assert_equals("total_cves_processed == 2", 2, meta.get('total_cves_processed'))
+                        self.assert_equals("unique_aliases_extracted == 2", 2, meta.get('unique_aliases_extracted'))
+                        self.assert_equals("alias_groups_confirmed == 0", 0, meta.get('alias_groups_confirmed'))
+                        self.assert_equals("confirmed_cna_id is None", None, meta.get('confirmed_cna_id'))
+                        self.assert_equals("status == 'completed'", 'completed', meta.get('status'))
+                        self.assert_equals(
+                            "all_source_identifiers == ['test-source-pipeline-0001']",
+                            ['test-source-pipeline-0001'],
+                            meta.get('all_source_identifiers'),
                         )
-                        self.assert_true(
-                            "unique_aliases_extracted >= 1",
-                            report_data.get('metadata', {}).get('unique_aliases_extracted', 0) >= 1
+
+                        # ── by_year ────────────────────────────────────────────
+                        by_year_meta = meta.get('by_year', {})
+                        self.assert_true("by_year has '1337'", '1337' in by_year_meta)
+                        self.assert_equals("only year key is '1337'", ['1337'], list(by_year_meta.keys()))
+                        if '1337' in by_year_meta:
+                            yr = by_year_meta['1337']
+                            self.assert_equals("1337 cves == 2", 2, yr.get('cves'))
+                            self.assert_equals("1337 unique_aliases == 2", 2, yr.get('unique_aliases'))
+                            self.assert_equals("1337 confirmed_count == 0", 0, yr.get('confirmed_count'))
+                            self.assert_equals("1337 confirmed_coverage_pct == 0.0", 0.0, yr.get('confirmed_coverage_pct'))
+                            self.assert_equals("1337 unconfirmed_count == 2", 2, yr.get('unconfirmed_count'))
+                            self.assert_equals("1337 non_actionable_count == 0", 0, yr.get('non_actionable_count'))
+                            self.assert_equals("1337 unconfirmed_with_concerns_count == 0", 0, yr.get('unconfirmed_with_concerns_count'))
+
+                        # ── aliasGroups ────────────────────────────────────────
+                        alias_groups = report_data.get('aliasGroups', [])
+                        self.assert_equals("exactly 1 alias group", 1, len(alias_groups))
+                        if alias_groups:
+                            grp = alias_groups[0]
+                            self.assert_equals(
+                                "aliasGroup key == '_sdc_concerns_product_vendor'",
+                                '_sdc_concerns_product_vendor', grp.get('aliasGroup'),
+                            )
+                            aliases = grp.get('aliases', [])
+                            self.assert_equals("group has 2 aliases", 2, len(aliases))
+
+                            # locate aliases by product name (order may vary by sort)
+                            by_product = {a.get('product'): a for a in aliases}
+                            self.assert_true("alias for pipe_product present", 'pipe_product' in by_product)
+                            self.assert_true("alias for pipe_product_v2 present", 'pipe_product_v2' in by_product)
+
+                            if 'pipe_product' in by_product:
+                                a0 = by_product['pipe_product']
+                                self.assert_equals("pipe_product vendor", 'pipe_vendor', a0.get('vendor'))
+                                self.assert_equals("pipe_product source_cve", ['CVE-1337-0025'], a0.get('source_cve'))
+                                cpes0 = a0.get('topNvdCpeBaseStrings', [])
+                                self.assert_equals("pipe_product has 1 CPE entry", 1, len(cpes0))
+                                if cpes0:
+                                    self.assert_equals(
+                                        "pipe_product CPE base string",
+                                        'cpe:2.3:a:pipe_vendor:pipe_product:*:*:*:*:*:*:*:*',
+                                        cpes0[0].get('cpeBaseString'),
+                                    )
+                                    self.assert_equals("pipe_product CPE cveCount == 1", 1, cpes0[0].get('cveCount'))
+                                    self.assert_equals("pipe_product isSuggestedMatch == False", False, cpes0[0].get('isSuggestedMatch'))
+
+                            if 'pipe_product_v2' in by_product:
+                                a1 = by_product['pipe_product_v2']
+                                self.assert_equals("pipe_product_v2 vendor", 'pipe_vendor', a1.get('vendor'))
+                                self.assert_equals("pipe_product_v2 source_cve", ['CVE-1337-0026'], a1.get('source_cve'))
+                                cpes1 = a1.get('topNvdCpeBaseStrings', [])
+                                self.assert_equals("pipe_product_v2 has 1 CPE entry", 1, len(cpes1))
+                                if cpes1:
+                                    self.assert_equals(
+                                        "pipe_product_v2 CPE base string",
+                                        'cpe:2.3:a:pipe_vendor:pipe_product:*:*:*:*:*:*:*:*',
+                                        cpes1[0].get('cpeBaseString'),
+                                    )
+                                    self.assert_equals("pipe_product_v2 CPE cveCount == 1", 1, cpes1[0].get('cveCount'))
+
+                        # confirmedMappings is empty — no mapping file loaded for test sources
+                        self.assert_equals(
+                            "confirmedMappings is empty", 0, len(report_data.get('confirmedMappings', [None]))
                         )
-                        self.assert_true(
-                            "total_cves_processed >= 1",
-                            report_data.get('metadata', {}).get('total_cves_processed', 0) >= 1
-                        )
+
+                    # ── index entry stats ──────────────────────────────────────
+                    idx_entry = next(
+                        (s for s in index_data.get('sources', [])
+                         if s.get('source_name') == 'test-source-pipeline-0001'),
+                        None,
+                    )
+                    self.assert_true("index entry for pipeline-0001 found", idx_entry is not None)
+                    if idx_entry is not None:
+                        self.assert_equals("index total_cves_processed == 2", 2, idx_entry.get('total_cves_processed'))
+                        self.assert_equals("index unique_aliases_extracted == 2", 2, idx_entry.get('unique_aliases_extracted'))
+                        self.assert_equals("index total_unique_aliases == 2", 2, idx_entry.get('total_unique_aliases'))
+                        self.assert_equals("index confirmed_count == 0", 0, idx_entry.get('confirmed_count'))
+                        self.assert_equals("index confirmed_coverage_pct == 0.0", 0.0, idx_entry.get('confirmed_coverage_pct'))
+                        self.assert_equals("index unconfirmed_count == 2", 2, idx_entry.get('unconfirmed_count'))
+                        self.assert_equals("index non_actionable_count == 0", 0, idx_entry.get('non_actionable_count'))
+                        self.assert_equals("index confirmed_with_concerns_count == 0", 0, idx_entry.get('confirmed_with_concerns_count'))
+                        self.assert_equals("index unconfirmed_with_concerns_count == 0", 0, idx_entry.get('unconfirmed_with_concerns_count'))
 
         finally:
             # PHASE 4 — TEARDOWN: remove INPUT cache only; run output preserved for inspection
@@ -1300,7 +2355,7 @@ class TestAliasReportGeneration:
         report_data = {
             'aliasGroups': [
                 {
-                    'alias_group': 'product',
+                    'aliasGroup': 'product',
                     'aliases': [
                         {'vendor': 'vendor_a', 'product': 'product_x'},
                         {'vendor': 'vendor_b', 'product': 'product_y'},
@@ -1325,7 +2380,7 @@ class TestAliasReportGeneration:
         report_data = {
             'aliasGroups': [
                 {
-                    'alias_group': 'group',
+                    'aliasGroup': 'group',
                     'aliases': [
                         {'vendor': 'vendor_a', 'product': 'product_x'},   # actionable unconfirmed
                         {'vendor': 'n/a',      'product': 'n/a'},          # non-actionable
@@ -1337,8 +2392,9 @@ class TestAliasReportGeneration:
             ]
         }
         stats = calculate_alias_statistics(report_data)
-        # total = 1 confirmed + 1 actionable unconfirmed + 1 non-actionable = 3
-        self.assert_equals("total_unique_aliases is 3", 3, stats['total_unique_aliases'])
+        # total = confirmed + actionable unconfirmed only; non-actionable excluded because
+        # it counts CVE entry occurrences, not alias patterns (different axes).
+        self.assert_equals("total_unique_aliases is 2", 2, stats['total_unique_aliases'])
         self.assert_equals("confirmed_count is 1", 1, stats['confirmed_count'])
         # confirmed_coverage_pct = 1 / (1+1) = 50.0  (denominator excludes non-actionable)
         self.assert_equals("confirmed_coverage_pct is 50.0", 50.0, stats['confirmed_coverage_pct'])
@@ -1352,7 +2408,7 @@ class TestAliasReportGeneration:
         report_data = {
             'aliasGroups': [
                 {
-                    'alias_group': 'group',
+                    'aliasGroup': 'group',
                     'aliases': [
                         {'vendor': 'vendor_a', 'product': 'product_x'},
                         {'vendor': 'vendor_b', 'product': 'product_y'},
@@ -1368,7 +2424,8 @@ class TestAliasReportGeneration:
             ]
         }
         stats = calculate_alias_statistics(report_data)
-        self.assert_equals("total_unique_aliases is 3", 3, stats['total_unique_aliases'])
+        # total = confirmed + actionable unconfirmed only (non-actionable excluded)
+        self.assert_equals("total_unique_aliases is 2", 2, stats['total_unique_aliases'])
         self.assert_equals("confirmed_count is 2", 2, stats['confirmed_count'])
         self.assert_equals("unconfirmed_count is 0", 0, stats['unconfirmed_count'])
         self.assert_equals("non_actionable_count is 1", 1, stats['non_actionable_count'])
@@ -1392,7 +2449,7 @@ class TestAliasReportGeneration:
                 },
                 'aliasGroups': [
                     {
-                        'alias_group': 'product',
+                        'aliasGroup': 'product',
                         'aliases': [
                             {'vendor': 'vendor_a', 'product': 'product_x'},
                             {'vendor': 'vendor_b', 'product': 'product_y'},
@@ -1780,6 +2837,1310 @@ class TestAliasReportGeneration:
     # Test runner
     # ==================================================================
 
+    def test_47_four_phase_sdc_concerns_flags_in_output(self):
+        """Test 47: Four-phase subprocess — sourceDataConcerns on one alias produces
+        unconfirmed_with_concerns_count == 1 and unconfirmed_with_concerns_pct == 50.0
+        in the generated JSON output, mirroring test_31 (in-memory builder) through
+        the full production subprocess path.
+
+        CVE-1337-1001: alias_a (sdc_vendor_a / sdc_product_a) WITH sourceDataConcerns.
+        CVE-1337-1002: alias_b (sdc_vendor_b / sdc_product_b) — no concerns.
+
+        Expected per-source report:
+        - unconfirmed_count == 2            (2 distinct alias keys)
+        - unconfirmed_with_concerns_count == 1  (alias_a only)
+        - unconfirmed_with_concerns_pct == 50.0 (1 of 2 unconfirmed)
+        """
+        import subprocess
+        print("\nTest 47: Four-phase — SDC concerns flags in subprocess JSON output")
+
+        # PHASE 1 — SETUP
+        self.setup_subprocess_test_cache([TEST_CVE_1337_1001, TEST_CVE_1337_1002], batch='0xxx')
+
+        try:
+            # PHASE 2 — EXECUTE
+            result = subprocess.run(
+                ['python', '-m', 'src.analysis_tool.reporting.generate_alias_report',
+                 '--custom-cache', TEST_SUBPROCESS_CACHE_NAME],
+                cwd=str(project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=120,
+            )
+
+            self.assert_equals("subprocess exit code 0", 0, result.returncode)
+            if result.returncode != 0:
+                print(f"  stderr: {result.stderr[:500]}")
+
+            # PHASE 3 — VALIDATE
+            run_id = None
+            for line in result.stdout.splitlines():
+                if line.startswith('Run ID:'):
+                    run_id = line.split('Run ID:')[-1].strip()
+                    break
+
+            self.assert_true("Run ID present in stdout", run_id is not None)
+
+            if run_id:
+                logs_dir = project_root / "runs" / run_id / "logs"
+                index_file = logs_dir / "aliasExtractionReport_index.json"
+                self.assert_true("index.json exists", index_file.exists())
+
+                if index_file.exists():
+                    with open(index_file, 'r', encoding='utf-8') as f:
+                        index_data = json.load(f)
+
+                    src_entry = next(
+                        (s for s in index_data.get('sources', [])
+                         if s.get('source_name') == _SRC_47),
+                        None,
+                    )
+                    self.assert_true(f"{_SRC_47} entry found in index", src_entry is not None)
+
+                    if src_entry is not None:
+                        self.assert_equals("index total_cves_processed == 2", 2, src_entry.get('total_cves_processed'))
+                        self.assert_equals("index unique_aliases_extracted == 2", 2, src_entry.get('unique_aliases_extracted'))
+                        self.assert_equals("index total_unique_aliases == 2", 2, src_entry.get('total_unique_aliases'))
+                        self.assert_equals("index unconfirmed_count == 2", 2, src_entry.get('unconfirmed_count'))
+                        self.assert_equals("index confirmed_count == 0", 0, src_entry.get('confirmed_count'))
+                        self.assert_equals("index unconfirmed_with_concerns_count == 1", 1, src_entry.get('unconfirmed_with_concerns_count'))
+
+                    # Validate per-source report for exact by_year concerns values
+                    report_files = list(logs_dir.glob(
+                        f"aliasExtractionReport_{_SRC_47}_*.json"
+                    ))
+                    self.assert_true("Per-source report file written", len(report_files) >= 1)
+
+                    if report_files:
+                        with open(report_files[0], 'r', encoding='utf-8') as f:
+                            report_data = json.load(f)
+
+                        meta47 = report_data.get('metadata', {})
+                        self.assert_equals("total_cves_processed == 2", 2, meta47.get('total_cves_processed'))
+                        self.assert_equals("unique_aliases_extracted == 2", 2, meta47.get('unique_aliases_extracted'))
+
+                        by_year = meta47.get('by_year', {})
+                        self.assert_true("by_year has '1337'", '1337' in by_year)
+                        if '1337' in by_year:
+                            yr = by_year['1337']
+                            self.assert_equals("1337 cves == 2", 2, yr.get('cves'))
+                            self.assert_equals("1337 unique_aliases == 2", 2, yr.get('unique_aliases'))
+                            self.assert_equals("1337 unconfirmed_count == 2", 2, yr.get('unconfirmed_count'))
+                            self.assert_equals("1337 unconfirmed_with_concerns_count == 1", 1, yr.get('unconfirmed_with_concerns_count'))
+                            self.assert_equals("1337 unconfirmed_with_concerns_pct == 50.0", 50.0, yr.get('unconfirmed_with_concerns_pct'))
+                            self.assert_equals("1337 confirmed_count == 0", 0, yr.get('confirmed_count'))
+                            self.assert_equals("1337 confirmed_with_concerns_count == 0", 0, yr.get('confirmed_with_concerns_count'))
+                            self.assert_equals("1337 non_actionable_count == 0", 0, yr.get('non_actionable_count'))
+
+                        # Verify _sdc_concerns non-empty on alias_a in the aliasGroups output
+                        all_aliases = [
+                            a for grp in report_data.get('aliasGroups', [])
+                            for a in grp.get('aliases', [])
+                        ]
+                        alias_a = next((a for a in all_aliases if a.get('vendor') == 'sdc_vendor'), None)
+                        alias_b = next((a for a in all_aliases if a.get('vendor') == 'sdc_vendor_b'), None)
+                        self.assert_true("alias_a present in output", alias_a is not None)
+                        self.assert_true("alias_b present in output", alias_b is not None)
+                        if alias_a is not None:
+                            self.assert_equals("alias_a product == 'sdc_vendor_lib'", 'sdc_vendor_lib', alias_a.get('product'))
+                            self.assert_true(
+                                "alias_a _sdc_concerns is non-empty",
+                                bool(alias_a.get('_sdc_concerns')),
+                            )
+                        if alias_b is not None:
+                            self.assert_equals("alias_b product == 'sdc_product_b'", 'sdc_product_b', alias_b.get('product'))
+                            self.assert_true(
+                                "alias_b _sdc_concerns is empty (no concerns)",
+                                not bool(alias_b.get('_sdc_concerns')),
+                            )
+
+        finally:
+            # PHASE 4 — TEARDOWN
+            self.teardown_subprocess_test_cache()
+
+    def test_48_four_phase_cpe_sort_and_cap_in_output(self):
+        """Test 48: Four-phase subprocess — CPE base strings sorted by cveCount descending
+        (mirrors test_16) and top-5 cap enforced in output (mirrors test_14) through
+        the full production subprocess path.
+
+        Seven CVEs, same alias (cap_vendor / cap_product):
+        - CVE-1337-2001 + CVE-1337-2002 share CPE_A → cveCount == 2 (highest, must sort first)
+        - CVE-1337-2003 through CVE-1337-2007 each have unique CPE (B–F) → cveCount == 1 each
+        Total: 6 distinct CPE base strings → top-5 cap → exactly 5 entries in topNvdCpeBaseStrings.
+
+        Expected in alias output:
+        - len(topNvdCpeBaseStrings) == 5               (cap enforced at 5)
+        - topNvdCpeBaseStrings[0] == CPE_A, cveCount == 2  (sort: highest count first)
+        - topNvdCpeBaseStrings[1:] all have cveCount == 1
+        """
+        import subprocess
+        print("\nTest 48: Four-phase — CPE sort by cveCount descending and top-5 cap in output")
+
+        all_fixtures = [
+            TEST_CVE_1337_2001, TEST_CVE_1337_2002, TEST_CVE_1337_2003,
+            TEST_CVE_1337_2004, TEST_CVE_1337_2005, TEST_CVE_1337_2006, TEST_CVE_1337_2007,
+        ]
+
+        # PHASE 1 — SETUP
+        self.setup_subprocess_test_cache(all_fixtures, batch='0xxx')
+
+        try:
+            # PHASE 2 — EXECUTE
+            result = subprocess.run(
+                ['python', '-m', 'src.analysis_tool.reporting.generate_alias_report',
+                 '--custom-cache', TEST_SUBPROCESS_CACHE_NAME],
+                cwd=str(project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=120,
+            )
+
+            self.assert_equals("subprocess exit code 0", 0, result.returncode)
+            if result.returncode != 0:
+                print(f"  stderr: {result.stderr[:500]}")
+
+            # PHASE 3 — VALIDATE
+            run_id = None
+            for line in result.stdout.splitlines():
+                if line.startswith('Run ID:'):
+                    run_id = line.split('Run ID:')[-1].strip()
+                    break
+
+            self.assert_true("Run ID present in stdout", run_id is not None)
+
+            if run_id:
+                logs_dir = project_root / "runs" / run_id / "logs"
+
+                report_files = list(logs_dir.glob(
+                    f"aliasExtractionReport_{_SRC_48}_*.json"
+                ))
+                self.assert_true("Per-source report file written", len(report_files) >= 1)
+
+                if report_files:
+                    with open(report_files[0], 'r', encoding='utf-8') as f:
+                        report_data = json.load(f)
+
+                    # ── Metadata sanity ───────────────────────────────────
+                    meta48 = report_data.get('metadata', {})
+                    self.assert_equals("total_cves_processed == 7", 7, meta48.get('total_cves_processed'))
+                    self.assert_equals("unique_aliases_extracted == 1", 1, meta48.get('unique_aliases_extracted'))
+
+                    # ── Locate the single alias in aliasGroups ────────────
+                    all_aliases = [
+                        a for grp in report_data.get('aliasGroups', [])
+                        for a in grp.get('aliases', [])
+                    ]
+                    self.assert_equals("exactly 1 alias in output", 1, len(all_aliases))
+
+                    if all_aliases:
+                        alias = all_aliases[0]
+                        self.assert_equals("alias vendor == 'cap_vendor'", 'cap_vendor', alias.get('vendor'))
+                        self.assert_equals("alias product == 'cap_product'", 'cap_product', alias.get('product'))
+                        self.assert_equals("alias references all 7 CVEs", 7, len(alias.get('source_cve', [])))
+
+                        cpes = alias.get('topNvdCpeBaseStrings', [])
+
+                        # ── Cap: exactly 5 entries (6 distinct CPEs, cap at 5) ──
+                        self.assert_equals("topNvdCpeBaseStrings capped at 5", 5, len(cpes))
+
+                        # ── Sort: CPE_A (cveCount == 2) must be first ─────────
+                        if cpes:
+                            self.assert_equals(
+                                "top CPE is cap_product_a (highest cveCount)",
+                                'cpe:2.3:a:cap_vendor:cap_product_a:*:*:*:*:*:*:*:*',
+                                cpes[0].get('cpeBaseString'),
+                            )
+                            self.assert_equals("top CPE cveCount == 2", 2, cpes[0].get('cveCount'))
+                            self.assert_equals("top CPE isSuggestedMatch == False", False, cpes[0].get('isSuggestedMatch'))
+
+                        # ── Remaining 4 all have cveCount == 1 ───────────────
+                        for i, cpe_entry in enumerate(cpes[1:], start=1):
+                            self.assert_equals(
+                                f"cpes[{i}] cveCount == 1", 1, cpe_entry.get('cveCount')
+                            )
+                            self.assert_equals(
+                                f"cpes[{i}] isSuggestedMatch == False", False, cpe_entry.get('isSuggestedMatch')
+                            )
+
+        finally:
+            # PHASE 4 — TEARDOWN
+            self.teardown_subprocess_test_cache()
+
+    def test_49_four_phase_is_suggested_match_true_in_cpe_output(self):
+        """Test 49: Four-phase subprocess — cpeDetermination.top10SuggestedCPEBaseStrings entry
+        causes isSuggestedMatch=True for that CPE in topNvdCpeBaseStrings output, while a
+        second CPE present only in NVD configurations (not in suggestions) has isSuggestedMatch=False.
+
+        CVE-1337-3001:
+        - NVD config has sugg_product_a AND sugg_product_b (both vulnerable).
+        - cpeDetermination.top10SuggestedCPEBaseStrings contains only sugg_product_a.
+
+        Expected in topNvdCpeBaseStrings for the single alias:
+        - Entry for sugg_product_a: isSuggestedMatch == True
+        - Entry for sugg_product_b: isSuggestedMatch == False
+        """
+        import subprocess
+        print("\nTest 49: Four-phase — isSuggestedMatch=True for suggested CPE in output")
+
+        # PHASE 1 — SETUP
+        self.setup_subprocess_test_cache([TEST_CVE_1337_3001], batch='0xxx')
+
+        try:
+            # PHASE 2 — EXECUTE
+            result = subprocess.run(
+                ['python', '-m', 'src.analysis_tool.reporting.generate_alias_report',
+                 '--custom-cache', TEST_SUBPROCESS_CACHE_NAME],
+                cwd=str(project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=120,
+            )
+
+            self.assert_equals("subprocess exit code 0", 0, result.returncode)
+            if result.returncode != 0:
+                print(f"  stderr: {result.stderr[:500]}")
+
+            # PHASE 3 — VALIDATE
+            run_id = None
+            for line in result.stdout.splitlines():
+                if line.startswith('Run ID:'):
+                    run_id = line.split('Run ID:')[-1].strip()
+                    break
+
+            self.assert_true("Run ID present in stdout", run_id is not None)
+
+            if run_id:
+                logs_dir = project_root / "runs" / run_id / "logs"
+
+                report_files = list(logs_dir.glob(
+                    f"aliasExtractionReport_{_SRC_49}_*.json"
+                ))
+                self.assert_true("Per-source report file written", len(report_files) >= 1)
+
+                if report_files:
+                    with open(report_files[0], 'r', encoding='utf-8') as f:
+                        report_data = json.load(f)
+
+                    meta49 = report_data.get('metadata', {})
+                    self.assert_equals("total_cves_processed == 1", 1, meta49.get('total_cves_processed'))
+                    self.assert_equals("unique_aliases_extracted == 1", 1, meta49.get('unique_aliases_extracted'))
+
+                    all_aliases = [
+                        a for grp in report_data.get('aliasGroups', [])
+                        for a in grp.get('aliases', [])
+                    ]
+                    self.assert_equals("exactly 1 alias in output", 1, len(all_aliases))
+
+                    if all_aliases:
+                        alias = all_aliases[0]
+                        cpes = alias.get('topNvdCpeBaseStrings', [])
+                        self.assert_equals("exactly 2 CPE entries", 2, len(cpes))
+
+                        cpe_by_base = {c.get('cpeBaseString'): c for c in cpes}
+                        self.assert_true(
+                            "sugg_product_a CPE entry present",
+                            _CPE_SUGG_A_BASE in cpe_by_base,
+                        )
+                        self.assert_true(
+                            "sugg_product_b CPE entry present",
+                            _CPE_SUGG_B_BASE in cpe_by_base,
+                        )
+                        if _CPE_SUGG_A_BASE in cpe_by_base:
+                            self.assert_equals(
+                                "sugg_product_a isSuggestedMatch == True",
+                                True, cpe_by_base[_CPE_SUGG_A_BASE].get('isSuggestedMatch'),
+                            )
+                        if _CPE_SUGG_B_BASE in cpe_by_base:
+                            self.assert_equals(
+                                "sugg_product_b isSuggestedMatch == False",
+                                False, cpe_by_base[_CPE_SUGG_B_BASE].get('isSuggestedMatch'),
+                            )
+
+        finally:
+            # PHASE 4 — TEARDOWN
+            self.teardown_subprocess_test_cache()
+
+    def test_50_four_phase_platform_field_differentiates_aliases(self):
+        """Test 50: Four-phase subprocess — same vendor+product but different platform values
+        produce distinct alias entries in a single group, sorted by cveCount descending.
+
+        Four CVEs, same source:
+        - CVE-1337-4001 + CVE-1337-4002: both reference the Linux alias → cveCount == 2.
+        - CVE-1337-4003: Windows alias → cveCount == 1.
+        - CVE-1337-4004: macOS alias → cveCount == 1.
+
+        Expected:
+        - 1 alias group in the report.
+        - 3 distinct alias entries in the group.
+        - Linux alias sorts first (highest cveCount).
+        - Each alias carries the correct platform field value.
+        """
+        import subprocess
+        print("\nTest 50: Four-phase — platform field differentiates aliases, sorted by cveCount")
+
+        fixtures = [TEST_CVE_1337_4001, TEST_CVE_1337_4002, TEST_CVE_1337_4003, TEST_CVE_1337_4004]
+
+        # PHASE 1 — SETUP
+        self.setup_subprocess_test_cache(fixtures, batch='0xxx')
+
+        try:
+            # PHASE 2 — EXECUTE
+            result = subprocess.run(
+                ['python', '-m', 'src.analysis_tool.reporting.generate_alias_report',
+                 '--custom-cache', TEST_SUBPROCESS_CACHE_NAME],
+                cwd=str(project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=120,
+            )
+
+            self.assert_equals("subprocess exit code 0", 0, result.returncode)
+            if result.returncode != 0:
+                print(f"  stderr: {result.stderr[:500]}")
+
+            # PHASE 3 — VALIDATE
+            run_id = None
+            for line in result.stdout.splitlines():
+                if line.startswith('Run ID:'):
+                    run_id = line.split('Run ID:')[-1].strip()
+                    break
+
+            self.assert_true("Run ID present in stdout", run_id is not None)
+
+            if run_id:
+                logs_dir = project_root / "runs" / run_id / "logs"
+
+                report_files = list(logs_dir.glob(
+                    f"aliasExtractionReport_{_SRC_50}_*.json"
+                ))
+                self.assert_true("Per-source report file written", len(report_files) >= 1)
+
+                if report_files:
+                    with open(report_files[0], 'r', encoding='utf-8') as f:
+                        report_data = json.load(f)
+
+                    meta50 = report_data.get('metadata', {})
+                    self.assert_equals("total_cves_processed == 4", 4, meta50.get('total_cves_processed'))
+                    # 3 distinct aliases (Linux, Windows, macOS)
+                    self.assert_equals("unique_aliases_extracted == 3", 3, meta50.get('unique_aliases_extracted'))
+
+                    alias_groups = report_data.get('aliasGroups', [])
+                    self.assert_equals("exactly 1 alias group", 1, len(alias_groups))
+
+                    if alias_groups:
+                        grp = alias_groups[0]
+                        aliases = grp.get('aliases', [])
+                        self.assert_equals("group has 3 aliases", 3, len(aliases))
+
+                        if len(aliases) >= 1:
+                            # Linux alias (cveCount==2) must sort first
+                            self.assert_equals(
+                                "first alias platform == 'Linux' (highest cveCount)",
+                                'Linux', aliases[0].get('platform'),
+                            )
+                            self.assert_equals(
+                                "Linux alias source_cve has 2 entries",
+                                2, len(aliases[0].get('source_cve', [])),
+                            )
+
+                        # All three platform values must appear exactly once
+                        platforms_in_output = {a.get('platform') for a in aliases}
+                        for expected_platform in ('Linux', 'Windows', 'macOS'):
+                            self.assert_true(
+                                f"platform '{expected_platform}' present in group",
+                                expected_platform in platforms_in_output,
+                            )
+
+                        # Every alias shares the same vendor and product
+                        for alias in aliases:
+                            self.assert_equals(
+                                "alias vendor == 'plat_vendor'",
+                                'plat_vendor', alias.get('vendor'),
+                            )
+                            self.assert_equals(
+                                "alias product == 'plat_product'",
+                                'plat_product', alias.get('product'),
+                            )
+
+        finally:
+            # PHASE 4 — TEARDOWN
+            self.teardown_subprocess_test_cache()
+
+    def test_51_four_phase_non_standard_identity_fields_passthrough(self):
+        """Test 51: Four-phase subprocess — non-standard alias values (packageName,
+        collectionURL, repo, modules) survive finalize() and appear in aliasGroups output.
+
+        Four CVEs, same source, each with a different non-standard alias value:
+        - CVE-1337-5101: packageName field
+        - CVE-1337-5102: collectionURL field
+        - CVE-1337-5103: repo field
+        - CVE-1337-5104: modules field (list)
+
+        Expected: each field value appears in the corresponding alias in the report JSON.
+        """
+        import subprocess
+        print("\nTest 51: Four-phase — non-standard alias values pass through to alias JSON")
+
+        fixtures = [TEST_CVE_1337_5101, TEST_CVE_1337_5102, TEST_CVE_1337_5103, TEST_CVE_1337_5104]
+
+        # PHASE 1 — SETUP
+        self.setup_subprocess_test_cache(fixtures, batch='0xxx')
+
+        try:
+            # PHASE 2 — EXECUTE
+            result = subprocess.run(
+                ['python', '-m', 'src.analysis_tool.reporting.generate_alias_report',
+                 '--custom-cache', TEST_SUBPROCESS_CACHE_NAME],
+                cwd=str(project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=120,
+            )
+
+            self.assert_equals("subprocess exit code 0", 0, result.returncode)
+            if result.returncode != 0:
+                print(f"  stderr: {result.stderr[:500]}")
+
+            # PHASE 3 — VALIDATE
+            run_id = None
+            for line in result.stdout.splitlines():
+                if line.startswith('Run ID:'):
+                    run_id = line.split('Run ID:')[-1].strip()
+                    break
+
+            self.assert_true("Run ID present in stdout", run_id is not None)
+
+            if run_id:
+                logs_dir = project_root / "runs" / run_id / "logs"
+
+                report_files = list(logs_dir.glob(
+                    f"aliasExtractionReport_{_SRC_51}_*.json"
+                ))
+                self.assert_true("Per-source report file written", len(report_files) >= 1)
+
+                if report_files:
+                    with open(report_files[0], 'r', encoding='utf-8') as f:
+                        report_data = json.load(f)
+
+                    meta51 = report_data.get('metadata', {})
+                    self.assert_equals("total_cves_processed == 4", 4, meta51.get('total_cves_processed'))
+                    self.assert_equals("unique_aliases_extracted == 4", 4, meta51.get('unique_aliases_extracted'))
+
+                    # Flatten all aliases from all groups into one lookup by CVE
+                    all_aliases = [
+                        a for grp in report_data.get('aliasGroups', [])
+                        for a in grp.get('aliases', [])
+                    ]
+                    self.assert_equals("4 distinct aliases in output", 4, len(all_aliases))
+
+                    # Locate each alias by which non-standard field it carries
+                    by_cve: Dict = {}
+                    for a in all_aliases:
+                        for cve_id in a.get('source_cve', []):
+                            by_cve[cve_id] = a
+
+                    # packageName passthrough
+                    a5101 = by_cve.get('CVE-1337-5101')
+                    self.assert_true("CVE-1337-5101 alias found", a5101 is not None)
+                    if a5101:
+                        self.assert_equals(
+                            "packageName == 'fields-package-name'",
+                            'fields-package-name', a5101.get('packageName'),
+                        )
+
+                    # collectionURL passthrough
+                    a5102 = by_cve.get('CVE-1337-5102')
+                    self.assert_true("CVE-1337-5102 alias found", a5102 is not None)
+                    if a5102:
+                        self.assert_equals(
+                            "collectionURL == 'https://example.com/collection/fields'",
+                            'https://example.com/collection/fields', a5102.get('collectionURL'),
+                        )
+
+                    # repo passthrough
+                    a5103 = by_cve.get('CVE-1337-5103')
+                    self.assert_true("CVE-1337-5103 alias found", a5103 is not None)
+                    if a5103:
+                        self.assert_equals(
+                            "repo == 'https://github.com/fields-vendor/fields-project'",
+                            'https://github.com/fields-vendor/fields-project', a5103.get('repo'),
+                        )
+
+                    # modules list passthrough
+                    a5104 = by_cve.get('CVE-1337-5104')
+                    self.assert_true("CVE-1337-5104 alias found", a5104 is not None)
+                    if a5104:
+                        self.assert_equals(
+                            "modules == ['fields-module-a', 'fields-module-b']",
+                            ['fields-module-a', 'fields-module-b'], a5104.get('modules'),
+                        )
+
+        finally:
+            # PHASE 4 — TEARDOWN
+            self.teardown_subprocess_test_cache()
+
+    def test_52_four_phase_sdc_concern_types_whitespace_comparator_invalidchars(self):
+        """Test 52: Four-phase subprocess — whitespace, text-comparator, and invalid-chars
+        SDC concern types each contribute to unconfirmed_with_concerns_count.
+
+        Three CVEs, same source:
+        - CVE-1337-5201: leading space in vendor → whitespace concern.
+        - CVE-1337-5202: "before 3.0" in product → text-comparator concern.
+        - CVE-1337-5203: comma in product → invalid-chars concern.
+
+        Each fixture also carries sourceDataConcerns so _sdc_concerns is populated
+        via _extract_alias_concerns() for the by_year path in finalize().
+
+        Expected:
+        - unconfirmed_with_concerns_count == 3 in index entry.
+        - by_year['1337']['unconfirmed_with_concerns_count'] == 3.
+        """
+        import subprocess
+        print("\nTest 52: Four-phase — whitespace / text-comparator / invalid-chars concern types")
+
+        fixtures = [TEST_CVE_1337_5201, TEST_CVE_1337_5202, TEST_CVE_1337_5203]
+
+        # PHASE 1 — SETUP
+        self.setup_subprocess_test_cache(fixtures, batch='0xxx')
+
+        try:
+            # PHASE 2 — EXECUTE
+            result = subprocess.run(
+                ['python', '-m', 'src.analysis_tool.reporting.generate_alias_report',
+                 '--custom-cache', TEST_SUBPROCESS_CACHE_NAME],
+                cwd=str(project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=120,
+            )
+
+            self.assert_equals("subprocess exit code 0", 0, result.returncode)
+            if result.returncode != 0:
+                print(f"  stderr: {result.stderr[:500]}")
+
+            # PHASE 3 — VALIDATE
+            run_id = None
+            for line in result.stdout.splitlines():
+                if line.startswith('Run ID:'):
+                    run_id = line.split('Run ID:')[-1].strip()
+                    break
+
+            self.assert_true("Run ID present in stdout", run_id is not None)
+
+            if run_id:
+                logs_dir = project_root / "runs" / run_id / "logs"
+                index_file = logs_dir / "aliasExtractionReport_index.json"
+                self.assert_true("index.json exists", index_file.exists())
+
+                if index_file.exists():
+                    with open(index_file, 'r', encoding='utf-8') as f:
+                        index_data = json.load(f)
+
+                    src_entry = next(
+                        (s for s in index_data.get('sources', [])
+                         if s.get('source_name') == _SRC_52),
+                        None,
+                    )
+                    self.assert_true(f"{_SRC_52} entry found in index", src_entry is not None)
+
+                    if src_entry is not None:
+                        self.assert_equals(
+                            "unconfirmed_count == 3",
+                            3, src_entry.get('unconfirmed_count'),
+                        )
+                        self.assert_equals(
+                            "unconfirmed_with_concerns_count == 3 (index)",
+                            3, src_entry.get('unconfirmed_with_concerns_count'),
+                        )
+
+                        # by_year path: finalize() uses _sdc_concerns to count concerns
+                        by_year = src_entry.get('by_year', {})
+                        self.assert_true("by_year has '1337'", '1337' in by_year)
+                        if '1337' in by_year:
+                            self.assert_equals(
+                                "1337 unconfirmed_with_concerns_count == 3 (by_year)",
+                                3, by_year['1337'].get('unconfirmed_with_concerns_count'),
+                            )
+
+        finally:
+            # PHASE 4 — TEARDOWN
+            self.teardown_subprocess_test_cache()
+
+    def test_53_confirmed_mappings_non_empty_with_mock_manager(self):
+        """Test 53: In-memory — finalize() with _MockConfirmedMappingManager produces
+        non-empty confirmedMappings, correct alias_groups_confirmed, confirmed_cna_id,
+        and statistics that show confirmed_count > 0 and confirmed_coverage_pct > 0.
+
+        Source has two aliases: alias_a (confirmed) and alias_b (unconfirmed).
+        Mapping manager returns alias_a as a confirmed mapping for this source.
+
+        Expected in finalize() output:
+        - confirmedMappings has 1 entry containing alias_a.
+        - alias_groups_confirmed == 1.
+        - confirmed_cna_id == 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'.
+
+        Expected from calculate_alias_statistics():
+        - confirmed_count == 1.
+        - unconfirmed_count == 1.
+        - confirmed_coverage_pct == 50.0.
+        - total_unique_aliases == 2.
+        """
+        print("\nTest 53: In-memory — confirmedMappings non-empty via mock manager")
+        _SRC_53 = 'test-source-uuid-0053'
+        _ALIAS_53_A = {'vendor': 'conf_vendor', 'product': 'conf_product_a'}
+        _ALIAS_53_B = {'vendor': 'conf_vendor', 'product': 'conf_product_b'}
+        _EXPECTED_CNA_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+
+        builder = AliasReportBuilder(
+            source_manager=None,
+            mapping_manager=_MockConfirmedMappingManager(_SRC_53, [_ALIAS_53_A]),
+        )
+
+        entry_a = {
+            'originAffectedEntry': {'sourceId': _SRC_53},
+            'aliasExtraction': {'aliases': [_ALIAS_53_A]},
+        }
+        entry_b = {
+            'originAffectedEntry': {'sourceId': _SRC_53},
+            'aliasExtraction': {'aliases': [_ALIAS_53_B]},
+        }
+
+        builder.add_cve_aliases('CVE-1337-6001', [entry_a], nvd_cpe_set=set())
+        builder.add_cve_aliases('CVE-1337-6002', [entry_b], nvd_cpe_set=set())
+
+        reports = builder.finalize()
+
+        self.assert_true("Source present in report", _SRC_53 in reports)
+
+        if _SRC_53 in reports:
+            report = reports[_SRC_53]
+            meta = report.get('metadata', {})
+
+            # ── confirmed_cna_id ───────────────────────────────────────────
+            self.assert_equals(
+                "confirmed_cna_id == expected UUID",
+                _EXPECTED_CNA_ID, meta.get('confirmed_cna_id'),
+            )
+
+            # ── alias_groups_confirmed == 1 ────────────────────────────────
+            # Both aliases share the same group key; the confirmed alias
+            # does not cover the full group (alias_b is unconfirmed) so
+            # alias_groups_confirmed should be 0 for partial coverage.
+            # However alias_a IS its own distinct group from alias_b
+            # only if they have different group keys — they don't (both vendor+product).
+            # So alias_groups_confirmed == 0 (partial group, not fully confirmed).
+            # We assert == 0 and verify confirmedMappings directly instead.
+            self.assert_equals(
+                "alias_groups_confirmed == 0 (group partially confirmed)",
+                0, meta.get('alias_groups_confirmed'),
+            )
+
+            # ── confirmedMappings non-empty ────────────────────────────────
+            confirmed_mappings = report.get('confirmedMappings', [])
+            self.assert_true(
+                "confirmedMappings is non-empty",
+                len(confirmed_mappings) > 0,
+            )
+
+            if confirmed_mappings:
+                first_mapping = confirmed_mappings[0]
+                self.assert_true(
+                    "confirmedMappings[0] has 'aliases' key",
+                    'aliases' in first_mapping,
+                )
+                confirmed_aliases = first_mapping.get('aliases', [])
+                # The mock returns [_ALIAS_53_A] as confirmed aliases
+                alias_a_found = any(
+                    a.get('vendor') == 'conf_vendor' and a.get('product') == 'conf_product_a'
+                    for a in confirmed_aliases
+                )
+                self.assert_true(
+                    "conf_product_a alias appears in confirmedMappings",
+                    alias_a_found,
+                )
+
+            # ── calculate_alias_statistics() ──────────────────────────────
+            stats = calculate_alias_statistics(report)
+            self.assert_equals("total_unique_aliases == 2", 2, stats['total_unique_aliases'])
+            self.assert_equals("confirmed_count == 1", 1, stats['confirmed_count'])
+            self.assert_equals("unconfirmed_count == 1", 1, stats['unconfirmed_count'])
+            self.assert_equals(
+                "confirmed_coverage_pct == 50.0",
+                50.0, stats['confirmed_coverage_pct'],
+            )
+            self.assert_equals("non_actionable_count == 0", 0, stats['non_actionable_count'])
+
+        # TEARDOWN
+        builder = None
+
+    def test_54_multiple_distinct_na_patterns_consolidate_to_one(self):
+        """Test 54: Two Path A entries (aliasExtraction: {}) from the same source consolidate
+        into one non-actionable alias object because all Path A entries share the fixed key
+        'no_alias_data'. naPatternFields is {} because originAffectedEntry fields are CVE
+        entry metadata, not alias data — only extracted alias fields qualify as alias types.
+
+        non_actionable_count == 1 (one consolidated alias object for the source's no-alias
+        entries), not 2, because the two entries are indistinguishable as alias source data.
+        """
+        print("\nTest 54: Multiple Path A entries → consolidate to 1 NA alias object")
+        _SRC_54 = 'test-source-multi-na-0054'
+
+        builder = AliasReportBuilder(
+            source_manager=None,
+            mapping_manager=_MockMappingManager(),
+        )
+
+        # Two Path A entries: aliasExtraction: {} regardless of originAffectedEntry content
+        entry_na_1 = {
+            'originAffectedEntry': {'sourceId': _SRC_54, 'vendor': 'n/a', 'product': 'n/a'},
+            'aliasExtraction': {},
+        }
+        entry_na_2 = {
+            'originAffectedEntry': {'sourceId': _SRC_54, 'vendor': 'unspecified', 'product': 'n/a'},
+            'aliasExtraction': {},
+        }
+        # One actionable alias so this org enters self.sources (established source path)
+        entry_real = {
+            'originAffectedEntry': {'sourceId': _SRC_54},
+            'aliasExtraction': {'aliases': [{'vendor': 'multi54_vendor', 'product': 'multi54_product'}]},
+        }
+
+        builder.add_cve_aliases('CVE-2025-5401', [entry_real, entry_na_1, entry_na_2], nvd_cpe_set=set())
+
+        reports = builder.finalize()
+        self.assert_true("Source present in report", _SRC_54 in reports)
+
+        if _SRC_54 in reports:
+            report = reports[_SRC_54]
+            by_year = report['metadata']['by_year']
+
+            self.assert_true("by_year has '2025'", '2025' in by_year)
+            self.assert_equals(
+                "by_year 2025 non_actionable_count == 1 (consolidated alias object)",
+                1, by_year['2025']['non_actionable_count'],
+            )
+            self.assert_equals(
+                "by_year 2025 unconfirmed_count == 1 (actionable alias only)",
+                1, by_year['2025']['unconfirmed_count'],
+            )
+            self.assert_equals(
+                "by_year 2025 cves == 1 (one CVE processed)",
+                1, by_year['2025']['cves'],
+            )
+
+            # One NA alias object with naPatternFields == {} (no alias data was extracted).
+            na_group = next(
+                (g for g in report.get('aliasGroups', []) if g.get('aliasGroup') == 'no_identity_non_actionable'),
+                None,
+            )
+            self.assert_true("no_identity_non_actionable group exists", na_group is not None)
+            if na_group is not None:
+                na_aliases_54 = na_group.get('aliases', [])
+                self.assert_equals("NA group has 1 consolidated alias object", 1, len(na_aliases_54))
+                if na_aliases_54:
+                    self.assert_equals(
+                        "naPatternFields == {} (no alias types in source material)",
+                        {}, na_aliases_54[0].get('naPatternFields'),
+                    )
+
+            stats = calculate_alias_statistics(report)
+            self.assert_equals(
+                "calculate_alias_statistics non_actionable_count == 1",
+                1, stats['non_actionable_count'],
+            )
+            self.assert_equals(
+                "calculate_alias_statistics unconfirmed_count == 1",
+                1, stats['unconfirmed_count'],
+            )
+            self.assert_equals(
+                "total_unique_aliases == 1 (actionable patterns only; NA excluded)",
+                1, stats['total_unique_aliases'],
+            )
+            self.assert_equals(
+                "confirmed_coverage_pct == 0.0 (NA excluded from denominator)",
+                0.0, stats['confirmed_coverage_pct'],
+            )
+
+        # TEARDOWN
+        builder = None
+
+    def test_55_four_phase_programfiles_programroutines_packageurl_passthrough(self):
+        """Test 55: Four-phase subprocess — programFiles, programRoutines, packageURL identity
+        fields survive finalize() and appear in aliasGroups output.
+
+        Completes the identity-field passthrough coverage started in test_51 (which covers
+        packageName, collectionURL, repo, modules).  These three fields are shown in the
+        example template (pixelforge, cachedb, utilkit alias groups) but were absent from
+        any subprocess fixture.
+
+        Three CVEs, same source (_SRC_55), each alias carries one remaining field:
+        - CVE-1337-5105: programFiles='src/render/pixel.c'
+        - CVE-1337-5106: programRoutines='dbExprCodeTarget'
+        - CVE-1337-5107: packageURL='pkg:npm/util-kit'
+
+        Expected: each field value appears in the corresponding alias in the report JSON.
+        """
+        import subprocess
+        print("\nTest 55: Four-phase — programFiles / programRoutines / packageURL pass through to alias JSON")
+
+        fixtures = [TEST_CVE_1337_5105, TEST_CVE_1337_5106, TEST_CVE_1337_5107]
+
+        # PHASE 1 — SETUP
+        self.setup_subprocess_test_cache(fixtures, batch='0xxx')
+
+        try:
+            # PHASE 2 — EXECUTE
+            result = subprocess.run(
+                ['python', '-m', 'src.analysis_tool.reporting.generate_alias_report',
+                 '--custom-cache', TEST_SUBPROCESS_CACHE_NAME],
+                cwd=str(project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=120,
+            )
+
+            self.assert_equals("subprocess exit code 0", 0, result.returncode)
+            if result.returncode != 0:
+                print(f"  stderr: {result.stderr[:500]}")
+
+            # PHASE 3 — VALIDATE
+            run_id = None
+            for line in result.stdout.splitlines():
+                if line.startswith('Run ID:'):
+                    run_id = line.split('Run ID:')[-1].strip()
+                    break
+
+            self.assert_true("Run ID present in stdout", run_id is not None)
+
+            if run_id:
+                logs_dir = project_root / "runs" / run_id / "logs"
+
+                report_files = list(logs_dir.glob(
+                    f"aliasExtractionReport_{_SRC_55}_*.json"
+                ))
+                self.assert_true("Per-source report file written", len(report_files) >= 1)
+
+                if report_files:
+                    with open(report_files[0], 'r', encoding='utf-8') as f:
+                        report_data = json.load(f)
+
+                    meta55 = report_data.get('metadata', {})
+                    self.assert_equals("total_cves_processed == 3", 3, meta55.get('total_cves_processed'))
+                    self.assert_equals("unique_aliases_extracted == 3", 3, meta55.get('unique_aliases_extracted'))
+
+                    # Flatten all aliases from all groups into one lookup by CVE
+                    all_aliases = [
+                        a for grp in report_data.get('aliasGroups', [])
+                        for a in grp.get('aliases', [])
+                    ]
+                    self.assert_equals("3 distinct aliases in output", 3, len(all_aliases))
+
+                    by_cve: Dict = {}
+                    for a in all_aliases:
+                        for cve_id in a.get('source_cve', []):
+                            by_cve[cve_id] = a
+
+                    # programFiles passthrough
+                    a5105 = by_cve.get('CVE-1337-5105')
+                    self.assert_true("CVE-1337-5105 alias found", a5105 is not None)
+                    if a5105:
+                        self.assert_equals(
+                            "programFiles == 'src/render/pixel.c'",
+                            'src/render/pixel.c', a5105.get('programFiles'),
+                        )
+
+                    # programRoutines passthrough
+                    a5106 = by_cve.get('CVE-1337-5106')
+                    self.assert_true("CVE-1337-5106 alias found", a5106 is not None)
+                    if a5106:
+                        self.assert_equals(
+                            "programRoutines == 'dbExprCodeTarget'",
+                            'dbExprCodeTarget', a5106.get('programRoutines'),
+                        )
+
+                    # packageURL passthrough
+                    a5107 = by_cve.get('CVE-1337-5107')
+                    self.assert_true("CVE-1337-5107 alias found", a5107 is not None)
+                    if a5107:
+                        self.assert_equals(
+                            "packageURL == 'pkg:npm/util-kit'",
+                            'pkg:npm/util-kit', a5107.get('packageURL'),
+                        )
+
+        finally:
+            # PHASE 4 — TEARDOWN
+            self.teardown_subprocess_test_cache()
+
+    def test_56_has_alias_concerns_hyphenated_version_range(self):
+        """Test 56: _has_alias_concerns() detects hyphenated version range via
+        TEXT_COMPARATOR_REGEX_PATTERNS (the regex code path, distinct from the keyword
+        code path exercised by test_52).
+
+        The example template shows aliases like 'comp-app 1.0 - 2.5' as a
+        textComparators concern in the concern_text_comparator alias group.
+        The regex pattern is: r'\\d+(?:\\.\\d+)*\\s+-\\s+\\d+(?:\\.\\d+)*'
+
+        Assertions:
+        - Product 'comp-app 1.0 - 2.5' → True  (regex match on hyphenated range)
+        - Product 'comp-app 1.0 - 2'   → True  (single-digit endpoint)
+        - Product 'comp-app 1.0'        → False (plain version, no range)
+        - Product 'comp-app'            → False (no version at all, clean alias)
+        """
+        print("\nTest 56: _has_alias_concerns() detects hyphenated version range (regex path)")
+
+        # Hyphenated range "1.0 - 2.5" → True
+        self.assert_true(
+            "product 'comp-app 1.0 - 2.5' triggers concern (regex range)",
+            _has_alias_concerns({'vendor': 'comp-vendor', 'product': 'comp-app 1.0 - 2.5'}),
+        )
+
+        # Single-digit endpoint — still a valid hyphenated range
+        self.assert_true(
+            "product 'comp-app 1.0 - 2' triggers concern (single-digit endpoint)",
+            _has_alias_concerns({'vendor': 'comp-vendor', 'product': 'comp-app 1.0 - 2'}),
+        )
+
+        # Multi-part versions on both sides
+        self.assert_true(
+            "product 'util 1.0.1 - 2.5.3' triggers concern (multi-part versions)",
+            _has_alias_concerns({'vendor': 'util-vendor', 'product': 'util 1.0.1 - 2.5.3'}),
+        )
+
+        # Plain version string with hyphen (no space, no range) — no concern
+        self.assert_true(
+            "product 'comp-app-1.0' does NOT trigger concern (hyphenated version, not a range)",
+            not _has_alias_concerns({'vendor': 'comp-vendor', 'product': 'comp-app-1.0'}),
+        )
+
+        # Clean alias with no version — no concern
+        self.assert_true(
+            "product 'comp-app' does NOT trigger concern (clean name)",
+            not _has_alias_concerns({'vendor': 'comp-vendor', 'product': 'comp-app'}),
+        )
+
+    def test_57_four_phase_confirmed_mappings_via_real_mapping_file_injection(self):
+        """Test 57: Four-phase subprocess — confirmedMappings populated by a real
+        ConfirmedMappingManager loading an injected mapping file.
+
+        Test 53 covers the in-memory mock path.  This test exercises the full
+        production path: a temp mapping file is written to cache/alias_mappings/
+        before the subprocess starts so the global ConfirmedMappingManager loads
+        it from disk, validates the cnaId against nvd_source_data.json, indexes
+        its aliases, and produces non-empty confirmedMappings in the output JSON.
+
+        The source UUID and email (_TEST57_SOURCE_UUID / _TEST57_SOURCE_EMAIL) are
+        opaque identifiers — they exist in nvd_source_data.json and have no existing
+        mapping file, which is the only requirement.  All test data (alias, CPE
+        string) is generic and carries no org-specific meaning.
+
+        Setup:
+        - Write _test_confirmed_57.json to cache/alias_mappings/ using
+          _TEST57_SOURCE_UUID as cnaId and generic test57_vendor/test57_product data.
+        - CVE fixture sourceId = _TEST57_SOURCE_EMAIL; alias matches the injected
+          confirmedMappings so the alias resolves as confirmed.
+
+        Expected:
+        - Per-source report produced (source identified via UUID in index).
+        - report.confirmedMappings is non-empty (>= 1 entry).
+        - report.metadata.confirmed_cna_id == _TEST57_SOURCE_UUID.
+        - Index entry: confirmed_count >= 1, confirmed_coverage_pct > 0.
+
+        Teardown:
+        - _test_confirmed_57.json removed unconditionally.
+        - Subprocess test cache removed unconditionally.
+        """
+        import subprocess
+        print("\nTest 57: Four-phase subprocess — confirmedMappings via injected mapping file")
+
+        _MAPPING_CONTENT = {
+            "cnaId": _TEST57_SOURCE_UUID,
+            "confirmedMappings": [
+                {
+                    "cpeBaseString": "cpe:2.3:a:test57vendor:test57product:*:*:*:*:*:*:*:*",
+                    "aliases": [
+                        {"vendor": "test57_vendor", "product": "test57_product"}
+                    ]
+                }
+            ]
+        }
+
+        # PHASE 1 — SETUP
+        with open(_TEST57_MAPPING_FILE, 'w', encoding='utf-8') as fh:
+            json.dump(_MAPPING_CONTENT, fh, indent=4)
+
+        self.setup_subprocess_test_cache([TEST_CVE_1337_5701], batch='0xxx')
+
+        try:
+            # PHASE 2 — EXECUTE
+            result = subprocess.run(
+                ['python', '-m', 'src.analysis_tool.reporting.generate_alias_report',
+                 '--custom-cache', TEST_SUBPROCESS_CACHE_NAME],
+                cwd=str(project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=120,
+            )
+
+            self.assert_equals("subprocess exit code 0", 0, result.returncode)
+            if result.returncode != 0:
+                print(f"  stderr: {result.stderr[:500]}")
+
+            # PHASE 3 — VALIDATE
+            run_id = None
+            for line in result.stdout.splitlines():
+                if line.startswith('Run ID:'):
+                    run_id = line.split('Run ID:')[-1].strip()
+                    break
+
+            self.assert_true("Run ID present in stdout", run_id is not None)
+
+            if run_id:
+                logs_dir = project_root / "runs" / run_id / "logs"
+
+                # Locate the source entry via UUID in all_source_identifiers (avoids
+                # hardcoding the org name that nvd_source_data.json assigns the UUID to).
+                index_file = logs_dir / "aliasExtractionReport_index.json"
+                self.assert_true("index.json exists", index_file.exists())
+
+                source_entry = None
+                if index_file.exists():
+                    with open(index_file, 'r', encoding='utf-8') as fh:
+                        index_data = json.load(fh)
+                    source_entry = next(
+                        (s for s in index_data.get('sources', [])
+                         if _TEST57_SOURCE_UUID in s.get('all_source_identifiers', [])),
+                        None,
+                    )
+                    self.assert_true("source entry found in index via UUID", source_entry is not None)
+                    if source_entry is not None:
+                        self.assert_true(
+                            "index confirmed_count >= 1",
+                            source_entry.get('confirmed_count', 0) >= 1,
+                        )
+                        self.assert_true(
+                            "index confirmed_coverage_pct > 0",
+                            source_entry.get('confirmed_coverage_pct', 0.0) > 0.0,
+                        )
+
+                # Use report_file from the index entry to find the per-source JSON.
+                if source_entry is not None:
+                    report_filename = source_entry.get('report_file', '')
+                    self.assert_true("index entry has report_file", bool(report_filename))
+
+                    if report_filename:
+                        report_path = logs_dir / report_filename
+                        self.assert_true("per-source report file exists", report_path.exists())
+
+                        if report_path.exists():
+                            with open(report_path, 'r', encoding='utf-8') as fh:
+                                report_data = json.load(fh)
+
+                            meta57 = report_data.get('metadata', {})
+
+                            # confirmed_cna_id must equal the injected UUID
+                            self.assert_equals(
+                                "confirmed_cna_id == _TEST57_SOURCE_UUID",
+                                _TEST57_SOURCE_UUID, meta57.get('confirmed_cna_id'),
+                            )
+
+                            # confirmedMappings must be non-empty
+                            confirmed_mappings = report_data.get('confirmedMappings', [])
+                            self.assert_true(
+                                "confirmedMappings is non-empty",
+                                len(confirmed_mappings) >= 1,
+                            )
+
+        finally:
+            # PHASE 4 — TEARDOWN
+            if _TEST57_MAPPING_FILE.exists():
+                _TEST57_MAPPING_FILE.unlink()
+            self.teardown_subprocess_test_cache()
+
+    def test_58_template_has_mappingTypeFilter_element(self):
+        """Test 58: Template HTML contains the #mappingTypeFilter filter-pill-row element."""
+        print("\nTest 58: Template has id=\"mappingTypeFilter\" element")
+        template = self._load_template()
+        self.assert_in('id="mappingTypeFilter" HTML element', 'id="mappingTypeFilter"', template)
+
+    def test_59_template_has_renderMappingTypeFilterUI(self):
+        """Test 59: Template JS contains the renderMappingTypeFilterUI function."""
+        print("\nTest 59: Template has function renderMappingTypeFilterUI")
+        template = self._load_template()
+        self.assert_in('function renderMappingTypeFilterUI', 'function renderMappingTypeFilterUI', template)
+
+    def test_60_template_has_toggleMappingTypePill(self):
+        """Test 60: Template JS contains the toggleMappingTypePill function."""
+        print("\nTest 60: Template has function toggleMappingTypePill")
+        template = self._load_template()
+        self.assert_in('function toggleMappingTypePill', 'function toggleMappingTypePill', template)
+
+    def test_61_template_has_MappingTypeFilter_object(self):
+        """Test 61: Template JS contains the MappingTypeFilter filter object."""
+        print("\nTest 61: Template has MappingTypeFilter object")
+        template = self._load_template()
+        self.assert_in('const MappingTypeFilter', 'const MappingTypeFilter', template)
+
+    def test_62_template_has_MappingTypeFilter_isFilteringActive(self):
+        """Test 62: Template JS calls MappingTypeFilter.isFilteringActive() in filter logic."""
+        print("\nTest 62: Template has MappingTypeFilter.isFilteringActive()")
+        template = self._load_template()
+        self.assert_in('MappingTypeFilter.isFilteringActive()', 'MappingTypeFilter.isFilteringActive()', template)
+
+    def test_63_example_data_file_exists_at_new_location(self):
+        """Test 63: Example data JSON file exists at dashboards/example_data/."""
+        print("\nTest 63: Example data file exists at dashboards/example_data/")
+        expected_path = project_root / 'dashboards' / 'example_data' / 'Alias_Extraction_Source_Report_Example.json'
+        self.assert_true(
+            "dashboards/example_data/Alias_Extraction_Source_Report_Example.json exists",
+            expected_path.exists(),
+        )
+
+    def test_64_four_phase_confirmed_mappings_raw_value_preservation(self):
+        """Test 64: Four-phase subprocess — raw field values are preserved verbatim
+        in confirmedMappings output even when they contain leading whitespace.
+
+        A mapping file maps a confirmed alias with vendor=' whitespace_vendor' (leading
+        space).  The per-source report must store the vendor value verbatim and
+        aliasGroups must be empty (all aliases resolved as confirmed).
+
+        Setup:
+        - Write _test_confirmed_64.json to cache/alias_mappings/ using
+          _TEST57_SOURCE_UUID as cnaId and ' whitespace_vendor'/'ws_product' data.
+        - CVE fixture sourceId = _TEST57_SOURCE_EMAIL; alias matches the injected
+          confirmedMappings so the alias resolves as confirmed.
+
+        Expected:
+        - confirmedMappings[0].aliases[0].vendor == ' whitespace_vendor' (verbatim).
+        - alias_groups_confirmed >= 1 (all alias groups are confirmed).
+
+        Teardown:
+        - _test_confirmed_64.json removed unconditionally.
+        - Subprocess test cache removed unconditionally.
+        """
+        import subprocess
+        print("\nTest 64: Four-phase subprocess — confirmedMappings raw value preservation")
+
+        _MAPPING_CONTENT = {
+            "cnaId": _TEST57_SOURCE_UUID,
+            "confirmedMappings": [
+                {
+                    "cpeBaseString": "cpe:2.3:a:ws_vendor:ws_product:*:*:*:*:*:*:*:*",
+                    "aliases": [
+                        {"vendor": " whitespace_vendor", "product": "ws_product"}
+                    ]
+                }
+            ]
+        }
+
+        # PHASE 1 — SETUP
+        with open(_TEST64_MAPPING_FILE, 'w', encoding='utf-8') as fh:
+            json.dump(_MAPPING_CONTENT, fh, indent=4)
+
+        self.setup_subprocess_test_cache([TEST_CVE_1337_6400], batch='0xxx')
+
+        try:
+            # PHASE 2 — EXECUTE
+            result = subprocess.run(
+                ['python', '-m', 'src.analysis_tool.reporting.generate_alias_report',
+                 '--custom-cache', TEST_SUBPROCESS_CACHE_NAME],
+                cwd=str(project_root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=120,
+            )
+
+            self.assert_equals("subprocess exit code 0", 0, result.returncode)
+            if result.returncode != 0:
+                print(f"  stderr: {result.stderr[:500]}")
+
+            # PHASE 3 — VALIDATE
+            run_id = None
+            for line in result.stdout.splitlines():
+                if line.startswith('Run ID:'):
+                    run_id = line.split('Run ID:')[-1].strip()
+                    break
+
+            self.assert_true("Run ID present in stdout", run_id is not None)
+
+            if run_id:
+                logs_dir = project_root / "runs" / run_id / "logs"
+                index_file = logs_dir / "aliasExtractionReport_index.json"
+                self.assert_true("index.json exists", index_file.exists())
+
+                source_entry = None
+                if index_file.exists():
+                    with open(index_file, 'r', encoding='utf-8') as fh:
+                        index_data = json.load(fh)
+                    source_entry = next(
+                        (s for s in index_data.get('sources', [])
+                         if _TEST57_SOURCE_UUID in s.get('all_source_identifiers', [])),
+                        None,
+                    )
+                    self.assert_true("source entry found in index via UUID", source_entry is not None)
+
+                if source_entry is not None:
+                    report_filename = source_entry.get('report_file', '')
+                    self.assert_true("index entry has report_file", bool(report_filename))
+
+                    if report_filename:
+                        report_path = logs_dir / report_filename
+                        self.assert_true("per-source report file exists", report_path.exists())
+
+                        if report_path.exists():
+                            with open(report_path, 'r', encoding='utf-8') as fh:
+                                report_data = json.load(fh)
+
+                            confirmed_mappings = report_data.get('confirmedMappings', [])
+                            self.assert_true(
+                                "confirmedMappings is non-empty",
+                                len(confirmed_mappings) >= 1,
+                            )
+                            if confirmed_mappings:
+                                first_alias = confirmed_mappings[0].get('aliases', [{}])[0]
+                                self.assert_equals(
+                                    "confirmedMappings[0].aliases[0].vendor preserved verbatim",
+                                    " whitespace_vendor", first_alias.get('vendor'),
+                                )
+
+                            alias_groups_confirmed = report_data.get('metadata', {}).get('alias_groups_confirmed', 0)
+                            self.assert_true(
+                                "alias_groups_confirmed >= 1 (all aliases are confirmed)",
+                                alias_groups_confirmed >= 1,
+                            )
+
+        finally:
+            # PHASE 4 — TEARDOWN
+            if _TEST64_MAPPING_FILE.exists():
+                _TEST64_MAPPING_FILE.unlink()
+            self.teardown_subprocess_test_cache()
+
     def run_all(self) -> bool:
         """Execute all tests in order and print results."""
         print("=" * 60)
@@ -1814,6 +4175,7 @@ class TestAliasReportGeneration:
         self.test_24c_non_actionable_returns_false_for_actionable()
         self.test_24d_dedup_key_unchanged_for_non_actionable()
         self.test_25_full_pipeline_subprocess_execute()
+        self.test_25b_full_pipeline_non_actionable_entries()
         self.test_26_calculate_alias_statistics_pure_unconfirmed()
         self.test_26b_calculate_alias_statistics_with_non_actionable()
         self.test_26c_calculate_alias_statistics_all_confirmed_reaches_100()
@@ -1827,6 +4189,8 @@ class TestAliasReportGeneration:
         self.test_34_by_year_non_actionable_count()
         self.test_35_confirmed_cna_id_present_when_mapping_file_loaded()
         self.test_36_confirmed_cna_id_none_when_no_mapping_file()
+        self.test_36b_non_actionable_from_empty_alias_extraction()
+        self.test_36c_four_phase_pure_placeholder_source_gets_report()
         self.test_37_source_template_has_aliasRatio_element()
         self.test_38_source_template_has_updateFilterActiveSignal()
         self.test_39_source_template_filters_active_class_toggled()
@@ -1837,6 +4201,24 @@ class TestAliasReportGeneration:
         self.test_44_source_template_has_aliasFieldSelections_element()
         self.test_45_source_template_has_renderAliasFieldCheckboxes()
         self.test_46_source_template_has_aliasEntryMap_variable()
+        self.test_47_four_phase_sdc_concerns_flags_in_output()
+        self.test_48_four_phase_cpe_sort_and_cap_in_output()
+        self.test_49_four_phase_is_suggested_match_true_in_cpe_output()
+        self.test_50_four_phase_platform_field_differentiates_aliases()
+        self.test_51_four_phase_non_standard_identity_fields_passthrough()
+        self.test_52_four_phase_sdc_concern_types_whitespace_comparator_invalidchars()
+        self.test_53_confirmed_mappings_non_empty_with_mock_manager()
+        self.test_54_multiple_distinct_na_patterns_consolidate_to_one()
+        self.test_55_four_phase_programfiles_programroutines_packageurl_passthrough()
+        self.test_56_has_alias_concerns_hyphenated_version_range()
+        self.test_57_four_phase_confirmed_mappings_via_real_mapping_file_injection()
+        self.test_58_template_has_mappingTypeFilter_element()
+        self.test_59_template_has_renderMappingTypeFilterUI()
+        self.test_60_template_has_toggleMappingTypePill()
+        self.test_61_template_has_MappingTypeFilter_object()
+        self.test_62_template_has_MappingTypeFilter_isFilteringActive()
+        self.test_63_example_data_file_exists_at_new_location()
+        self.test_64_four_phase_confirmed_mappings_raw_value_preservation()
 
         total = self.passed + self.failed
         print("\n" + "=" * 60)

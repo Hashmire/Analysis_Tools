@@ -145,8 +145,8 @@ class ShardedCPECache:
         """Save a shard file to disk using atomic write with compact JSON.
         
         Uses atomic write pattern (temp file + rename) to prevent corruption from
-        partial writes. Prevention logic in put() validates all data before caching,
-        so serialization should never fail.
+        partial writes. Upstream validation in processData.py validates all data before
+        caching, so serialization should never fail in production.
         
         Args:
             shard_path: Path to shard file
@@ -401,11 +401,7 @@ class ShardedCPECache:
     
     def put(self, cpe_string: str, api_response: Dict[str, Any]) -> None:
         """
-        Store CPE API response in cache with data validation.
-        
-        Validates that response data can be serialized before caching to prevent
-        corruption. Rejects responses containing invalid UTF-8 surrogates or
-        other non-serializable data from NVD API.
+        Store CPE API response in cache.
         
         Args:
             cpe_string: The CPE match string used as key
@@ -416,7 +412,7 @@ class ShardedCPECache:
         
         shard_index = self._get_shard_index(cpe_string)
         shard_data = self._load_shard(shard_index)
-        
+
         entry = {
             'query_response': api_response,
             'last_queried': datetime.now(timezone.utc).isoformat(),

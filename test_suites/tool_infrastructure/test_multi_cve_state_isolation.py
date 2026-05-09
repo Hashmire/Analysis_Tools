@@ -176,13 +176,14 @@ class MultiCVEStateIsolationTestSuite:
         # Inject CPE cache data for test CVEs to prevent timeout when using --nvd-ish-only
         self._inject_cpe_cache_data()
         
-        # Inject test source data into NVD source cache for source resolution
+        # Write an isolated source cache to test_cache_dir with test entries appended.
         source_cache_path = CACHE_DIR / "nvd_source_data.json"
+        test_source_cache_path = self.test_cache_dir / "test_nvd_source_data.json"
         if source_cache_path.exists():
             try:
                 with open(source_cache_path, 'r', encoding='utf-8') as f:
                     source_data = json.load(f)
-                
+
                 # Add test source entries if not already present
                 test_sources = [
                     {
@@ -211,25 +212,24 @@ class MultiCVEStateIsolationTestSuite:
                         "sourceIdentifiers": ["eeeeeeee-ffff-0000-1111-222222222222", "secalert_us@oracle.com", "oracle"]
                     }
                 ]
-                
-                # Use correct cache structure key: 'source_data' not 'sources'
+
                 existing_identifiers = {
-                    identifier 
-                    for s in source_data.get('source_data', []) 
+                    identifier
+                    for s in source_data.get('source_data', [])
                     for identifier in s.get('sourceIdentifiers', [])
                 }
                 for test_source in test_sources:
-                    # Check if any of this test source's identifiers already exist
                     if not any(ident in existing_identifiers for ident in test_source['sourceIdentifiers']):
                         source_data.setdefault('source_data', []).append(test_source)
-                
-                # Write back with test sources
-                with open(source_cache_path, 'w', encoding='utf-8') as f:
+
+                with open(test_source_cache_path, 'w', encoding='utf-8') as f:
                     json.dump(source_data, f, indent=2)
-                
-                print(f"  * Injected test source data into NVD source cache")
+
+                # Redirect subprocess cache reads to the isolated copy
+                os.environ['NVD_SOURCE_CACHE_FILE'] = str(test_source_cache_path)
+                print(f"  * Created isolated test source cache")
             except Exception as e:
-                print(f"  [WARNING] Failed to inject test source data: {e}")
+                print(f"  [WARNING] Failed to create isolated test source cache: {e}")
         
         print(f"  * Copied {len(copied_files)} test files to INPUT cache")
         return copied_files
@@ -346,46 +346,13 @@ class MultiCVEStateIsolationTestSuite:
                 Path(file_path).unlink()
                 removed_count += 1
         
-        # Remove test source data from NVD source cache
-        source_cache_path = CACHE_DIR / "nvd_source_data.json"
-        if source_cache_path.exists():
-            try:
-                with open(source_cache_path, 'r', encoding='utf-8') as f:
-                    source_data = json.load(f)
-                
-                # Remove test source identifiers
-                test_identifiers = {
-                    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-                    "test@example.com",
-                    "testorg",
-                    "bbbbbbbb-cccc-dddd-eeee-ffffffffffff",
-                    "secalert@redhat.com",
-                    "cccccccc-dddd-eeee-ffff-000000000001",
-                    "secure@microsoft.com",
-                    "microsoft",
-                    "dddddddd-eeee-ffff-0000-111111111111",
-                    "psirt@cisco.com",
-                    "cisco",
-                    "eeeeeeee-ffff-0000-1111-222222222222",
-                    "secalert_us@oracle.com",
-                    "oracle"
-                }
-                original_count = len(source_data.get('source_data', []))
-                
-                # Remove sources that have ANY test identifiers
-                source_data['source_data'] = [
-                    s for s in source_data.get('source_data', [])
-                    if not any(ident in test_identifiers for ident in s.get('sourceIdentifiers', []))
-                ]
-                
-                removed = original_count - len(source_data['source_data'])
-                
-                if removed > 0:
-                    with open(source_cache_path, 'w', encoding='utf-8') as f:
-                        json.dump(source_data, f, indent=2)
-                    print(f"  * Removed {removed} test source entries from NVD source cache")
-            except Exception as e:
-                print(f"  [WARNING] Failed to clean test source data: {e}")
+        # Clean up the isolated test source cache and env var redirect.
+        test_source_cache_path_str = os.environ.pop('NVD_SOURCE_CACHE_FILE', None)
+        if test_source_cache_path_str:
+            test_source_cache_path = Path(test_source_cache_path_str)
+            if test_source_cache_path.exists():
+                test_source_cache_path.unlink()
+                print(f"  * Removed isolated test source cache")
         
         print(f"  * Removed {removed_count} test files from INPUT cache")
         if 'TEST_NVD_API_DISABLED' in os.environ:

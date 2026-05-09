@@ -295,7 +295,7 @@ def test_concurrent_date_query():
         result = query_nvd_cves_by_modified_date_concurrent(
             start_date=start_date,
             end_date=end_date,
-            api_key="test-key",
+            api_key="00000000-0000-0000-0000-000000000000",
             max_workers=5
         )
         
@@ -337,7 +337,7 @@ def test_concurrent_full_database_query():
     
     with patch('src.analysis_tool.core.gatherData.query_nvd_cve_page', side_effect=[mock_first_response, mock_second_response]):
         result = query_nvd_cves_all_concurrent(
-            api_key="test-key",
+            api_key="00000000-0000-0000-0000-000000000000",
             max_workers=10
         )
         

@@ -351,7 +351,8 @@ class CveAffectedDataCollector:
         
         Args:
             table_index: Table index for the platform entry
-            source_id: Actual source UUID from the data
+            source_id: Source identifier for the platform entry (UUID in the live CVE List V5 path
+                from providerMetadata.orgId; any identifier accepted by the source manager)
             vendor: Vendor name from the platform entry
             product: Product name from the platform entry
             concerns_data: Structured concerns data from PENR collection
@@ -435,7 +436,8 @@ class CveAffectedDataCollector:
         Collect a platform entry that has no source data concerns.
         
         Args:
-            source_id: Actual source UUID from the data
+            source_id: Source identifier for the platform entry (UUID in the live CVE List V5 path
+                from providerMetadata.orgId; any identifier accepted by the source manager)
         """
         if not self.current_cve_data:
             if logger:
@@ -496,7 +498,8 @@ class CveAffectedDataCollector:
         
         Args:
             table_index: Table index for the platform entry
-            source_id: Actual source UUID from the data
+            source_id: Source identifier for the platform entry (UUID in the live CVE List V5 path
+                from providerMetadata.orgId; any identifier accepted by the source manager)
             alias_data: Dictionary containing alias extraction data from registry
             entry_count: Number of alias entries extracted (for platform expansion)
             cve_id: CVE identifier for source tracking
@@ -862,7 +865,8 @@ def collect_alias_extraction_data(table_index: int, source_id: str, alias_data: 
     
     Args:
         table_index: Table index for the platform entry
-        source_id: Actual source UUID from the data
+        source_id: Source identifier for the platform entry (UUID in the live CVE List V5 path
+            from providerMetadata.orgId; any identifier accepted by the source manager)
         alias_data: Dictionary containing alias extraction data from registry
         entry_count: Number of alias entries extracted (for platform expansion)
         cve_id: CVE identifier for source tracking

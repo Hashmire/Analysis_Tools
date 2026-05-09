@@ -993,6 +993,62 @@ body::before {
     border-color: #a5d6a7;
 }
 
+/* ========== YEAR FILTER GROUP CONTROLS ========== */
+
+.year-group-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Hidden by default; width:100% forces sub-pills onto their own line within wrapper.
+   Uses .filter-pills-container class for all flex layout properties. */
+.year-group-pills {
+    display: none;
+    width: 100%;
+    margin-top: 2px;
+}
+
+/* Two-class specificity beats single-class .filter-pills-container — no !important needed */
+.year-group-pills.expanded {
+    display: flex;
+}
+
+.year-expand-caret {
+    background: #e8e8e8;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    padding: 1px 6px;
+    font-size: 0.75em;
+    color: #555;
+    transition: transform 0.3s ease, background 0.15s ease;
+    line-height: 1.6;
+    border-radius: 4px;
+    user-select: none;
+}
+
+.year-expand-caret:hover {
+    color: #4CAF50;
+}
+
+.year-expand-caret.expanded {
+    transform: rotate(180deg);
+}
+
+/* Partial state: lighter green between inactive (grey) and active (full green).
+   Uses #81C784 (Material Green 300) — same hue as .doc-chevron accent. */
+.filter-pill.partial {
+    background: #81C784;
+    color: white;
+    border-color: #81C784;
+}
+
+.filter-pill.partial:hover {
+    background: #66BB6A;
+    border-color: #66BB6A;
+}
+
 .alias-selection-checkbox {
     margin-right: 8px;
     transform: scale(1.2);

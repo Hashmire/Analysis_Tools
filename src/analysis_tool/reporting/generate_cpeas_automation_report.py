@@ -171,6 +171,8 @@ class CPEASAutomationReportBuilder:
         for entry_idx, entry in enumerate(affected_entries):
             origin = entry.get('originAffectedEntry', {})
             source_id = origin.get('sourceId', 'Unknown')
+            if self.source_manager and self.source_manager.is_initialized():
+                source_id = self.source_manager.get_canonical_uuid(source_id)
             entries_by_source[source_id].append((entry_idx, entry))
         
         # Process each source's entries for this CVE

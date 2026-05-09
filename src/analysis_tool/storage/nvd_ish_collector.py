@@ -159,10 +159,13 @@ class NVDishCollector:
             return source_id
     
     def _is_uuid_format(self, identifier: str) -> bool:
-        """Check if identifier looks like a UUID format"""
-        import re
-        uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        return bool(re.match(uuid_pattern, identifier, re.IGNORECASE))
+        """Check if identifier is a valid UUID using stdlib validation"""
+        import uuid as _uuid_mod
+        try:
+            _uuid_mod.UUID(identifier)
+            return True
+        except ValueError:
+            return False
     
     def _create_complete_cpe_determination_structure(self, affected_entry_data: Dict = None, cvelistv5_affected_entry_index: str = None) -> Dict:
         """

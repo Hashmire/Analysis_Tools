@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CPE Alias Mapping Dashboard - Example</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <style>
 /* ========================================
    CPE Alias Mapping Dashboard Styles
@@ -1001,6 +1000,62 @@ body::before {
     border-color: #a5d6a7;
 }
 
+/* ========== YEAR FILTER GROUP CONTROLS ========== */
+
+.year-group-wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Hidden by default; width:100% forces sub-pills onto their own line within wrapper.
+   Uses .filter-pills-container class for all flex layout properties. */
+.year-group-pills {
+    display: none;
+    width: 100%;
+    margin-top: 2px;
+}
+
+/* Two-class specificity beats single-class .filter-pills-container — no !important needed */
+.year-group-pills.expanded {
+    display: flex;
+}
+
+.year-expand-caret {
+    background: #e8e8e8;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    padding: 1px 6px;
+    font-size: 0.75em;
+    color: #555;
+    transition: transform 0.3s ease, background 0.15s ease;
+    line-height: 1.6;
+    border-radius: 4px;
+    user-select: none;
+}
+
+.year-expand-caret:hover {
+    color: #4CAF50;
+}
+
+.year-expand-caret.expanded {
+    transform: rotate(180deg);
+}
+
+/* Partial state: lighter green between inactive (grey) and active (full green).
+   Uses #81C784 (Material Green 300) — same hue as .doc-chevron accent. */
+.filter-pill.partial {
+    background: #81C784;
+    color: white;
+    border-color: #81C784;
+}
+
+.filter-pill.partial:hover {
+    background: #66BB6A;
+    border-color: #66BB6A;
+}
+
 .alias-selection-checkbox {
     margin-right: 8px;
     transform: scale(1.2);
@@ -1953,13 +2008,6 @@ body::before {
     flex-shrink: 0;
 }
 
-/* Suggested-match CPE string: click once to select the whole string for copy/paste */
-.nvd-cpe-suggested-strong {
-    color: #1B5E20;
-    user-select: all;
-    cursor: text;
-}
-
 .nvd-cpe-empty {
     font-size: 0.82em;
     color: #9E9E9E;
@@ -1967,7 +2015,15 @@ body::before {
     padding: 2px 0;
 }
 
+/* Suggested-match CPE string: click once to select the whole string for copy/paste */
+.nvd-cpe-suggested-strong {
+    color: #1B5E20;
+    user-select: all;
+    cursor: text;
+}
+
 </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
 </head>
 <body>
     <div class="container">
@@ -2188,7 +2244,6 @@ body::before {
                     <input type="text" id="filterInput" class="form-input flex-1 mr-8 ml-8" placeholder="Enter search term..." />
                     <button id="searchButton" class="filter-pill active">Search</button>
                     <button id="clearFilter" class="filter-pill ml-4">Reset Filters</button>
-                    <button id="includeConfirmedToggle" class="filter-pill ml-4" title="Include Confirmed Mappings in keyword search">Include Confirmed</button>
                 </div>
 
                 <div class="filter-pill-row" id="yearFilter" style="display: none;">
@@ -2201,10 +2256,18 @@ body::before {
                     <div id="aliasTypePillsContainer" class="filter-pills-container"></div>
                 </div>
 
+                <div class="filter-pill-row" id="mappingTypeFilter" style="display: none;">
+                    <label class="font-500 color-333">Mapping Type:</label>
+                    <div id="mappingTypePillsContainer" class="filter-pills-container"></div>
+                </div>
+
                 <div id="aliasGroups"></div>
 
                 <!-- Unconfirmed Data Concerns Section -->
                 <div id="sourceDataConcernGroups"></div>
+
+                <!-- Non-Actionable Alias Sets Section -->
+                <div id="nonActionableGroups"></div>
             </div>
         </div>
     </div>
@@ -2271,14 +2334,8 @@ body::before {
 
     <script>
         // Active global variables still needed by current system
-
-        // NOTE: No aliasGroup example for the placeholderValues SDC concern type is included here.
-        // The pipeline's _filter_alias_entry_data() in nvd_ish_collector strips all fields whose
-        // values match GENERAL_PLACEHOLDER_VALUES before NVD-ish storage, making this concern
-        // type impossible to encounter in pipeline-generated report output. The detection group is
-        // retained as defense-in-depth only for the edge case of confirmed mapping .json files
-        // that were manually edited with placeholder values.
-        let currentData = {"metadata": {"source_id": "example-cna-org", "source_name": "Example CNA Organization", "generated": "2026-04-08T00:00:00Z", "tool_version": "Example", "target_uuid": "aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee", "confirmed_cna_id": "aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee"}, "aliasGroups": [{"aliasGroup": "acme-corp_acme-lib", "aliases": [{"vendor": "Acme Corp", "product": "Acme Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001", "CVE-2025-05001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 5, "isSuggestedMatch": true}]}, {"vendor": "acme-corp", "product": "acme-lib", "source_cve": ["CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 3, "isSuggestedMatch": true}]}, {"vendor": "The Acme Project", "product": "Acme Core Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}]}, {"vendor": "acme-project", "product": "acme-lib-core", "source_cve": ["CVE-2025-05001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 1, "isSuggestedMatch": true}]}]}, {"aliasGroup": "apex-systems_apex-server", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Linux", "source_cve": ["CVE-2022-02010", "CVE-2023-03010", "CVE-2024-04010", "CVE-2025-05010"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:linux:*", "cveCount": 4}]}, {"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Windows", "source_cve": ["CVE-2022-02010", "CVE-2023-03010"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:windows:*", "cveCount": 2}]}, {"vendor": "apex-systems", "product": "apex-server", "platform": "macOS", "source_cve": ["CVE-2024-04010", "CVE-2025-05010"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:macos:*", "cveCount": 2}]}, {"vendor": "Apex", "product": "apex-httpd", "platform": "FreeBSD", "source_cve": ["CVE-2021-01010"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "netsend_netsend-client", "aliases": [{"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-client", "collectionURL": "https://packages.example-registry.org/netsend-client", "source_cve": ["CVE-2021-01020", "CVE-2022-02020", "CVE-2023-03020", "CVE-2024-04020"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 4, "isSuggestedMatch": true}]}, {"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-dev", "collectionURL": "https://packages.example-linux.org/netsend", "source_cve": ["CVE-2022-02020", "CVE-2023-03020"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}, {"cpeBaseString": "cpe:2.3:a:somevendor:somelib:*:*:*:*:*:*:*:*", "cveCount": 1, "isSuggestedMatch": false}]}, {"vendor": "netsend-project", "product": "netsend", "packageName": "libnetsend", "collectionURL": "https://packages.example-linux.org/libnetsend", "source_cve": ["CVE-2021-01020", "CVE-2024-04020"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}]}]}, {"aliasGroup": "utilkit_util-kit", "aliases": [{"vendor": "UtilKit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:npm/util-kit", "collectionURL": "https://registry.example-npm.org/util-kit", "source_cve": ["CVE-2021-01030", "CVE-2022-02030", "CVE-2023-03030", "CVE-2024-04030", "CVE-2025-05030"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "cveCount": 5}]}, {"vendor": "UtilKit", "product": "util-kit-esm", "packageName": "util-kit-esm", "packageURL": "pkg:npm/util-kit-esm", "source_cve": ["CVE-2021-01030", "CVE-2022-02030"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "cveCount": 2}]}, {"vendor": "utilkit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:pypi/util-kit", "source_cve": ["CVE-2023-03030"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:python:*:*", "cveCount": 1}]}, {"vendor": "utilkit-project", "product": "util-kit", "packageName": "util-kit-rs", "packageURL": "pkg:cargo/util-kit-rs", "source_cve": ["CVE-2024-04030", "CVE-2025-05030"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "packlib_pack-compress", "aliases": [{"vendor": "PackLib", "product": "pack-compress", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040", "CVE-2024-04040"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "packlib-project", "product": "pack-compress-dev", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "PackLib", "product": "pack-compress", "repo": "https://gitlab.com/example-org/pack-compress", "source_cve": ["CVE-2021-01040", "CVE-2024-04040"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 2}]}]}, {"aliasGroup": "streamworks_stream-proxy", "aliases": [{"vendor": "StreamWorks", "product": "stream-proxy", "modules": "proxy_http_core_module", "source_cve": ["CVE-2022-02050", "CVE-2023-03050", "CVE-2024-04050", "CVE-2025-05050"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 4}]}, {"vendor": "StreamWorks", "product": "stream-proxy", "modules": "proxy_http_compress_module", "source_cve": ["CVE-2021-01050", "CVE-2022-02050"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "StreamWorks", "product": "stream-proxy", "modules": "proxy_http_forward_module", "source_cve": ["CVE-2021-01050", "CVE-2022-02050"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "streamworks-oss", "product": "stream-proxy-community", "modules": "proxy_stream_core_module", "source_cve": ["CVE-2023-03050", "CVE-2024-04050"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 2}]}]}, {"aliasGroup": "pixelforge_pixel-render", "aliases": [{"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/pixel.c", "source_cve": ["CVE-2021-01060", "CVE-2022-02060", "CVE-2023-03060"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/draw.c", "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/composite.c", "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "pixelforge-project", "product": "pixel-render", "programFiles": "lib/Image.cpp", "source_cve": ["CVE-2025-05060"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 1}]}]}, {"aliasGroup": "cachedb_cache-engine", "aliases": [{"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "dbExprCodeTarget", "source_cve": ["CVE-2021-01070", "CVE-2022-02070", "CVE-2023-03070", "CVE-2024-04070"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 4}]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "dbVdbeExec", "source_cve": ["CVE-2022-02070", "CVE-2023-03070"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "db_prepare_v2", "source_cve": ["CVE-2022-02070", "CVE-2023-03070"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "cachedb-consortium", "product": "cache-engine-lite", "programRoutines": "dbBtreeInsert", "source_cve": ["CVE-2024-04070", "CVE-2025-05070"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "concern_whitespace", "aliases": [{"vendor": " whitespace-vendor", "product": "ws-product", "source_cve": ["CVE-2021-01200", "CVE-2022-02200"]}, {"vendor": "whitespace-vendor", "product": "ws-product ", "source_cve": ["CVE-2022-02200", "CVE-2023-03200"]}, {"vendor": "whitespace-vendor", "product": "ws-pkg", "packageName": " ws-package ", "collectionURL": "https://packages.example-registry.org/ws-package", "source_cve": ["CVE-2023-03200", "CVE-2024-04200"]}, {"vendor": "whitespace-vendor", "product": "ws  product", "source_cve": ["CVE-2024-04200", "CVE-2025-05200"]}, {"vendor": "whitespace-vendor", "product": "ws-os", "platform": " Linux", "source_cve": ["CVE-2025-05200"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_text_comparator", "aliases": [{"vendor": "comparator-vendor", "product": "comp-app before 3.0", "source_cve": ["CVE-2021-01300", "CVE-2022-02300"]}, {"vendor": "comparator-vendor", "product": "comp-app through 4.2", "source_cve": ["CVE-2022-02300", "CVE-2023-03300"]}, {"vendor": "comparator-vendor", "product": "comp-pkg", "packageName": "comp-pkg prior to 2.0", "source_cve": ["CVE-2023-03300", "CVE-2024-04300"]}, {"vendor": "comparator-vendor", "product": "comp-app earlier than 5.1", "source_cve": ["CVE-2024-04300"]}, {"vendor": "comparator-vendor", "product": "comp-app from version 2", "source_cve": ["CVE-2025-05300"]}, {"vendor": "comparator-vendor", "product": "comp-app 1.0 - 2.5", "source_cve": ["CVE-2021-01300", "CVE-2025-05300"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_invalid_chars", "aliases": [{"vendor": "invalid-char-vendor", "product": "ic-component", "packageName": "ic-pkg, ic-extra", "source_cve": ["CVE-2021-01400", "CVE-2022-02400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component, plugin", "source_cve": ["CVE-2022-02400", "CVE-2023-03400"]}, {"vendor": "Invalid Char Vendor", "product": "ic-component", "source_cve": ["CVE-2023-03400", "CVE-2024-04400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component", "packageName": "ic pkg name", "source_cve": ["CVE-2024-04400", "CVE-2025-05400"]}, {"vendor": "invalid-char-vendor", "product": "ic-component, suite", "packageName": "ic-pkg, ic-dev", "packageURL": "pkg:pypi/ic-component", "source_cve": ["CVE-2025-05400"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_bloat_text", "aliases": [{"vendor": "mesh-corp", "product": "mesh-corp firewall appliance", "source_cve": ["CVE-2021-01500", "CVE-2022-02500"]}, {"vendor": "mesh-corp", "product": "firewall", "packageName": "mesh-corp-firewall-pkg", "source_cve": ["CVE-2022-02500", "CVE-2023-03500"]}, {"vendor": "mesh-corp", "product": "mesh-corp vpn client", "packageName": "mesh-corp-vpn", "packageURL": "pkg:npm/mesh-corp-vpn", "source_cve": ["CVE-2023-03500", "CVE-2024-04500"]}, {"vendor": "mesh-corp", "product": "mesh-corp sdk", "repo": "https://github.com/example-org/mesh-corp-sdk", "source_cve": ["CVE-2024-04500", "CVE-2025-05500"]}, {"vendor": "mesh software", "product": "mesh software enterprise suite", "source_cve": ["CVE-2025-05500"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "no_identity_non_actionable", "aliases": [{"source_cve": ["CVE-2021-09900", "CVE-2022-09901", "CVE-2023-09902", "CVE-2024-09903"]}, {"source_cve": ["CVE-2024-09800", "CVE-2025-09801"]}]}], "confirmedMappings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "Acme Corp", "product": "Acme Library", "source_cve": ["CVE-2021-01001", "CVE-2022-02001", "CVE-2023-03001", "CVE-2024-04001", "CVE-2025-05001"]}, {"vendor": "acme-corp", "product": "acme-lib"}]}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:linux:*", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Linux", "source_cve": ["CVE-2022-02010", "CVE-2023-03010", "CVE-2024-04010", "CVE-2025-05010"]}]}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:windows:*", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Windows", "source_cve": ["CVE-2022-02010", "CVE-2023-03010"]}]}, {"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-client", "collectionURL": "https://packages.example-registry.org/netsend-client", "source_cve": ["CVE-2021-01020", "CVE-2022-02020", "CVE-2023-03020", "CVE-2024-04020"]}, {"vendor": "netsend-project", "product": "netsend", "packageName": "libnetsend", "collectionURL": "https://packages.example-linux.org/libnetsend", "source_cve": ["CVE-2021-01020", "CVE-2024-04020"]}]}, {"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "aliases": [{"vendor": "UtilKit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:npm/util-kit", "collectionURL": "https://registry.example-npm.org/util-kit", "source_cve": ["CVE-2021-01030", "CVE-2022-02030", "CVE-2023-03030", "CVE-2024-04030", "CVE-2025-05030"]}, {"vendor": "UtilKit", "product": "util-kit-esm", "packageName": "util-kit-esm", "packageURL": "pkg:npm/util-kit-esm", "source_cve": ["CVE-2021-01030", "CVE-2022-02030"]}, {"vendor": "utilkit-project", "product": "util-kit", "packageName": "util-kit-rs", "packageURL": "pkg:cargo/util-kit-rs", "source_cve": ["CVE-2024-04030", "CVE-2025-05030"]}]}, {"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "PackLib", "product": "pack-compress", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040", "CVE-2024-04040"]}, {"vendor": "packlib-project", "product": "pack-compress-dev", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-02040", "CVE-2023-03040"]}]}, {"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "StreamWorks", "product": "stream-proxy", "modules": "proxy_http_core_module", "source_cve": ["CVE-2022-02050", "CVE-2023-03050", "CVE-2024-04050", "CVE-2025-05050"]}, {"vendor": "streamworks-oss", "product": "stream-proxy-community", "modules": "proxy_stream_core_module", "source_cve": ["CVE-2023-03050", "CVE-2024-04050"]}]}, {"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/pixel.c", "source_cve": ["CVE-2021-01060", "CVE-2022-02060", "CVE-2023-03060"]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/draw.c", "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/composite.c", "source_cve": ["CVE-2022-02060", "CVE-2023-03060", "CVE-2024-04060"]}, {"vendor": "pixelforge-project", "product": "pixel-render", "programFiles": "lib/Image.cpp", "source_cve": ["CVE-2025-05060"]}]}, {"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "dbExprCodeTarget", "source_cve": ["CVE-2021-01070", "CVE-2022-02070", "CVE-2023-03070", "CVE-2024-04070"]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "dbVdbeExec", "source_cve": ["CVE-2022-02070", "CVE-2023-03070"]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "db_prepare_v2", "source_cve": ["CVE-2022-02070", "CVE-2023-03070"]}, {"vendor": "cachedb-consortium", "product": "cache-engine-lite", "programRoutines": "dbBtreeInsert", "source_cve": ["CVE-2024-04070", "CVE-2025-05070"]}]}]};  // Used for compatibility and download functions
+        // NOTE: No aliasGroup example for the placeholderValues SDC concern type is included here. The relevant detection group is retained for the edge case of confirmed mapping .json files that were manually edited with placeholder values.
+        let currentData = {"metadata": {"source_id": "example-cna-org", "source_name": "Example CNA Organization", "generated": "2026-04-08T00:00:00Z", "tool_version": "Example", "target_uuid": "aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee", "confirmed_cna_id": "aaaa1111-bbbb-cccc-dddd-eeeeeeeeeeee"}, "aliasGroups": [{"aliasGroup": "acme-corp_acme-lib", "aliases": [{"vendor": "Acme Corp", "product": "Acme Library", "source_cve": ["CVE-2018-133700001", "CVE-2019-133700001", "CVE-2021-133700001", "CVE-2022-133700001", "CVE-2023-133700001", "CVE-2024-133700001", "CVE-2025-133700001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 5, "isSuggestedMatch": true}]}, {"vendor": "acme-corp", "product": "acme-lib", "source_cve": ["CVE-2022-133700001", "CVE-2023-133700001", "CVE-2024-133700001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 3, "isSuggestedMatch": true}]}, {"vendor": "The Acme Project", "product": "Acme Core Library", "source_cve": ["CVE-2021-133700001", "CVE-2022-133700001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}]}, {"vendor": "acme-project", "product": "acme-lib-core", "source_cve": ["CVE-2025-133700001"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "cveCount": 1, "isSuggestedMatch": true}]}, {"vendor": "Acme Corp", "product": "acme-lib-legacy", "source_cve": [], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "apex-systems_apex-server", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Linux", "source_cve": ["CVE-2022-133700002", "CVE-2023-133700002", "CVE-2024-133700002", "CVE-2025-133700002"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:linux:*", "cveCount": 4}]}, {"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Windows", "source_cve": ["CVE-2022-133700002", "CVE-2023-133700002"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:windows:*", "cveCount": 2}]}, {"vendor": "apex-systems", "product": "apex-server", "platform": "macOS", "source_cve": ["CVE-2024-133700002", "CVE-2025-133700002"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:macos:*", "cveCount": 2}]}, {"vendor": "Apex", "product": "apex-httpd", "platform": "FreeBSD", "source_cve": ["CVE-2021-133700002"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "netsend_netsend-client", "aliases": [{"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-client", "collectionURL": "https://packages.example-registry.org/netsend-client", "source_cve": ["CVE-2021-133700003", "CVE-2022-133700003", "CVE-2023-133700003", "CVE-2024-133700003"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 4, "isSuggestedMatch": true}]}, {"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-dev", "collectionURL": "https://packages.example-linux.org/netsend", "source_cve": ["CVE-2022-133700003", "CVE-2023-133700003"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}, {"cpeBaseString": "cpe:2.3:a:somevendor:somelib:*:*:*:*:*:*:*:*", "cveCount": 1, "isSuggestedMatch": false}]}, {"vendor": "netsend-project", "product": "netsend", "packageName": "libnetsend", "collectionURL": "https://packages.example-linux.org/libnetsend", "source_cve": ["CVE-2021-133700003", "CVE-2024-133700003"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "cveCount": 2, "isSuggestedMatch": true}]}]}, {"aliasGroup": "utilkit_util-kit", "aliases": [{"vendor": "UtilKit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:npm/util-kit", "collectionURL": "https://registry.example-npm.org/util-kit", "source_cve": ["CVE-2021-133700004", "CVE-2022-133700004", "CVE-2023-133700004", "CVE-2024-133700004", "CVE-2025-133700003"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "cveCount": 5}]}, {"vendor": "UtilKit", "product": "util-kit-esm", "packageName": "util-kit-esm", "packageURL": "pkg:npm/util-kit-esm", "source_cve": ["CVE-2021-133700004", "CVE-2022-133700004"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "cveCount": 2}]}, {"vendor": "utilkit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:pypi/util-kit", "source_cve": ["CVE-2023-133700004"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:python:*:*", "cveCount": 1}]}, {"vendor": "utilkit-project", "product": "util-kit", "packageName": "util-kit-rs", "packageURL": "pkg:cargo/util-kit-rs", "source_cve": ["CVE-2024-133700004", "CVE-2025-133700003"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "packlib_pack-compress", "aliases": [{"vendor": "PackLib", "product": "pack-compress", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-133700005", "CVE-2023-133700005", "CVE-2024-133700005"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "packlib-project", "product": "pack-compress-dev", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-133700005", "CVE-2023-133700005"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "PackLib", "product": "pack-compress", "repo": "https://gitlab.com/example-org/pack-compress", "source_cve": ["CVE-2021-133700005", "CVE-2024-133700005"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "cveCount": 2}]}]}, {"aliasGroup": "streamworks_stream-proxy", "aliases": [{"vendor": "StreamWorks", "product": "stream-proxy", "modules": "proxy_http_core_module", "source_cve": ["CVE-2022-133700006", "CVE-2023-133700006", "CVE-2024-133700006", "CVE-2025-133700004"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 4}]}, {"vendor": "StreamWorks", "product": "stream-proxy", "modules": "proxy_http_compress_module", "source_cve": ["CVE-2021-133700006", "CVE-2022-133700006"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "StreamWorks", "product": "stream-proxy", "modules": "proxy_http_forward_module", "source_cve": ["CVE-2021-133700006", "CVE-2022-133700006"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "streamworks-oss", "product": "stream-proxy-community", "modules": "proxy_stream_core_module", "source_cve": ["CVE-2023-133700006", "CVE-2024-133700006"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "cveCount": 2}]}]}, {"aliasGroup": "pixelforge_pixel-render", "aliases": [{"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/pixel.c", "source_cve": ["CVE-2021-133700007", "CVE-2022-133700007", "CVE-2023-133700007"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/draw.c", "source_cve": ["CVE-2022-133700007", "CVE-2023-133700007", "CVE-2024-133700007"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/composite.c", "source_cve": ["CVE-2022-133700007", "CVE-2023-133700007", "CVE-2024-133700007"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 3}]}, {"vendor": "pixelforge-project", "product": "pixel-render", "programFiles": "lib/Image.cpp", "source_cve": ["CVE-2025-133700005"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "cveCount": 1}]}]}, {"aliasGroup": "cachedb_cache-engine", "aliases": [{"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "dbExprCodeTarget", "source_cve": ["CVE-2021-133700008", "CVE-2022-133700008", "CVE-2023-133700008", "CVE-2024-133700008"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 4}]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "dbVdbeExec", "source_cve": ["CVE-2022-133700008", "CVE-2023-133700008"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "db_prepare_v2", "source_cve": ["CVE-2022-133700008", "CVE-2023-133700008"], "topNvdCpeBaseStrings": [{"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "cveCount": 2}]}, {"vendor": "cachedb-consortium", "product": "cache-engine-lite", "programRoutines": "dbBtreeInsert", "source_cve": ["CVE-2024-133700008", "CVE-2025-133700006"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "concern_whitespace", "aliases": [{"vendor": " whitespace-vendor", "product": "ws-product", "source_cve": ["CVE-2021-133700009", "CVE-2022-133700009"]}, {"vendor": "whitespace-vendor", "product": "ws-product ", "source_cve": ["CVE-2022-133700009", "CVE-2023-133700009"]}, {"vendor": "whitespace-vendor", "product": "ws-pkg", "packageName": " ws-package ", "collectionURL": "https://packages.example-registry.org/ws-package", "source_cve": ["CVE-2023-133700009", "CVE-2024-133700009"]}, {"vendor": "whitespace-vendor", "product": "ws  product", "source_cve": ["CVE-2024-133700009", "CVE-2025-133700007"]}, {"vendor": "whitespace-vendor", "product": "ws-os", "platform": " Linux", "source_cve": ["CVE-2025-133700007"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_text_comparator", "aliases": [{"vendor": "comparator-vendor", "product": "comp-app before 3.0", "source_cve": ["CVE-2021-133700010", "CVE-2022-133700010"]}, {"vendor": "comparator-vendor", "product": "comp-app through 4.2", "source_cve": ["CVE-2022-133700010", "CVE-2023-133700010"]}, {"vendor": "comparator-vendor", "product": "comp-pkg", "packageName": "comp-pkg prior to 2.0", "source_cve": ["CVE-2023-133700010", "CVE-2024-133700010"]}, {"vendor": "comparator-vendor", "product": "comp-app earlier than 5.1", "source_cve": ["CVE-2024-133700010"]}, {"vendor": "comparator-vendor", "product": "comp-app from version 2", "source_cve": ["CVE-2025-133700008"]}, {"vendor": "comparator-vendor", "product": "comp-app 1.0 - 2.5", "source_cve": ["CVE-2021-133700010", "CVE-2025-133700008"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_invalid_chars", "aliases": [{"vendor": "invalid-char-vendor", "product": "ic-component", "packageName": "ic-pkg, ic-extra", "source_cve": ["CVE-2021-133700011", "CVE-2022-133700011"]}, {"vendor": "invalid-char-vendor", "product": "ic-component, plugin", "source_cve": ["CVE-2022-133700011", "CVE-2023-133700011"]}, {"vendor": "Invalid Char Vendor", "product": "ic-component", "source_cve": ["CVE-2023-133700011", "CVE-2024-133700011"]}, {"vendor": "invalid-char-vendor", "product": "ic-component", "packageName": "ic pkg name", "source_cve": ["CVE-2024-133700011", "CVE-2025-133700009"]}, {"vendor": "invalid-char-vendor", "product": "ic-component, suite", "packageName": "ic-pkg, ic-dev", "packageURL": "pkg:pypi/ic-component", "source_cve": ["CVE-2025-133700009"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "concern_bloat_text", "aliases": [{"vendor": "mesh-corp", "product": "mesh-corp firewall appliance", "source_cve": ["CVE-2021-133700012", "CVE-2022-133700012"]}, {"vendor": "mesh-corp", "product": "firewall", "packageName": "mesh-corp-firewall-pkg", "source_cve": ["CVE-2022-133700012", "CVE-2023-133700012"]}, {"vendor": "mesh-corp", "product": "mesh-corp vpn client", "packageName": "mesh-corp-vpn", "packageURL": "pkg:npm/mesh-corp-vpn", "source_cve": ["CVE-2023-133700012", "CVE-2024-133700012"]}, {"vendor": "mesh-corp", "product": "mesh-corp sdk", "repo": "https://github.com/example-org/mesh-corp-sdk", "source_cve": ["CVE-2024-133700012", "CVE-2025-133700010"]}, {"vendor": "mesh software", "product": "mesh software enterprise suite", "source_cve": ["CVE-2025-133700010"]}], "topNvdCpeBaseStrings": []}, {"aliasGroup": "_sdc_concerns_product_vendor", "aliases": [{"vendor": "n/a", "product": "n/a", "_sdc_concerns": {}, "naPatternFields": {"vendor": "n/a", "product": "n/a"}, "source_cve": ["CVE-2024-133700014", "CVE-2025-133700012"], "topNvdCpeBaseStrings": []}, {"vendor": "unspecified", "product": "n/a", "_sdc_concerns": {}, "naPatternFields": {"vendor": "unspecified", "product": "n/a"}, "source_cve": ["CVE-2022-133700013", "CVE-2023-133700013"], "topNvdCpeBaseStrings": []}, {"vendor": "n/a", "product": "unspecified", "_sdc_concerns": {}, "naPatternFields": {"vendor": "n/a", "product": "unspecified"}, "source_cve": ["CVE-2021-133700013"], "topNvdCpeBaseStrings": []}]}, {"aliasGroup": "no_identity_non_actionable", "aliases": [{"source_cve": ["CVE-2021-133700014", "CVE-2022-133700014", "CVE-2023-133700014", "CVE-2024-133700015"], "naPatternFields": {}, "topNvdCpeBaseStrings": []}, {"source_cve": ["CVE-2024-133700013", "CVE-2025-133700011"], "naPatternFields": {}, "topNvdCpeBaseStrings": []}]}], "confirmedMappings": [{"cpeBaseString": "cpe:2.3:a:acme-corp:acme-lib:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "Acme Corp", "product": "Acme Library", "source_cve": ["CVE-2021-133700001", "CVE-2022-133700001", "CVE-2023-133700001", "CVE-2024-133700001", "CVE-2025-133700001"]}, {"vendor": "acme-corp", "product": "acme-lib"}]}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:linux:*", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Linux", "source_cve": ["CVE-2022-133700002", "CVE-2023-133700002", "CVE-2024-133700002", "CVE-2025-133700002"]}]}, {"cpeBaseString": "cpe:2.3:a:apex-systems:apex-server:*:*:*:*:*:*:windows:*", "aliases": [{"vendor": "Apex Systems", "product": "Apex Web Server", "platform": "Windows", "source_cve": ["CVE-2022-133700002", "CVE-2023-133700002"]}]}, {"cpeBaseString": "cpe:2.3:a:netsend:netsend-client:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "NetSend", "product": "netsend-client", "packageName": "netsend-client", "collectionURL": "https://packages.example-registry.org/netsend-client", "source_cve": ["CVE-2021-133700003", "CVE-2022-133700003", "CVE-2023-133700003", "CVE-2024-133700003"]}, {"vendor": "netsend-project", "product": "netsend", "packageName": "libnetsend", "collectionURL": "https://packages.example-linux.org/libnetsend", "source_cve": ["CVE-2021-133700003", "CVE-2024-133700003"]}]}, {"cpeBaseString": "cpe:2.3:a:utilkit:util-kit:*:*:*:*:*:node.js:*:*", "aliases": [{"vendor": "UtilKit", "product": "util-kit", "packageName": "util-kit", "packageURL": "pkg:npm/util-kit", "collectionURL": "https://registry.example-npm.org/util-kit", "source_cve": ["CVE-2021-133700004", "CVE-2022-133700004", "CVE-2023-133700004", "CVE-2024-133700004", "CVE-2025-133700003"]}, {"vendor": "UtilKit", "product": "util-kit-esm", "packageName": "util-kit-esm", "packageURL": "pkg:npm/util-kit-esm", "source_cve": ["CVE-2021-133700004", "CVE-2022-133700004"]}, {"vendor": "utilkit-project", "product": "util-kit", "packageName": "util-kit-rs", "packageURL": "pkg:cargo/util-kit-rs", "source_cve": ["CVE-2024-133700004", "CVE-2025-133700003"]}]}, {"cpeBaseString": "cpe:2.3:a:packlib:pack-compress:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "PackLib", "product": "pack-compress", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-133700005", "CVE-2023-133700005", "CVE-2024-133700005"]}, {"vendor": "packlib-project", "product": "pack-compress-dev", "repo": "https://github.com/example-org/pack-compress", "source_cve": ["CVE-2022-133700005", "CVE-2023-133700005"]}]}, {"cpeBaseString": "cpe:2.3:a:streamworks:stream-proxy:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "StreamWorks", "product": "stream-proxy", "modules": "proxy_http_core_module", "source_cve": ["CVE-2022-133700006", "CVE-2023-133700006", "CVE-2024-133700006", "CVE-2025-133700004"]}, {"vendor": "streamworks-oss", "product": "stream-proxy-community", "modules": "proxy_stream_core_module", "source_cve": ["CVE-2023-133700006", "CVE-2024-133700006"]}]}, {"cpeBaseString": "cpe:2.3:a:pixelforge:pixel-render:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/pixel.c", "source_cve": ["CVE-2021-133700007", "CVE-2022-133700007", "CVE-2023-133700007"]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/draw.c", "source_cve": ["CVE-2022-133700007", "CVE-2023-133700007", "CVE-2024-133700007"]}, {"vendor": "PixelForge", "product": "pixel-render", "programFiles": "src/render/composite.c", "source_cve": ["CVE-2022-133700007", "CVE-2023-133700007", "CVE-2024-133700007"]}, {"vendor": "pixelforge-project", "product": "pixel-render", "programFiles": "lib/Image.cpp", "source_cve": ["CVE-2025-133700005"]}]}, {"cpeBaseString": "cpe:2.3:a:cachedb:cache-engine:*:*:*:*:*:*:*:*", "aliases": [{"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "dbExprCodeTarget", "source_cve": ["CVE-2021-133700008", "CVE-2022-133700008", "CVE-2023-133700008", "CVE-2024-133700008"]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "dbVdbeExec", "source_cve": ["CVE-2022-133700008", "CVE-2023-133700008"]}, {"vendor": "CacheDB", "product": "cache-engine", "programRoutines": "db_prepare_v2", "source_cve": ["CVE-2022-133700008", "CVE-2023-133700008"]}, {"vendor": "cachedb-consortium", "product": "cache-engine-lite", "programRoutines": "dbBtreeInsert", "source_cve": ["CVE-2024-133700008", "CVE-2025-133700006"]}]}]};  // Used for compatibility and download functions
 
         // ========== DATA MANAGER ==========
         const DataManager = {
@@ -2293,7 +2350,7 @@ body::before {
                 confirmedMapping: [],           // From confirmedMappings array
                 unconfirmedAliases: [],        // From aliasGroups with no data concerns  
                 sourceDataConcernAliases: [],  // From aliasGroups with data quality issues
-                nonActionableAliases: []       // All identity fields absent/placeholder — excluded from alias sections
+                nonActionableAliases: []       // All alias fields absent/placeholder — rendered as a single consolidated group
             },
             
             // Processed data for display
@@ -2429,23 +2486,24 @@ body::before {
                         });
                     });
                     
+                    // Build NVD CPE base strings crosswalk lookup from aliasGroups
+                    // Allows confirmed mapping aliases to display topNvdCpeBaseStrings even if not stored in their JSON
+                    const nvdCpeStringsLookup = new Map();
+                    jsonData.aliasGroups.forEach(mapping => {
+                        mapping.aliases.forEach(alias => {
+                            if (alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0) {
+                                nvdCpeStringsLookup.set(buildAliasDedupKey(alias), alias.topNvdCpeBaseStrings);
+                            }
+                        });
+                    });
+
                     // Process confirmedMappings data if it exists
                     if (jsonData.confirmedMappings) {
                         console.log('Processing confirmedMappings data with', jsonData.confirmedMappings.length, 'mappings');
                         
-                        // Build NVD CPE base strings crosswalk lookup from aliasGroups
-                        // Allows confirmed mapping aliases to display topNvdCpeBaseStrings even if not stored in their JSON
-                        const nvdCpeStringsLookup = new Map();
-                        jsonData.aliasGroups.forEach(mapping => {
-                            mapping.aliases.forEach(alias => {
-                                if (alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0) {
-                                    nvdCpeStringsLookup.set(buildAliasDedupKey(alias), alias.topNvdCpeBaseStrings);
-                                }
-                            });
-                        });
-
-                        // Build confirmed aliases lookup for deduplication
-                        const confirmedAliasesLookup = new Set();
+                        // Build confirmed aliases lookup for deduplication and source_cve merging.
+                        // Map: dedupKey → processedAlias object reference so we can merge CVEs in-place.
+                        const confirmedAliasesLookup = new Map();
                         
                         jsonData.confirmedMappings.forEach((confirmedMapping, index) => {
                             // Handle both cpeBaseString (camelCase) and cpebasestring (lowercase) formats
@@ -2489,8 +2547,8 @@ body::before {
                                 console.log(`Adding confirmed alias to dataset:`, processedAlias.vendor, processedAlias.product, `platform: "${processedAlias.platform || 'N/A'}"`, `cpeBaseString: ${cpeBaseString}`, `concerns: ${concerns.length}`);
                                 processedAliases.push(processedAlias);
                                 
-                                // Add to lookup for deduplication using all cve5Properties fields
-                                confirmedAliasesLookup.add(buildAliasDedupKey(alias));
+                                // Map dedupKey → processedAlias for CVE merging during deduplication
+                                confirmedAliasesLookup.set(buildAliasDedupKey(alias), processedAlias);
                             });
                             
                             // Store as nested structure with CPE base string and processed aliases
@@ -2500,14 +2558,28 @@ body::before {
                             });
                         });
                         
-                        // Deduplicate: Remove aliases from unconfirmed datasets that match confirmed mappings
+                        // Deduplicate unconfirmed datasets: remove aliases that match a confirmed mapping,
+                        // merging their source_cve into the confirmed alias so no CVE assignments are lost.
                         console.log(`Deduplicating aliases using ${confirmedAliasesLookup.size} confirmed mappings...`);
-                        console.log('Sample confirmed keys:', Array.from(confirmedAliasesLookup).slice(0, 5));
                         let dedupeCount = 0;
+
+                        const mergeSourceCve = (confirmedAlias, unconfirmedAlias) => {
+                            const existing = new Set(confirmedAlias.source_cve || []);
+                            (unconfirmedAlias.source_cve || []).forEach(cve => existing.add(cve));
+                            confirmedAlias.source_cve = Array.from(existing);
+                            confirmedAlias.cveCount = confirmedAlias.source_cve.length;
+                            confirmedAlias.uniqueCveCount = confirmedAlias.source_cve.length;
+                            confirmedAlias.hasCveData = confirmedAlias.source_cve.length > 0;
+                            if (confirmedAlias.hasCveData) {
+                                confirmedAlias.aliasGroup = 'Confirmed_Mapping_WithData';
+                            }
+                        };
                         
                         // Check unconfirmedAliases dataset
                         this.datasets.unconfirmedAliases = this.datasets.unconfirmedAliases.filter(alias => {
-                            if (confirmedAliasesLookup.has(buildAliasDedupKey(alias))) {
+                            const confirmedAlias = confirmedAliasesLookup.get(buildAliasDedupKey(alias));
+                            if (confirmedAlias) {
+                                mergeSourceCve(confirmedAlias, alias);
                                 dedupeCount++;
                                 return false; // Remove this alias
                             }
@@ -2516,7 +2588,9 @@ body::before {
 
                         // Check sourceDataConcernAliases dataset
                         this.datasets.sourceDataConcernAliases = this.datasets.sourceDataConcernAliases.filter(alias => {
-                            if (confirmedAliasesLookup.has(buildAliasDedupKey(alias))) {
+                            const confirmedAlias = confirmedAliasesLookup.get(buildAliasDedupKey(alias));
+                            if (confirmedAlias) {
+                                mergeSourceCve(confirmedAlias, alias);
                                 dedupeCount++;
                                 return false; // Remove this alias
                             }
@@ -2646,8 +2720,9 @@ body::before {
                         const aliasItemKey = buildAliasDedupKey(aliasItem);
                         for (const mapping of confirmedData) {
                             if (mapping.cpeBaseString !== cpeBaseString) {
+                                // Check if this alias already exists in a different CPE mapping.
                                 // Use all cve5Properties fields so aliases that differ only by packageName,
-                                // repo, collectionURL, etc. are correctly treated as distinct.
+                                // repo, collectionURL, programFiles, etc. are correctly treated as distinct.
                                 const conflictingAlias = mapping.aliases && mapping.aliases.find(alias =>
                                     buildAliasDedupKey(alias) === aliasItemKey
                                 );
@@ -3095,7 +3170,7 @@ body::before {
                 if (Array.isArray(val) && val.length > 0) return false;
                 // Pipeline now produces scalar strings for these fields (not arrays).
                 // Check scalar values so aliases with only a modules/programFiles/programRoutines
-                // identity field are not incorrectly classified as non-actionable.
+                // alias value are not incorrectly classified as non-actionable.
                 if (typeof val === 'string' && !isPlaceholderValue(val)) return false;
             }
             return true;
@@ -3106,7 +3181,7 @@ body::before {
             
             // ===========================================
             // ALIAS SDC DETECTION (5 GROUPS)
-            // Implements the 5 concern groups applicable to alias identity fields.
+            // Implements the 5 concern groups applicable to alias alias types.
             // Version-field-specific groups from platform_entry_registry.py are not
             // applicable here — alias data does not contain version values.
             // ===========================================
@@ -3624,21 +3699,19 @@ body::before {
             // Reset Filters — returns all filters and text search to their defaults
             clearButton.onclick = function() {
                 filterInput.value = '';
-                document.getElementById('includeConfirmedToggle').classList.remove('active');
                 YearFilter.reset();
                 populateYearFilter();
                 AliasTypeFilter.reset();
                 AliasTypeFilter.compute();
                 renderAliasTypeFilterUI();
+                MappingTypeFilter.init();
+                renderMappingTypeFilterUI();
                 performSearch('');
                 updateFilterActiveSignal();
             };
 
-            // Include Confirmed toggle - group-level filter against confirmed mappings
-            document.getElementById('includeConfirmedToggle').onclick = function() {
-                this.classList.toggle('active');
-                applyFilters();
-            };
+            // Include Confirmed is always enabled — confirmed mappings are always
+            // included in keyword and alias-type filter matching.
         }
 
         /**
@@ -3911,7 +3984,7 @@ body::before {
                 if (!sourceUuid) {
                     throw new Error('Cannot download: No cnaId found in metadata');
                 }
-
+                
                 // Create the full JSON structure
                 const jsonData = {
                     cnaId: sourceUuid,
@@ -4535,6 +4608,7 @@ body::before {
                 aliases.forEach(alias => {
                     const cves = alias.source_cve;
                     if (!cves || cves.length === 0) {
+                        console.warn('[YearFilter] Alias has no source_cve — will appear under "Unknown" year pill:', alias.vendor || '', alias.product || '', alias.platform || '');
                         years.add('Unknown');
                         return;
                     }
@@ -4555,19 +4629,122 @@ body::before {
             reset() {
                 this.availableYears = [];
                 this.activeYears = new Set();
+                expandedYearGroups.clear();
             }
         };
 
         // Year filter applies only to unconfirmed alias sections.
         // Confirmed mappings are always shown when the Include Confirmed toggle is active
         // and are not subject to year filtering — their section is toggled separately.
+        // Non-actionable aliases are year-filtered (type filter does not apply; no alias values).
         function populateYearFilter() {
-            const allUnconfirmed = [
+            // Flatten confirmed mapping aliases (nested structure: [{cpeBaseString, aliases[]}])
+            const confirmedAliases = DataManager.datasets.confirmedMapping.flatMap(m => m.aliases || []);
+            const allAliases = [
                 ...DataManager.datasets.unconfirmedAliases,
-                ...DataManager.datasets.sourceDataConcernAliases
+                ...DataManager.datasets.sourceDataConcernAliases,
+                ...DataManager.datasets.nonActionableAliases,
+                ...confirmedAliases
             ];
-            YearFilter.populate(allUnconfirmed);
+            YearFilter.populate(allAliases);
             renderYearFilterUI();
+        }
+
+        // Tracks which year group labels are currently expanded.
+        // Persists across renderYearFilterUI() re-renders so toggling individual
+        // sub-pills doesn't collapse open groups.
+        const expandedYearGroups = new Set();
+
+        // Builds the group structure for the year filter UI.
+        // Returns an array of { label, years[], isIndividual } objects.
+        // N = most recent numeric year; groups: N (individual), N-1→N-5, N-6→N-10, <N-10.
+        // Single-year groups and Unknown always render as individual pills (no caret).
+        // Empty groups are skipped. Labels reflect CVE ID year prefix ranges.
+        function computeYearGroups(availableYears) {
+            const numericYears = availableYears.filter(y => /^\d{4}$/.test(y));
+            const hasUnknown = availableYears.includes('Unknown');
+
+            if (numericYears.length === 0) {
+                return hasUnknown ? [{ label: 'Unknown', years: ['Unknown'], isIndividual: true }] : [];
+            }
+
+            // Render all years individually when fewer than 7 are present — no grouping needed.
+            if (availableYears.length < 7) {
+                const individual = numericYears.map(y => ({ label: y, years: [y], isIndividual: true }));
+                if (hasUnknown) individual.push({ label: 'Unknown', years: ['Unknown'], isIndividual: true });
+                return individual;
+            }
+
+            const N = parseInt(numericYears[0]); // sorted desc, so [0] is most recent
+            const groups = [];
+
+            // Most recent year is always its own individual pill
+            groups.push({ label: String(N), years: [String(N)], isIndividual: true });
+
+            // Build the three range buckets
+            const buckets = [
+                { years: numericYears.filter(y => { const n = parseInt(y); return n >= N - 5 && n < N; }) },
+                { years: numericYears.filter(y => { const n = parseInt(y); return n >= N - 10 && n < N - 5; }) },
+                { years: numericYears.filter(y => parseInt(y) < N - 10) }
+            ];
+
+            buckets.forEach(bucket => {
+                if (bucket.years.length === 0) return;
+                const nums = bucket.years.map(y => parseInt(y));
+                const min = Math.min(...nums);
+                const max = Math.max(...nums);
+                const label = min === max ? String(min) : `${min}\u2013${max}`;
+                groups.push({
+                    label,
+                    years: bucket.years,       // already sorted desc from availableYears
+                    isIndividual: bucket.years.length === 1
+                });
+            });
+
+            if (hasUnknown) {
+                groups.push({ label: 'Unknown', years: ['Unknown'], isIndividual: true });
+            }
+
+            return groups;
+        }
+
+        // Returns the aggregate active state of a set of years against YearFilter.activeYears.
+        function getGroupState(groupYears) {
+            const activeCount = groupYears.filter(y => YearFilter.activeYears.has(y)).length;
+            if (activeCount === groupYears.length) return 'active';
+            if (activeCount === 0) return 'inactive';
+            return 'partial';
+        }
+
+        // Batch-toggles all years in a group.
+        // active → deactivate all; partial or inactive → activate all.
+        function toggleYearGroup(groupYears) {
+            if (getGroupState(groupYears) === 'active') {
+                groupYears.forEach(y => YearFilter.activeYears.delete(y));
+            } else {
+                groupYears.forEach(y => YearFilter.activeYears.add(y));
+            }
+            renderYearFilterUI();
+            const filterInput = document.getElementById('filterInput');
+            const hasTextFilter = filterInput && filterInput.value.trim().length > 0;
+            if (hasTextFilter) {
+                clearTimeout(_yearFilterTimer);
+                _yearFilterTimer = setTimeout(applyFilters, 50);
+            } else {
+                applyYearFilterDOM();
+            }
+        }
+
+        // DOM-only expand/collapse — no re-render needed.
+        // Closure over wrapperEl is set up inside renderYearFilterUI().
+        function toggleGroupExpand(groupLabel, wrapperEl) {
+            if (expandedYearGroups.has(groupLabel)) {
+                expandedYearGroups.delete(groupLabel);
+            } else {
+                expandedYearGroups.add(groupLabel);
+            }
+            wrapperEl.querySelector('.year-group-pills').classList.toggle('expanded');
+            wrapperEl.querySelector('.year-expand-caret').classList.toggle('expanded');
         }
 
         // ========== ALIAS TYPE FILTER ==========
@@ -4662,6 +4839,15 @@ body::before {
             }
         };
 
+        const MAPPING_CATEGORIES = ['cleanConfirmed', 'confirmedConcerns', 'cleanUnconfirmed', 'unconfirmedConcerns', 'nonActionable'];
+
+        const MappingTypeFilter = {
+            activeCategories: new Set(MAPPING_CATEGORIES),
+            isFilteringActive() { return this.activeCategories.size < MAPPING_CATEGORIES.length; },
+            isActive(cat) { return this.activeCategories.has(cat); },
+            init() { this.activeCategories = new Set(MAPPING_CATEGORIES); }
+        };
+
         function renderAliasTypeFilterUI() {
             const container = document.getElementById('aliasTypePillsContainer');
             const typeFilterEl = document.getElementById('aliasTypeFilter');
@@ -4705,6 +4891,61 @@ body::before {
             }
         }
 
+        function renderMappingTypeFilterUI() {
+            const container = document.getElementById('mappingTypePillsContainer');
+            const mappingTypeRow = document.getElementById('mappingTypeFilter');
+            const aliasTypeFilterEl = document.getElementById('aliasTypeFilter');
+            if (!container || !mappingTypeRow) return;
+
+            // Compute live category counts
+            const confirmedAliases = DataManager.datasets.confirmedMapping.flatMap(m => m.aliases || []);
+            const cleanConfirmedCount = confirmedAliases.filter(a => !(detectSourceDataConcerns(a)?.length > 0)).length;
+            const confirmedConcernsCount = confirmedAliases.filter(a => detectSourceDataConcerns(a)?.length > 0).length;
+            const cleanUnconfirmedCount = DataManager.datasets.unconfirmedAliases.length;
+            const unconfirmedConcernsCount = DataManager.datasets.sourceDataConcernAliases.length;
+            const nonActionableCount = DataManager.datasets.nonActionableAliases.length;
+
+            const categories = [
+                { key: 'cleanConfirmed',      label: 'Clean Confirmed',         color: '#10B981', count: cleanConfirmedCount },
+                { key: 'confirmedConcerns',   label: 'Confirmed w/ Concerns',   color: '#6A9E8A', count: confirmedConcernsCount },
+                { key: 'cleanUnconfirmed',    label: 'Clean Unconfirmed',       color: '#FBBF24', count: cleanUnconfirmedCount },
+                { key: 'unconfirmedConcerns', label: 'Unconfirmed w/ Concerns', color: '#D4902A', count: unconfirmedConcernsCount },
+                { key: 'nonActionable',       label: 'Non-Actionable',          color: '#9CA3AF', count: nonActionableCount }
+            ];
+
+            container.innerHTML = '';
+            let pillsRendered = 0;
+            categories.forEach(({ key, label, count }) => {
+                if (count === 0) return;
+                const pill = document.createElement('button');
+                pill.type = 'button';
+                pill.className = `filter-pill ${MappingTypeFilter.isActive(key) ? 'active' : 'inactive'}`;
+                pill.textContent = `${label} (${count})`;
+                pill.dataset.category = key;
+                pill.addEventListener('click', () => toggleMappingTypePill(key));
+                container.appendChild(pill);
+                pillsRendered++;
+            });
+
+            if (pillsRendered > 0) {
+                mappingTypeRow.style.display = 'flex';
+                if (aliasTypeFilterEl) aliasTypeFilterEl.classList.add('connected');
+            } else {
+                mappingTypeRow.style.display = 'none';
+                if (aliasTypeFilterEl) aliasTypeFilterEl.classList.remove('connected');
+            }
+        }
+
+        function toggleMappingTypePill(cat) {
+            if (MappingTypeFilter.activeCategories.has(cat)) {
+                MappingTypeFilter.activeCategories.delete(cat);
+            } else {
+                MappingTypeFilter.activeCategories.add(cat);
+            }
+            renderMappingTypeFilterUI();
+            applyFilters();
+        }
+
         function renderYearFilterUI() {
             const container = document.getElementById('yearPillsContainer');
             const yearFilterEl = document.getElementById('yearFilter');
@@ -4718,14 +4959,54 @@ body::before {
             }
 
             container.innerHTML = '';
-            YearFilter.availableYears.forEach(year => {
-                const pill = document.createElement('button');
-                pill.type = 'button';
-                pill.className = `filter-pill ${YearFilter.activeYears.has(year) ? 'active' : 'inactive'}`;
-                pill.textContent = year;
-                pill.dataset.year = year;
-                pill.addEventListener('click', () => toggleYearPill(year));
-                container.appendChild(pill);
+            const groups = computeYearGroups(YearFilter.availableYears);
+            groups.forEach(group => {
+                if (group.isIndividual) {
+                    const pill = document.createElement('button');
+                    pill.type = 'button';
+                    pill.className = `filter-pill ${YearFilter.activeYears.has(group.years[0]) ? 'active' : 'inactive'}`;
+                    pill.textContent = group.label;
+                    pill.dataset.year = group.years[0];
+                    if (group.years[0] === 'Unknown') {
+                        pill.title = 'One or more aliases have no CVE year data assigned.';
+                    }
+                    pill.addEventListener('click', () => toggleYearPill(group.years[0]));
+                    container.appendChild(pill);
+                } else {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'year-group-wrapper';
+
+                    const groupPill = document.createElement('button');
+                    groupPill.type = 'button';
+                    groupPill.className = `filter-pill ${getGroupState(group.years)}`;
+                    groupPill.textContent = group.label;
+                    groupPill.title = group.years.join(', ');
+                    groupPill.addEventListener('click', () => toggleYearGroup(group.years));
+
+                    const caret = document.createElement('button');
+                    caret.type = 'button';
+                    caret.className = `year-expand-caret${expandedYearGroups.has(group.label) ? ' expanded' : ''}`;
+                    caret.textContent = '\u25be';
+                    caret.setAttribute('aria-label', 'Show individual years');
+                    caret.addEventListener('click', () => toggleGroupExpand(group.label, wrapper));
+
+                    const subPills = document.createElement('div');
+                    subPills.className = `filter-pills-container year-group-pills${expandedYearGroups.has(group.label) ? ' expanded' : ''}`;
+                    group.years.forEach(year => {
+                        const subPill = document.createElement('button');
+                        subPill.type = 'button';
+                        subPill.className = `filter-pill ${YearFilter.activeYears.has(year) ? 'active' : 'inactive'}`;
+                        subPill.textContent = year;
+                        subPill.dataset.year = year;
+                        subPill.addEventListener('click', () => toggleYearPill(year));
+                        subPills.appendChild(subPill);
+                    });
+
+                    wrapper.appendChild(groupPill);
+                    wrapper.appendChild(caret);
+                    wrapper.appendChild(subPills);
+                    container.appendChild(wrapper);
+                }
             });
 
             yearFilterEl.style.display = 'flex';
@@ -4747,6 +5028,16 @@ body::before {
                 el.style.display = visible ? '' : 'none';
                 if (section === 'unconfirmed' && visible) visibleUnconfirmed++;
                 if (section === 'concern' && visible) visibleConcern++;
+            });
+            let visibleNonActionable = 0;
+            document.querySelectorAll('.alias-group[data-section="non-actionable"]').forEach(el => {
+                let visible = true;
+                if (yearFilterActive) {
+                    const years = el.dataset.years ? el.dataset.years.split(' ') : [];
+                    visible = years.some(y => YearFilter.activeYears.has(y));
+                }
+                el.style.display = visible ? '' : 'none';
+                if (visible) visibleNonActionable++;
             });
             const unconfirmedTitle = document.getElementById('unconfirmed-section-title');
             if (unconfirmedTitle) {
@@ -4826,14 +5117,16 @@ body::before {
             const textFilterActive = searchText.length > 0;
             const yearFilterActive = YearFilter.isFilteringActive();
             const typeFilterActive = AliasTypeFilter.isFilteringActive();
-            const anyFilterActive = textFilterActive || yearFilterActive || typeFilterActive;
+            const mappingFilterActive = MappingTypeFilter.isFilteringActive();
+            const anyFilterActive = textFilterActive || yearFilterActive || typeFilterActive || mappingFilterActive;
 
             // Totals from raw DataManager datasets (never change with filtering)
             const totalUnconfirmed = DataManager.datasets.unconfirmedAliases.length;
             const totalConcern = DataManager.datasets.sourceDataConcernAliases.length;
+            const totalConfirmed = DataManager.datasets.confirmedMapping.reduce((n, g) => n + (g.aliases ? g.aliases.length : 0), 0);
 
-            // Confirmed: group-level filter when Include Confirmed toggle is active
-            const includeConfirmed = document.getElementById('includeConfirmedToggle')?.classList.contains('active');
+            // Confirmed: always included in keyword and alias-type filtering
+            const includeConfirmed = true;
             let confirmedGroups = DataManager.datasets.confirmedMapping;
             let autoExpandConfirmed = false;
 
@@ -4851,7 +5144,7 @@ body::before {
             }
 
             // Flatten confirmed groups for display
-            const confirmedFlat = confirmedGroups.flatMap(g =>
+            let confirmedFlat = confirmedGroups.flatMap(g =>
                 g.aliases.map(a => ({ ...a, cpeBaseString: g.cpeBaseString }))
             );
 
@@ -4877,6 +5170,17 @@ body::before {
             if (typeFilterActive) {
                 unconfirmedAliases = unconfirmedAliases.filter(a => AliasTypeFilter.matchesAlias(a));
                 concernAliases = concernAliases.filter(a => AliasTypeFilter.matchesAlias(a));
+            }
+
+            // Apply mapping type filter
+            if (mappingFilterActive) {
+                confirmedFlat = confirmedFlat.filter(alias => {
+                    const hasConcerns = detectSourceDataConcerns(alias)?.length > 0;
+                    return hasConcerns ? MappingTypeFilter.isActive('confirmedConcerns')
+                                      : MappingTypeFilter.isActive('cleanConfirmed');
+                });
+                if (!MappingTypeFilter.isActive('cleanUnconfirmed'))    unconfirmedAliases = [];
+                if (!MappingTypeFilter.isActive('unconfirmedConcerns')) concernAliases = [];
             }
 
             // Sort helpers
@@ -4906,8 +5210,9 @@ body::before {
             allConcerningAliases = concernData;
 
             // Pass totals only when a filter is active so section headers show X / Total
-            displayAliasesByFrequency(mainData, anyFilterActive ? totalUnconfirmed : null, autoExpandConfirmed);
+            displayAliasesByFrequency(mainData, anyFilterActive ? totalUnconfirmed : null, autoExpandConfirmed, anyFilterActive ? totalConfirmed : null);
             displaySourceDataConcerns(concernData, anyFilterActive ? totalConcern : null);
+            displayNonActionableSection();
             refreshChartsFromFilters();
         }
 
@@ -5142,7 +5447,7 @@ body::before {
          */
         function renderAliasBreakdownChart() {
             try {
-                const { confirmed: confirmedAliases, unconfirmed: unconfirmedAliases, concern: concernAliases } = getFilteredPerDataset();
+                const { confirmed: confirmedAliases, unconfirmed: unconfirmedAliases, concern: concernAliases, nonActionable: filteredNa } = getFilteredPerDataset();
                 const confConcernCount = confirmedAliases.filter(a => {
                     const c = detectSourceDataConcerns(a);
                     return c && c.length > 0;
@@ -5152,7 +5457,7 @@ body::before {
                 const confConcerns   = Math.min(confConcernCount, confirmedAliases.length);
                 const unconfClean    = unconfirmedAliases.length;
                 const unconfConc     = concernAliases.length;
-                const nonActionable  = DataManager.datasets.nonActionableAliases.length;
+                const nonActionable  = filteredNa.length;
                 const total          = confClean + confConcerns + unconfClean + unconfConc + nonActionable;
 
                 // Coverage: confirmed ÷ (confirmed + actionable unconfirmed)
@@ -5225,36 +5530,59 @@ body::before {
 
         /**
          * Get per-dataset aliases filtered by currently active year/type pills.
-         * Returns { confirmed, unconfirmed, concern } each as a filtered array.
+         * Returns { confirmed, unconfirmed, concern, nonActionable } each as a filtered array.
+         * Note: type filter does not apply to non-actionable (no alias values to filter on);
+         * only the year filter is applied to that dataset.
          */
         function getFilteredPerDataset() {
             const confirmed   = DataManager.getDataset('confirmedMapping');
             const unconfirmed = DataManager.getDataset('unconfirmedAliases');
             const concern     = DataManager.getDataset('sourceDataConcernAliases');
+            const na          = DataManager.datasets.nonActionableAliases;
             const yearActive  = YearFilter.isFilteringActive();
             const typeActive  = AliasTypeFilter.isFilteringActive();
-            if (!yearActive && !typeActive) {
-                return { confirmed, unconfirmed, concern };
+            if (!yearActive && !typeActive && !MappingTypeFilter.isFilteringActive()) {
+                return { confirmed, unconfirmed, concern, nonActionable: na };
             }
             const keep = alias => {
                 if (yearActive && !YearFilter.matchesAlias(alias)) return false;
                 if (typeActive && !AliasTypeFilter.matchesAlias(alias)) return false;
                 return true;
             };
+            // Non-actionable: year filter only (type filter is orthogonal to this category)
+            const keepNa = alias => !yearActive || YearFilter.matchesAlias(alias);
+            let filteredConfirmed  = confirmed.filter(keep);
+            let filteredUnconfirmed = unconfirmed.filter(keep);
+            let filteredConcern    = concern.filter(keep);
+            let filteredNa         = na.filter(keepNa);
+            const mappingActive = MappingTypeFilter.isFilteringActive();
+            if (mappingActive) {
+                filteredConfirmed = filteredConfirmed.filter(alias => {
+                    const hasConcerns = detectSourceDataConcerns(alias)?.length > 0;
+                    return hasConcerns ? MappingTypeFilter.isActive('confirmedConcerns')
+                                      : MappingTypeFilter.isActive('cleanConfirmed');
+                });
+                if (!MappingTypeFilter.isActive('cleanUnconfirmed'))    filteredUnconfirmed = [];
+                if (!MappingTypeFilter.isActive('unconfirmedConcerns')) filteredConcern = [];
+                if (!MappingTypeFilter.isActive('nonActionable'))       filteredNa = [];
+            }
             return {
-                confirmed:   confirmed.filter(keep),
-                unconfirmed: unconfirmed.filter(keep),
-                concern:     concern.filter(keep)
+                confirmed:     filteredConfirmed,
+                unconfirmed:   filteredUnconfirmed,
+                concern:       filteredConcern,
+                nonActionable: filteredNa
             };
         }
 
         /**
          * Get all aliases from all datasets filtered by current Year and AliasType pills.
          * Text filter is intentionally excluded — these charts show aggregate pill-filtered views.
+         * Non-actionable aliases are included so CVE-year and alias-type charts reflect them
+         * (NA entries have no type fields so they contribute 0 to the type chart).
          */
         function getFilteredAliases() {
-            const { confirmed, unconfirmed, concern } = getFilteredPerDataset();
-            return [...confirmed, ...unconfirmed, ...concern];
+            const { confirmed, unconfirmed, concern, nonActionable } = getFilteredPerDataset();
+            return [...confirmed, ...unconfirmed, ...concern, ...nonActionable];
         }
 
         /**
@@ -5263,22 +5591,20 @@ body::before {
         function renderCveYearChart() {
             try {
                 const aliases = getFilteredAliases();
+                // Count each year once per alias (deduplicated)
                 const yearCountsDeduped = {};
                 aliases.forEach(alias => {
                     const seen = new Set();
                     (alias.source_cve || []).forEach(cve => {
                         const m = cve.match(/CVE-(\d{4})-/);
-                        if (!m) return; // skip non-standard / unknown
-                        const yr = m[1];
-                        // Respect active year pills: skip years that are filtered out
-                        if (YearFilter.isFilteringActive() && !YearFilter.activeYears.has(yr)) return;
-                        if (!seen.has(yr)) {
-                            seen.add(yr);
-                            yearCountsDeduped[yr] = (yearCountsDeduped[yr] || 0) + 1;
+                        if (!m) return;
+                        if (!seen.has(m[1])) {
+                            seen.add(m[1]);
+                            yearCountsDeduped[m[1]] = (yearCountsDeduped[m[1]] || 0) + 1;
                         }
                     });
                 });
-                // top-15 by count, then sort ascending (oldest left → newest right)
+                // Sort ascending (oldest left → newest right), top-15 by count but preserving year order
                 const topPairs = Object.entries(yearCountsDeduped)
                     .sort((a, b) => b[1] - a[1])
                     .slice(0, 15);
@@ -5383,14 +5709,15 @@ body::before {
          * Called whenever year or alias-type pills change without a full data reload.
          */
         function refreshChartsFromFilters() {
-            const filtered = getFilteredAliases();
-            const aliasCount = filtered.length + DataManager.datasets.nonActionableAliases.length;
+            const { confirmed, unconfirmed, concern, nonActionable: filteredNa } = getFilteredPerDataset();
+            const naPatternCount = filteredNa.length;
+            const aliasCount = confirmed.length + unconfirmed.length + concern.length + naPatternCount;
             const totalEl = document.getElementById('totalAliases');
-            // Non-actionable aliases are always shown in the donut but not filterable — always add their count
             if (totalEl) totalEl.textContent = aliasCount;
-            // Compute CVE set from filtered aliases
+            // Compute CVE set from all filtered datasets including NA
             const cveSet = new Set();
-            filtered.forEach(a => (a.source_cve || []).forEach(c => cveSet.add(c)));
+            [...confirmed, ...unconfirmed, ...concern, ...filteredNa]
+                .forEach(a => (a.source_cve || []).forEach(c => cveSet.add(c)));
             const cveCount = cveSet.size;
             const totalCVEsEl = document.getElementById('totalCVEs');
             if (totalCVEsEl) totalCVEsEl.textContent = cveCount;
@@ -5408,13 +5735,15 @@ body::before {
          * when any CVE year or alias type pill filter is active.
          */
         function updateFilterActiveSignal() {
-            const isActive = YearFilter.isFilteringActive() || AliasTypeFilter.isFilteringActive();
+            const isActive = YearFilter.isFilteringActive() || AliasTypeFilter.isFilteringActive() || MappingTypeFilter.isFilteringActive();
             const statsGrid = document.getElementById('statsGrid');
             const yearFilter = document.getElementById('yearFilter');
             const aliasTypeFilter = document.getElementById('aliasTypeFilter');
+            const mappingTypeFilterEl = document.getElementById('mappingTypeFilter');
             if (statsGrid) statsGrid.classList.toggle('filters-active', isActive);
             if (yearFilter) yearFilter.classList.toggle('filters-active', isActive);
             if (aliasTypeFilter) aliasTypeFilter.classList.toggle('filters-active', isActive);
+            if (mappingTypeFilterEl) mappingTypeFilterEl.classList.toggle('filters-active', isActive);
         }
 
         /**
@@ -5484,7 +5813,7 @@ body::before {
                 updateCoverageTooltip(datasetCounts, totalAliases, confirmedMappingCoverage);
                 updateConcernTooltip(confirmedConcernData);
                 updateExternalConcernTooltip(externalConcernData);
-                
+
                 // Render alias breakdown donut chart and filter-responsive charts
                 renderAliasBreakdownChart();
                 renderCveYearChart();
@@ -5522,6 +5851,10 @@ body::before {
                 AliasTypeFilter.reset();
                 AliasTypeFilter.compute();
                 renderAliasTypeFilterUI();
+
+                // Build mapping type filter
+                MappingTypeFilter.init();
+                renderMappingTypeFilterUI();
 
                 // Initialize text filter system
                 initializeFilter();
@@ -5596,7 +5929,7 @@ body::before {
         }
 
 
-        function displayAliasesByFrequency(sortedAliases, totalUnconfirmedCount = null, autoExpandConfirmed = false) {
+        function displayAliasesByFrequency(sortedAliases, totalUnconfirmedCount = null, autoExpandConfirmed = false, totalConfirmedCount = null) {
             const container = document.getElementById('aliasGroups');
             container.innerHTML = '';
 
@@ -5628,7 +5961,7 @@ body::before {
             // Create sections - confirmed mappings first (grouped by CPE), then consolidated others
             const sections = [];
             
-            if (confirmedMappings.length > 0) {
+            if (confirmedMappings.length > 0 || totalConfirmedCount !== null) {
                 // Group confirmed mappings by CPE base string
                 const cpeGroups = {};
                 confirmedMappings.forEach((alias) => {
@@ -5643,9 +5976,13 @@ body::before {
                     cpeGroups[cpeKey].push(alias);
                 });
                 
+                const confirmedTitle = totalConfirmedCount !== null
+                    ? `Confirmed Mappings (${confirmedMappings.length} / ${totalConfirmedCount} aliases)`
+                    : `Confirmed Mappings (${confirmedMappings.length} aliases)`;
+
                 // Add a single parent section for all confirmed mappings
                 sections.push({
-                    title: `Confirmed Mappings (${confirmedMappings.length} aliases)`, 
+                    title: confirmedTitle,
                     aliases: [], // Will be rendered as CPE groups 
                     priority: 'confirmed-parent',
                     collapsed: !autoExpandConfirmed,
@@ -5665,7 +6002,7 @@ body::before {
                     aliases: otherAliases, 
                     priority: 'unconfirmed',
                     collapsed: false,
-                    description: 'Alias sets identified from source that are not currently mapped to a CPE Match String'
+                    description: 'Alias sets that are not currently mapped to a CPE Match String'
                 });
             }
 
@@ -6103,6 +6440,162 @@ body::before {
             });
         }
 
+        // Human-readable labels for naPatternFields keys.
+        const NA_FIELD_LABELS = {
+            vendor: 'Vendor', product: 'Product', platform: 'Platform',
+            packageName: 'Package Name', packageURL: 'Package URL',
+            collectionURL: 'Collection URL', repo: 'Repository',
+            programFiles: 'Program Files', programRoutines: 'Program Routines', modules: 'Modules'
+        };
+
+        /**
+         * Render the Non-Actionable Alias Sets section.
+         * Each distinct placeholder pattern is shown as its own expandable card with its
+         * specific field values and associated CVEs. Display only — no confirm modal interaction.
+         * CPE string assignments are not applicable here.
+         */
+        function displayNonActionableSection() {
+            const container = document.getElementById('nonActionableGroups');
+            container.innerHTML = '';
+
+            const naAliases = DataManager.datasets.nonActionableAliases;
+            if (naAliases.length === 0) return;
+
+            if (MappingTypeFilter.isFilteringActive() && !MappingTypeFilter.isActive('nonActionable')) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const patternCount = naAliases.length;
+            const yearActive = YearFilter.isFilteringActive();
+
+            // Build per-pattern filtered CVE lists; skip patterns with 0 CVEs under current filter.
+            // Aliases with empty source_cve are treated as 'Unknown' year: kept when yearActive=false
+            // or when 'Unknown' is in the active year set.
+            const patternItems = naAliases.map(alias => {
+                const rawCves = alias.source_cve || [];
+                if (rawCves.length === 0) {
+                    // No CVE data — belongs to 'Unknown' bucket
+                    const keep = !yearActive || YearFilter.activeYears.has('Unknown');
+                    return { alias, cves: [], keepEmpty: keep };
+                }
+                const cves = yearActive
+                    ? rawCves.filter(cve => {
+                          const m = cve.match(/CVE-(\d{4})-/);
+                          return YearFilter.activeYears.has(m ? m[1] : 'Unknown');
+                      })
+                    : rawCves.slice();
+                return { alias, cves, keepEmpty: false };
+            }).filter(item => item.keepEmpty || item.cves.length > 0);
+
+            if (patternItems.length === 0) return;
+
+            // Section header
+            const sectionHeader = document.createElement('div');
+            sectionHeader.className = 'aliases-section-header gradient-green';
+            sectionHeader.innerHTML = `
+                <div class="section-header-flex">
+                    <div style="text-align: left; flex: 1;">
+                        <span style="font-weight: 600;">Non-Actionable Alias Sets (${patternCount})</span>
+                        <div style="font-size: 0.8em; opacity: 0.9; margin-top: 1px;">Alias sets where every alias type is absent or contains a placeholder value</div>
+                    </div>
+                    <span id="non-actionable-toggle" class="collapsible-toggle" style="font-size: 1.1em; flex-shrink: 0;">&#9660;</span>
+                </div>
+            `;
+            sectionHeader.addEventListener('click', () => {
+                const content = document.getElementById('non-actionable-content');
+                const toggle  = document.getElementById('non-actionable-toggle');
+                const isCollapsed = content.classList.contains('collapsed');
+                if (isCollapsed) {
+                    content.classList.remove('collapsed');
+                    toggle.textContent = '\u25BC';
+                    toggle.classList.add('rotated');
+                } else {
+                    content.classList.add('collapsed');
+                    toggle.textContent = '\u25B6';
+                    toggle.classList.remove('rotated');
+                }
+            });
+            container.appendChild(sectionHeader);
+
+            const sectionContainer = document.createElement('div');
+            sectionContainer.id = 'non-actionable-content';
+            sectionContainer.className = 'aliases-section-container collapsible-content';
+
+            // One card per distinct NA pattern — display only, no confirm/select interaction.
+            patternItems.forEach(({ alias, cves }, idx) => {
+                const fields = alias.naPatternFields || {};
+                const fieldParts = Object.entries(fields).map(([k, v]) => {
+                    const label = NA_FIELD_LABELS[k] || k;
+                    return `<span style="color:#9CA3AF;font-size:0.85em;"><strong style="color:#6B7280;">${label}:</strong> ${String(v)}</span>`;
+                });
+                const fieldDisplay = fieldParts.length > 0
+                    ? fieldParts.join('<span style="color:#D1D5DB;margin:0 4px;">|</span>')
+                    : '<span style="color:#9CA3AF;font-size:0.85em;font-style:italic;">No alias values recorded</span>';
+
+                const aliasDiv = document.createElement('div');
+                aliasDiv.className = 'alias-group';
+                aliasDiv.style.cssText = 'margin:0;border:none;border-radius:0;background:#ffffff;';
+                // Stamp for applyYearFilterDOM DOM-path filtering
+                const _nay = [...new Set((alias.source_cve || []).map(c => { const m = c.match(/CVE-(\d{4})-/); return m ? m[1] : 'Unknown'; }))];
+                aliasDiv.dataset.years = _nay.length ? _nay.join(' ') : 'Unknown';
+                aliasDiv.dataset.section = 'non-actionable';
+
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'alias-group-header';
+                headerDiv.style.padding = '20px';
+                headerDiv.innerHTML = `
+                    <div class="alias-header">
+                        <div class="flex-between gap-10">
+                            <div class="flex-start">
+                                <div class="flex-1">
+                                    <div class="flex-center mb-6">
+                                        <span class="alias-title" style="color:#6B7280;">Non-Actionable Pattern ${idx + 1}</span>
+                                    </div>
+                                    <div class="alias-properties">${fieldDisplay}</div>
+                                </div>
+                            </div>
+                            <div class="flex-center flex-shrink-0 pt-2">
+                                <span class="cve-count">${cves.length} CVE${cves.length !== 1 ? 's' : ''}</span>
+                                <div class="expand-caret">&#9660;</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                const detailsDiv = document.createElement('div');
+                detailsDiv.className = 'alias-details';
+                const cveGroups    = groupCvesByYear(cves);
+                const cveGroupsHtml = generateCveGroupsHtml(cveGroups);
+                detailsDiv.innerHTML = `
+                    <div class="alias-item" style="margin:0;">
+                        <div style="margin-bottom:8px;"><strong>CVE References by Year:</strong></div>
+                        <div class="cve-year-groups">${cveGroupsHtml}</div>
+                    </div>
+                `;
+
+                headerDiv.addEventListener('click', () => {
+                    const isExpanded = detailsDiv.classList.contains('expanded');
+                    const caret = headerDiv.querySelector('.expand-caret');
+                    if (isExpanded) {
+                        detailsDiv.classList.remove('expanded');
+                        headerDiv.classList.remove('expanded');
+                        if (caret) caret.classList.remove('rotated');
+                    } else {
+                        detailsDiv.classList.add('expanded');
+                        headerDiv.classList.add('expanded');
+                        if (caret) caret.classList.add('rotated');
+                    }
+                });
+
+                aliasDiv.appendChild(headerDiv);
+                aliasDiv.appendChild(detailsDiv);
+                sectionContainer.appendChild(aliasDiv);
+            });
+
+            container.appendChild(sectionContainer);
+        }
+
         function displaySourceDataConcerns(concerningAliases, totalConcernCount = null) {
             const container = document.getElementById('sourceDataConcernGroups');
             container.innerHTML = '';
@@ -6136,7 +6629,7 @@ body::before {
                 <div class="section-header-flex">
                     <div style="text-align: left; flex: 1;">
                         <span style="font-weight: 600;">${concernTitle}</span>
-                        <div style="font-size: 0.8em; opacity: 0.9; margin-top: 1px;">Alias sets identified from source, containing possible data concerns, that are not currently mapped to a CPE Match String</div>
+                        <div style="font-size: 0.8em; opacity: 0.9; margin-top: 1px;">Alias sets containing possible data concerns, that are not currently mapped to a CPE Match String</div>
                     </div>
                     <span id="${toggleId}-toggle" class="collapsible-toggle" style="font-size: 1.1em; flex-shrink: 0;">▼</span>
                 </div>
@@ -6402,7 +6895,7 @@ body::before {
         // Alias Selection and Consolidation Functions
         let selectedAliases = new Set();
         let currentAliasData = null;
-        let currentConsolidatedData = null; // Store the raw consolidated data
+        let currentConsolidatedData = null;  // Store the raw consolidated data
         let fieldSelections = new Map();     // Map<entryIndex, Set<fieldName>> — active field selections in modal
         let aliasEntryMap = new Map();        // Map<selectionKey, entryIndices[]> — which entries belong to each alias
 
@@ -6491,11 +6984,7 @@ body::before {
                 }
                 
                 if (alias) {
-                    aliasTitle = alias.vendor && alias.product ? 
-                        `${alias.vendor} ${alias.product}` :
-                        alias.product || alias.vendor || 
-                        alias.packageName || alias.programFiles || 
-                        alias.aliasGroup || 'Unknown Alias';
+                    aliasTitle = getAliasDisplayTitle(alias, 0);
                 } else {
                     aliasTitle = `Unknown Alias (ID: ${aliasId})`;
                 }
@@ -6717,7 +7206,7 @@ body::before {
                 if (mapping.cpeBaseString === cpeBaseString && mapping.aliases) {
                     // Add all aliases from this mapping
                     mapping.aliases.forEach(alias => {
-                        // Build clean alias: vendor/product + cve5Properties identifier fields.
+                        // Build clean alias: CPE attribute fields + cve5Properties identifier fields.
                         // cpes is intentionally excluded — not an alias identifier.
                         const cleanAlias = {};
 

@@ -26,8 +26,7 @@ Recommended Usage:
     # Low-level usage - convenience functions for lookups (no initialization needed)
     from .nvd_source_manager import get_source_name, get_source_info
     
-    source_name = get_source_name('some-uuid')
-    source_info = get_source_info('some-uuid')
+    # Both functions accept any source identifier - email address OR UUID
 
 Architecture:
     get_or_refresh_source_manager() orchestrates:
@@ -40,7 +39,7 @@ Architecture:
 
 from typing import Dict, Any, Optional, List
 import pandas as pd
-import re
+import uuid as _uuid_mod
 import os
 import time
 import json
@@ -228,9 +227,18 @@ class GlobalNVDSourceManager:
             
             seen_names.add(org_name)
             
-            # Use first identifier as canonical ID for this organization
+            # Key by UUID when available; fall back to the first identifier otherwise.
             if isinstance(source_identifiers, list) and source_identifiers:
-                canonical_id = source_identifiers[0]
+                canonical_id = None
+                for identifier in source_identifiers:
+                    try:
+                        _uuid_mod.UUID(identifier)
+                        canonical_id = identifier
+                        break
+                    except ValueError:
+                        continue
+                if canonical_id is None:
+                    canonical_id = source_identifiers[0]
                 unique_orgs[canonical_id] = org_name
         
         return unique_orgs
@@ -277,16 +285,12 @@ class GlobalNVDSourceManager:
             # Validate source data before caching
             source_data_to_cache = self._source_data
             try:
-                # Import schema validation at function level to avoid circular imports
-                import sys
-                sys.path.insert(0, str(Path(__file__).parent.parent))
-                from analysis_tool.core.schema_validator import validate_source_data
-                from analysis_tool.core.gatherData import load_schema
-                
+                from ..core.schema_validator import validate_source_data
+                from ..core.gatherData import load_schema
+
                 # Validate the raw source data before processing
                 if self._source_data is not None and len(self._source_data) > 0:
                     source_schema = load_schema('nvd_source_2_0')
-                    # Convert first record to dict for validation (schema validates single records)
                     sample_record = self._source_data.iloc[0].to_dict()
                     validate_source_data({'sources': [sample_record]}, source_schema)
             except Exception as validation_error:
@@ -470,6 +474,46 @@ class GlobalNVDSourceManager:
         """Get the path to the current cache file, if any"""
         return self._cache_file_path
 
+    def get_canonical_uuid(self, source_id: str) -> str:
+        """
+        Return the canonical UUID for any source identifier (email, UUID, or other).
+
+        Looks up the identifier in the source database and returns the first UUID
+        found in that source's sourceIdentifiers list. Falls back to the original
+        identifier with a warning if no UUID is resolvable.
+
+        Args:
+            source_id: Any source identifier — UUID, email, or other form.
+
+        Returns:
+            str: The canonical UUID, or source_id unchanged if no UUID can be determined.
+        """
+        if not self._initialized:
+            raise RuntimeError("NVD Source Manager not initialized — call initialize() first")
+
+        source_info = self._source_lookup.get(source_id)
+        if source_info:
+            for identifier in source_info.get('sourceIdentifiers', []):
+                try:
+                    _uuid_mod.UUID(identifier)
+                    return identifier
+                except ValueError:
+                    continue
+            # Known source but no UUID identifier (e.g. nvd@nist.gov)
+            logger.warning(
+                f"Source '{source_id}' has no UUID identifier in sourceIdentifiers — "
+                f"using identifier as-is",
+                group="data_processing"
+            )
+            return source_id
+
+        # Source not in NVD source cache at all
+        logger.warning(
+            f"Source '{source_id}' not found in NVD source data — using identifier as-is",
+            group="data_processing"
+        )
+        return source_id
+
 
 def get_global_source_manager():
     """Get the global source manager instance"""
@@ -498,6 +542,11 @@ def get_source_info(source_id: str) -> Optional[Dict[str, Any]]:
 def get_all_sources_for_cve(used_source_ids: List[str]) -> List[Dict[str, Any]]:
     """Convenience function to get all sources for a CVE"""
     return get_global_source_manager().get_all_sources_for_cve(used_source_ids)
+
+
+def get_canonical_uuid(source_id: str) -> str:
+    """Convenience function to get the canonical UUID for any source identifier"""
+    return get_global_source_manager().get_canonical_uuid(source_id)
 
 
 # Cache management convenience functions

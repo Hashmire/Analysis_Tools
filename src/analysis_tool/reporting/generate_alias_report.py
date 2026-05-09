@@ -58,6 +58,7 @@ from typing import Dict, List, Optional, Tuple
 # CRITICAL IMPORTS - must succeed or script fails
 from ..logging.workflow_logger import get_logger
 from ..storage.run_organization import get_analysis_tools_root
+from ..storage.nvd_source_manager import get_canonical_uuid
 from ..core.platform_entry_registry import (
     GENERAL_PLACEHOLDER_VALUES,
     ALL_TEXT_COMPARATOR_PATTERNS,
@@ -89,24 +90,17 @@ def generate_alias_html_report(report_data: Dict, output_path: Path, report_temp
     with open(report_template_path, 'r', encoding='utf-8') as f:
         template_html = f.read()
     
-    # Escape and prepare the JSON data for injection
     json_data = json.dumps(report_data, ensure_ascii=False)
-    
-    # Replace the null declaration with actual data
-    # The template has: let currentData = null;
-    # We replace it with: let currentData = {actual_data};
     
     null_declaration = "let currentData = null;"
     
     if null_declaration in template_html:
-        # Replace the null initialization with actual data
         data_declaration = f"let currentData = {json_data};"
         html_output = template_html.replace(null_declaration, data_declaration, 1)
     else:
-        # Fallback: Look for <script> tag and inject after it
+        # Fallback: inject after the opening <script> tag
         script_pos = template_html.find('<script>')
         if script_pos != -1:
-            # Find end of opening script tag
             script_end = template_html.find('>', script_pos)
             if script_end != -1:
                 data_script = f"\n        // Injected data from Alias Extraction report\n        let currentData = {json_data};\n"
@@ -116,14 +110,10 @@ def generate_alias_html_report(report_data: Dict, output_path: Path, report_temp
         else:
             raise RuntimeError("Could not find injection point in report template")
     
-    # Fix CSS path to be relative to reports directory
     html_output = html_output.replace('href="../css/alias_mapping_dashboard.css"', 'href="css/alias_mapping_dashboard.css"')
     html_output = html_output.replace("href='../css/alias_mapping_dashboard.css'", "href='css/alias_mapping_dashboard.css'")
-    
-    # Replace version placeholder with actual version
     html_output = html_output.replace('{{TOOL_VERSION}}', tool_version)
     
-    # Write the generated HTML
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(html_output)
 
@@ -148,27 +138,18 @@ def generate_alias_index_html(index_data: Dict, output_path: Path, index_templat
     
     for source in index_data['sources']:
         source_copy = source.copy()
-        # Replace JSON filename with HTML filename
-        json_filename = source['report_file']
-        html_filename = json_filename.replace('.json', '.html')
-        source_copy['report_file'] = html_filename
+        source_copy['report_file'] = source['report_file'].replace('.json', '.html')
         modified_index['sources'].append(source_copy)
     
-    # Escape and prepare the JSON data for injection
     json_data = json.dumps(modified_index, ensure_ascii=False)
-    
-    # Replace the null declaration with actual data
-    # The template has: let dashboardData = null;
-    # We replace it with: let dashboardData = {actual_data};
     
     null_declaration = "let dashboardData = null;"
     
     if null_declaration in template_html:
-        # Replace the null initialization with actual data
         data_declaration = f"let dashboardData = {json_data};"
         html_output = template_html.replace(null_declaration, data_declaration, 1)
     else:
-        # Fallback: Look for document.addEventListener and inject before it
+        # Fallback: inject before DOMContentLoaded listener
         dom_ready_marker = "document.addEventListener('DOMContentLoaded', function()"
         
         if dom_ready_marker in template_html:
@@ -226,6 +207,14 @@ class AliasReportBuilder:
         })
         self._cve_nvd_cpe_strings: Dict[str, set] = {}
         self._cve_suggested_cpe_strings: Dict[str, set] = {}
+
+        # Non-actionable platform-entry tracking: aliasExtraction present but empty
+        # (All alias values were not provided or placeholder values). Buffered here and merged in
+        # finalize() so non_actionable statistics are counted per org.
+        # Structure: {org_name: {'no_alias_data': {'cve_ids': set, 'source_ids': set}}}
+        self._non_actionable_pending: Dict[str, Dict[str, Dict]] = defaultdict(
+            lambda: defaultdict(lambda: {'cve_ids': set(), 'source_ids': set()})
+        )
     
     def add_cve_aliases(self, cve_id: str, entries: List[Dict], nvd_cpe_set: Optional[set] = None) -> None:
         """
@@ -242,15 +231,14 @@ class AliasReportBuilder:
         self._cve_nvd_cpe_strings[cve_id] = nvd_cpe_set or set()
         self._cve_suggested_cpe_strings[cve_id] = set()
         entries_by_org = defaultdict(list)
-        org_source_ids = {}
         
         for entry in entries:
             origin = entry.get('originAffectedEntry', {})
             source_id = origin.get('sourceId', 'unknown_source')
             org_name = self._resolve_source_name(source_id)
-            
-            alias_extraction = entry.get('aliasExtraction', {})
-            aliases = alias_extraction.get('aliases', [])
+
+            alias_extraction = entry.get('aliasExtraction')
+            aliases = alias_extraction.get('aliases', []) if isinstance(alias_extraction, dict) else []
             sdc_data = entry.get('sourceDataConcerns', {})
             
             for suggestion in entry.get('cpeDetermination', {}).get('top10SuggestedCPEBaseStrings', []):
@@ -265,10 +253,16 @@ class AliasReportBuilder:
                     'source_id': source_id,
                     'sdc_concerns': sdc_data.get('concerns', {})
                 })
-                
-                if org_name not in org_source_ids:
-                    org_source_ids[org_name] = set()
-                org_source_ids[org_name].add(source_id)
+            elif alias_extraction is not None:
+                # aliasExtraction present but empty — no alias was extracted.
+                na_key = 'no_alias_data'
+                canonical_id = (
+                    get_canonical_uuid(source_id)
+                    if self.source_manager and self.source_manager.is_initialized()
+                    else source_id
+                )
+                self._non_actionable_pending[org_name][na_key]['cve_ids'].add(cve_id)
+                self._non_actionable_pending[org_name][na_key]['source_ids'].add(canonical_id)
         
         for org_name, source_entries in entries_by_org.items():
             source_data = self.sources[org_name]
@@ -283,6 +277,13 @@ class AliasReportBuilder:
                         alias_with_tracking = dict(alias)
                         alias_with_tracking['source_cve'] = [cve_id]
                         alias_with_tracking['_sdc_concerns'] = self._extract_alias_concerns(alias, sdc_concerns)
+                        if _is_alias_non_actionable(alias):
+                            _na_id_fields = ('vendor', 'product', 'platform', 'packageName',
+                                             'packageURL', 'collectionURL', 'repo')
+                            alias_with_tracking['naPatternFields'] = {
+                                f: alias[f] for f in _na_id_fields
+                                if f in alias and alias[f] is not None
+                            }
                         source_data['all_alias_data'][alias_key] = alias_with_tracking
                     else:
                         existing_cves = source_data['all_alias_data'][alias_key].get('source_cve', [])
@@ -297,7 +298,8 @@ class AliasReportBuilder:
                 yr['cves'] += 1
             
             for entry_data in source_entries:
-                source_data['source_ids'].add(entry_data['source_id'])
+                canonical_id = get_canonical_uuid(entry_data['source_id']) if self.source_manager and self.source_manager.is_initialized() else entry_data['source_id']
+                source_data['source_ids'].add(canonical_id)
         
         if entries_by_org:
             self.global_metadata['total_cves_processed'] += 1
@@ -318,33 +320,6 @@ class AliasReportBuilder:
                 return info.get('name', source_id)
         
         return source_id
-    
-    def _select_uuid_identifier(self, source_ids: set) -> str:
-        """
-        Select the UUID identifier from a set of source identifiers.
-        
-        Prioritizes UUID format over email addresses for use as cnaId.
-        UUIDs match the pattern: 8-4-4-4-12 hexadecimal characters.
-        
-        Args:
-            source_ids: Set of source identifiers (UUIDs and/or emails)
-            
-        Returns:
-            UUID identifier if found, otherwise the first identifier from sorted list
-        """
-        import re
-        
-        # UUID pattern: 8-4-4-4-12 hexadecimal characters
-        uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
-        
-        # Try to find a UUID
-        for identifier in source_ids:
-            if uuid_pattern.match(identifier):
-                return identifier
-        
-        # Fallback to sorted list (deterministic selection)
-        sorted_ids = sorted(list(source_ids))
-        return sorted_ids[0] if sorted_ids else 'unknown'
     
     def _generate_alias_key(self, alias: Dict) -> str:
         """
@@ -411,6 +386,9 @@ class AliasReportBuilder:
     def finalize(self) -> Dict[str, Dict]:
         """
         Build final per-source report structures.
+
+        Merges buffered non-actionable entries into each established source's alias data,
+        then promotes pure-placeholder-only sources that were never added to self.sources.
         
         Returns:
             Dictionary mapping source_id to report data: {source_id: {metadata: {}, aliasGroups: [], confirmedMappings: []}}
@@ -419,20 +397,44 @@ class AliasReportBuilder:
         per_source_reports = {}
         
         for org_name, source_info in self.sources.items():
+            # Merge buffered non-actionable entries for this org.
+            if org_name in self._non_actionable_pending:
+                for na_key, na_data in self._non_actionable_pending[org_name].items():
+                    if na_key not in source_info['all_alias_data']:
+                        source_info['all_alias_data'][na_key] = {
+                            'source_cve': list(na_data['cve_ids']),
+                            'naPatternFields': {},
+                        }
+                    else:
+                        existing = source_info['all_alias_data'][na_key]
+                        for cve_id in na_data['cve_ids']:
+                            if cve_id not in existing.get('source_cve', []):
+                                existing.setdefault('source_cve', []).append(cve_id)
+                    source_info['source_ids'].update(na_data['source_ids'])
+
+                    # Count CVEs that only produced non-actionable entries.
+                    for cve_id in na_data['cve_ids']:
+                        if cve_id not in source_info['cve_ids']:
+                            source_info['cve_ids'].add(cve_id)
+                            source_info['metadata']['total_cves_processed'] += 1
+                            cve_year = cve_id.split('-')[1] if cve_id.count('-') >= 2 else 'unknown'
+                            source_info['by_year'].setdefault(cve_year, {'cves': 0})['cves'] += 1
+
             # Group aliases by property pattern for this organization
             consolidated_groups = {}
             
+            _GROUPING_EXCLUDE = {'source_cve', 'naPatternFields'}
             for alias_data in source_info['all_alias_data'].values():
                 # Create grouping key based on property TYPES (not values)
                 property_types = []
                 for key_field in sorted(alias_data.keys()):
-                    if key_field != 'source_cve':
+                    if key_field not in _GROUPING_EXCLUDE:
                         if isinstance(alias_data[key_field], list):
                             property_types.append(f"{key_field}({len(alias_data[key_field])})")
                         else:
                             property_types.append(key_field)
                 
-                group_key = "_".join(property_types) if property_types else "unknown_properties"
+                group_key = "_".join(property_types) if property_types else "no_identity_non_actionable"
                 
                 if group_key not in consolidated_groups:
                     consolidated_groups[group_key] = []
@@ -442,12 +444,18 @@ class AliasReportBuilder:
             # Create alias groups
             alias_groups = []
             for group_key, aliases in consolidated_groups.items():
+                if group_key == 'no_identity_non_actionable':
+                    # Non-actionable group: CPE strings not applicable; sort by CVE count desc.
+                    aliases.sort(key=lambda x: len(x.get('source_cve', [])), reverse=True)
+                    for alias in aliases:
+                        alias['topNvdCpeBaseStrings'] = []
+                    alias_groups.append({'aliasGroup': group_key, 'aliases': aliases})
+                    continue
+
                 # Sort aliases by CVE count (most referenced first)
                 aliases.sort(key=lambda x: len(x.get('source_cve', [])), reverse=True)
 
-                # Compute topNvdCpeBaseStrings per-alias (not per-group).
-                # Each alias sees only the CPE base strings assigned by NVD to its own CVEs,
-                # so counts can never exceed that alias's CVE count.
+                # Compute topNvdCpeBaseStrings per-alias from that alias's own CVE set.
                 for alias in aliases:
                     alias_cve_ids = set(alias.get('source_cve', []))
                     cpe_counter: Counter = Counter()
@@ -462,12 +470,16 @@ class AliasReportBuilder:
                     ]
 
                 alias_groups.append({
-                    'alias_group': group_key,
+                    'aliasGroup': group_key,
                     'aliases': aliases,
                 })
             
-            # Sort alias groups by total alias count (largest first)
-            alias_groups.sort(key=lambda group: -len(group['aliases']))
+            # Sort alias groups by total alias count (largest first), keeping
+            # no_identity_non_actionable at the end regardless of CVE count.
+            alias_groups.sort(key=lambda group: (
+                group['aliasGroup'] == 'no_identity_non_actionable',
+                -len(group['aliases'])
+            ))
             
             # Load confirmed mappings for all source identifiers of this organization
             confirmed_mappings = []
@@ -479,9 +491,7 @@ class AliasReportBuilder:
                     "Manager should have been initialized at entry point."
                 )
             
-            # Use pre-loaded mapping manager (O(1) lookup).
-            # Also capture the cnaId from the existing file to guarantee consistency
-            # on re-export (avoids UUID drift when a source has multiple identifiers).
+            # Capture cnaId from existing file to preserve consistency across re-exports.
             existing_cna_id = None
             for src_id in source_info['source_ids']:
                 mapping_info = self.mapping_manager.get_mapping_info(src_id)
@@ -490,20 +500,14 @@ class AliasReportBuilder:
                     existing_cna_id = mapping_info['cnaId']
                     break  # Use first found
 
-            # Pre-compute per-year alias statistics from alias source_cve membership.
-            # Each deduplicated alias tracks every CVE it appears on via source_cve[].
-            # Iterating those CVE IDs gives year membership; sets per year prevent
-            # double-counting alias keys that span multiple CVEs within the same year.
-            #
-            # confirmed_keys is derived from the confirmed_mappings loaded above, matching
-            # the same logic used in calculate_alias_statistics() for the full-source totals.
+            # Build per-year alias statistics. Sets prevent double-counting alias keys
+            # that appear on multiple CVEs within the same year.
             confirmed_keys_full: set = set()
             for mapping in confirmed_mappings:
                 for alias in mapping.get('aliases', []):
                     confirmed_keys_full.add(_build_alias_dedup_key(alias))
 
-            # Compute per-group confirmed coverage counts.
-            # confirmed: ALL aliases in the group have a confirmed CPE mapping.
+            # A group is confirmed only when every alias in it has a confirmed mapping.
             alias_groups_confirmed = 0
             for group in alias_groups:
                 group_keys = {_build_alias_dedup_key(a) for a in group.get('aliases', [])}
@@ -513,7 +517,6 @@ class AliasReportBuilder:
 
             by_year: Dict[str, Dict] = source_info.get('by_year', {})
 
-            # Group alias keys and their concern flags by year
             alias_keys_by_year: Dict[str, set] = {}
             confirmed_by_year: Dict[str, set] = {}
             confirmed_with_concerns_by_year: Dict[str, set] = {}
@@ -563,25 +566,15 @@ class AliasReportBuilder:
                 )
                 by_year[year]['non_actionable_count'] = non_actionable_count_yr
 
-            # Build organization metadata - use UUID as primary identifier for cnaId compatibility.
-            import re as _re
-            _uuid_pattern = _re.compile(
-                r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', _re.IGNORECASE
-            )
-            primary_identifier = self._select_uuid_identifier(source_info['source_ids']) if source_info['source_ids'] else org_name
-            if not _uuid_pattern.match(primary_identifier):
-                logger.warning(
-                    f"Source '{org_name}' has no UUID identifier — every source must have one. "
-                    f"Using fallback identifier: '{primary_identifier}'",
-                    group="ALIAS_REPORT"
-                )
+            # Build organization metadata - UUID preferred as primary identifier for cnaId compatibility.
+            primary_identifier = sorted(list(source_info['source_ids']))[0] if source_info['source_ids'] else org_name
 
             metadata = {
-                'source_id': primary_identifier,  # Primary identifier - UUID preferred for cnaId
-                'target_uuid': primary_identifier,  # Dashboard compatibility - must be UUID for cnaId
-                'confirmed_cna_id': existing_cna_id,  # cnaId from existing mapping file; None if no file loaded
+                'source_id': primary_identifier,
+                'target_uuid': primary_identifier,
+                'confirmed_cna_id': existing_cna_id,
                 'source_name': org_name,
-                'all_source_identifiers': sorted(list(source_info['source_ids'])),  # All identifiers for transparency
+                'all_source_identifiers': sorted(list(source_info['source_ids'])),
                 'extraction_timestamp': timestamp,
                 'run_started_at': self.global_metadata['run_started_at'],
                 'total_cves_processed': source_info['metadata']['total_cves_processed'],
@@ -599,7 +592,102 @@ class AliasReportBuilder:
                 'aliasGroups': alias_groups,
                 'confirmedMappings': confirmed_mappings
             }
-        
+
+        # Promote sources that only appear in _non_actionable_pending (never in self.sources)
+        # so they still receive a report entry with non-actionable statistics.
+        for org_name, na_entries in self._non_actionable_pending.items():
+            if org_name in self.sources:
+                continue  # Already processed in the main loop above
+
+            na_alias_data: Dict = {}
+            na_source_ids: set = set()
+            na_cve_ids: set = set()
+            for na_key, na_data in na_entries.items():
+                na_alias_data[na_key] = {
+                    'source_cve': sorted(na_data['cve_ids']),
+                    'naPatternFields': {},
+                }
+                na_source_ids.update(na_data['source_ids'])
+                na_cve_ids.update(na_data['cve_ids'])
+
+            na_cves_by_year: Dict[str, set] = {}
+            na_alias_keys_by_year: Dict[str, set] = {}
+            na_non_actionable_by_year: Dict[str, set] = {}
+            for alias_key, alias_data in na_alias_data.items():
+                for cve_id in alias_data['source_cve']:
+                    year = cve_id.split('-')[1] if cve_id.count('-') >= 2 else 'unknown'
+                    na_cves_by_year.setdefault(year, set()).add(cve_id)
+                    na_alias_keys_by_year.setdefault(year, set()).add(alias_key)
+                    na_non_actionable_by_year.setdefault(year, set()).add(alias_key)
+
+            na_by_year: Dict[str, Dict] = {}
+            for year, alias_key_set in na_alias_keys_by_year.items():
+                na_by_year[year] = {
+                    'cves': len(na_cves_by_year.get(year, set())),
+                    'unique_aliases': len(alias_key_set),
+                    'confirmed_count': 0,
+                    'confirmed_coverage_pct': 0.0,
+                    'confirmed_with_concerns_count': 0,
+                    'confirmed_with_concerns_pct': 0.0,
+                    'unconfirmed_count': 0,
+                    'unconfirmed_with_concerns_count': 0,
+                    'unconfirmed_with_concerns_pct': 0.0,
+                    'non_actionable_count': len(na_non_actionable_by_year.get(year, set())),
+                }
+
+            # Build alias groups — each distinct NA pattern is its own display entry.
+            na_consolidated: Dict = {}
+            _NA_GROUPING_EXCLUDE = {'source_cve', 'naPatternFields'}
+            for alias_data in na_alias_data.values():
+                property_types = [
+                    (f"{k}({len(alias_data[k])})" if isinstance(alias_data[k], list) else k)
+                    for k in sorted(alias_data.keys()) if k not in _NA_GROUPING_EXCLUDE
+                ]
+                group_key = '_'.join(property_types) if property_types else 'no_identity_non_actionable'
+                na_consolidated.setdefault(group_key, []).append(alias_data)
+
+            na_alias_groups = []
+            for group_key, aliases in na_consolidated.items():
+                aliases.sort(key=lambda x: len(x.get('source_cve', [])), reverse=True)
+                for alias in aliases:
+                    alias['topNvdCpeBaseStrings'] = []
+                na_alias_groups.append({'aliasGroup': group_key, 'aliases': aliases})
+
+            na_confirmed_mappings = []
+            na_existing_cna_id = None
+            for src_id in na_source_ids:
+                mapping_info = self.mapping_manager.get_mapping_info(src_id)
+                if mapping_info:
+                    na_confirmed_mappings.extend(mapping_info['mappings'])
+                    na_existing_cna_id = mapping_info['cnaId']
+                    break
+
+            na_primary_id = sorted(list(na_source_ids))[0] if na_source_ids else org_name
+
+            na_metadata = {
+                'source_id': na_primary_id,
+                'target_uuid': na_primary_id,
+                'confirmed_cna_id': na_existing_cna_id,
+                'source_name': org_name,
+                'all_source_identifiers': sorted(list(na_source_ids)),
+                'extraction_timestamp': timestamp,
+                'run_started_at': self.global_metadata['run_started_at'],
+                'total_cves_processed': len(na_cve_ids),
+                'unique_aliases_extracted': len(na_alias_data),
+                'alias_groups_confirmed': 0,
+                'extraction_source': 'Analysis_Tools_NVDish_Cache_Scanner',
+                'tool_version': __version__,
+                'curator_compatibility': True,
+                'status': 'completed',
+                'by_year': na_by_year,
+            }
+
+            per_source_reports[org_name] = {
+                'metadata': na_metadata,
+                'aliasGroups': na_alias_groups,
+                'confirmedMappings': na_confirmed_mappings,
+            }
+
         # Update global metadata
         self.global_metadata['total_sources'] = len(per_source_reports)
         self.global_metadata['last_updated'] = timestamp
@@ -613,13 +701,9 @@ def _extract_nvd_cpe_base_strings(configurations: list) -> set:
     Extract and normalize NVD-assigned CPE base strings from a record's configurations.
 
     Iterates configurations → nodes → cpeMatch entries where vulnerable is True.
-    Normalizes each criteria string to a CPE base string by wildcarding only the
-    VERSION (component index 5) and UPDATE (component index 6) attributes, while
-    preserving all other attributes (part, vendor, product, edition, language,
-    sw_edition, target_sw, target_hw, other).
-
-    Criteria strings that do not conform to the CPE 2.3 format (exactly 13
-    colon-separated components) are skipped.
+    Normalizes to a base string by wildcarding the version (index 5) and update (index 6)
+    components while preserving all others. Skips entries that don't conform to CPE 2.3
+    format (exactly 13 colon-separated components).
 
     Args:
         configurations: The 'configurations' list from an NVD-ish record
@@ -657,9 +741,8 @@ def scan_nvd_ish_cache(cache_dir: Path) -> List[Path]:
         Sorted list of Path objects for JSON files
         
     Note:
-        Unlike SDC report, we can't pre-filter by source at file level
-        because aliases can come from any source. Must scan all files and
-        filter during extraction.
+        Source-level pre-filtering is not possible here; aliases from any source
+        may appear in any file. Filtering is applied during extraction.
     """
     json_files = []
     
@@ -709,14 +792,14 @@ def extract_aliases_from_record(
         
         # Filter entries by source UUID if specified
         if source_uuid_filter:
+            from ..storage.nvd_source_manager import get_canonical_uuid as _get_canonical_uuid
             filtered_entries = []
             for entry in entries:
                 origin = entry.get('originAffectedEntry', {})
                 source_id = origin.get('sourceId', '')
-                
-                if source_id == source_uuid_filter:
+                if source_id and _get_canonical_uuid(source_id) == source_uuid_filter:
                     filtered_entries.append(entry)
-            
+
             return cve_id, filtered_entries, nvd_cpe_set
         
         return cve_id, entries, nvd_cpe_set
@@ -734,10 +817,9 @@ def extract_aliases_from_record(
 def _has_alias_concerns(alias: dict) -> bool:
     """
     Check if an alias has data quality concerns.
-    
-    Optimized for boolean detection - returns immediately upon finding first concern.
-    Uses imported constants from platform_entry_registry.py (single source of truth).
-    Matches JavaScript detectSourceDataConcerns and Python SDC detection.
+
+    Returns immediately upon finding the first concern.
+    Uses constants from platform_entry_registry.py, matching JavaScript detectSourceDataConcerns.
     
     Args:
         alias: Alias dictionary with field values
@@ -747,11 +829,9 @@ def _has_alias_concerns(alias: dict) -> bool:
     """
     import re
     
-    # === REGEX PATTERNS (inline for compatibility with imported text patterns) ===
     VALID_VERSION_PATTERN = re.compile(r'^(\*|[a-zA-Z0-9]+[-*_:.+()~a-zA-Z0-9]*)$')
     INVALID_CHARS_FINDER = re.compile(r'[^a-zA-Z0-9\-*_:.+()~]')
     
-    # === FIELD LISTS (matching JavaScript aliasFields / identifierFields) ===
     # URL fields (collectionURL, packageURL, repo) are exempt from invalidCharacters check.
     alias_fields = ['vendor', 'product', 'platform', 'packageName', 'collectionURL', 'packageURL', 'repo']
     identifier_fields = ['vendor', 'product', 'platform', 'packageName']
@@ -763,42 +843,32 @@ def _has_alias_concerns(alias: dict) -> bool:
         
         field_lower = field_value.lower().strip()
         
-        # === 1. PLACEHOLDER DETECTION (using imported is_placeholder_value) ===
         if is_placeholder_value(field_lower):
             return True
         
-        # === 2. WHITESPACE ISSUES ===
-        if field_value != field_value.lstrip():
-            return True
-        if field_value != field_value.rstrip():
-            return True
-        if '  ' in field_value:
+        # Whitespace issues
+        if field_value != field_value.lstrip() or field_value != field_value.rstrip() or '  ' in field_value:
             return True
         
-        # === 3. TEXT COMPARATOR DETECTION (using imported ALL_TEXT_COMPARATOR_PATTERNS) ===
+        # Text comparator patterns (version range language)
         for comparator in ALL_TEXT_COMPARATOR_PATTERNS:
             if comparator.lower() in field_lower:
                 return True
-        
-        # Hyphenated version range detection (using imported TEXT_COMPARATOR_REGEX_PATTERNS)
         for regex_pattern in TEXT_COMPARATOR_REGEX_PATTERNS:
             if regex_pattern['pattern'].search(field_value):
                 return True
         
-        # === 4. INVALID CHARACTER DETECTION (identifier fields only) ===
-        # URL fields intentionally excluded: collectionURL, packageURL, repo contain '/' by design.
+        # Invalid characters (URL fields excluded — '/' is expected in URLs)
         if field_name in identifier_fields:
             if not VALID_VERSION_PATTERN.match(field_value) and field_value != '*':
                 invalid_chars = INVALID_CHARS_FINDER.findall(field_value)
                 if invalid_chars:
                     return True
     
-    # === 5. BLOAT TEXT DETECTION (vendor redundancy) ===
+    # Bloat text: vendor name embedded in product or packageName
     vendor = alias.get('vendor', '')
     if vendor and isinstance(vendor, str) and vendor.strip():
         vendor_lower = vendor.lower().strip()
-        
-        # Skip if vendor is a placeholder (using imported is_placeholder_value)
         if not is_placeholder_value(vendor_lower):
             product = alias.get('product', '')
             if product and isinstance(product, str):
@@ -817,30 +887,24 @@ def _has_alias_concerns(alias: dict) -> bool:
 
 def _is_alias_non_actionable(alias: dict) -> bool:
     """
-    Determine whether an alias is entirely non-actionable (all identity fields are absent
-    or placeholder values).  Non-actionable aliases cannot be confirmed or unconfirmed in
-    any meaningful sense and must be excluded from the confirmed-mapping coverage denominator.
+    Return True only when every alias value is absent or a placeholder value.
 
-    Checks all 10 identity fields produced by _create_alias_data():
-      - 7 string fields: vendor, product, platform, packageName, packageURL,
-        collectionURL, repo
-      - 3 list fields: programRoutines, programFiles, modules
-
-    The 'cpes' field is NVD reference data and is intentionally NOT checked here.
+    Checks the 7 string fields and 3 list fields produced by _create_alias_data().
+    'cpes' is NVD reference data and is intentionally excluded.
 
     Args:
         alias: Alias dictionary (may contain source_cve / _sdc_concerns tracking fields)
 
     Returns:
-        True only when EVERY identity field is absent or a placeholder value.
+        True when no actionable identity information is present.
     """
-    # String identity fields — placeholder if absent, None, empty, 0, or in GENERAL_PLACEHOLDER_VALUES
+    # String alias types
     for field in ('vendor', 'product', 'platform', 'packageName', 'packageURL', 'collectionURL', 'repo'):
         value = alias.get(field)
         if not is_placeholder_value(value):
             return False
 
-    # List identity fields — any non-empty list means the alias is actionable
+    # List alias types — any non-empty list means the alias is actionable
     for field in ('programRoutines', 'programFiles', 'modules'):
         if alias.get(field):  # truthy: non-empty list
             return False
@@ -852,11 +916,8 @@ def _build_alias_dedup_key(alias: dict) -> str:
     """
     Build a canonical deduplication key from all alias properties.
 
-    Matches the JavaScript buildAliasDedupKey() logic in the template:
-    - Excludes metadata-only fields (source_cve, _sdc_concerns)
-    - Sorts fields alphabetically
-    - Lowercases all values
-    - Joins with '||'
+    Matches JavaScript buildAliasDedupKey(): excludes metadata fields, sorts alphabetically,
+    lowercases all values, joins with '||'.
 
     Args:
         alias: Alias dictionary (may contain source_cve / _sdc_concerns tracking fields)
@@ -864,7 +925,7 @@ def _build_alias_dedup_key(alias: dict) -> str:
     Returns:
         Deduplication key string
     """
-    _exclude = {'source_cve', '_sdc_concerns', 'cpes'}
+    _exclude = {'source_cve', '_sdc_concerns', 'cpes', 'topNvdCpeBaseStrings', 'naPatternFields'}
     key_parts = []
     for field in sorted(alias.keys()):
         if field not in _exclude:
@@ -900,12 +961,14 @@ def calculate_alias_statistics(report_data: dict) -> dict:
 
     unconfirmed_aliases = []
     unconfirmed_keys = set()
+    alias_data_by_key: dict = {}
 
     for group in alias_groups:
         for alias in group.get('aliases', []):
             key = _build_alias_dedup_key(alias)
             unconfirmed_aliases.append(alias)
             unconfirmed_keys.add(key)
+            alias_data_by_key[key] = alias  # NVD-ish alias with _sdc_concerns
 
     confirmed_aliases = []
     confirmed_keys = set()
@@ -920,36 +983,33 @@ def calculate_alias_statistics(report_data: dict) -> dict:
 
     confirmed_count = len(confirmed_aliases)
 
+    # Check concerns via NVD-ish aliases (carry _sdc_concerns) rather than
+    # mapping-file aliases (which would incorrectly trigger the invalid-char check).
     confirmed_with_concerns = 0
-    for alias in confirmed_aliases:
-        if _has_alias_concerns(alias):
+    for key in confirmed_keys:
+        nvd_ish_alias = alias_data_by_key.get(key)
+        if nvd_ish_alias and bool(nvd_ish_alias.get('_sdc_concerns')):
             confirmed_with_concerns += 1
 
-    # Split unconfirmed aliases into actionable vs non-actionable.
-    # Non-actionable aliases (all identity fields absent or placeholder) are tracked
-    # separately and excluded from the coverage denominator so that sources with full
-    # confirmed coverage can actually reach 100%.
+    # Non-actionable aliases are excluded from the coverage denominator.
     unconfirmed_count = 0
     unconfirmed_with_concerns = 0
     non_actionable_count = 0
-    seen_non_actionable_keys = set()
 
     for alias in unconfirmed_aliases:
         key = _build_alias_dedup_key(alias)
         if key not in actual_unconfirmed_keys:
             continue
         if _is_alias_non_actionable(alias):
-            if key not in seen_non_actionable_keys:
-                non_actionable_count += 1
-                seen_non_actionable_keys.add(key)
+            non_actionable_count += 1
         else:
             unconfirmed_count += 1
             if _has_alias_concerns(alias):
                 unconfirmed_with_concerns += 1
 
-    # total_unique_aliases = all buckets (confirmed + actionable unconfirmed + non-actionable)
-    total_aliases = confirmed_count + unconfirmed_count + non_actionable_count
-    # Coverage denominator excludes non-actionable aliases
+    # total_unique_aliases counts only actionable aliases (confirmed + unconfirmed).
+    # non_actionable_count is tracked separately and excluded from the coverage denominator.
+    total_aliases = confirmed_count + unconfirmed_count
     coverage_denominator = confirmed_count + unconfirmed_count
     confirmed_coverage_pct = (confirmed_count / coverage_denominator * 100) if coverage_denominator > 0 else 0
     confirmed_with_concerns_pct = (confirmed_with_concerns / confirmed_count * 100) if confirmed_count > 0 else 0
@@ -1091,10 +1151,19 @@ def generate_report(
             entry.get('aliasExtraction', {}).get('aliases', [])
             for entry in entries
         )
-        
-        if has_aliases:
+        # Also detect entries where aliasExtraction was processed but produced no aliases
+        # (all-placeholder platform entries).  These must reach add_cve_aliases() so their
+        # non-actionable counts can be buffered for established sources.
+        has_na_entries = not has_aliases and any(
+            entry.get('aliasExtraction') is not None
+            and not entry.get('aliasExtraction', {}).get('aliases', [])
+            for entry in entries
+        )
+
+        if has_aliases or has_na_entries:
             builder.add_cve_aliases(cve_id, entries, nvd_cpe_set)
-            aliases_found_count += 1
+            if has_aliases:
+                aliases_found_count += 1
         
         processed_count += 1
         
@@ -1432,61 +1501,14 @@ def validate_report_statistics(index_file: Path, reports_dir: Path) -> dict:
             with open(report_file, 'r', encoding='utf-8') as f:
                 report = json.load(f)
             
-            unconfirmed_aliases = []
-            unconfirmed_keys = set()
-            for group in report.get('aliasGroups', []):
-                for alias in group.get('aliases', []):
-                    key = _build_alias_dedup_key(alias)
-                    unconfirmed_aliases.append(alias)
-                    unconfirmed_keys.add(key)
+            stats = calculate_alias_statistics(report)
+            total_aliases         = stats['total_unique_aliases']
+            coverage_pct          = stats['confirmed_coverage_pct']
+            confirmed_count       = stats['confirmed_count']
+            confirmed_with_concerns   = stats['confirmed_with_concerns_count']
+            unconfirmed_with_concerns = stats['unconfirmed_with_concerns_count']
+            non_actionable_count  = stats['non_actionable_count']
 
-            confirmed_aliases = []
-            confirmed_keys = set()
-            for mapping in report.get('confirmedMappings', []):
-                for alias in mapping.get('aliases', []):
-                    key = _build_alias_dedup_key(alias)
-                    confirmed_aliases.append(alias)
-                    confirmed_keys.add(key)
-
-            actual_unconfirmed_keys = unconfirmed_keys - confirmed_keys
-
-            # Count unconfirmed that are ACTUALLY unconfirmed, splitting actionable vs non-actionable
-            unconfirmed_count = 0
-            non_actionable_count = 0
-            seen_na_keys: set = set()
-            for alias in unconfirmed_aliases:
-                key = _build_alias_dedup_key(alias)
-                if key not in actual_unconfirmed_keys:
-                    continue
-                if _is_alias_non_actionable(alias):
-                    if key not in seen_na_keys:
-                        non_actionable_count += 1
-                        seen_na_keys.add(key)
-                else:
-                    unconfirmed_count += 1
-
-            # Calculate totals and coverage (denominator excludes non-actionable)
-            confirmed_count = len(confirmed_aliases)
-            total_aliases = confirmed_count + unconfirmed_count + non_actionable_count
-            coverage_denominator = confirmed_count + unconfirmed_count
-            coverage_pct = round((confirmed_count / coverage_denominator * 100), 1) if coverage_denominator > 0 else 0
-            
-            # Count concerns using centralized detection logic from module-level helper
-            confirmed_with_concerns = 0
-            for mapping in report.get('confirmedMappings', []):
-                for alias in mapping.get('aliases', []):
-                    if _has_alias_concerns(alias):
-                        confirmed_with_concerns += 1
-            
-            unconfirmed_with_concerns = 0
-            for group in report.get('aliasGroups', []):
-                for alias in group.get('aliases', []):
-                    key = _build_alias_dedup_key(alias)
-
-                    if key in actual_unconfirmed_keys and not _is_alias_non_actionable(alias):
-                        if _has_alias_concerns(alias):
-                            unconfirmed_with_concerns += 1
-            
             # Compare with index values
             source_matched = True
 

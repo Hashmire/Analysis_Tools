@@ -49,10 +49,10 @@ class UnifiedSourceManager:
                     continue
                 
                 # ONLY PROCESS UUID KEYS - Skip email addresses and other non-UUID identifiers
-                # UUID pattern: 8-4-4-4-12 hexadecimal characters separated by hyphens
-                import re
-                uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-                if not re.match(uuid_pattern, source_id, re.IGNORECASE):
+                import uuid as _uuid_mod
+                try:
+                    _uuid_mod.UUID(source_id)
+                except ValueError:
                     continue  # Skip non-UUID keys (emails, etc.)
                     
                 # Skip if we've already processed this UUID

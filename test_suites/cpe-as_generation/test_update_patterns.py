@@ -702,27 +702,6 @@ def test_device_pack_term_group():
 
 def test_kb_exclusion_patterns():
     """Test that KB (Knowledge Base) patterns are properly excluded from transformation."""
-    print(f"\n  � KB Exclusion Patterns - Complete Coverage:")
-    
-    # Test cases that should be EXCLUDED (return None)
-    exclusion_test_cases = [
-        ("kb4601315", "EXCLUDED"),                   # Standalone KB numbers
-        ("KB4601315", "EXCLUDED"), 
-        ("windows10.0-kb4601315", "EXCLUDED"),       # KB with various prefixes  
-        ("windows10.0 kb4601315", "EXCLUDED"),
-        ("windows10.0 KB4601315", "EXCLUDED"),
-        ("server2019-kb1234567", "EXCLUDED"),
-        ("office365-kb7890123", "EXCLUDED"),
-        ("system.kb.123", "EXCLUDED"),               # Various separator patterns
-        ("app_kb_456", "EXCLUDED"),
-        ("product_kb789", "EXCLUDED"), 
-        ("some.version.kb123", "EXCLUDED"),          # Critical case that used to fall back to beta
-        ("someapp-kb999999", "EXCLUDED"),
-        ("system kb 123456", "EXCLUDED"),
-    ]
-    
-def test_kb_exclusion_patterns():
-    """Test that KB (Knowledge Base) patterns are properly excluded from transformation."""
     print(f"\n   KB Exclusion Patterns - Complete Coverage:")
     
     # Test cases that should be EXCLUDED (return None)

@@ -126,6 +126,8 @@ class SDCReportBuilder:
             concerns = sdc.get('concerns', {})
             
             source_id = origin.get('sourceId', 'Unknown')
+            if self.source_manager and self.source_manager.is_initialized():
+                source_id = self.source_manager.get_canonical_uuid(source_id)
             
             if concerns:  # Entry has concerns
                 entries_by_source[source_id]['entries'].append((idx, entry, concerns))

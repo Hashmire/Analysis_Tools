@@ -212,7 +212,10 @@ class ConfirmedMappingManager:
         if not self._initialized:
             raise RuntimeError("Confirmed mapping manager not initialized - call initialize() first")
         
-        return self._mapping_lookup.get(source_id)
+        mapping_record = self._mapping_lookup.get(source_id)
+        if mapping_record:
+            self._files_used.add(mapping_record['file'])
+        return mapping_record
     
     def has_mappings(self, source_id: str) -> bool:
         """

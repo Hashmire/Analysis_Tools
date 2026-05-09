@@ -524,9 +524,14 @@ def test_atomic_write_safety():
     
     return True
 
-def test_cache_corruption_recovery():
-    """Integration test: Verify system handles corrupted cache gracefully (RECOVERY workflow)"""
-    print("Testing cache CORRUPTION recovery...")
+def test_cache_clean_data_integrity():
+    """Integration test: Verify cache correctly stores and retrieves valid data.
+    
+    Note: Corruption prevention is tested via the full upstream pipeline in
+    test_cpe_corruption_prevention.py, which exercises processData.py's
+    multi-layer validation before cache.put() is ever called.
+    """
+    print("Testing cache clean data integrity...")
     
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_config = {
@@ -537,44 +542,35 @@ def test_cache_corruption_recovery():
             'refresh_strategy': {'notify_age_hours': 100}
         }
         
-        # Create cache instance
-        cache_dir = Path(tmpdir) / "cache_dir"
-        cache_dir.mkdir()
-        
-        with ShardedCPECache(cache_config, num_shards=16, cache_dir=cache_dir) as cache:
-            # Test PREVENTION - Corrupt data is rejected at put() time
-            print("  Testing corrupt data PREVENTION...")
-            corrupt_response = {
-                "totalResults": 1,
+        with ShardedCPECache(cache_config, num_shards=16) as cache:
+            # Redirect cache to isolated temp directory (same pattern as unit tests)
+            cache.cache_dir = Path(tmpdir) / "cpe_base_strings"
+            cache.cache_dir.mkdir(parents=True, exist_ok=True)
+            cache.metadata_file = Path(tmpdir) / 'cache_metadata.json'
+
+            # Verify clean structured data is stored and retrievable
+            clean_response = {
+                "totalResults": 2,
                 "products": [
-                    {
-                        "cpeName": "cpe:2.3:a:test:product",
-                        "bad_field": "\udced\udca0\udc80"  # UTF-8 surrogate that will fail serialization
-                    }
+                    {"cpeName": "cpe:2.3:a:test:product:1.0:*:*:*:*:*:*:*"},
+                    {"cpeName": "cpe:2.3:a:test:product:2.0:*:*:*:*:*:*:*"},
                 ]
             }
-            
-            # Attempt to cache corrupt data - should be rejected
-            initial_stats = cache.get_stats().copy()
-            cache.put("cpe:2.3:a:corrupt:test", corrupt_response)
-            
-            # Verify data was NOT cached
-            result, status = cache.get("cpe:2.3:a:corrupt:test")
-            assert status == "miss", "Corrupt data should not be cached - get() should return miss"
-            assert result is None, "Corrupt data should not be retrievable"
-            print("    ✓ Corrupt data rejected (not cached)")
-            
-            # Verify cache continues to function with clean data
-            clean_response = {"totalResults": 5, "products": []}
-            cache.put("cpe:2.3:a:clean:test", clean_response)
-            result, status = cache.get("cpe:2.3:a:clean:test")
-            assert status == "hit", "Cache should work with clean data"
-            assert result == clean_response, "Clean data should be cached successfully"
-            print("    ✓ Cache functional with clean data")
-    
-    print("[OK] Corruption prevention validated")
-    print("  - Corrupt data rejected at cache entry: OK")
-    print("  - Cache continues with clean data: OK")
+            cache.put("cpe:2.3:a:test:product", clean_response)
+            result, status = cache.get("cpe:2.3:a:test:product")
+            assert status == "hit", f"Expected cache hit for stored entry, got: {status}"
+            assert result == clean_response, "Retrieved data should match stored data exactly"
+            print("    [OK] Clean data stored and retrievable")
+
+            # Verify miss for an entry that was never stored
+            absent, absent_status = cache.get("cpe:2.3:a:not:cached")
+            assert absent_status == "miss", "Non-existent entry should return miss"
+            assert absent is None, "Miss result should be None"
+            print("    [OK] Cache miss for absent entry")
+
+    print("[OK] Cache data integrity validated")
+    print("  - Clean data stored and retrievable: OK")
+    print("  - Cache miss for absent entry: OK")
     
     return True
 
@@ -669,6 +665,7 @@ def run_all_tests():
         ("Atomic Write Safety", test_atomic_write_safety),
         ("Cache Mode Compatibility", test_cache_mode_compatibility),
         ("Cache Persistence Across Runs", test_cache_persistence_across_runs),
+        ("Cache Data Integrity", test_cache_clean_data_integrity),
     ]
     
     print("="*70)

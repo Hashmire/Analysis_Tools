@@ -245,8 +245,10 @@ def build_nvd_api_headers(api_key=None):
         "User-Agent": f"{TOOLNAME}/{VERSION}"
     }
     if api_key:
-        import re
-        if not re.fullmatch(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', api_key):
+        import uuid as _uuid_mod
+        try:
+            _uuid_mod.UUID(api_key)
+        except ValueError:
             msg = (
                 f"api.api_key in config.json is not a valid UUID "
                 f"(got {len(api_key)} chars, expected 36 in format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx). "
@@ -2252,12 +2254,16 @@ def harvestSourceUUIDs(api_key=None):
             last_modified = source.get('lastModified', '1970-01-01T00:00:00.000')
             source_identifiers = source.get('sourceIdentifiers', [])
             
-            # Find UUID-format identifier (36 characters with dashes)
+            # Find the UUID identifier for this source
             uuid_identifier = None
             for identifier in source_identifiers:
-                if len(identifier) == 36 and identifier.count('-') == 4:
+                try:
+                    import uuid as _uuid_mod
+                    _uuid_mod.UUID(identifier)
                     uuid_identifier = identifier
                     break
+                except ValueError:
+                    continue
             
             if uuid_identifier:
                 if uuid_identifier in seen_uuids:
