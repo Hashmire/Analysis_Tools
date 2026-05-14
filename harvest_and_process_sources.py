@@ -28,8 +28,8 @@ logger = get_logger()
 _active_subprocess = None
 
 
-def get_analysis_tools_root():
-    """Get the absolute path to the Analysis_Tools project root"""
+def get_project_root():
+    """Get the absolute path to the project root"""
     current_file = Path(__file__).resolve()
     return current_file.parent
 
@@ -67,7 +67,7 @@ def run_generate_dataset(source_name, source_uuid, allow_logging=True,
         Tuple of (success: bool, run_dir: str or None, error_type: str or None, statistics: dict or None) - 
         success status, dataset run directory path, error type if failed, and statistics dict from subprocess
     """
-    project_root = get_analysis_tools_root()
+    project_root = get_project_root()
     generate_script = project_root / "generate_dataset.py"
     
     # Build command

@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 
 from src.analysis_tool.logging.workflow_logger import get_logger
-from src.analysis_tool.storage.run_organization import get_analysis_tools_root
+from src.analysis_tool.storage.run_organization import get_project_root
 from src.analysis_tool.core.gatherData import (
     _save_nvd_cve_to_local_file,
     config,

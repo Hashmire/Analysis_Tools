@@ -1,5 +1,4 @@
 /**
- * Completion tracker module for Hashmire/Analysis_Tools
  * 
  * This module provides source data management functions and completion tracking.
  */

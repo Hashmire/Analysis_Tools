@@ -40,7 +40,7 @@ python generate_dataset.py --last-days 7
 # Generate dataset only
 python generate_dataset.py --last-days 7 --no-analysis
 
-# Pass options to analysis tool
+# Pass options to CVE processor
 python generate_dataset.py --last-days 7 --external-assets
 ```
 

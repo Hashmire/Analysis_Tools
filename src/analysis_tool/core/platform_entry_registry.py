@@ -677,16 +677,20 @@ def register_confirmed_mappings(table_index: int, confirmed_mappings: list, affe
     try:
         if not confirmed_mappings:
             # No confirmed mappings found - still register empty entry for consistency
+            from .gatherData import config as _config
+            _tool_id = f"{_config['application']['toolname']} v{_config['application']['version']}"
             register_platform_notification_data(table_index, 'confirmedMappings', {
-                'sourceId': 'Hashmire/Analysis_Tools v0.2.0',
+                'sourceId': _tool_id,
                 'cvelistv5AffectedEntryIndex': affected_entry.get('cvelistv5AffectedEntryIndex', 'unknown'),
                 'confirmedMappings': []
             })
             return
         
         # Create confirmed mappings structure for NVD-ish format
+        from .gatherData import config as _config
+        _tool_id = f"{_config['application']['toolname']} v{_config['application']['version']}"
         confirmed_mappings_data = {
-            'sourceId': 'Hashmire/Analysis_Tools v0.2.0',
+            'sourceId': _tool_id,
             'cvelistv5AffectedEntryIndex': affected_entry.get('cvelistv5AffectedEntryIndex', 'unknown'),
             'confirmedMappings': confirmed_mappings  # Just the CPE base string list
         }

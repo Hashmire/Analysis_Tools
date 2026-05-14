@@ -248,7 +248,7 @@ class GlobalNVDSourceManager:
         Create a localized cache file for cross-process source data sharing.
         
         This allows harvest scripts to initialize source data once and share it
-        across multiple subprocess calls to generate_dataset.py and analysis_tool.py.
+        across multiple subprocess calls to generate_dataset.py and cve_processor.py.
         
         Args:
             cache_dir: Optional directory for cache file. If None, uses system temp directory.

@@ -831,7 +831,7 @@ The collector integrates multiple data sources into the final `cpeDetermination`
 ```json
 {
   "cpeDetermination": {
-    "sourceId": "Hashmire/Analysis_Tools v0.2.0",
+    "sourceId": "Hashmire/Sisyphus v0.2.0",
     "cvelistv5AffectedEntryIndex": "cve.containers.cna.affected.[0]",
     "top10SuggestedCPEBaseStrings": [
       {

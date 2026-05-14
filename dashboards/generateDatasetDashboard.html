@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hashmire/Analysis_Tools v0.2.0 - Generate Dataset Dashboard</title>
+    <title>Hashmire/Sisyphus - Generate Dataset Dashboard</title>
     <style>
         * {
             margin: 0;
@@ -1624,7 +1624,7 @@
         </div>
 
         <div class="footer">
-            <p>Analysis Tools Dashboard | Load a generateDatasetReport.json file to view analytics</p>
+            <p>Sisyphus Dashboard | Load a generateDatasetReport.json file to view analytics</p>
         </div>
     </div>
 
@@ -1636,7 +1636,7 @@
         function updatePageTitles(data) {
             try {
                 const metadata = data.metadata || {};
-                const toolname = metadata.toolname || 'Hashmire/Analysis_Tools';
+                const toolname = metadata.toolname || 'Hashmire/Sisyphus';
                 const version = metadata.version || '0.2.0';
                 
                 // Update page title
@@ -1652,7 +1652,7 @@
             } catch (error) {
                 console.error('Could not load config from metadata:', error);
                 // Fallback values using proper config values
-                const toolname = 'Hashmire/Analysis_Tools';
+                const toolname = 'Hashmire/Sisyphus';
                 const version = '0.2.0';
                 const headerTitle = `${toolname} v${version}`;
                 const pageTitle = `${headerTitle} - Generate Dataset Dashboard`;

@@ -57,7 +57,7 @@ python test_files\test_modular_rules.py test_files\testModularRulesEnhanced.json
 ## **🔧 Implementation Details**
 
 **Test Framework:** Custom HTML analysis with BeautifulSoup parsing
-**Dependencies:** Analysis tool subprocess execution, test JSON data file
+**Dependencies:** CVE processor subprocess execution, test JSON data file
 **Output Validation:** Generated HTML structure, JavaScript rule definitions, badge integration
 
 For comprehensive test case details and specific rule validation patterns, see the test file source code and `testModularRulesEnhanced.json`.
@@ -315,7 +315,7 @@ If you need to generate HTML separately for manual inspection:
 
 ```bash
 cd src/analysis_tool
-python analysis_tool.py --test-file "../../test_files/testModularRulesEnhanced.json"
+python cve_processor.py --test-file "../../test_files/testModularRulesEnhanced.json"
 ```
 
 ### Expected Output

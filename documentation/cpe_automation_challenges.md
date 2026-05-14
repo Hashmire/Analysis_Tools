@@ -22,7 +22,7 @@ The tool processes provided, relevant platform metadata and identifies the most 
 
 - **Data Transformations / Heuristics**: The tool gathers relevant data from product/platform related fields to create various CPE Match Criteria representations. These are used to query the NVD /cpes/ API to gather relevant CPE Name data. The CPE Names and associated metadata are then consolidated, reviewed and ordered to derive the top ten most likely CPE Base Strings.  
   *Files*:
-  - `src/analysis_tool/core/analysis_tool.py`
+  - `src/analysis_tool/core/cve_processor.py`
   - `src/analysis_tool/core/processData.py`
   - `src/analysis_tool/storage/cpe_cache.py`
 - **Confirmed Mappings**: The tool reviews a curated list of alias mappings to drive consistency of CPE Base String identification. Alias mappings are flexible enough to handle multiple datatypes and overlapping identifications. Any organization is able to contribute a known alias mapping, so long as they can provide provenance that the alias data should map to the target CPE Base String and the alias exists in the CVE dataset.  

@@ -11,7 +11,7 @@
         <div class="header">
             <h1>Individual Generate Dataset Report</h1>
             <p id="organization-name">Loading...</p>
-            <p id="tool-version">Hashmire/Analysis_Tools 0.3.0</p>
+            <p id="tool-version">Loading...</p>
         </div>
 
 <div class="dashboard-content">
@@ -192,7 +192,7 @@
         
 
 <div class="footer">
-            <p>Analysis Tools Dashboard | Load a generateDatasetReport.json file to view analytics</p>
+            <p>Sisyphus Dashboard | Load a generateDatasetReport.json file to view analytics</p>
         </div>
     </div>
 
@@ -232,29 +232,19 @@
             } catch (error) {
                 console.error('ERROR loading config from metadata:', error);
                 
-                // Fallback to safe defaults
-                const toolname = 'Analysis_Tools';
-                const version = 'Unknown';
-                const organizationName = 'General CVE Dataset';
-                
-                document.title = `${organizationName} - Individual Generate Dataset Report`;
+                document.title = '[ERROR] Generate Dataset Report - Config Load Failed';
                 
                 const orgElement = document.getElementById('organization-name');
                 if (orgElement) {
-                    orgElement.textContent = 'CVE Dataset Processing Summary';
+                    orgElement.textContent = '[ERROR: Config Load Failed]';
                 }
                 
                 const versionElement = document.getElementById('tool-version');
                 if (versionElement) {
-                    versionElement.textContent = `${toolname} ${version}`;
+                    versionElement.textContent = '[ERROR: UNKNOWN]';
                 }
                 
-                console.warn('FALLBACK VALUES IN USE DUE TO ERROR:', { 
-                    toolname, 
-                    version, 
-                    organizationName,
-                    error: error.message 
-                });
+                throw error;
             }
         }
         

@@ -206,24 +206,24 @@ class NVDSourceManagerIntegrationTestSuite:
         except Exception as e:
             self.add_result("PROCESS_DATA_INTEGRATION", False, f"Process data integration failed: {e}")
 
-    def test_analysis_tool_initialization(self):
-        """Test integration with main analysis tool initialization."""
-        print("\n🔧 Testing Analysis Tool Initialization...")
+    def test_cve_processor_initialization(self):
+        """Test integration with main CVE processor initialization."""
+        print("\n🔧 Testing CVE processor Initialization...")
         
         try:
-            # Test that analysis_tool.py can import the source manager
+            # Test that cve_processor.py can import the source manager
             from analysis_tool.storage.nvd_source_manager import get_global_source_manager
             
-            # Check if manager can be accessed from main analysis tool context
+            # Check if manager can be accessed from main CVE processor context
             manager = get_global_source_manager()
             if manager.is_initialized():
                 source_count = manager.get_source_count()
-                self.add_result("ANALYSIS_TOOL_INIT", True, f"Analysis tool can access initialized manager with {source_count} sources")
+                self.add_result("CVE_PROCESSOR_INIT", True, f"CVE processor can access initialized manager with {source_count} sources")
             else:
-                self.add_result("ANALYSIS_TOOL_INIT", False, "Manager not initialized in analysis tool context")
+                self.add_result("CVE_PROCESSOR_INIT", False, "Manager not initialized in CVE processor context")
                 
         except Exception as e:
-            self.add_result("ANALYSIS_TOOL_INIT", False, f"Analysis tool initialization failed: {e}")
+            self.add_result("CVE_PROCESSOR_INIT", False, f"CVE processor initialization failed: {e}")
 
     def test_javascript_completion_tracker_integration(self):
         """Test JavaScript completion tracker integration with real-world data structures."""
@@ -700,7 +700,7 @@ class NVDSourceManagerIntegrationTestSuite:
         self.test_core_source_manager_functionality()
         self.test_cve_affected_data_collector_integration()
         self.test_process_data_integration()
-        self.test_analysis_tool_initialization()
+        self.test_cve_processor_initialization()
         self.test_javascript_completion_tracker_integration()
         self.test_end_to_end_completion_tracker_pipeline()
         self.test_unknown_uuid_handling()

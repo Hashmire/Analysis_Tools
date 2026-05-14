@@ -242,7 +242,7 @@ class UnifiedDashboardCollector:
         }
 
     # =============================================================================
-    # Core Processing Methods (Dataset & Analysis Tool Integration)  
+    # Core Processing Methods (Dataset & CVE Processor Integration)  
     # =============================================================================
     
     def start_processing_run(self, total_cves: int):
@@ -343,7 +343,7 @@ class UnifiedDashboardCollector:
             total = self.data["processing"]["total_cves"]
             
             if total > 0:
-                # Calculate progress percentage - should match main analysis tool calculation
+                # Calculate progress percentage
                 progress_pct = round((processed / total) * 100, 2)
                 
                 # Warn if progress exceeds 100% (indicates a bug in progress tracking)
@@ -673,7 +673,7 @@ class UnifiedDashboardCollector:
                 
                 if not cache_manager.is_initialized():
                     # Cache not initialized - this is expected when called from generate_dataset
-                    # after analysis_tool has completed. Skip the update silently.
+                    # after cve_processor has completed. Skip the update silently.
                     if logger:
                         logger.debug("CPE cache not initialized - skipping cache file size update (expected in dataset generation context)", group="completion")
                     return
@@ -1558,7 +1558,7 @@ def finalize_dataset_contents_report() -> Optional[str]:
     return collector.finalize_report()
 
 # =============================================================================
-# Analysis Tool Integration Functions (from realtime_dashboard_collector)
+# CVE Processor Integration Functions (from realtime_dashboard_collector)
 # =============================================================================
 
 def start_processing_run(total_cves: int):

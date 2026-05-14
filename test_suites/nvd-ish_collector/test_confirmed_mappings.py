@@ -378,13 +378,13 @@ class ConfirmedMappingsTestSuite:
         
         print(f"Cleanup complete. Removed {removed_count} test files and entries.")
     
-    def run_analysis_tool(self, cve_id: str, additional_args: List[str] = None) -> tuple:
-        """Run the analysis tool for a specific CVE and return success status and output path."""
+    def run_processor(self, cve_id: str, additional_args: List[str] = None) -> tuple:
+        """Run the CVE processor for a specific CVE and return success status and output path."""
         try:
             cmd = [
                 sys.executable,
                 "-u",
-                "-m", "src.analysis_tool.core.analysis_tool",
+                "-m", "src.analysis_tool.core.cve_processor",
                 "--cve", cve_id
             ]
             
@@ -445,7 +445,7 @@ class ConfirmedMappingsTestSuite:
             return False
         
         # EXECUTE
-        success, output_path, stdout, stderr = self.run_analysis_tool(
+        success, output_path, stdout, stderr = self.run_processor(
             "CVE-1337-2001",
             additional_args=["--sdc-report", "--cpe-determination", "--alias-report", "--cpe-as-generator", "--source-uuid", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"]
         )
@@ -460,7 +460,7 @@ class ConfirmedMappingsTestSuite:
             print(f"⚠️  WARNING: Cleanup failed: {e}")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed")
+            print(f"❌ FAIL: CVE processor failed")
             print(f"STDOUT (last 50 lines):")
             for line in stdout.split('\n')[-50:]:
                 print(f"  {line}")
@@ -470,7 +470,7 @@ class ConfirmedMappingsTestSuite:
             return False
         
         if output_path is None:
-            print(f"❌ FAIL: Could not extract output path from analysis tool output")
+            print(f"❌ FAIL: Could not extract output path from CVE processor output")
             print(f"STDOUT (last 50 lines):")
             for line in stdout.split('\n')[-50:]:
                 print(f"  {line}")
@@ -589,7 +589,7 @@ class ConfirmedMappingsTestSuite:
             return False
         
         # EXECUTE
-        success, output_path, stdout, stderr = self.run_analysis_tool(
+        success, output_path, stdout, stderr = self.run_processor(
             "CVE-1337-3002",
             additional_args=["--sdc-report", "--cpe-determination", "--alias-report", "--cpe-as-generator", "--source-uuid", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"]
         )
@@ -609,7 +609,7 @@ class ConfirmedMappingsTestSuite:
             return False
         
         if output_path is None:
-            print(f"FAIL: Could not extract output path from analysis tool output")
+            print(f"FAIL: Could not extract output path from CVE processor output")
             print(f"STDOUT:\n{stdout}")
             print(f"STDERR:\n{stderr}")
             return False

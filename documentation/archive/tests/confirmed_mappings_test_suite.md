@@ -22,7 +22,7 @@ python test_files\test_confirmed_mappings.py
 
 ### **Data Ingestion & Processing**
 - Mapping file loading with JSON structure validation
-- Module imports from `analysis_tool.core.processData`
+- Module imports from `src.analysis_tool.core.processData`
 - End-to-end confirmed mappings detection and dataset processing
 
 ### **Alias Matching Logic**

@@ -70,8 +70,8 @@ class ConfirmedMappingManager:
 
         # Auto-detect mappings directory if not provided
         if mappings_dir is None:
-            from ..storage.run_organization import get_analysis_tools_root
-            project_root = get_analysis_tools_root()
+            from ..storage.run_organization import get_project_root
+            project_root = get_project_root()
             mappings_dir = project_root / config['cache_settings']['confirmed_mappings']['path']
         
         if not mappings_dir.exists():

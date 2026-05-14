@@ -284,8 +284,8 @@ class SDCIntegrationTestSuite:
         
         print(f"  * Cleaned up {len(copied_files)} test files")
     
-    def run_analysis_tool(self, cve_id: str, additional_flag: str = None) -> Tuple[bool, Optional[Path], str, str]:
-        """Run the analysis tool and return success status, output path, stdout, stderr."""
+    def run_processor(self, cve_id: str, additional_flag: str = None) -> Tuple[bool, Optional[Path], str, str]:
+        """Run the CVE processor and return success status, output path, stdout, stderr."""
         
         # Construct output path based on CVE ID
         year = cve_id.split('-')[1]
@@ -299,7 +299,7 @@ class SDCIntegrationTestSuite:
         
         # Build command
         cmd = [
-            sys.executable, "-m", "src.analysis_tool.core.analysis_tool",
+            sys.executable, "-m", "src.analysis_tool.core.cve_processor",
             "--cve", cve_id,
             "--nvd-ish-only"
         ]
@@ -376,7 +376,7 @@ class SDCIntegrationTestSuite:
         """Test basic SDC detection within enhanced records."""
         print(f"\n=== Test 1: SDC Basic Integration ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-1001", "--sdc-report")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-1001", "--sdc-report")
         
         if not success:
             print(f"[FAIL]: SDC integration analysis failed")
@@ -397,7 +397,7 @@ class SDCIntegrationTestSuite:
         """Test SDC registry parameter passing validation."""
         print(f"\n=== Test 2: SDC Registry Parameter Passing ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-1002", "--sdc-report")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-1002", "--sdc-report")
         
         if not success:
             print(f"[FAIL]: Registry parameter passing failed")
@@ -416,7 +416,7 @@ class SDCIntegrationTestSuite:
         """Test SDC metadata is properly placed in enhanced records."""
         print(f"\n=== Test 3: SDC Metadata Placement ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-1003", "--sdc-report")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-1003", "--sdc-report")
         
         if not success:
             print(f"[FAIL]: SDC metadata placement test failed")
@@ -455,7 +455,7 @@ class SDCIntegrationTestSuite:
         print(f"\n=== Test 4: SDC Detection Groups Validation ===")
         
         # Test comprehensive detection patterns
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-1004", "--sdc-report")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-1004", "--sdc-report")
         
         if not success:
             print(f"❌ FAIL: SDC detection groups test failed")
@@ -505,7 +505,7 @@ class SDCIntegrationTestSuite:
                                     format_errors.append(f"Entry {idx}: missing required sourceId field")
                                 elif not isinstance(sdc_data["sourceId"], str):
                                     format_errors.append(f"Entry {idx}: sourceId must be a string")
-                                elif not sdc_data["sourceId"].startswith("Hashmire/Analysis_Tools"):
+                                elif not sdc_data["sourceId"].startswith("Hashmire/Sisyphus"):
                                     format_errors.append(f"Entry {idx}: sourceId format incorrect: {sdc_data['sourceId']}")
                                     
                                 if "cvelistv5AffectedEntryIndex" not in sdc_data:
@@ -562,7 +562,7 @@ class SDCIntegrationTestSuite:
             
             # Test skip logic validation with clean data
             print(f"  Testing skip logic validation...")
-            success2, output_path2, stdout2, stderr2 = self.run_analysis_tool("CVE-1337-1005", "--sdc-report")
+            success2, output_path2, stdout2, stderr2 = self.run_processor("CVE-1337-1005", "--sdc-report")
             
             if success2:
                 validation2 = self.validate_enhanced_record(output_path2)

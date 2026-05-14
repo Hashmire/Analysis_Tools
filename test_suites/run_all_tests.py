@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Unified Test Runner for Analysis Tools CVE Analysis System
+Unified Test Runner for the CVE Analysis System
 
 Runs all test suites with consolidated output organization and comprehensive summary reporting.
 All test suites use a standardized output format for consistent parsing.
@@ -37,7 +37,7 @@ Standard Test Pattern (Cache-Related Integration Tests):
     
     2. EXECUTE: Run normal tool execution (not isolated test-file mode)
        - Uses standard module invocation from various relevant entry points:
-         * python -m src.analysis_tool.core.analysis_tool --cve CVE-ID --nvd-ish-only
+         * python -m src.analysis_tool.core.cve_processor --cve CVE-ID --nvd-ish-only
          * python -m src.analysis_tool.core.generate_dataset --file FILEPATH --nvd-ish-only
          * python -m src.analysis_tool.core.harvest_and_process_sources --nvd-ish-only
          * python -m src.analysis_tool.reporting.generate_sdc_report [options]
@@ -100,9 +100,9 @@ def create_consolidated_test_run() -> Tuple[Path, str, Dict]:
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-    from analysis_tool.storage.run_organization import get_analysis_tools_root
+    from analysis_tool.storage.run_organization import get_project_root
     
-    project_root = get_analysis_tools_root()
+    project_root = get_project_root()
     
     # Generate timestamp-based consolidated run ID following standard format
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
@@ -624,7 +624,7 @@ def main():
     """Main function with argument validation."""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Run all Analysis Tools test suites')
+    parser = argparse.ArgumentParser(description='Run all test suites')
     # Note: No arguments are supported by the unified test runner
     # Individual test suites may support their own arguments when run directly
     

@@ -43,7 +43,7 @@ from collections import defaultdict
 
 # CRITICAL IMPORTS - must succeed or script fails
 from ..logging.workflow_logger import get_logger
-from ..storage.run_organization import get_analysis_tools_root
+from ..storage.run_organization import get_project_root
 from ..core.cpe_as_generator import (
     is_placeholder_value,
     is_version_placeholder,
@@ -890,7 +890,7 @@ def generate_report(
         raise ValueError(f"Invalid cache name: {cache_name}")
     
     # Construct cache path
-    project_root = get_analysis_tools_root()
+    project_root = get_project_root()
     cache_path = project_root / "cache" / cache_name
     
     if not cache_path.exists():
@@ -1109,7 +1109,7 @@ def main():
     # Resolve run directory if provided
     run_directory = None
     if args.run_id:
-        project_root = get_analysis_tools_root()
+        project_root = get_project_root()
         run_directory = project_root / "runs" / args.run_id
         if not run_directory.exists():
             print(f"Error: Run directory not found: {run_directory}", file=sys.stderr)

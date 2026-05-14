@@ -278,8 +278,8 @@ class CPECullingTestSuite:
         if 'TEST_NVD_API_DISABLED' in os.environ:
             del os.environ['TEST_NVD_API_DISABLED']
     
-    def run_analysis_tool(self, cve_id: str, additional_args: list = None) -> Tuple[bool, Optional[Path], str, str]:
-        """Run the analysis tool and return success status, output path, stdout, stderr."""
+    def run_processor(self, cve_id: str, additional_args: list = None) -> Tuple[bool, Optional[Path], str, str]:
+        """Run the CVE processor and return success status, output path, stdout, stderr."""
         
         # Construct output path based on CVE ID
         year = cve_id.split('-')[1]
@@ -293,7 +293,7 @@ class CPECullingTestSuite:
         
         # Build command
         cmd = [
-            sys.executable, "-m", "src.analysis_tool.core.analysis_tool",
+            sys.executable, "-m", "src.analysis_tool.core.cve_processor",
             "--cve", cve_id,
             "--nvd-ish-only",
             "--cpe-determination"
@@ -333,10 +333,10 @@ class CPECullingTestSuite:
         print(f"  ✓ Using CVE-1337-2001 comprehensive test data (specificity culling focus)")
         
         # Run with CPE determination enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-2001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE determination")
+            print(f"❌ FAIL: CVE processor failed with CPE determination")
             if stderr:
                 print(f"  Error output: {stderr[:1000]}")
             if stdout:
@@ -448,10 +448,10 @@ class CPECullingTestSuite:
         print(f"  ✓ Using CVE-1337-2001 comprehensive test data (NVD API compatibility focus)")
         
         # Run with CPE determination enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-2001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE determination")
+            print(f"❌ FAIL: CVE processor failed with CPE determination")
             if stderr:
                 print(f"  Error output: {stderr[:1000]}")
             if stdout:
@@ -592,10 +592,10 @@ class CPECullingTestSuite:
         print(f"  ✓ Using CVE-1337-2001 comprehensive test data (asterisk removal focus)")
         
         # Run with CPE determination enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-2001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE determination")
+            print(f"❌ FAIL: CVE processor failed with CPE determination")
             if stderr:
                 print(f"  Error output: {stderr[:1000]}")
             if stdout:
@@ -775,10 +775,10 @@ class CPECullingTestSuite:
         print(f"  ✓ Using CVE-1337-2001 comprehensive test data (colon removal focus)")
         
         # Run with CPE determination enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-2001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE determination")
+            print(f"❌ FAIL: CVE processor failed with CPE determination")
             if stderr:
                 print(f"  Error output: {stderr[:1000]}")
             if stdout:

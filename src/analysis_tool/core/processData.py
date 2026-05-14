@@ -11,7 +11,6 @@ import os
 import json
 import orjson
 
-# Import Analysis Tool 
 from . import gatherData
 
 from .platform_entry_registry import GENERAL_PLACEHOLDER_VALUES, PLATFORM_ENTRY_NOTIFICATION_REGISTRY, register_platform_notification_data, register_searched_cpe_match_strings, register_cpe_suggestions
@@ -1926,7 +1925,7 @@ def processNVDRecordData(dataframe, nvdRecordData):
     """Process NVD Record Data to extract platform-related information
     
     NOTE: Currently processing mock NVD data with empty configurations.
-    The NVD /cves/ API calls have been temporarily disabled in analysis_tool.py
+    The NVD /cves/ API calls have been temporarily disabled in cve_processor.py
     to reduce file size since NVD configuration data is not currently utilized
     in the UI for selection, export, or cross-validation purposes.
     """

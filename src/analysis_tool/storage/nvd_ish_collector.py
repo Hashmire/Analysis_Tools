@@ -5,7 +5,7 @@ NVD-ish Enhanced Record Collection System
 Creates enhanced NVD 2.0 format records by integrating:
 1) Base NVD 2.0 CVE record structure
 2) CVE List V5 affected arrays with proper source attribution
-3) Analysis tool processing outputs (SDC, CPE suggestions, CPE-AS generation)
+3) Sisyphus processing outputs (SDC, CPE suggestions, CPE-AS generation)
 
 Output: Individual .json files in cache/nvd-ish_2.0_cves/ following year-based directory structure
 Attribution: datatype -> source format with proper provenance tracking
@@ -1591,9 +1591,9 @@ class NVDishCollector:
                             'cpeBaseString': cpe_as_data.get('cpeBaseString', ''),
                             'totalMatches': cpe_as_data.get('totalMatches', 0),
                             'toolExecutionMetadata': {
-                                'tool': 'analysis_tools',
+                                'tool': self.config['tool_name'],
                                 'component': 'cpe_as_generator',
-                                'version': '0.3.0',
+                                'version': self.config['tool_version'],
                                 'timestamp': datetime.now(timezone.utc).isoformat(),
                                 'sourceAffectedEntry': entry_index_path,
                                 'vendor': cpe_as_data.get('vendor', ''),

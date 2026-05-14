@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Analysis Tool Package
+CVE Analysis Package
 
-This package contains the Hashmire/Analysis_Tools and related utilities.
+This package contains the Hashmire/Sisyphus source code and related utilities.
 """
 
 import json

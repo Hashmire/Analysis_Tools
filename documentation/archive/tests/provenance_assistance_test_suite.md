@@ -481,7 +481,7 @@ If you need to generate HTML separately for manual inspection:
 
 ```bash
 cd src/analysis_tool
-python analysis_tool.py --test-file "../../test_files/testProvenanceAssistance.json"
+python cve_processor.py --test-file "../../test_files/testProvenanceAssistance.json"
 ```
 
 The generated HTML file will be located at:
@@ -714,7 +714,7 @@ The provenance assistance test suite consists of several key files:
 **Generated Output:**  
 
 - HTML files for tests are generated in `../test_output/` when running test scripts
-- HTML files for production are generated in `runs/[timestamp]_[context]/generated_pages/` when running the analysis tool
+- HTML files for production are generated in `runs/[timestamp]_[context]/generated_pages/` when running Sisyphus
 - The test suite specifically looks for `CVE-1337-99998.html` as the test output
 
 ### Adding New Test Cases
@@ -846,7 +846,7 @@ After modifying `testProvenanceAssistance.json`:
 
 ```powershell
 cd "e:\Git\Analysis_Tools\src\analysis_tool"
-python analysis_tool.py "../../test_files/testProvenanceAssistance.json"
+python cve_processor.py "../../test_files/testProvenanceAssistance.json"
 ```
 
 This generates fresh HTML in `test_output/CVE-1337-99998.html`.
@@ -867,7 +867,7 @@ This automatically generates the HTML and runs all tests in one command.
 ```powershell
 # Step 1: Generate HTML (optional - done automatically by test script)
 cd "e:\Git\Analysis_Tools\src\analysis_tool"
-python analysis_tool.py --test-file "../../test_files/testProvenanceAssistance.json"
+python cve_processor.py --test-file "../../test_files/testProvenanceAssistance.json"
 
 # Step 2: Run tests
 cd "../../test_files"

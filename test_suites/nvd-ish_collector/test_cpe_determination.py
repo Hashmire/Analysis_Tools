@@ -285,8 +285,8 @@ class CPEDeterminationTestSuite:
         if 'TEST_NVD_API_DISABLED' in os.environ:
             del os.environ['TEST_NVD_API_DISABLED']
     
-    def run_analysis_tool(self, cve_id: str, additional_args: list = None) -> Tuple[bool, Optional[Path], str, str]:
-        """Run the analysis tool and return success status, output path, stdout, stderr."""
+    def run_processor(self, cve_id: str, additional_args: list = None) -> Tuple[bool, Optional[Path], str, str]:
+        """Run the CVE processor and return success status, output path, stdout, stderr."""
         
         # Construct output path based on CVE ID
         year = cve_id.split('-')[1]
@@ -300,7 +300,7 @@ class CPEDeterminationTestSuite:
         
         # Build command
         cmd = [
-            sys.executable, "-m", "src.analysis_tool.core.analysis_tool",
+            sys.executable, "-m", "src.analysis_tool.core.cve_processor",
             "--cve", cve_id,
             "--nvd-ish-only",
             "--cpe-determination"
@@ -333,10 +333,10 @@ class CPEDeterminationTestSuite:
         print(f"\n=== Test 1: CPE Determination Timestamp Tracking ===")
         
         # Run with CPE determination enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE determination")
+            print(f"❌ FAIL: CVE processor failed with CPE determination")
             if stderr:
                 print(f"Error: {stderr[:200]}...")
             return False
@@ -414,10 +414,10 @@ class CPEDeterminationTestSuite:
         print(f"\n=== Test 2: Enhanced CPE Mapping Data Extraction ===")
         
         # Run with CPE determination enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE determination")
+            print(f"❌ FAIL: CVE processor failed with CPE determination")
             if stderr:
                 print(f"Error: {stderr[:200]}...")
             return False
@@ -563,10 +563,10 @@ class CPEDeterminationTestSuite:
             return False
         
         # Run with CPE determination enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE determination")
+            print(f"❌ FAIL: CVE processor failed with CPE determination")
             return False
         
         # Validate CPE match strings searched in output
@@ -669,14 +669,14 @@ class CPEDeterminationTestSuite:
             print(f"❌ FAIL: Could not setup Platform Entry Notification Registry: {e}")
             return False
         
-        # Run analysis tool with CPE determination to trigger the full pipeline
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001")
+        # Run CVE processor with CPE determination to trigger the full pipeline
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool execution failed")
+            print(f"❌ FAIL: CVE processor execution failed")
             return False
         
-        print(f"  ✓ Analysis tool execution completed successfully")
+        print(f"  ✓ CVE processor execution completed successfully")
         
         # Validate nvd-ish record was created and contains registry data
         if not output_path.exists():
@@ -743,10 +743,10 @@ class CPEDeterminationTestSuite:
         print(f"\n=== Test 5: CPE Determination Complete Workflow ===")
         
         # Run with CPE determination enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE determination")
+            print(f"❌ FAIL: CVE processor failed with CPE determination")
             return False
         
         # Validate complete CPE determination workflow
@@ -815,10 +815,10 @@ class CPEDeterminationTestSuite:
         print(f"\n=== Test 6: Top 10 CPE Suggestions Validation ===")
         
         # Run analysis with CPE determination enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed for top 10 CPE suggestions test")
+            print(f"❌ FAIL: CVE processor failed for top 10 CPE suggestions test")
             return False
         
         if not output_path.exists():
@@ -915,10 +915,10 @@ class CPEDeterminationTestSuite:
         """Test comprehensive platform mapping and CPE base string cross-product generation."""
         print(f"\n=== Test 7: Platform CPE Base String Enumeration ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-4001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-4001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool execution failed")
+            print(f"❌ FAIL: CVE processor execution failed")
             if stderr:
                 print(f"  STDERR: {stderr[:500]}")
             return False

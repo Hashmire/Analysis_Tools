@@ -16,12 +16,11 @@ from datetime import datetime, timezone
 from urllib.parse import urlencode
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Import Analysis Tool
 from . import processData
 
 # Import logging and storage utilities
 from ..logging.workflow_logger import get_logger
-from ..storage.run_organization import get_analysis_tools_root
+from ..storage.run_organization import get_project_root
 
 # Get logger instance
 logger = get_logger()
@@ -424,7 +423,7 @@ def load_schema(schema_name: str) -> dict:
         raise ValueError(f"Schema '{schema_name}' not found in config.json api.schemas")
     
     schema_url = config['api']['schemas'][schema_name]
-    project_root = get_analysis_tools_root()
+    project_root = get_project_root()
     base_schema_dir = project_root / "cache" / "schemas"
     
     # Determine schema source and subdirectory
@@ -436,7 +435,7 @@ def load_schema(schema_name: str) -> dict:
     elif schema_name.startswith('cve_'):
         schema_source_dir = base_schema_dir / "cve_program"
         schema_source = "cve_program"
-    # Analysis Tool schemas (our own)
+    # Local schemas
     else:
         schema_source_dir = base_schema_dir / "analysis_tool"
         schema_source = "analysis_tool"
@@ -664,7 +663,7 @@ def _update_schema_metadata(schema_name: str, schema_filename: str, schema_sourc
             'nvd_project': 'NVD Project (NIST)',
             'cve_program': 'CVE Program (cve.org)',
             'first_cvss': 'FIRST CVSS Schemas',
-            'analysis_tool': 'Analysis Tool (local)'
+            'analysis_tool': 'Sisyphus (local)'
         }
         
         # Load existing metadata using orjson (same as CPE cache)
@@ -2196,7 +2195,7 @@ def harvestSourceUUIDs(api_key=None):
     source_data_config = config['cache_settings']['nvd_source_data']
     notify_age_hours = source_data_config.get('refresh_strategy', {}).get('notify_age_hours', 24)
     cache_filename = source_data_config.get('filename', 'nvd_source_data.json')
-    project_root = get_analysis_tools_root()
+    project_root = get_project_root()
     cache_file = project_root / 'cache' / cache_filename
 
     sources = None

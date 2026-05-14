@@ -13,11 +13,11 @@ import tempfile
 import shutil
 from pathlib import Path
 
-# Add the src directory to the Python path to import analysis_tool modules
+# Add the src directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 try:
-    from analysis_tool.core.path_utils import get_analysis_tools_root, get_project_path
+    from analysis_tool.core.path_utils import get_project_root, get_project_path
     from analysis_tool.logging.cve_affected_data_collector import (
         initialize_cve_affected_data_report, get_cve_affected_data_collector, 
         clear_cve_affected_data_collector, start_cve_collection, complete_cve_collection
@@ -39,7 +39,7 @@ try:
     source_manager.initialize(test_source_data)
     
 except ImportError as e:
-    print(f"Warning: Could not import analysis_tool modules: {e}")
+    print(f"Warning: Could not import required modules: {e}")
     print("Dashboard display tests will use mock data instead.")
 
 
@@ -138,7 +138,7 @@ class SourceDataConcernDashboardDisplayTestSuite:
         print("\n--- Test: Dashboard File Location ---")
         
         try:
-            root_path = get_analysis_tools_root()
+            root_path = get_project_root()
         except:
             root_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         

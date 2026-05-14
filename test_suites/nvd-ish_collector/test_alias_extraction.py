@@ -282,8 +282,8 @@ class AliasExtractionTestSuite:
         if 'TEST_NVD_API_DISABLED' in os.environ:
             del os.environ['TEST_NVD_API_DISABLED']
     
-    def run_analysis_tool(self, cve_id: str, additional_args: list = None, use_nvd_ish_only: bool = True) -> Tuple[bool, Optional[Path], str, str]:
-        """Run the analysis tool and return success status, output path, stdout, stderr.
+    def run_processor(self, cve_id: str, additional_args: list = None, use_nvd_ish_only: bool = True) -> Tuple[bool, Optional[Path], str, str]:
+        """Run the CVE processor and return success status, output path, stdout, stderr.
         
         Args:
             cve_id: CVE ID to process
@@ -303,7 +303,7 @@ class AliasExtractionTestSuite:
         
         # Build command
         cmd = [
-            sys.executable, "-m", "src.analysis_tool.core.analysis_tool",
+            sys.executable, "-m", "src.analysis_tool.core.cve_processor",
             "--cve", cve_id
         ]
         
@@ -337,14 +337,14 @@ class AliasExtractionTestSuite:
         print(f"\n=== Test 1: Alias Extraction Integration (--alias-report isolated) ===")
         
         # Run with ONLY --alias-report flag (requires --source-uuid)
-        success, output_path, stdout, stderr = self.run_analysis_tool(
+        success, output_path, stdout, stderr = self.run_processor(
             "CVE-1337-0001", 
             additional_args=["--alias-report", "--source-uuid", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"],
             use_nvd_ish_only=False
         )
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with alias extraction")
+            print(f"❌ FAIL: CVE processor failed with alias extraction")
             if stderr:
                 print(f"Error: {stderr[:200]}...")
             return False
@@ -395,7 +395,7 @@ class AliasExtractionTestSuite:
                     
                     # Validate sourceId format
                     source_id = alias_extraction.get('sourceId', '')
-                    if not source_id.startswith('Hashmire/Analysis_Tools'):
+                    if not source_id.startswith('Hashmire/Sisyphus'):
                         print(f"❌ FAIL: Entry {entry_index} alias extraction has invalid sourceId: {source_id}")
                         return False
                     
@@ -483,13 +483,13 @@ class AliasExtractionTestSuite:
         
         # Run with ONLY --nvd-ish-only flag (no --alias-report, no --source-uuid)
         # This is the regression test for the bug where alias extraction wasn't enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool(
+        success, output_path, stdout, stderr = self.run_processor(
             "CVE-1337-0001",
             use_nvd_ish_only=True  # Only nvd-ish-only, no other flags
         )
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed in nvd-ish-only mode")
+            print(f"❌ FAIL: CVE processor failed in nvd-ish-only mode")
             if stderr:
                 print(f"Error: {stderr[:200]}...")
             return False

@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 from src.analysis_tool.logging.workflow_logger import get_logger
-from src.analysis_tool.storage.run_organization import get_analysis_tools_root
+from src.analysis_tool.storage.run_organization import get_project_root
 from src.analysis_tool.reporting.generate_alias_report import generate_alias_html_report
 
 logger = get_logger()
@@ -29,7 +29,7 @@ _TOOL_VERSION = "Example"
 
 
 def main() -> int:
-    root = get_analysis_tools_root()
+    root = get_project_root()
 
     data_path = root / _EXAMPLE_DATA_PATH
     css_path = root / _CSS_PATH

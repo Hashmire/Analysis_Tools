@@ -845,7 +845,7 @@ def test_refresh_script_imports():
         'from src.analysis_tool.storage.cpe_cache import ShardedCPECache',
         'from src.analysis_tool.core.gatherData import config, query_nvd_cpematch_by_modified_date, gatherNVDCPEData, _update_manual_refresh_timestamp',
         'from src.analysis_tool.logging.workflow_logger import get_logger',
-        'from src.analysis_tool.storage.run_organization import get_analysis_tools_root'
+        'from src.analysis_tool.storage.run_organization import get_project_root'
     ]
     
     for import_line in required_imports:

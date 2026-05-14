@@ -32,7 +32,7 @@ from src.analysis_tool.reporting.generate_cpeas_automation_report import (
     scan_nvd_ish_cache,
     generate_report
 )
-from src.analysis_tool.storage.run_organization import get_analysis_tools_root
+from src.analysis_tool.storage.run_organization import get_project_root
 
 
 # Test data: Known nvd-ish records with expected outputs

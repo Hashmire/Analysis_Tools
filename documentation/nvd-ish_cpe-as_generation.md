@@ -768,7 +768,7 @@ Each CVE 5.0 `affected[]` entry produces one analysis entry with generated cpeMa
         "aliasExtraction": {...},
         "cpeDetermination": {...},
         "cpeAsGeneration": {
-          "sourceId": "Hashmire/Analysis_Tools v0.3.0",
+          "sourceId": "Hashmire/Sisyphus v0.3.0",
           "cvelistv5AffectedEntryIndex": "cve.containers.cna.affected.[0]",
           "generatedCpeMatch": [
             {
@@ -809,7 +809,7 @@ Each CVE 5.0 `affected[]` entry produces one analysis entry with generated cpeMa
         "aliasExtraction": {...},
         "cpeDetermination": {...},
         "cpeAsGeneration": {
-          "sourceId": "Hashmire/Analysis_Tools v0.3.0",
+          "sourceId": "Hashmire/Sisyphus v0.3.0",
           "cvelistv5AffectedEntryIndex": "cve.containers.cna.affected.[1]",
           "generatedCpeMatch": [
             {
@@ -839,7 +839,7 @@ Each CVE 5.0 `affected[]` entry produces one analysis entry with generated cpeMa
         "aliasExtraction": {...},
         "cpeDetermination": {...},
         "cpeAsGeneration": {
-          "sourceId": "Hashmire/Analysis_Tools v0.3.0",
+          "sourceId": "Hashmire/Sisyphus v0.3.0",
           "cvelistv5AffectedEntryIndex": "cve.containers.cna.affected.[2]",
           "generatedCpeMatch": [
             {
@@ -875,7 +875,7 @@ Each CVE 5.0 `affected[]` entry produces one analysis entry with generated cpeMa
         "aliasExtraction": {...},
         "cpeDetermination": {...},
         "cpeAsGeneration": {
-          "sourceId": "Hashmire/Analysis_Tools v0.3.0",
+          "sourceId": "Hashmire/Sisyphus v0.3.0",
           "cvelistv5AffectedEntryIndex": "cve.containers.cna.affected.[3]",
           "generatedCpeMatch": [
             {

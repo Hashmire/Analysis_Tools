@@ -45,7 +45,7 @@ import html
 # Minimal imports - only what's needed for cache scanning and source resolution
 # CRITICAL IMPORTS - must succeed or script fails
 from ..logging.workflow_logger import get_logger
-from ..storage.run_organization import get_analysis_tools_root
+from ..storage.run_organization import get_project_root
 from ..core.gatherData import config
 logger = get_logger()
 
@@ -508,7 +508,7 @@ def generate_report(
         raise ValueError(f"Invalid cache name: {cache_name}. Must be a directory name only, no path separators.")
     
     # Construct cache path within project cache directory
-    project_root = get_analysis_tools_root()
+    project_root = get_project_root()
     cache_path = project_root / "cache" / cache_name
     
     # Validate cache directory exists
@@ -600,7 +600,7 @@ def generate_report(
     css_dir.mkdir(parents=True, exist_ok=True)
     
     # Locate dashboard template and CSS
-    project_root = get_analysis_tools_root()
+    project_root = get_project_root()
     dashboard_template = project_root / "src" / "analysis_tool" / "static" / "templates" / "SDC_Source_Report_Template.html"
     index_template = project_root / "src" / "analysis_tool" / "static" / "templates" / "SDC_Source_Index_Template.html"
     css_source = project_root / "src" / "analysis_tool" / "static" / "css" / "sdc_dashboard.css"
@@ -954,13 +954,13 @@ def main():
         # Standalone execution - need to implement minimal stubs
         def create_run_directory(**kwargs):
             """Minimal stub for standalone execution."""
-            run_dir = get_analysis_tools_root() / "runs" / f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_sdc_report"
+            run_dir = get_project_root() / "runs" / f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_sdc_report"
             run_dir.mkdir(parents=True, exist_ok=True)
             return run_dir, run_dir.name
         
         def ensure_run_directory(run_id):
             """Minimal stub for standalone execution."""
-            run_dir = get_analysis_tools_root() / "runs" / run_id
+            run_dir = get_project_root() / "runs" / run_id
             if not run_dir.exists():
                 raise ValueError(f"Run directory does not exist: {run_dir}")
             return run_dir
@@ -1004,8 +1004,8 @@ Examples:
         run_directory = None
         if args.run_id:
             # Find and use existing run directory
-            from ..storage.run_organization import get_analysis_tools_root
-            project_root = get_analysis_tools_root()
+            from ..storage.run_organization import get_project_root
+            project_root = get_project_root()
             run_directory = project_root / "runs" / args.run_id
             
             if not run_directory.exists():

@@ -26,8 +26,8 @@ NVD-ish CPE-AS Integration Test Implementation Pattern:
            - Creates proper cache directory structure: cache/{source}/1337/{subdir}/
            - Uses CVE-1337-5XXX series for CPE-AS testing
            
-    EXECUTE: Run analysis tool normally with --cpe-as-gen flag
-             - Uses standard module invocation: python -m src.analysis_tool.core.analysis_tool
+    EXECUTE: Run CVE processor normally with --cpe-as-gen flag
+             - Uses standard module invocation: python -m src.analysis_tool.core.cve_processor
              - Tool automatically discovers and processes INPUT cache files
              - CPE-AS generation integrated via nvd_ish_collector.py registry
              
@@ -1524,8 +1524,8 @@ class CPEASIntegrationTestSuite:
         if 'TEST_NVD_API_DISABLED' in os.environ:
             del os.environ['TEST_NVD_API_DISABLED']
     
-    def run_analysis_tool(self, cve_id: str) -> Tuple[bool, Optional[Path], str, str]:
-        """Run the analysis tool and return success status, output path, stdout, stderr."""
+    def run_processor(self, cve_id: str) -> Tuple[bool, Optional[Path], str, str]:
+        """Run the CVE processor and return success status, output path, stdout, stderr."""
         
         # Construct output path based on CVE ID
         year = cve_id.split('-')[1]
@@ -1539,7 +1539,7 @@ class CPEASIntegrationTestSuite:
         
         # Build command
         cmd = [
-            sys.executable, "-m", "src.analysis_tool.core.analysis_tool",
+            sys.executable, "-m", "src.analysis_tool.core.cve_processor",
             "--cve", cve_id,
             "--nvd-ish-only"  # This flag enables all outputs including CPE-AS generation
         ]
@@ -1630,7 +1630,7 @@ class CPEASIntegrationTestSuite:
         """Test Pattern 3.1-A: No versions array - wildcard cpeMatch integration."""
         print(f"\n=== Test 1: Pattern 3.1-A Integration (No versions array) ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-5001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-5001")
         
         if not success:
             print(f"❌ FAIL: Pattern 3.1-A integration failed")
@@ -1693,7 +1693,7 @@ class CPEASIntegrationTestSuite:
         """Test Pattern 3.1-B: Empty versions array - wildcard cpeMatch integration."""
         print(f"\n=== Test 2: Pattern 3.1-B Integration (Empty versions array) ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-5002")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-5002")
         
         if not success:
             print(f"❌ FAIL: Pattern 3.1-B integration failed")
@@ -1712,7 +1712,7 @@ class CPEASIntegrationTestSuite:
         """Test Pattern 3.1-C: Placeholder versions - wildcard cpeMatch integration."""
         print(f"\n=== Test 3: Pattern 3.1-C Integration (Placeholder versions) ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-5003")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-5003")
         
         if not success:
             print(f"❌ FAIL: Pattern 3.1-C integration failed")
@@ -1754,7 +1754,7 @@ class CPEASIntegrationTestSuite:
         """Test Pattern 3.1-D: defaultStatus=unknown - metadata-only cpeMatch."""
         print(f"\n=== Test 4: Pattern 3.1-D Integration (defaultStatus=unknown) ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-5004")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-5004")
         
         if not success:
             print(f"❌ FAIL: Pattern 3.1-D integration failed")
@@ -1810,7 +1810,7 @@ class CPEASIntegrationTestSuite:
         
         # Use CVE-1337-5002 which uses Pattern 3.1 (implemented)
         # CVE-1337-5005 would use Pattern 3.3 (not yet implemented)
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-5002")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-5002")
         
         if not success:
             print(f"❌ FAIL: Property ordering test failed")
@@ -1857,7 +1857,7 @@ class CPEASIntegrationTestSuite:
         """Test Full Workflow A: Single exact version match - should generate exact.single pattern."""
         print(f"\n=== Test 6: Full Workflow A (Exact single version: 1.0) ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-5006")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-5006")
         
         if not success:
             print(f"❌ FAIL: Full Workflow A integration failed")
@@ -1926,7 +1926,7 @@ class CPEASIntegrationTestSuite:
         """Test Full Workflow B: Version range with lessThan - should generate range.lessThan pattern."""
         print(f"\n=== Test 7: Full Workflow B (Version range: 0 < 2.0) ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-5007")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-5007")
         
         if not success:
             print(f"❌ FAIL: Full Workflow B integration failed")
@@ -1994,7 +1994,7 @@ class CPEASIntegrationTestSuite:
         """Test Full Workflow C: Version range with single change - should generate range.changesFixed pattern (Pattern 3.4-D)."""
         print(f"\n=== Test 8: Full Workflow C (Pattern 3.4-D: Range with change point, fixed at 2.3.1) ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-5008")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-5008")
         
         if not success:
             print(f"❌ FAIL: Full Workflow C integration failed")
@@ -2068,7 +2068,7 @@ class CPEASIntegrationTestSuite:
         """Test Full Workflow D: Range with lessThan AND change point - should generate Pattern 3.5 (affected range only)."""
         print(f"\n=== Test 9: Full Workflow D (Pattern 3.5: lessThan + change → affected range) ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-5009")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-5009")
         
         if not success:
             print(f"❌ FAIL: Full Workflow D failed")
@@ -2137,7 +2137,7 @@ class CPEASIntegrationTestSuite:
         """Test Section 6.2: Update patterns in range boundaries - detected but not applied."""
         print(f"\n=== Test 10: Section 6.2 (Update patterns in range boundaries) ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-5010")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-5010")
         
         if not success:
             print(f"❌ FAIL: Section 6.2 integration failed")
@@ -2199,7 +2199,7 @@ class CPEASIntegrationTestSuite:
         """Test Section 6.1: versionType='git' generates metadata-only cpeMatch."""
         print(f"\n=== Test 11: Section 6.1 (versionType='git' handling) ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-5011")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-5011")
         
         if not success:
             print(f"❌ FAIL: Section 6.1 integration failed")
@@ -2267,10 +2267,10 @@ class CPEASIntegrationTestSuite:
             cve_id = "CVE-1337-5012"
             
             # Run analysis
-            success, output_path, stdout, stderr = self.run_analysis_tool(cve_id)
+            success, output_path, stdout, stderr = self.run_processor(cve_id)
             
             if not success:
-                print(f"❌ FAIL: Analysis tool failed for {cve_id}")
+                print(f"❌ FAIL: CVE processor failed for {cve_id}")
                 print(f"Expected output path: {output_path}")
                 print(f"Output exists: {output_path.exists() if output_path else 'N/A'}")
                 if stderr:

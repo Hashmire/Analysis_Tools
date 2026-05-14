@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """
 Source Code Package
-
-Contains the main Analysis Tools source code.
 """
 
 import json

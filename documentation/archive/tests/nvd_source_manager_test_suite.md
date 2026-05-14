@@ -28,7 +28,7 @@ python test_files\test_nvd_source_manager.py
 - CVE affected data collector source name resolution
 - HTML generation with source metadata integration
 - Process data module source function access
-- Analysis tool initialization and manager access
+- CVE processor initialization and manager access
 
 ### **Frontend Integration**
 
@@ -66,7 +66,7 @@ python test_files\test_nvd_source_manager.py
 - CVE affected data collector integration
 - HTML generation integration
 - Process data integration
-- Analysis tool initialization
+- CVE processor initialization
 - Unknown UUID handling
 - NIST special handling
 
@@ -112,7 +112,7 @@ python test_files\test_nvd_source_manager.py
 📋 Testing CVE Affected Data Collector Integration...
 📄 Testing HTML Generation Integration...
 ⚙️ Testing Process Data Integration...
-🔧 Testing Analysis Tool Initialization...
+🔧 Testing CVE processor initialization...
 📜 Testing JavaScript Completion Tracker Integration...
 🔄 Testing End-to-End Completion Tracker Pipeline...
 ❓ Testing Unknown UUID Handling...

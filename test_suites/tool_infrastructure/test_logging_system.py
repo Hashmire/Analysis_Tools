@@ -561,7 +561,7 @@ class TestWorkflowStageLogging(LoggingSystemTestSuite):
     def test_initialization_stage_logging(self):
         """Test initialization stage logging."""
         init_messages = [
-            "Analysis tool initialization started",
+            "CVE processor initialization started",
             "Configuration loaded: config.json validated",
             "Command-line arguments processed: --cve CVE-2024-1234",
             "API key validation completed",

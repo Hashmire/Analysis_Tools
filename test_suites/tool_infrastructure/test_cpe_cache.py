@@ -19,7 +19,7 @@ INTEGRATION TESTS (End-to-End Workflows):
 - Cache disabled fallback (DISABLED workflow)
 - CPE determination with cached data
 - Cache corruption recovery (RECOVERY workflow)
-- Sharded cache hit during analysis_tool run
+- Sharded cache hit during CVE processor run
 - Cache eviction at run boundaries
 - Cache mode compatibility
 - Cache persistence across runs

@@ -570,7 +570,7 @@ class CveAffectedDataCollector:
         Generate curator-compatible alias extraction report (aliasReport.json).
         
         This method creates the exact output format that the curator produces,
-        enabling seamless integration with existing Analysis_Tools workflow.
+        enabling seamless integration with the Sisyphus workflow.
         
         Args:
             logs_directory: Directory to save the alias report

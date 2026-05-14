@@ -1,6 +1,6 @@
 {
     "application": {
-        "toolname": "Hashmire/Analysis_Tools",
+        "toolname": "Hashmire/Sisyphus",
         "version": "0.4.0"
     },
     "cache_settings": {
@@ -39,7 +39,7 @@
         },
         "nvd_ish_output": {
             "path": "cache/nvd-ish_2.0_cves",
-            "description": "Enhanced NVD 2.0 format records with integrated CVE List V5 data and analysis tool processing outputs"
+            "description": "Enhanced NVD 2.0 format records with integrated CVE List V5 data and Sisyphus processing outputs"
         },
         "confirmed_mappings": {
             "path": "cache/alias_mappings",

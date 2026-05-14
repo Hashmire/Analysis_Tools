@@ -15,7 +15,7 @@ import json
 import subprocess
 from pathlib import Path
 
-# Add src path for analysis_tool imports
+# Add src path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from analysis_tool.storage.run_organization import find_latest_test_run_report
 
@@ -27,7 +27,7 @@ def run_test_and_get_report():
     """Run the test file and extract the sourceDataConcernReport.json"""
     try:
         # Run the tool using the standard command line interface
-        cmd = [sys.executable, "-m", "src.analysis_tool.core.analysis_tool", "--test-file", TEST_FILE, "--no-cache", "--sdc-report", "true"]
+        cmd = [sys.executable, "-m", "src.analysis_tool.core.cve_processor", "--test-file", TEST_FILE, "--no-cache", "--sdc-report", "true"]
         
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent.parent.parent, env=os.environ.copy())
         

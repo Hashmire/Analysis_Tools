@@ -57,7 +57,7 @@ from typing import Dict, List, Optional, Tuple
 
 # CRITICAL IMPORTS - must succeed or script fails
 from ..logging.workflow_logger import get_logger
-from ..storage.run_organization import get_analysis_tools_root
+from ..storage.run_organization import get_project_root
 from ..storage.nvd_source_manager import get_canonical_uuid
 from ..core.platform_entry_registry import (
     GENERAL_PLACEHOLDER_VALUES,
@@ -1052,7 +1052,7 @@ def generate_report(
     if '..' in cache_name or '/' in cache_name or '\\' in cache_name:
         raise ValueError(f"Invalid cache_name: {cache_name}")
     
-    project_root = get_analysis_tools_root()
+    project_root = get_project_root()
     cache_path = project_root / "cache" / cache_name
     
     if not cache_path.exists():
@@ -1211,7 +1211,7 @@ def generate_report(
     css_dir.mkdir(parents=True, exist_ok=True)
     
     # Locate index template and CSS
-    project_root = get_analysis_tools_root()
+    project_root = get_project_root()
     index_template = project_root / "src" / "analysis_tool" / "static" / "templates" / "Alias_Mapping_Index_Template.html"
     report_template = project_root / "src" / "analysis_tool" / "static" / "templates" / "Alias_Mapping_Report_Template.html"
     css_source = project_root / "src" / "analysis_tool" / "static" / "css" / "alias_mapping_dashboard.css"
@@ -1626,7 +1626,7 @@ Examples:
         run_directory = None
         if args.run_id:
             # Find and use existing run directory
-            project_root = get_analysis_tools_root()
+            project_root = get_project_root()
             run_directory = project_root / "runs" / args.run_id
             
             if not run_directory.exists():

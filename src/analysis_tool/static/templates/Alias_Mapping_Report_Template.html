@@ -13,7 +13,7 @@
             <h1>CPE Alias Mapping Dashboard</h1>
             <p>
                 Analyze CVE Platform Aliases and Assign them to CPE Base Strings <br />
-                Hashmire/Analysis_Tools {{TOOL_VERSION}}
+                Hashmire/Sisyphus {{TOOL_VERSION}}
             </p>
         </div>
 
@@ -4225,7 +4225,7 @@
                                             ${alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0 ? alias.topNvdCpeBaseStrings.map((entry, i) => `
                                                 <div class="nvd-cpe-row">
                                                     ${entry.isSuggestedMatch
-                                                        ? '<span class="nvd-cpe-string"><strong class="nvd-cpe-suggested-strong" title="This CPE base string appears in both NVD enrichment data and the analysis_tool CPE suggestions">' + entry.cpeBaseString + '</strong></span>'
+                                                        ? '<span class="nvd-cpe-string"><strong class="nvd-cpe-suggested-strong" title="This CPE base string appears in both NVD enrichment data and the Sisyphus CPE suggestions">' + entry.cpeBaseString + '</strong></span>'
                                                         : '<span class="nvd-cpe-string">' + entry.cpeBaseString + '</span>'
                                                     }
                                                     <span class="nvd-cpe-count">${entry.cveCount} CVE${entry.cveCount !== 1 ? 's' : ''}</span>
@@ -4385,7 +4385,7 @@
                                     ${alias.topNvdCpeBaseStrings && alias.topNvdCpeBaseStrings.length > 0 ? alias.topNvdCpeBaseStrings.map((entry, i) => `
                                         <div class="nvd-cpe-row">
                                             ${entry.isSuggestedMatch
-                                                ? '<span class="nvd-cpe-string"><strong class="nvd-cpe-suggested-strong" title="This CPE base string appears in both NVD enrichment data and the analysis_tool CPE suggestions">' + entry.cpeBaseString + '</strong></span>'
+                                                ? '<span class="nvd-cpe-string"><strong class="nvd-cpe-suggested-strong" title="This CPE base string appears in both NVD enrichment data and the Sisyphus CPE suggestions">' + entry.cpeBaseString + '</strong></span>'
                                                 : '<span class="nvd-cpe-string">' + entry.cpeBaseString + '</span>'
                                             }
                                             <span class="nvd-cpe-count">${entry.cveCount} CVE${entry.cveCount !== 1 ? 's' : ''}</span>

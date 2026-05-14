@@ -58,8 +58,8 @@ def _generate_enhanced_context(execution_type: str = None, source_shortname: str
     
     return base_context
 
-def get_analysis_tools_root() -> Path:
-    """Get the root directory of the Analysis_Tools project"""
+def get_project_root() -> Path:
+    """Get the root directory of the project"""
     current_file = Path(__file__).resolve()
     
     # Walk up the directory tree to find the project root
@@ -68,7 +68,7 @@ def get_analysis_tools_root() -> Path:
         if (parent / "generate_dataset.py").exists() and (parent / "src").exists():
             return parent
     
-    raise RuntimeError("Could not find Analysis_Tools project root")
+    raise RuntimeError("Could not find project root")
 
 def create_run_directory(run_context: str = None, is_test: bool = False, 
                         subdirs: List[str] = None, execution_type: str = None,
@@ -140,7 +140,7 @@ def create_run_directory(run_context: str = None, is_test: bool = False,
         base_path = Path(parent_run_dir)
     else:
         # Otherwise use standard runs directory
-        project_root = get_analysis_tools_root()
+        project_root = get_project_root()
         base_path = project_root / "runs"
     
     # Generate timestamp-based run ID
@@ -187,7 +187,7 @@ def create_run_directory(run_context: str = None, is_test: bool = False,
     if parent_run_dir:
         base_path = Path(parent_run_dir)
     else:
-        project_root = get_analysis_tools_root()
+        project_root = get_project_root()
         base_path = project_root / "runs"
     
     run_path = base_path / run_id
@@ -227,29 +227,29 @@ def get_current_run_paths(run_id: str, parent_run_dir: Path = None) -> dict:
             run_path = consolidated_path / "logs" / run_id
         else:
             # Fallback to standard behavior
-            project_root = get_analysis_tools_root()
+            project_root = get_project_root()
             run_path = project_root / "runs" / run_id
     elif parent_run_dir:
         # If parent directory provided, resolve relative to it
         run_path = Path(parent_run_dir) / run_id
     elif os.sep in run_id or '/' in run_id:
         # If run_id contains path separators, it's already a relative or absolute path
-        project_root = get_analysis_tools_root()
+        project_root = get_project_root()
         run_path = project_root / "runs" / run_id
     else:
         # Standard run directory resolution
-        project_root = get_analysis_tools_root()
+        project_root = get_project_root()
         run_path = project_root / "runs" / run_id
     
     return {
         "logs": run_path / "logs", 
-        "cache": get_analysis_tools_root() / "cache",  # Cache is global, not run-specific
+        "cache": get_project_root() / "cache",  # Cache is global, not run-specific
         "run_root": run_path
     }
 
 def get_latest_run() -> Optional[Path]:
     """Get the most recent run directory"""
-    project_root = get_analysis_tools_root()
+    project_root = get_project_root()
     runs_dir = project_root / "runs"
     
     if not runs_dir.exists():

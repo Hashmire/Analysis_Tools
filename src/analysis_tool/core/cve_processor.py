@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-analysis_tool.py — Core CVE Analysis Processor
+cve_processor.py — Sisyphus CVE Processing Pipeline
 
-Entry point: python -m src.analysis_tool.core.analysis_tool [options]
-(Typically invoked via run_analysis_tool() in generate_dataset.py, not directly.)
+Entry point: python -m src.analysis_tool.core.cve_processor [options]
+(Typically invoked via run_processor() in generate_dataset.py, not directly.)
 
 Purpose
 -------
@@ -19,7 +19,7 @@ Input Modes
                     generate_dataset.py or a cache-refresh utility).
 --file <path>       Process CVE IDs from a text file (one per line). Same cache
                     precondition as --cve. Standard handoff path from
-                    generate_dataset.run_analysis_tool() via sys.argv injection.
+                    generate_dataset.run_processor() via sys.argv injection.
 --test-file <path>  Process synthetic CVE data from a structured JSON file.
                     Bypasses all disk-cache reads; the JSON payload IS the
                     NVD-ish record used for analysis. Used by test suites only.
@@ -98,20 +98,20 @@ current_run_paths = None
 _dashboard_update_threads = []
 
 # Centralized path resolution functions
-def get_analysis_tools_root():
-    """Get the absolute path to the Analysis_Tools project root"""
+def get_project_root():
+    """Get the absolute path to the project root"""
     current_file = Path(__file__).resolve()
     
-    # Navigate up from src/analysis_tool/analysis_tool.py to Analysis_Tools/
-    # analysis_tool.py -> analysis_tool/ -> src/ -> Analysis_Tools/
-    return current_file.parent.parent.parent
+    # Navigate up from src/analysis_tool/cve_processor.py to project root
+    # cve_processor.py -> core/ -> analysis_tool/ -> src/ -> project root
+    return current_file.parent.parent.parent.parent
 
 def get_project_path(relative_path=""):
-    """Get absolute path within Analysis_Tools directory"""
-    return get_analysis_tools_root() / relative_path
+    """Get absolute path within the project root"""
+    return get_project_root() / relative_path
 
 def ensure_project_directory(relative_path):
-    """Ensure a directory exists within the Analysis_Tools project and return its path"""
+    """Ensure a directory exists within the project root and return its path"""
     dir_path = get_project_path(relative_path)
     dir_path.mkdir(parents=True, exist_ok=True)
     return dir_path
@@ -262,7 +262,7 @@ def set_global_source_uuid(source_uuid):
         logger.info(f"Global source UUID set for filtering: {source_uuid}", group="initialization")
 
 def process_cve(cve_id, nvd_api_key, sdc_report=False, cpe_determination=False, alias_report=False, cpe_as_generator=False, nvd_ish_only=False):
-    """Process a single CVE using the analysis tool functionality.
+    """Process a single CVE through the full analysis pipeline.
     
     Args:
         cve_id: The CVE ID to process
@@ -765,7 +765,7 @@ def main():
     """Parse arguments and process CVEs via --cve/--file (pre-populated cache required) or --test-file (synthetic data, no cache reads)."""
     global current_run_paths
     
-    parser = argparse.ArgumentParser(description="Process CVE records with analysis_tool.py")
+    parser = argparse.ArgumentParser(description="Sisyphus CVE processor")
     
     # Group 1: Tool Output - What analysis outputs to generate
     output_group = parser.add_argument_group('Tool Output', 'Select which analysis outputs to generate')
@@ -803,7 +803,7 @@ def main():
     cpe_as_generator = args.cpe_as_generator.lower() == 'true'
     nvd_ish_only = args.nvd_ish_only.lower() == 'true'
     
-    logger.info("=== Analysis Tool Initialization Phase ===", group="INIT")
+    logger.info("=== Sisyphus Initialization Phase ===", group="INIT")
     
     # Handle --nvd-ish-only flag processing (enable analysis, disable output)
     if nvd_ish_only:
@@ -818,7 +818,7 @@ def main():
     if alias_report and not args.source_uuid and not nvd_ish_only:
         print("ERROR: --alias-report requires --source-uuid to determine the appropriate confirmed mappings file")
         print("Example usage:")
-        print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-XXXX --alias-report --source-uuid your-uuid-here")
+        print("  python -m src.analysis_tool.core.cve_processor --cve CVE-2024-XXXX --alias-report --source-uuid your-uuid-here")
         return
     
     # Validate that at least one feature is enabled (or nvd-ish-only mode)
@@ -832,9 +832,9 @@ def main():
         print("  --nvd-ish-only             : Generate complete NVD-ish enriched records without report files or HTML")
         print("")
         print("Example usage:")
-        print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-20515 --sdc-report")
-        print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-20515 --cpe-determination --cpe-as-generator")
-        print("  python -m src.analysis_tool.core.analysis_tool --cve CVE-2024-20515 --nvd-ish-only --source-uuid your-uuid")
+        print("  python -m src.analysis_tool.core.cve_processor --cve CVE-2024-20515 --sdc-report")
+        print("  python -m src.analysis_tool.core.cve_processor --cve CVE-2024-20515 --cpe-determination --cpe-as-generator")
+        print("  python -m src.analysis_tool.core.cve_processor --cve CVE-2024-20515 --nvd-ish-only --source-uuid your-uuid")
         return 1
     
     # Set global source UUID for filtering throughout the pipeline
@@ -1181,7 +1181,7 @@ def main():
     if not initialize_dashboard_collector(str(run_paths["logs"]), processing_mode, cache_disabled, cache_disable_reason):
         logger.warning("Failed to initialize real-time dashboard collector", group="DATA_PROC")
     
-    logger.info("=== END Analysis Tool Initialization Phase ===", group="INIT")
+    logger.info("=== END Sisyphus Initialization Phase ===", group="INIT")
 
     
     cves_to_process = []

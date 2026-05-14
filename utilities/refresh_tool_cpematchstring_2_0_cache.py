@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional, Any
 
 from src.analysis_tool.logging.workflow_logger import get_logger
-from src.analysis_tool.storage.run_organization import get_analysis_tools_root
+from src.analysis_tool.storage.run_organization import get_project_root
 from src.analysis_tool.storage.cpe_cache import ShardedCPECache
 from src.analysis_tool.core.gatherData import config, query_nvd_cpematch_by_modified_date, gatherNVDCPEData, _update_manual_refresh_timestamp
 
@@ -387,7 +387,7 @@ def query_nvd_cpes_api(api_key: str, cpe_base: str, stats: CPECacheRefreshStats,
     
     This API provides COMPLETE CPE metadata including all dictionary entries,
     titles, references, deprecation status, etc. This is the full data cached
-    for use by the main analysis tool.
+    for use by the CVE processor.
     
     Args:
         api_key: NVD API key
@@ -748,7 +748,7 @@ def main():
         return 1
 
     # Determine cache directory using same logic as ShardedCPECache
-    cache_dir = get_analysis_tools_root() / "cache" / "cpe_base_strings"
+    cache_dir = get_project_root() / "cache" / "cpe_base_strings"
     
     if not cache_dir.exists():
         logger.error(f"Cache directory does not exist: {cache_dir}", group="CACHE_REFRESH")

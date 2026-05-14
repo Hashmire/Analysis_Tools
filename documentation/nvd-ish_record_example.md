@@ -1,8 +1,8 @@
 # Enhanced CVE Record Architecture
 
-## Analysis_Tools Integration with CVE List 5.X and NVD 2.0 /cves/ Records
+## Sisyphus Integration with CVE List 5.X and NVD 2.0 /cves/ Records
 
-CVE List + NVD + Hashmire/Analysis_Tools = NVD-ish record format. We enrich the NVD 2.0 /cves/ format with the minimal data required to support statistical and UI/UX use cases.
+CVE List + NVD + Hashmire/Sisyphus = NVD-ish record format. We enrich the NVD 2.0 /cves/ format with the minimal data required to support statistical and UI/UX use cases.
 
 ## 1. Enhanced CVE Record Example
 
@@ -10,7 +10,7 @@ CVE List + NVD + Hashmire/Analysis_Tools = NVD-ish record format. We enrich the 
 ```
 Enhanced CVE Record Architecture
 ├── I. NVD 2.0 CVE Record (Foundation)
-└── II. Analysis_Tools Enhanced Structure
+└── II. Sisyphus Enhanced Structure
     ├── II.A. Tool Execution Metadata
     ├── II.B. CPE Determination Metadata (Large Dataset, Not Implemented Yet)
     └── II.C. CVE List V5 Affected Entries Analysis
@@ -138,10 +138,10 @@ Enhanced CVE Record Architecture
 </details>
 
 <details>
-<summary><strong>├── II. Analysis_Tools Enhanced Structure</strong> <em>(Enhancement Layer - Click to expand all subsections)</em></summary>
+<summary><strong>├── II. Sisyphus Enhanced Structure</strong> <em>(Enhancement Layer - Click to expand all subsections)</em></summary>
 
 ```python
-    # === ANALYSIS_TOOLS ENHANCED STRUCTURE ===
+    # === SISYPHUS ENHANCED STRUCTURE ===
     "enrichedCVEv5Affected": {
 ```
 
@@ -153,8 +153,8 @@ Enhanced CVE Record Architecture
 ```python
         # Tool execution metadata with per-argument tracking
         "toolExecutionMetadata": {
-            "toolName": "Hashmire/Analysis_Tools",  # From config.json
-            "toolVersion": "0.2.0",                  # From config.json
+            "toolName": "Hashmire/Sisyphus",  # From config.json
+            "toolVersion": "0.3.0",                  # From config.json
             "sourceDataConcerns": "2025-10-31T15:30:45Z",
             "cpeDetermination": "2025-10-31T15:30:45Z", 
             "cpeAsGeneration": "2025-10-31T15:28:12Z",
@@ -289,7 +289,7 @@ Enhanced CVE Record Architecture
                 # === II.C.2. SOURCE DATA CONCERNS ===
                 # Minimal registry data from PLATFORM_ENTRY_NOTIFICATION_REGISTRY['sourceDataConcerns'][table_index]
                 "sourceDataConcerns": {
-                    "sourceId": "Hashmire/Analysis_Tools v0.2.0",  # Tool name + version
+                    "sourceId": "Hashmire/Sisyphus v0.2.0",  # Tool name + version
                     "cvelistv5AffectedEntryIndex": 'cve.containers.cna.affected.[0]', 
                     "concerns": {
                         "versionGranularity": [
@@ -340,7 +340,7 @@ Enhanced CVE Record Architecture
                 # === II.C.3. ALIAS EXTRACTION ===
                 # Alias combinations from this affected entry, organized by confirmed mapping status
                 "aliasExtraction": {
-                    "sourceId": "Hashmire/Analysis_Tools v0.2.0",  # Tool name + version
+                    "sourceId": "Hashmire/Sisyphus v0.3.0",  # Tool name + version
                     "cvelistv5AffectedEntryIndex": 'cve.containers.cna.affected.[0]',
                     
                     # Alias sets that don't match any established confirmed mapping
@@ -366,7 +366,7 @@ Enhanced CVE Record Architecture
 ```python
                 # === II.C.4. CPE DETERMINATION ===
                 "cpeDetermination": {
-                    "sourceId": "Hashmire/Analysis_Tools v0.2.0",  # Tool name + version
+                    "sourceId": "Hashmire/Sisyphus v0.2.0",  # Tool name + version
                     "cvelistv5AffectedEntryIndex": 'cve.containers.cna.affected.[0]',
 
                     # Suggested CPE Base Strings based on NVD 2.0 /cpes/ API analysis
@@ -425,7 +425,7 @@ Enhanced CVE Record Architecture
                 # === II.C.5. CPE-AS GENERATION ===
                 # Generated CPE Applicability Statement match objects with pattern traceability
                 "cpeAsGeneration": {
-                    "sourceId": "Hashmire/Analysis_Tools v0.4.0",  # Tool name + version
+                    "sourceId": "Hashmire/Sisyphus v0.4.0",  # Tool name + version
                     "cvelistv5AffectedEntryIndex": 'cve.containers.cna.affected.[0]',
                     "generatedCpeMatch": [
                         {
@@ -502,7 +502,7 @@ Enhanced CVE Record Architecture
 **II.C.2. Source Data Concerns:**
 
 - Detection results: 9 concern types (placeholderData, bloatTextDetection, versionGranularity, etc.)
-- `sourceId`: Analysis tool identifier, `cvelistv5AffectedEntryIndex`: Array position reference
+- `sourceId`: Sisyphus identifier, `cvelistv5AffectedEntryIndex`: Array position reference
 - Processing function: `register_source_data_concerns()` in `platform_entry_registry.py`
 
 **II.C.3. Alias Extraction:**

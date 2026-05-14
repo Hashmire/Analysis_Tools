@@ -374,7 +374,7 @@ if __name__ == "__main__":
         print("  1. Bug reproduced - registry accumulates without fix")
         print("  2. Fix verified - clear_all_registries() clears properly")
         print("  3. Solution: Replace audit_global_state_cleared() with clear_all_registries()")
-        print("     in analysis_tool.py line 252 ✅ (ALREADY APPLIED)")
+        print("     in cve_processor.py line 252 ✅ (ALREADY APPLIED)")
         sys.exit(0)
     else:
         print("UNEXPECTED TEST RESULTS - review test output above")

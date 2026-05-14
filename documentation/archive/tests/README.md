@@ -1,6 +1,6 @@
 # 🧪 Test Documentation
 
-Test suite documentation for the Analysis Tools CVE analysis system.
+Test suite documentation for the Sisyphus CVE analysis system.
 
 ## **🚀 Unified Test Runner**
 

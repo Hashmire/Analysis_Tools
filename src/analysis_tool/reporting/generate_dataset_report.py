@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 from ..logging.workflow_logger import get_logger
-from ..storage.run_organization import get_analysis_tools_root
+from ..storage.run_organization import get_project_root
 
 logger = get_logger()
 
@@ -76,7 +76,7 @@ def generate_dataset_report(dataset_run_dir: Path) -> bool:
         output_html_path = reports_dir / report_filename
         
         # Locate template and CSS files
-        project_root = get_analysis_tools_root()
+        project_root = get_project_root()
         template_path = project_root / "src" / "analysis_tool" / "static" / "templates" / "Generate_Dataset_Report_Template.html"
         css_source_path = project_root / "src" / "analysis_tool" / "static" / "css" / "generate_dataset_dashboard.css"
         
@@ -203,7 +203,7 @@ def generate_dataset_index(run_directory: Path) -> Optional[Path]:
     Returns:
         Path to generated HTML file, or None if generation failed
     """
-    project_root = get_analysis_tools_root()
+    project_root = get_project_root()
     
     harvest_data = load_harvest_index_json(run_directory)
     if not harvest_data:

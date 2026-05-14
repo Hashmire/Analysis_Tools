@@ -1006,7 +1006,7 @@ class SourceDataConcernJSONTestSuite:
             import sys
             import os
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-            from analysis_tool.storage.run_organization import create_run_directory, get_current_run_paths, get_analysis_tools_root
+            from analysis_tool.storage.run_organization import create_run_directory, get_current_run_paths, get_project_root
             
             # Create a test run directory
             run_path, run_id = create_run_directory("comprehensive_dashboard", is_test=True)
@@ -1353,7 +1353,7 @@ class SourceDataConcernJSONTestSuite:
             print(f"   - Missing Affected Products: no affected status")
             print(f"   - Overlapping Ranges: version range overlaps")
             print(f"\n[Dashboard Link] Load this file in the Source Data Concern Dashboard:")
-            print(f"   file://{get_analysis_tools_root()}/dashboards/sourceDataConcernDashboard.html")
+            print(f"   file://{get_project_root()}/dashboards/sourceDataConcernDashboard.html")
             
         except Exception as e:
             print(f"[FAIL]: Failed to generate comprehensive dashboard file: {str(e)}")
@@ -1371,7 +1371,7 @@ class SourceDataConcernJSONTestSuite:
             import sys
             import os
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-            from analysis_tool.storage.run_organization import create_run_directory, get_current_run_paths, get_analysis_tools_root
+            from analysis_tool.storage.run_organization import create_run_directory, get_current_run_paths, get_project_root
             
             # Create a test run directory
             run_path, run_id = create_run_directory("dashboard_file_generation", is_test=True)
@@ -1479,7 +1479,7 @@ class SourceDataConcernJSONTestSuite:
             print(f"   Platform entries: {metadata['total_platform_entries']}")
             print(f"   Entries with concerns: {metadata['entries_with_concerns']}")
             print(f"\n[Dashboard Link] Load this file in the Source Data Concern Dashboard:")
-            print(f"   file://{get_analysis_tools_root()}/dashboards/sourceDataConcernDashboard.html")
+            print(f"   file://{get_project_root()}/dashboards/sourceDataConcernDashboard.html")
             
         except Exception as e:
             print(f"[FAIL]: Failed to generate persistent dashboard file: {str(e)}")

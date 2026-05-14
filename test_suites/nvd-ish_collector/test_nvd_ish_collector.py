@@ -29,8 +29,8 @@ NVD-ish Collector Test Implementation Pattern:
            - Creates proper cache directory structure: cache/{source}/1337/{subdir}/
            - Copies both NVD 2.0 and CVE List V5 data files for dual-source validation
            
-    EXECUTE: Run analysis tool normally with --cve CVE-ID (tool finds INPUT cache files)
-             - Uses standard module invocation: python -m src.analysis_tool.core.analysis_tool
+    EXECUTE: Run CVE processor normally with --cve CVE-ID (tool finds INPUT cache files)
+             - Uses standard module invocation: python -m src.analysis_tool.core.cve_processor
              - Tool automatically discovers and processes INPUT cache files
              - No --test-file parameter (differs from SDC-only tests)
              
@@ -529,11 +529,11 @@ class NVDishCollectorTestSuite:
 
         print(f"Cleanup complete. Removed {removed_count} test files.")
     
-    def run_analysis_tool(self, cve_id: str, additional_params: str = "", additional_args: List[str] = None) -> tuple:
-        """Run the analysis tool for a specific CVE and return success status and output path."""
+    def run_processor(self, cve_id: str, additional_params: str = "", additional_args: List[str] = None) -> tuple:
+        """Run the CVE processor for a specific CVE and return success status and output path."""
         try:
-            # Build command using the correct analysis tool module
-            cmd = [sys.executable, "-m", "src.analysis_tool.core.analysis_tool", "--cve", cve_id]
+            # Build command using the correct CVE processor module
+            cmd = [sys.executable, "-m", "src.analysis_tool.core.cve_processor", "--cve", cve_id]
             
             # Add additional parameters (string format for backward compatibility)
             if additional_params:
@@ -612,7 +612,7 @@ class NVDishCollectorTestSuite:
             return result.returncode == 0, output_path, result.stdout, result.stderr
             
         except Exception as e:
-            print(f"ERROR running analysis tool: {e}")
+            print(f"ERROR running CVE processor: {e}")
             return False, None, "", str(e)
     
     def validate_enhanced_record(self, output_path: Path, expected_features: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -667,10 +667,10 @@ class NVDishCollectorTestSuite:
         """Test basic dual-source processing creates enhanced records."""
         print(f"\n=== Test 1: Dual-Source Success ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001")
         
         if not success:
-            print(f"[FAIL]: Analysis tool failed")
+            print(f"[FAIL]: CVE processor failed")
             return False
         
         validation = self.validate_enhanced_record(output_path)
@@ -694,7 +694,7 @@ class NVDishCollectorTestSuite:
         """Test single-source validation fails fast (no enhanced record created)."""
         print(f"\n=== Test 2: Single-Source Fail-Fast ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0002")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0002")
         
         validation = self.validate_enhanced_record(output_path)
         
@@ -735,10 +735,10 @@ class NVDishCollectorTestSuite:
         """Test UUID source identifier resolution."""
         print(f"\n=== Test 4: Source Alias Resolution ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-1004")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-1004")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed")
+            print(f"❌ FAIL: CVE processor failed")
             return False
         
         validation = self.validate_enhanced_record(output_path)
@@ -772,10 +772,10 @@ class NVDishCollectorTestSuite:
         """Test complex merge scenarios with mismatched data."""
         print(f"\n=== Test 5: Complex Merge Scenarios ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0003")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0003")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed")
+            print(f"❌ FAIL: CVE processor failed")
             return False
         
         validation = self.validate_enhanced_record(output_path)
@@ -796,7 +796,7 @@ class NVDishCollectorTestSuite:
         """Test enhanced record has proper NVD-ish structure."""
         print(f"\n=== Test 6: Enhanced Record Structure ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001")
         
         validation = self.validate_enhanced_record(output_path)
         
@@ -820,7 +820,7 @@ class NVDishCollectorTestSuite:
                 print(f"❌ FAIL: Missing required NVD 2.0 fields: {missing_nvd_fields}")
                 return False
             
-            # Check enhanced structure requirements (Section II: Analysis_Tools Enhancement)
+            # Check enhanced structure requirements (Section II: Enhanced Data)
             if "enrichedCVEv5Affected" not in data:
                 print(f"❌ FAIL: Missing enrichedCVEv5Affected section")
                 return False
@@ -885,10 +885,10 @@ class NVDishCollectorTestSuite:
         """
         print(f"\n=== Test 7: CNA+ADP Multi-Source Entry Processing ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-1004")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-1004")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed")
+            print(f"❌ FAIL: CVE processor failed")
             return False
         
         validation = self.validate_enhanced_record(output_path)
@@ -1114,7 +1114,7 @@ class NVDishCollectorTestSuite:
         """Test basic SDC detection within enhanced records."""
         print(f"\n=== Test 7: SDC Basic Integration ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-1001", "--sdc-report")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-1001", "--sdc-report")
         
         if not success:
             print(f"❌ FAIL: SDC integration analysis failed")
@@ -1135,7 +1135,7 @@ class NVDishCollectorTestSuite:
         """Test SDC registry parameter passing validation."""
         print(f"\n=== Test 8: SDC Registry Parameter Passing ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-1002", "--sdc-report")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-1002", "--sdc-report")
         
         if not success:
             print(f"❌ FAIL: Registry parameter passing failed")
@@ -1154,7 +1154,7 @@ class NVDishCollectorTestSuite:
         """Test SDC metadata is properly placed in enhanced records."""
         print(f"\n=== Test 9: SDC Metadata Placement ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-1003", "--sdc-report")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-1003", "--sdc-report")
         
         if not success:
             print(f"❌ FAIL: SDC metadata placement test failed")
@@ -1193,7 +1193,7 @@ class NVDishCollectorTestSuite:
         print(f"\n=== Test 10: SDC Detection Groups Validation ===")
         
         # Test comprehensive detection patterns
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-1004", "--sdc-report")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-1004", "--sdc-report")
         
         if not success:
             print(f"❌ FAIL: SDC detection groups test failed")
@@ -1243,7 +1243,7 @@ class NVDishCollectorTestSuite:
                                     format_errors.append(f"Entry {idx}: missing required sourceId field")
                                 elif not isinstance(sdc_data["sourceId"], str):
                                     format_errors.append(f"Entry {idx}: sourceId must be a string")
-                                elif not sdc_data["sourceId"].startswith("Hashmire/Analysis_Tools"):
+                                elif not sdc_data["sourceId"].startswith("Hashmire/Sisyphus"):
                                     format_errors.append(f"Entry {idx}: sourceId format incorrect: {sdc_data['sourceId']}")
                                     
                                 if "cvelistv5AffectedEntryIndex" not in sdc_data:
@@ -1300,7 +1300,7 @@ class NVDishCollectorTestSuite:
             
             # Test skip logic validation with clean data
             print(f"  Testing skip logic validation...")
-            success2, output_path2, stdout2, stderr2 = self.run_analysis_tool("CVE-1337-1005", "--sdc-report")
+            success2, output_path2, stdout2, stderr2 = self.run_processor("CVE-1337-1005", "--sdc-report")
             
             if success2:
                 validation2 = self.validate_enhanced_record(output_path2)
@@ -1349,10 +1349,10 @@ class NVDishCollectorTestSuite:
         print(f"\n=== Test 11: CPE Determination Timestamp Tracking ===")
         
         # Run with CPE determination enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-determination"])
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001", additional_args=["--cpe-determination"])
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE determination")
+            print(f"❌ FAIL: CVE processor failed with CPE determination")
             if stderr:
                 print(f"Error: {stderr[:200]}...")
             return False
@@ -1432,10 +1432,10 @@ class NVDishCollectorTestSuite:
         print(f"\n=== Test 12: Enhanced CPE Mapping Data Extraction ===")
         
         # Run with CPE determination enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-determination"])
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001", additional_args=["--cpe-determination"])
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE determination")
+            print(f"❌ FAIL: CVE processor failed with CPE determination")
             if stderr:
                 print(f"Error: {stderr[:200]}...")
             return False
@@ -1585,10 +1585,10 @@ class NVDishCollectorTestSuite:
             return False
         
         # Run with CPE suggestions enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-determination"])
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001", additional_args=["--cpe-determination"])
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE suggestions")
+            print(f"❌ FAIL: CVE processor failed with CPE suggestions")
             return False
         
         # Validate CPE match strings searched in output
@@ -1636,10 +1636,10 @@ class NVDishCollectorTestSuite:
         print(f"  ✓ Using CVE-1337-2001 comprehensive test data (specificity culling focus)")
         
         # Run with CPE determination enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001", additional_args=["--cpe-determination"])
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-2001", additional_args=["--cpe-determination"])
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE determination")
+            print(f"❌ FAIL: CVE processor failed with CPE determination")
             return False
         
         # Validate CPE match strings culled in output - check EXACT expected counts and values
@@ -1723,10 +1723,10 @@ class NVDishCollectorTestSuite:
         print(f"  ✓ Using CVE-1337-2001 comprehensive test data (NVD API compatibility focus)")
         
         # Run with CPE determination enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-2001", additional_args=["--cpe-determination"])
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-2001", additional_args=["--cpe-determination"])
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE determination")
+            print(f"❌ FAIL: CVE processor failed with CPE determination")
             return False
         
         # Validate NVD API CPE match strings culled in output - check EXACT expected counts and values
@@ -1923,16 +1923,16 @@ class NVDishCollectorTestSuite:
         except Exception as e:
             print(f"  🔍 Debug: Could not check registry: {e}")
 
-        # Step 1: Run analysis tool with CPE determination to trigger the full pipeline
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-determination"])
+        # Step 1: Run CVE processor with CPE determination to trigger the full pipeline
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001", additional_args=["--cpe-determination"])
         
         if not success:
-            print(f"❌ FAIL: Analysis tool execution failed")
+            print(f"❌ FAIL: CVE processor execution failed")
             print(f"  STDOUT: {stdout}")
             print(f"  STDERR: {stderr}")
             return False
         
-        print(f"  ✓ Analysis tool execution completed successfully")
+        print(f"  ✓ CVE processor execution completed successfully")
         
         # Step 2: Validate nvd-ish record was created and contains registry data
         if not output_path.exists():
@@ -2142,10 +2142,10 @@ class NVDishCollectorTestSuite:
             return False
         
         # Run with CPE determination enabled
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--cpe-determination"])
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001", additional_args=["--cpe-determination"])
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with CPE determination")
+            print(f"❌ FAIL: CVE processor failed with CPE determination")
             return False
         
         # Validate complete CPE determination workflow
@@ -2226,10 +2226,10 @@ class NVDishCollectorTestSuite:
         print(f"  ⚠️  NOTE: This test may be flaky due to external data dependencies")
         
         # Run analysis with CPE suggestions enabled for CVE-1337-0001 (confirmed to work with CPE suggestions)
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed for top 10 CPE suggestions test")
+            print(f"❌ FAIL: CVE processor failed for top 10 CPE suggestions test")
             print(f"STDERR: {stderr}")
             return False
         
@@ -2377,10 +2377,10 @@ class NVDishCollectorTestSuite:
         print(f"\n=== Test 20: Alias Extraction Integration ===")
         
         # Run with alias report enabled (this should trigger alias extraction integration)
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-0001", additional_args=["--alias-report", "--source-uuid", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"])
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-0001", additional_args=["--alias-report", "--source-uuid", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"])
         
         if not success:
-            print(f"❌ FAIL: Analysis tool failed with alias extraction")
+            print(f"❌ FAIL: CVE processor failed with alias extraction")
             if stderr:
                 print(f"Error: {stderr[:200]}...")
             return False
@@ -2433,7 +2433,7 @@ class NVDishCollectorTestSuite:
                     
                     # Validate sourceId format
                     source_id = alias_extraction.get('sourceId', '')
-                    if not source_id.startswith('Hashmire/Analysis_Tools'):
+                    if not source_id.startswith('Hashmire/Sisyphus'):
                         print(f"❌ FAIL: Entry {entry_index} alias extraction has invalid sourceId: {source_id}")
                         return False
                     
@@ -2799,10 +2799,10 @@ class NVDishCollectorTestSuite:
         """Test comprehensive platform mapping and CPE base string cross-product generation."""
         print(f"\n=== Test 23: Platform CPE Base String Enumeration ===")
         
-        success, output_path, stdout, stderr = self.run_analysis_tool("CVE-1337-4001")
+        success, output_path, stdout, stderr = self.run_processor("CVE-1337-4001")
         
         if not success:
-            print(f"❌ FAIL: Analysis tool execution failed")
+            print(f"❌ FAIL: CVE processor execution failed")
             if stdout:
                 print(f"  STDOUT: {stdout[:500]}")
             if stderr:

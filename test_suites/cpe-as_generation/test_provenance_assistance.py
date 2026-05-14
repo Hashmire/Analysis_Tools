@@ -16,7 +16,7 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from typing import Dict, List, Set, Tuple
 
-# Add src path for analysis_tool imports
+# Add src path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 from analysis_tool.storage.run_organization import get_latest_test_run_directory
 
@@ -31,24 +31,24 @@ class ProvenanceAssistanceTestSuite:
         self.failed = 0
         
     def generate_html(self):
-        """Generate HTML file from test data using the analysis tool."""
+        """Generate HTML file from test data using the CVE processor."""
         print("🔄 Generating HTML from test data...")
         
         # Get the project root path
         current_dir = Path.cwd()
         project_root = current_dir if (current_dir / "generate_dataset.py").exists() else current_dir.parent
-        run_analysis_path = project_root / "src" / "analysis_tool" / "core" / "analysis_tool.py"
+        run_analysis_path = project_root / "src" / "analysis_tool" / "core" / "cve_processor.py"
         
         if not run_analysis_path.exists():
-            self.add_result("HTML_GENERATION", False, f"Analysis tool entry point not found at {run_analysis_path}")
+            self.add_result("HTML_GENERATION", False, f"CVE processor entry point not found at {run_analysis_path}")
             return False
         
         try:
-            # Run the analysis tool to generate HTML using the entry point script
+            # Run the CVE processor to generate HTML using the entry point script
             # Disable cache for faster testing unless specifically testing cache functionality
             cmd = [
                 sys.executable, 
-                "-m", "src.analysis_tool.core.analysis_tool", 
+                "-m", "src.analysis_tool.core.cve_processor", 
                 "--test-file", 
                 str(self.test_file_path.resolve()),
                 "--no-cache",
@@ -68,10 +68,10 @@ class ProvenanceAssistanceTestSuite:
             )
             
             if result.returncode != 0:
-                print(f"❌ Analysis tool failed with return code {result.returncode}")
+                print(f"❌ CVE processor failed with return code {result.returncode}")
                 print(f"STDOUT: {result.stdout}")
                 print(f"STDERR: {result.stderr}")
-                self.add_result("HTML_GENERATION", False, f"Analysis tool failed: {result.stderr}")
+                self.add_result("HTML_GENERATION", False, f"CVE processor failed: {result.stderr}")
                 return False
             
             # Determine the expected HTML file path - test files go to run directories
@@ -96,10 +96,10 @@ class ProvenanceAssistanceTestSuite:
             return True
             
         except subprocess.TimeoutExpired:
-            self.add_result("HTML_GENERATION", False, "Analysis tool timed out")
+            self.add_result("HTML_GENERATION", False, "CVE processor timed out")
             return False
         except Exception as e:
-            self.add_result("HTML_GENERATION", False, f"Error running analysis tool: {e}")
+            self.add_result("HTML_GENERATION", False, f"Error running CVE processor: {e}")
             return False
     
     def load_files(self):

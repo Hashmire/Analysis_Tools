@@ -444,7 +444,7 @@ class TestConfigSystem:
                 )
 
             # -- application -------------------------------------------------------
-            chk('application.toolname', 'Hashmire/Analysis_Tools')
+            chk('application.toolname', 'Hashmire/Sisyphus')
             chk('application.version',  '0.4.0')
 
             # -- cache_settings.cpe_cache ------------------------------------------
@@ -473,7 +473,7 @@ class TestConfigSystem:
             # -- cache_settings.nvd_ish_output ------------------------------------
             # enabled/attribution_source/format/version are derived in get_nvd_ish_config(), not stored in config
             chk('cache_settings.nvd_ish_output.path',        'cache/nvd-ish_2.0_cves')
-            chk('cache_settings.nvd_ish_output.description', 'Enhanced NVD 2.0 format records with integrated CVE List V5 data and analysis tool processing outputs')
+            chk('cache_settings.nvd_ish_output.description', 'Enhanced NVD 2.0 format records with integrated CVE List V5 data and Sisyphus processing outputs')
 
             # -- cache_settings.confirmed_mappings --------------------------------
             chk('cache_settings.confirmed_mappings.path',        'cache/alias_mappings')

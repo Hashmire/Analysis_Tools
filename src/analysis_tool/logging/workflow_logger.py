@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Centralized Logging Utility for Analysis Tool
+Centralized Logging Utility
 
 This module provides organized logging functionality with groupings for different
 workflow stages of the CVE analysis pipeline.
@@ -39,7 +39,7 @@ class LogGroup(Enum):
 
 
 class WorkflowLogger:
-    """Centralized logger for the analysis tool workflow"""
+    """Centralized logger for the CVE analysis workflow"""
     
     def __init__(self, config_path: Optional[str] = None):
         """Initialize the logger with configuration"""

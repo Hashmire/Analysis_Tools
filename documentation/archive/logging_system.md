@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Analysis_Tools system uses standardized logging with consistent terminology, formatting, and severity levels. All logging is validated by a 53-test suite.
+Sisyphus uses standardized logging with consistent terminology, formatting, and severity levels. All logging is validated by a 53-test suite.
 
 ## Core Principles
 

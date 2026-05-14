@@ -8,7 +8,7 @@ Purpose
 -------
 Queries the NVD 2.0 API to fetch CVE records,
 populates the local NVD 2.0 and CVE List V5 disk caches, then hands off to
-analysis_tool.py for analysis. analysis_tool only references cached files, 
+cve_processor.py for analysis. cve_processor only references cached files,
 generate_dataset ensures those files are cached and current
 
 Generation Modes
@@ -30,13 +30,13 @@ query_nvd_cve_by_id()               Single targeted CVE fetch + cache write.
 _save_nvd_cve_to_cache_*()          Writes NVD 2.0 records to disk cache.
 _save_cve_list_v5_to_cache_*()      Writes CVE List V5 records to disk cache.
 _flush_cache_batches()              Persists all queued cache writes atomically.
-run_analysis_tool()                 Sole handoff point to analysis_tool.main()
+run_processor()                     Sole handoff point to cve_processor.main()
                                     via sys.argv injection with --file.
 main()                              Argument parsing and mode dispatch.
 
 Important Rules
 ---------------
-- All three generation modes converge at run_analysis_tool() before analysis.
+- All three generation modes converge at run_processor() before analysis.
 - Cache writes are batched in memory and flushed explicitly; on interrupt,
   _handle_interrupt() ensures the batch is flushed before exit.
 - --alias-report requires --source-uuid (except in --nvd-ish-only mode).
@@ -94,7 +94,7 @@ def resolve_output_path(output_file, run_directory=None):
 VERSION = config['application']['version']
 TOOLNAME = config['application']['toolname']
 
-# Get global logger instance (shared with analysis_tool)
+# Get global logger instance
 logger = get_logger()
 
 # Lists track all NVD and CVE List record cache updates
@@ -788,7 +788,7 @@ def query_nvd_cve_by_id(cve_id, api_key=None, output_file="cve_dataset.txt", run
 
 
 def main():
-    """Parse arguments and dispatch to the appropriate generation function (--cve, date-range, or status-based), then hand off to run_analysis_tool()."""
+    """Parse arguments and dispatch to the appropriate generation function (--cve, date-range, or status-based), then hand off to run_processor()."""
     # Register interrupt handler to flush cache on Ctrl+C
     signal.signal(signal.SIGINT, _handle_interrupt)
     signal.signal(signal.SIGTERM, _handle_interrupt)
@@ -1047,10 +1047,10 @@ def main():
         except Exception as e:
             logger.error(f"Failed to read dataset file: {e}", group="data_processing")
         
-        # Run analysis tool with existing run context
-        success = run_analysis_tool(output_file, resolved_api_key, run_directory, sdc_report, cpe_determination, alias_report, cpe_as_generator, nvd_ish_only, args.source_uuid)
+        # Run CVE processor with existing run context
+        success = run_processor(output_file, resolved_api_key, run_directory, sdc_report, cpe_determination, alias_report, cpe_as_generator, nvd_ish_only, args.source_uuid)
         if not success:
-            logger.error("Analysis tool execution failed", group="data_processing")
+            logger.error("CVE processor execution failed", group="data_processing")
             return 1
     else:
         logger.error("Dataset generation process failed: Unable to complete CVE data collection and processing", group="data_processing")
@@ -1059,8 +1059,8 @@ def main():
     return 0
 
 
-def run_analysis_tool(dataset_file, api_key=None, run_directory=None, sdc_report=False, cpe_determination=False, alias_report=False, cpe_as_generator=False, nvd_ish_only=False, source_uuid=None):
-    """Sole handoff point to analysis_tool.main(). Invokes it via sys.argv injection with --file pointing at run_directory/logs/<dataset_file>."""
+def run_processor(dataset_file, api_key=None, run_directory=None, sdc_report=False, cpe_determination=False, alias_report=False, cpe_as_generator=False, nvd_ish_only=False, source_uuid=None):
+    """Sole handoff point to cve_processor.main(). Invokes it via sys.argv injection with --file pointing at run_directory/logs/<dataset_file>."""
     
     try:
         # If we have a run directory context, the dataset should be in that run
@@ -1103,14 +1103,12 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, sdc_report
         
         logger.info("=== END Generate Dataset Handoff Phase ===", group="DATASET")
         
-        # Direct import from analysis_tool
-        from src.analysis_tool.core.analysis_tool import main
+        from src.analysis_tool.core.cve_processor import main
         
         # Temporarily replace sys.argv to pass parameters to main()
         original_argv = sys.argv[:]
         try:
-            # Build argument list for analysis tool
-            sys.argv = ["analysis_tool.py", "--file", str(dataset_path)]
+            sys.argv = ["cve_processor.py", "--file", str(dataset_path)]
             
             # Add run context - pass full run directory path as run-id
             sys.argv.extend(["--run-id", str(run_directory)])
@@ -1128,18 +1126,17 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, sdc_report
             if source_uuid:
                 sys.argv.extend(["--source-uuid", source_uuid])
             
-            # Execute analysis tool main function
             exit_code = main()
             
-            # Analysis tool returns 0 for success, non-zero for failure
+            # Returns 0 for success, non-zero for failure
             if exit_code == 0:
                 logger.info("-" * 60, group="DATASET")
-                logger.info("Analysis tool completed successfully", group="INIT")
+                logger.info("CVE processor completed successfully", group="INIT")
                 logger.info(f"Results available in: {run_directory}", group="INIT")
                 
                 return True
             else:
-                logger.error(f"Analysis tool failed with exit code {exit_code}", group="INIT")
+                logger.error(f"CVE processor failed with exit code {exit_code}", group="INIT")
                 return False
             
         finally:
@@ -1179,7 +1176,7 @@ def run_analysis_tool(dataset_file, api_key=None, run_directory=None, sdc_report
                 logger.error(f"Traceback: {traceback.format_exc()}", group="DATASET")
             
     except Exception as e:
-        logger.error(f"Failed to run analysis tool: {e}", group="INIT")
+        logger.error(f"Failed to run CVE processor: {e}", group="INIT")
         return False
     finally:
         # Final cleanup: Flush any remaining cache batches before process termination
